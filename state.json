@@ -1,0 +1,174 @@
+{
+    "octaves": {},
+    "mixers": {},
+    "twpas": {},
+    "qubits": {
+        "q1": {
+            "id": "q1",
+            "macros": {},
+            "xy": {
+                "extras": {},
+                "operations": {
+                    "saturation": {
+                        "length": 50000,
+                        "id": null,
+                        "digital_marker": null,
+                        "amplitude": 0.03548133892335755,
+                        "axis_angle": 0,
+                        "__class__": "quam.components.pulses.SquarePulse"
+                    },
+                    "x180": {
+                        "length": 20,
+                        "id": null,
+                        "digital_marker": null,
+                        "amplitude": 1,
+                        "axis_angle": null,
+                        "__class__": "quam.components.pulses.SquarePulse"
+                    }
+                },
+                "id": null,
+                "digital_outputs": {},
+                "sticky": null,
+                "intermediate_frequency": "#./inferred_intermediate_frequency",
+                "thread": null,
+                "core": null,
+                "LO_frequency": "#./upconverter_frequency",
+                "RF_frequency": 6012000000.0,
+                "opx_output": "#/wiring/qubits/q1/xy/opx_output",
+                "upconverter": 1,
+                "__class__": "quam_builder.architecture.superconducting.components.xy_drive.XYDriveMW"
+            },
+            "resonator": {
+                "depletion_time": 2500,
+                "frequency_bare": null,
+                "f_01": 7610000000.0,
+                "f_12": null,
+                "confusion_matrix": null,
+                "gef_centers": null,
+                "gef_confusion_matrix": null,
+                "GEF_frequency_shift": null,
+                "extras": {},
+                "operations": {
+                    "readout": {
+                        "length": 2500,
+                        "id": null,
+                        "digital_marker": "ON",
+                        "amplitude": 0.15848931924611134,
+                        "axis_angle": null,
+                        "threshold": 0.0,
+                        "rus_exit_threshold": null,
+                        "integration_weights": "#./default_integration_weights",
+                        "integration_weights_angle": 0,
+                        "__class__": "quam.components.pulses.SquareReadoutPulse"
+                    },
+                    "readout_GEF": {
+                        "length": 2000,
+                        "id": null,
+                        "digital_marker": "ON",
+                        "amplitude": 0.01,
+                        "axis_angle": null,
+                        "threshold": 0.0,
+                        "rus_exit_threshold": null,
+                        "integration_weights": "#./default_integration_weights",
+                        "integration_weights_angle": 0,
+                        "__class__": "quam.components.pulses.SquareReadoutPulse"
+                    }
+                },
+                "id": null,
+                "digital_outputs": {},
+                "sticky": null,
+                "intermediate_frequency": "#./inferred_intermediate_frequency",
+                "thread": null,
+                "core": null,
+                "opx_input": "#/wiring/qubits/q1/rr/opx_input",
+                "time_of_flight": 32,
+                "smearing": 0,
+                "LO_frequency": "#./upconverter_frequency",
+                "RF_frequency": 7610000000.0,
+                "opx_output": "#/wiring/qubits/q1/rr/opx_output",
+                "upconverter": 1,
+                "__class__": "quam_builder.architecture.superconducting.components.readout_resonator.ReadoutResonatorMW"
+            },
+            "f_01": 6012000000.0,
+            "f_12": null,
+            "anharmonicity": 150000000.0,
+            "T1": null,
+            "T2ramsey": null,
+            "T2echo": null,
+            "thermalization_time_factor": 5,
+            "sigma_time_factor": 5,
+            "GEF_frequency_shift": null,
+            "chi": null,
+            "grid_location": "0,0",
+            "gate_fidelity": {},
+            "extras": {},
+            "z": null,
+            "freq_vs_flux_01_quad_term": 0.0,
+            "phi0_current": 0.0,
+            "phi0_voltage": 0.0,
+            "__class__": "quam_builder.architecture.superconducting.qubit.flux_tunable_transmon.FluxTunableTransmon"
+        }
+    },
+    "qubit_pairs": {},
+    "active_qubit_names": [
+        "q1"
+    ],
+    "active_qubit_pair_names": [],
+    "ports": {
+        "analog_outputs": {},
+        "analog_inputs": {},
+        "mw_outputs": {
+            "con1": {
+                "7": {
+                    "1": {
+                        "controller_id": "con1",
+                        "fem_id": 7,
+                        "port_id": 1,
+                        "band": 3,
+                        "upconverter_frequency": 7500000000,
+                        "upconverters": null,
+                        "delay": 0,
+                        "shareable": false,
+                        "sampling_rate": 1000000000.0,
+                        "full_scale_power_dbm": 16,
+                        "__class__": "quam.components.ports.analog_outputs.MWFEMAnalogOutputPort"
+                    },
+                    "2": {
+                        "controller_id": "con1",
+                        "fem_id": 7,
+                        "port_id": 2,
+                        "band": 2,
+                        "upconverter_frequency": 6000000000.0,
+                        "upconverters": null,
+                        "delay": 0,
+                        "shareable": false,
+                        "sampling_rate": 1000000000.0,
+                        "full_scale_power_dbm": 10,
+                        "__class__": "quam.components.ports.analog_outputs.MWFEMAnalogOutputPort"
+                    }
+                }
+            }
+        },
+        "mw_inputs": {
+            "con1": {
+                "7": {
+                    "1": {
+                        "controller_id": "con1",
+                        "fem_id": 7,
+                        "port_id": 1,
+                        "band": 3,
+                        "downconverter_frequency": "#/ports/mw_outputs/con1/7/1/upconverter_frequency",
+                        "gain_db": null,
+                        "sampling_rate": 1000000000.0,
+                        "shareable": false,
+                        "__class__": "quam.components.ports.analog_inputs.MWFEMAnalogInputPort"
+                    }
+                }
+            }
+        },
+        "digital_outputs": {},
+        "__class__": "quam.components.ports.ports_containers.FEMPortsContainer"
+    },
+    "extras": {},
+    "__class__": "quam_config.my_quam.Quam"
+}

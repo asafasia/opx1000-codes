@@ -1,0 +1,20 @@
+{
+    "wiring": {
+        "qubits": {
+            "q1": {
+                "rr": {
+                    "opx_input": "#/ports/mw_inputs/con1/7/1",
+                    "opx_output": "#/ports/mw_outputs/con1/7/1"
+                },
+                "xy": {
+                    "opx_output": "#/ports/mw_outputs/con1/7/2"
+                }
+            }
+        }
+    },
+    "network": {
+        "host": "192.168.88.253",
+        "port": null,
+        "cluster_name": "katz_cluster"
+    }
+}
