@@ -1,0 +1,112 @@
+Temperature Monitoring Report
+========================================
+
+Controller: con1
+Runtime: 0.6 s
+Samples: 1
+Poll interval: 1.0 s
+
+Chassis
+--------------------
+Min temperature : 45.81
+Max temperature : 45.81
+Avg temperature : 45.81
+Std deviation   : 0.00
+Drift rate      : 0.0000 deg/s
+
+Chassis CPU
+--------------------
+Min temperature : 45.85
+Max temperature : 45.85
+Avg temperature : 45.85
+Std deviation   : 0.00
+Drift rate      : 0.0000 deg/s
+
+CRPS 0
+--------------------
+Min temperature : 42.38
+Max temperature : 42.38
+Avg temperature : 42.38
+Std deviation   : 0.00
+Drift rate      : 0.0000 deg/s
+
+CRPS 1
+--------------------
+Min temperature : 0.00
+Max temperature : 0.00
+Avg temperature : 0.00
+Std deviation   : 0.00
+Drift rate      : 0.0000 deg/s
+
+CRPS 2
+--------------------
+Min temperature : 0.00
+Max temperature : 0.00
+Avg temperature : 0.00
+Std deviation   : 0.00
+Drift rate      : 0.0000 deg/s
+
+FEM 0
+--------------------
+Min temperature : 0.00
+Max temperature : 0.00
+Avg temperature : 0.00
+Std deviation   : 0.00
+Drift rate      : 0.0000 deg/s
+
+FEM 1
+--------------------
+Min temperature : 0.00
+Max temperature : 0.00
+Avg temperature : 0.00
+Std deviation   : 0.00
+Drift rate      : 0.0000 deg/s
+
+FEM 2
+--------------------
+Min temperature : 0.00
+Max temperature : 0.00
+Avg temperature : 0.00
+Std deviation   : 0.00
+Drift rate      : 0.0000 deg/s
+
+FEM 3
+--------------------
+Min temperature : 55.66
+Max temperature : 55.66
+Avg temperature : 55.66
+Std deviation   : 0.00
+Drift rate      : 0.0000 deg/s
+
+FEM 4
+--------------------
+Min temperature : 0.00
+Max temperature : 0.00
+Avg temperature : 0.00
+Std deviation   : 0.00
+Drift rate      : 0.0000 deg/s
+
+FEM 5
+--------------------
+Min temperature : 61.12
+Max temperature : 61.12
+Avg temperature : 61.12
+Std deviation   : 0.00
+Drift rate      : 0.0000 deg/s
+
+FEM 6
+--------------------
+Min temperature : 0.00
+Max temperature : 0.00
+Avg temperature : 0.00
+Std deviation   : 0.00
+Drift rate      : 0.0000 deg/s
+
+FEM 7
+--------------------
+Min temperature : 0.00
+Max temperature : 0.00
+Avg temperature : 0.00
+Std deviation   : 0.00
+Drift rate      : 0.0000 deg/s
+
