@@ -1,4 +1,34 @@
+# Generated experiment and simulation output
 data/
+
+# Python bytecode and caches
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Python environments and packaging
+.venv/
+venv/
+env/
+.env
+.env.*
+*.egg-info/
+build/
+dist/
+
+# Test, type-checker, and linter caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Generated documentation
+ising_simulation/README.html
+ising_simulation/README_files/
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/settings.json
