@@ -36,3 +36,20 @@ using threshold `0.75`, performs a zero-temperature Ising update, emits a pulse
 representing the updated state, and plots the saved state, energy history, and
 simulated analog waveforms. For every iteration, the waveform contains the
 synthetic input pulse followed by the updated-state pulse.
+
+The experiment saves its results to:
+
+```text
+data/ising_machine/one_spin_experiment.csv
+```
+
+Compare those results against an independent pure-Python reference model:
+
+```powershell
+python -m ising_machine.one_spin_reference
+```
+
+The comparison checks every state, spin, flip decision, energy, and flip cost,
+then plots experiment values beside the expected values. If the experiment CSV
+does not exist yet, the reference script runs and plots the pure-Python model
+by itself.

@@ -1,6 +1,7 @@
 """Simulate a one-spin classical Ising update using QUA control flow."""
 
 import argparse
+import csv
 import sys
 from pathlib import Path
 
@@ -30,6 +31,7 @@ DEFAULT_FIELD = 0.25
 DEFAULT_LOW_SIGNAL = 0.5
 DEFAULT_HIGH_SIGNAL = 1.0
 DEFAULT_SIMULATION_DURATION = 20_000
+DEFAULT_RESULTS_PATH = REPOSITORY_ROOT / "data" / "ising_machine" / "one_spin_experiment.csv"
 
 
 def required_simulation_duration(machine, iterations):
@@ -185,6 +187,35 @@ def plot_simulated_waveforms(job):
     fig.tight_layout()
 
 
+def save_results_csv(results, path, threshold, field):
+    """Save QUA experiment results in a format used by the reference model."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    columns = (
+        "signal",
+        "initial_state",
+        "final_state",
+        "spin",
+        "energy_before",
+        "energy_after",
+        "delta_energy",
+        "flipped",
+    )
+    with path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+        writer.writerow(("iteration", "threshold", "field", *columns))
+        for index in range(len(results["signal"])):
+            writer.writerow(
+                (
+                    index,
+                    threshold,
+                    field,
+                    *(results[column][index] for column in columns),
+                )
+            )
+    return path
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--iterations", type=int, default=DEFAULT_ITERATIONS)
@@ -199,6 +230,12 @@ def main():
         help="Simulation duration in 4 ns clock cycles.",
     )
     parser.add_argument("--no-plot", action="store_true")
+    parser.add_argument(
+        "--results-path",
+        type=Path,
+        default=DEFAULT_RESULTS_PATH,
+        help="CSV path used by the pure-Python reference comparison.",
+    )
     args = parser.parse_args()
 
     machine = create_machine()
@@ -226,6 +263,8 @@ def main():
     )
     job.wait_until("Done", timeout=120)
     results = fetch_results(job)
+    results_path = save_results_csv(results, args.results_path, args.threshold, args.field)
+    print(f"Saved results to {results_path}")
 
     completed_iterations = len(results["signal"])
     if completed_iterations != args.iterations:
