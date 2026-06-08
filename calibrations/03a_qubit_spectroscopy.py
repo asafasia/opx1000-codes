@@ -76,7 +76,6 @@ node.machine.connect()  # Connect to the machine to fetch the qubits information
 
 node.machine.qmm.close_all_quantum_machines()
 
-
 # %% {Create_QUA_program}
 @node.run_action(skip_if=node.parameters.load_data_id is not None)
 def create_qua_program(node: QualibrationNode[Parameters, Quam]):
@@ -84,7 +83,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
     # Class containing tools to help handle units and conversions.
     u = unit(coerce_to_integer=True)
     # Get the active qubits from the node and organize them by batches
-    node.namespace["qubits"] = qubits = get_qubits(node)
+    node.namespace["qubits"] = qubits = get_qubits(node) 
     num_qubits = len(qubits)
 
     operation = node.parameters.operation  # The qubit operation to play

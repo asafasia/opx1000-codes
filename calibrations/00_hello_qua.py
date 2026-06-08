@@ -42,7 +42,7 @@ node.machine = create_machine()
 
 node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
 
-node.machine.qmm.close_all_quantum_machines()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
+node.machine.qmm.close_all_qms()
 
 
 # %% {Create_QUA_program}
