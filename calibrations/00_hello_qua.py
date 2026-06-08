@@ -10,13 +10,11 @@ from qualang_tools.results import progress_counter
 from qualang_tools.units import unit
 
 from qualibrate import QualibrationNode
-from quam_config import Quam
+from quam_config import Quam, create_machine
 from calibration_utils.hello_qua import Parameters
 from qualibration_libs.parameters import get_qubits
 from qualibration_libs.runtime import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
-
-# from quam_config.populate_quam_lf_mw_fems import machine
 
 description = """
         Basic script to play with the QUA program and test the QOP connectivity.
@@ -39,8 +37,8 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     pass
 
 
-# # Instantiate the QUAM class from the state file
-node.machine = Quam.load()
+# Create the machine directly from profiles/main without loading state.json.
+node.machine = create_machine()
 
 node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
 

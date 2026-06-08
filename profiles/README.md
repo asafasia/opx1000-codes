@@ -79,6 +79,23 @@ from quam_config.create_machine_from_profile import create_machine_from_profile
 machine = create_machine_from_profile("main")
 ```
 
+Calibration experiments can use the shorter in-memory factory:
+
+```python
+from quam_config import create_machine
+
+machine = create_machine()          # profiles/main
+machine = create_machine("testing") # profiles/testing
+```
+
+Set `QUAM_PROFILE` to select a profile for all calibration experiments without
+editing their source:
+
+```powershell
+$env:QUAM_PROFILE = "main"
+python calibrations/03a_qubit_spectroscopy.py
+```
+
 Select another profile or skip the wiring plot with:
 
 ```powershell

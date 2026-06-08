@@ -13,7 +13,7 @@ from qualang_tools.units import unit
 
 
 from qualibrate import QualibrationNode
-from quam_config import Quam
+from quam_config import Quam, create_machine
 from calibration_utils.qubit_spectroscopy import (
     Parameters,
     process_raw_dataset,
@@ -69,9 +69,8 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     pass
 
 
-# Instantiate the QUAM class from the state file
-
-node.machine = Quam.load()
+# Create the machine directly from profiles/main without loading state.json.
+node.machine = create_machine()
 
 node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
 
