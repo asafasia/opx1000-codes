@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "qubits": {
+    "q1": {
+      "enabled": true,
+      "grid_location": [
+        0,
+        0
+      ],
+      "frequencies_hz": {
+        "qubit_f01": 6012000000,
+        "qubit_f12": null,
+        "qubit_lo": 6000000000,
+        "resonator": 7610000000,
+        "resonator_bare": null,
+        "resonator_lo": 7500000000
+      },
+      "transmon": {
+        "anharmonicity_hz": 150000000,
+        "t1_ns": null,
+        "t2_ramsey_ns": null,
+        "t2_echo_ns": null,
+        "thermalization_time_ns": null
+      },
+      "readout": {
+        "time_of_flight_ns": 32,
+        "depletion_time_ns": 2500,
+        "threshold": 0.0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0.0
+      },
+      "operations": {
+        "x180": "x180_const",
+        "x180_drag": "x180_drag",
+        "x180_cosine": "x180_cosine",
+        "saturation": "saturation",
+        "readout": "readout"
+      }
+    }
+  }
+}
