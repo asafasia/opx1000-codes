@@ -23,13 +23,13 @@ from qm.qua import *
 from ising_machine.model import SPIN_DOWN_AMPLITUDE, SPIN_UP_AMPLITUDE
 
 
-DEFAULT_ROWS = 50
-DEFAULT_COLS = 50
+DEFAULT_ROWS = 110
+DEFAULT_COLS = 110
 DEFAULT_ITERATIONS = 2000
 DEFAULT_COUPLING = 0.2
 DEFAULT_FIELD = 0.0
-DEFAULT_TEMPERATURE = 0.42
-DEFAULT_ITERATION_WAIT_MS = 50.0
+DEFAULT_TEMPERATURE = 0.4
+DEFAULT_ITERATION_WAIT_MS = 0
 DEFAULT_SEED = 7
 DEFAULT_OUTPUT = REPOSITORY_ROOT / "data" / "ising_machine" / "pseudo_spin_2d_run.csv"
 
@@ -111,15 +111,17 @@ def build_2d_pseudo_spin_program(
     random_seed: int,
     save_configurations: bool = False,
     iteration_wait_ns: int = 0,
+    live_latest_configuration: bool = False,
 ):
     """Build a random-site 2D Metropolis experiment using four grid neighbors."""
     if iterations < 1:
         raise ValueError("iterations must be positive")
     if iteration_wait_ns < 0:
         raise ValueError("iteration_wait_ns cannot be negative")
+    if live_latest_configuration and not save_configurations:
+        raise ValueError("live_latest_configuration requires save_configurations")
     initial_spins = problem.validate_spins(initial_spins)
     validate_controller_ranges(problem, temperature_start, temperature_end)
-    left, right, up, down = problem.neighbor_indices()
     output = machine.qubits["q1"].resonator
     n_spins = problem.n_spins
     temperature_step = (
@@ -132,13 +134,15 @@ def build_2d_pseudo_spin_program(
         iteration = declare(int)
         spin_index = declare(int)
         attempt = declare(int)
+        row = declare(int)
+        col = declare(int)
+        left_index = declare(int)
+        right_index = declare(int)
+        up_index = declare(int)
+        down_index = declare(int)
         neighbor_sum = declare(int)
         magnetization = declare(int)
         spins = declare(int, value=initial_spins.tolist())
-        left_indices = declare(int, value=left.tolist())
-        right_indices = declare(int, value=right.tolist())
-        up_indices = declare(int, value=up.tolist())
-        down_indices = declare(int, value=down.tolist())
         pulse_amplitude = declare(fixed)
         temperature = declare(fixed)
         local_field = declare(fixed)
@@ -149,6 +153,8 @@ def build_2d_pseudo_spin_program(
 
         if save_configurations:
             spin_stream = declare_stream()
+        if live_latest_configuration:
+            iteration_stream = declare_stream()
         temperature_stream = declare_stream()
         magnetization_stream = declare_stream()
 
@@ -163,16 +169,35 @@ def build_2d_pseudo_spin_program(
                     assign(pulse_amplitude, SPIN_UP_AMPLITUDE)
                 with else_():
                     assign(pulse_amplitude, SPIN_DOWN_AMPLITUDE)
-                output.measure("readout", amplitude_scale=pulse_amplitude)
+                output.play("readout", amplitude_scale=pulse_amplitude)
 
             with for_(attempt, 0, attempt < n_spins, attempt + 1):
                 assign(spin_index, rng.rand_int(n_spins))
+                assign(row, spin_index / problem.cols)
+                assign(col, spin_index - row * problem.cols)
+
+                assign(left_index, spin_index - 1)
+                with if_(col == 0):
+                    assign(left_index, spin_index + problem.cols - 1)
+
+                assign(right_index, spin_index + 1)
+                with if_(col == problem.cols - 1):
+                    assign(right_index, spin_index - problem.cols + 1)
+
+                assign(up_index, spin_index - problem.cols)
+                with if_(row == 0):
+                    assign(up_index, spin_index + n_spins - problem.cols)
+
+                assign(down_index, spin_index + problem.cols)
+                with if_(row == problem.rows - 1):
+                    assign(down_index, spin_index - n_spins + problem.cols)
+
                 assign(
                     neighbor_sum,
-                    spins[left_indices[spin_index]]
-                    + spins[right_indices[spin_index]]
-                    + spins[up_indices[spin_index]]
-                    + spins[down_indices[spin_index]],
+                    spins[left_index]
+                    + spins[right_index]
+                    + spins[up_index]
+                    + spins[down_index],
                 )
                 assign(
                     local_field,
@@ -203,12 +228,19 @@ def build_2d_pseudo_spin_program(
                     save(spins[spin_index], spin_stream)
             save(temperature, temperature_stream)
             save(magnetization, magnetization_stream)
+            if live_latest_configuration:
+                save(iteration, iteration_stream)
             if iteration_wait_ns:
                 output.wait(iteration_wait_ns)
 
         with stream_processing():
             if save_configurations:
-                spin_stream.buffer(n_spins).save_all("configurations")
+                if live_latest_configuration:
+                    spin_stream.buffer(n_spins).save("configuration")
+                else:
+                    spin_stream.buffer(n_spins).save_all("configurations")
+            if live_latest_configuration:
+                iteration_stream.save("iteration")
             temperature_stream.save_all("temperatures")
             magnetization_stream.save_all("magnetizations")
 
@@ -237,7 +269,7 @@ def fetch_2d_results_live(
     """Fetch completed grids and update a live 2D spin image."""
     results = fetching_tool(
         job,
-        data_list=["configurations", "temperatures", "magnetizations"],
+        data_list=["configuration", "temperatures", "magnetizations", "iteration"],
         mode="live",
     )
     figure, axis = plt.subplots(figsize=(7, 6))
@@ -261,13 +293,13 @@ def fetch_2d_results_live(
         configurations = _normalize_fetched_values(fetched[0])
         temperatures = _normalize_fetched_values(fetched[1]).reshape(-1)
         magnetizations = _normalize_fetched_values(fetched[2]).reshape(-1)
+        iteration = int(np.asarray(fetched[3]).reshape(-1)[-1])
         if configurations.size == 0:
             plt.pause(refresh_interval)
             continue
 
-        configurations = configurations.reshape(-1, problem.n_spins)
+        configurations = configurations.reshape(1, problem.n_spins)
         common_length = min(
-            len(configurations),
             len(temperatures),
             len(magnetizations),
         )
@@ -276,12 +308,13 @@ def fetch_2d_results_live(
             continue
 
         latest = (
-            configurations[:common_length],
+            configurations,
             temperatures[:common_length],
             magnetizations[:common_length],
         )
-        if common_length != completed:
-            completed = common_length
+        new_completed = min(iteration + 1, common_length)
+        if new_completed != completed:
+            completed = new_completed
             image.set_data(latest[0][-1].reshape(problem.rows, problem.cols))
             axis.set_title(f"Live 2D Spin Grid: {completed}/{iterations} iterations")
             progress_counter(
@@ -418,6 +451,7 @@ def main() -> None:
         args.seed,
         save_configurations=args.save_configurations or args.live_plot,
         iteration_wait_ns=round(args.iteration_wait_ms * 1_000_000),
+        live_latest_configuration=args.live_plot,
     )
     qmm = machine.connect()
     qm = qmm.open_qm(machine.generate_config())

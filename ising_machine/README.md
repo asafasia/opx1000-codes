@@ -169,12 +169,22 @@ python -m ising_machine.pseudo_spin_2d_experiment --live-plot --iteration-wait-m
 python -m ising_machine.pseudo_spin_2d_experiment --iteration-wait-ms 0
 ```
 
+Live mode retains only the latest full grid on the result server, rather than
+all historical grids. This greatly reduces result memory for large grids.
+Use `--save-configurations` without `--live-plot` only when every historical
+grid is actually needed.
+
+The 2D experiment emits amplitude-coded readout waveforms with `play()` rather
+than `measure()`, because the pseudo-spins do not require acquisition. This
+avoids activating the measurement path thousands of times per iteration.
+
 Compared with the 1D ring, the 2D model introduces:
 
 - Four neighbors per spin instead of two, increasing each update's arithmetic.
 - Row/column topology and periodic wrapping in two directions.
-- Four precomputed neighbor-index arrays on the OPX, so controller memory is
-  still linear in the spin count but has a larger constant factor.
+- Extra row/column and periodic-boundary arithmetic on every update. Neighbor
+  indices are calculated on the OPX instead of stored in four large arrays,
+  keeping persistent array memory close to the single spin array.
 - A qualitatively richer phase transition and 2D domain-wall geometry.
 - More expensive visualization and configuration transfer because each saved
   state is a complete grid.
