@@ -36,7 +36,7 @@
       "target": "resonator",
       "type": "constant",
       "amplitude": 0.15848931924611134,
-      "length_ns": 2500,
+      "length_ns": 100,
       "digital_marker": "ON"
     }
   }

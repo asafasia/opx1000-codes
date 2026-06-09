@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import sys
+import time
 
 import numpy as np
 
@@ -14,6 +15,8 @@ else:
 
 
 def main() -> None:
+    
+    t1 = time.time()
     temperatures = np.concatenate(
         [
             np.linspace(1.5, 2.0, 5, endpoint=False),
@@ -23,13 +26,14 @@ def main() -> None:
     )
     rows = temperature_sweep(
         temperatures,
-        size=24,
+        size=30,
         equilibration_sweeps=500,
         sample_sweeps=1_000,
         sample_interval=5,
         seed=7,
     )
-
+    t2 = time.time()
+    print(f"Completed temperature sweep in {t2 - t1:.2f} seconds.")
     output_dir = Path(__file__).resolve().parents[1] / "data" / "ising_simulation"
     save_csv(rows, output_dir / "temperature_sweep.csv")
     save_plot(rows, output_dir / "temperature_sweep.png")
