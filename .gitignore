@@ -6,6 +6,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Generated Quarto README output
+/ising_simulation/README.html
+/ising_simulation/README_files/
+
 # Python environments and packaging
 .venv/
 venv/
