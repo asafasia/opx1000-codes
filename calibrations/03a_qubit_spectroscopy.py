@@ -21,6 +21,7 @@ from calibration_utils.qubit_spectroscopy import (
     log_fitted_results,
     plot_raw_data_with_fit,
 )
+from saver import CalibrationSaver, current_profile_name
 from qualibration_libs.parameters import get_qubits
 from qualibration_libs.runtime import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
@@ -214,6 +215,18 @@ def load_data(node: QualibrationNode[Parameters, Quam]):
     node.parameters.load_data_id = load_data_id
     # Get the active qubits from the loaded node parameters
     node.namespace["qubits"] = get_qubits(node)
+
+
+# %% {Save_raw_results}
+@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
+def save_raw_results(node: QualibrationNode[Parameters, Quam]):
+    """Save the acquired vectors and a snapshot of the selected profile."""
+    output_directory = CalibrationSaver().save_xarray(
+        node.name,
+        node.results["ds_raw"],
+        profile_name=current_profile_name(),
+    )
+    node.log(f"Raw calibration results saved to {output_directory}")
 
 
 # %% {Analyse_data}

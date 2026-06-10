@@ -12,7 +12,7 @@ from qualang_tools.results import progress_counter
 from qualang_tools.units import unit
 
 from qualibrate import QualibrationNode
-from quam_config import Quam
+from quam_config import Quam, create_machine
 from calibration_utils.resonator_spectroscopy import (
     Parameters,
     process_raw_dataset,
@@ -21,6 +21,7 @@ from calibration_utils.resonator_spectroscopy import (
     plot_raw_amplitude_with_fit,
     plot_raw_phase,
 )
+from saver import CalibrationSaver, current_profile_name
 from qualibration_libs.parameters import get_qubits
 from qualibration_libs.runtime import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
@@ -61,8 +62,8 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     pass
 
 
-# Instantiate the QUAM class from the state file
-node.machine = Quam.load()
+# Create the machine directly from the selected profile without loading state.json.
+node.machine = create_machine()
 
 
 # %% {Create_QUA_program}
@@ -169,6 +170,18 @@ def load_data(node: QualibrationNode[Parameters, Quam]):
     node.parameters.load_data_id = load_data_id
     # Get the active qubits from the loaded node parameters
     node.namespace["qubits"] = get_qubits(node)
+
+
+# %% {Save_raw_results}
+@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
+def save_raw_results(node: QualibrationNode[Parameters, Quam]):
+    """Save the acquired vectors and a snapshot of the selected profile."""
+    output_directory = CalibrationSaver().save_xarray(
+        node.name,
+        node.results["ds_raw"],
+        profile_name=current_profile_name(),
+    )
+    node.log(f"Raw calibration results saved to {output_directory}")
 
 
 # %% {Analyse_data}
