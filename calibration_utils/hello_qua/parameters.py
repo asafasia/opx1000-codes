@@ -1,13 +1,10 @@
 from qualibrate import NodeParameters
 from qualibrate.core.parameters import RunnableParameters
-from qualibration_libs.parameters import (
-    QubitsExperimentNodeParameters,
-    CommonNodeParameters,
-)
+from qualibration_libs.parameters import QubitsExperimentNodeParameters, CommonNodeParameters
 
 
 class NodeSpecificParameters(RunnableParameters):
-    num_shots: int = 100000
+    num_shots: int = 100
     """Number of averages to perform. Default is 100."""
 
 
