@@ -28,15 +28,15 @@
     "saturation": {
       "target": "qubit",
       "type": "saturation",
-      "amplitude": 0.3548133892335755,
+      "amplitude": 0.6548133892335755,
       "length_ns": 50000,
       "axis_angle_rad": 0.0
     },
     "readout": {
       "target": "resonator",
       "type": "constant",
-      "amplitude": 0.15848931924611134,
-      "length_ns": 100,
+      "amplitude": 0.315848931924611134,
+      "length_ns": 2000,
       "digital_marker": "ON"
     }
   }

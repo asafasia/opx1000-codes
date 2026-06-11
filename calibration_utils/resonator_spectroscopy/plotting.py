@@ -1,4 +1,5 @@
 from typing import List
+import matplotlib.pyplot as plt
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -47,9 +48,9 @@ def plot_raw_phase(ds: xr.Dataset, qubits: List[AnyTransmon]) -> Figure:
     return grid.fig
 
 
-def plot_raw_amplitude_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
+def plot_raw_amplitude(ds: xr.Dataset, qubits: List[AnyTransmon]):
     """
-    Plots the resonator spectroscopy amplitude IQ_abs with fitted curves for the given qubits.
+    Plot overlaid absolute resonator responses for ground and mixed states.
 
     Parameters
     ----------
@@ -57,9 +58,6 @@ def plot_raw_amplitude_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits:
         The dataset containing the quadrature data.
     qubits : list of AnyTransmon
         A list of qubits to plot.
-    fits : xr.Dataset
-        The dataset containing the fit parameters.
-
     Returns
     -------
     Figure
@@ -70,14 +68,47 @@ def plot_raw_amplitude_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits:
     - The function creates a grid of subplots, one for each qubit.
     - Each subplot contains the raw data and the fitted curve.
     """
-    grid = QubitGrid(ds, [q.grid_location for q in qubits])
-    for ax, qubit in grid_iter(grid):
-        plot_individual_amplitude_with_fit(ax, ds, qubit, fits.sel(qubit=qubit["qubit"]))
+    locations = [tuple(int(value) for value in q.grid_location.split(",")) for q in qubits]
+    rows = max(row for row, _ in locations) + 1
+    columns = max(column for _, column in locations) + 1
+    height_ratios = [3, 1] * rows
+    fig, axes = plt.subplots(
+        2 * rows,
+        columns,
+        figsize=(15, 9),
+        squeeze=False,
+        sharex="col",
+        gridspec_kw={"height_ratios": height_ratios},
+    )
 
-    grid.fig.suptitle("Resonator spectroscopy: ground and mixed-state amplitude")
-    grid.fig.set_size_inches(15, 9)
-    grid.fig.tight_layout()
-    return grid.fig
+    used_axes = set()
+    for qubit, (row, column) in zip(qubits, locations):
+        spectrum_ax = axes[2 * row, column]
+        difference_ax = axes[2 * row + 1, column]
+        used_axes.update({(2 * row, column), (2 * row + 1, column)})
+
+        selected = ds.assign_coords(full_freq_GHz=ds.full_freq / u.GHz).sel(qubit=qubit.name)
+        ground = selected.ground_IQ_abs / u.mV
+        mixed = selected.mixed_IQ_abs / u.mV
+        ground.plot(ax=spectrum_ax, x="full_freq_GHz", label="Ground")
+        mixed.plot(ax=spectrum_ax, x="full_freq_GHz", label="Mixed (saturation)")
+        spectrum_ax.set_title(qubit.name)
+        spectrum_ax.set_xlabel("")
+        spectrum_ax.set_ylabel(r"$|IQ|$ [mV]")
+        spectrum_ax.legend()
+
+        abs(mixed - ground).plot(ax=difference_ax, x="full_freq_GHz", color="tab:red")
+        difference_ax.set_xlabel("RF frequency [GHz]")
+        difference_ax.set_ylabel(r"$\left||IQ|_{mixed}-|IQ|_{ground}\right|$ [mV]")
+
+    for row in range(2 * rows):
+        for column in range(columns):
+            if (row, column) not in used_axes:
+                axes[row, column].set_visible(False)
+
+    fig.suptitle("Resonator spectroscopy")
+    fig.tight_layout()
+    return fig
 
 
 def plot_individual_amplitude_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fit: xr.Dataset = None):
