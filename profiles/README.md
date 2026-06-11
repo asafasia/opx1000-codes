@@ -7,8 +7,8 @@ pulse definitions. Each profile is a versioned directory:
 profiles/
   main/
     profile.json       Profile manifest and active qubits
-    connectivity.json Hardware, network, ports, and line connections
-    qubits.json        Qubit, resonator, LO, coherence, and readout parameters
+    connectivity.json Hardware, network, ports, line connections, and LOs
+    qubits.json        Qubit, resonator, coherence, and readout parameters
     pulses.json        Reusable pulse definitions
 ```
 

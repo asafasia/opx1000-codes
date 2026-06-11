@@ -120,7 +120,7 @@ def apply_profile(machine: Quam, profile: dict[str, Any]) -> Quam:
         _optional_assign(qubit, "T2echo", transmon["t2_echo_ns"])
 
         qubit.xy.RF_frequency = frequencies["qubit_f01"]
-        qubit.xy.opx_output.upconverter_frequency = frequencies["qubit_lo"]
+        qubit.xy.opx_output.upconverter_frequency = xy_port["lo_frequency_hz"]
         qubit.xy.opx_output.band = xy_port["band"]
         qubit.xy.opx_output.full_scale_power_dbm = xy_port["full_scale_power_dbm"]
         qubit.xy.opx_output.sampling_rate = xy_port["sampling_rate_hz"]
@@ -130,7 +130,7 @@ def apply_profile(machine: Quam, profile: dict[str, Any]) -> Quam:
         qubit.resonator.RF_frequency = frequencies["resonator"]
         qubit.resonator.time_of_flight = readout["time_of_flight_ns"]
         qubit.resonator.depletion_time = readout["depletion_time_ns"]
-        qubit.resonator.opx_output.upconverter_frequency = frequencies["resonator_lo"]
+        qubit.resonator.opx_output.upconverter_frequency = rr_output["lo_frequency_hz"]
         qubit.resonator.opx_output.band = rr_output["band"]
         qubit.resonator.opx_output.full_scale_power_dbm = rr_output[
             "full_scale_power_dbm"

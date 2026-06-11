@@ -12,7 +12,7 @@ from qualang_tools.results import progress_counter
 from qualang_tools.units import unit
 
 from qualibrate import QualibrationNode
-from quam_config import Quam
+from quam_config import Quam, create_machine
 from calibration_utils.resonator_spectroscopy import (
     Parameters,
     process_raw_dataset,
@@ -20,6 +20,7 @@ from calibration_utils.resonator_spectroscopy import (
     log_fitted_results,
     plot_raw_amplitude_with_fit,
     plot_raw_phase,
+    plot_iq_response,
 )
 from qualibration_libs.parameters import get_qubits
 from qualibration_libs.runtime import simulate_and_plot
@@ -28,8 +29,9 @@ from qualibration_libs.data import XarrayDataFetcher
 # %% {Node initialisation}
 description = """
         1D RESONATOR SPECTROSCOPY
-This sequence involves measuring the resonator by sending a readout pulse and demodulating the signals to extract the
-'I' and 'Q' quadratures across varying readout intermediate frequencies for all the active qubits.
+This sequence performs two separate resonator-frequency scans. The first measures the resonator while the qubit
+remains in the ground state. The second measures the resonator while a saturation pulse is continuously applied to
+the qubit during readout, preparing an approximately mixed state. The overlaid responses expose the dispersive shift.
 The data is then post-processed to determine the resonator resonance frequency.
 This frequency is used to update the readout frequency in the state.
 
@@ -57,12 +59,15 @@ node = QualibrationNode[Parameters, Quam](
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow the user to locally set the node parameters for debugging purposes, or execution in the Python IDE."""
     # You can get type hinting in your IDE by typing node.parameters.
-    # node.parameters.qubits = ["q1", "q2"]
+    node.parameters.qubits = ["q1"]
     pass
 
 
-# Instantiate the QUAM class from the state file
-node.machine = Quam.load()
+node.machine = create_machine()
+
+node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
+
+node.machine.qmm.close_all_qms()
 
 
 # %% {Create_QUA_program}
@@ -80,6 +85,15 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
     span = node.parameters.frequency_span_in_mhz * u.MHz
     step = node.parameters.frequency_step_in_mhz * u.MHz
     dfs = np.arange(-span / 2, +span / 2, step)
+    for qubit in qubits:
+        saturation_length = qubit.xy.operations["saturation"].length
+        readout_length = qubit.resonator.operations["readout"].length
+        required_length = node.parameters.saturation_lead_time_in_ns + readout_length
+        if saturation_length < required_length:
+            raise ValueError(
+                f"{qubit.name} saturation pulse is {saturation_length} ns, but at least "
+                f"{required_length} ns is required to cover the lead-in and readout."
+            )
     # Register the sweep axes to be added to the dataset when fetching data
     node.namespace["sweep_axes"] = {
         "qubit": xr.DataArray(qubits.get_names()),
@@ -88,35 +102,58 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
     # The QUA program stored in the node namespace to be transfer to the simulation and execution run_actions
     with program() as node.namespace["qua_program"]:
-        I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
+        Ig, Ig_st, Qg, Qg_st, n, n_st = node.machine.declare_qua_variables()
+        Im, Im_st, Qm, Qm_st, _, _ = node.machine.declare_qua_variables()
         df = declare(int)  # QUA variable for the readout frequency
 
         for multiplexed_qubits in qubits.batch():
             # Initialize the QPU in terms of flux points (flux tunable transmons and/or tunable couplers)
-            for qubit in multiplexed_qubits.values():
-                node.machine.initialize_qpu(target=qubit)
-            align()
+            # for qubit in multiplexed_qubits.values():
+            #     node.machine.initialize_qpu(target=qubit)
+            # align()
             with for_(n, 0, n < n_avg, n + 1):
                 save(n, n_st)
+
+                # Complete ground-state resonator spectroscopy scan.
                 with for_(*from_array(df, dfs)):
                     for i, qubit in multiplexed_qubits.items():
                         rr = qubit.resonator
                         # Update the resonator frequencies for all resonators
                         rr.update_frequency(df + rr.intermediate_frequency)
                         # Measure the resonator
-                        rr.measure("readout", qua_vars=(I[i], Q[i]))
+                        rr.measure("readout", qua_vars=(Ig[i], Qg[i]))
                         # wait for the resonator to deplete
                         rr.wait(rr.depletion_time * u.ns)
-                        # save data
-                        save(I[i], I_st[i])
-                        save(Q[i], Q_st[i])
+                        save(Ig[i], Ig_st[i])
+                        save(Qg[i], Qg_st[i])
+                    align()
+
+                # Complete mixed-state scan. Saturation and readout start together
+                # on separate elements, so the qubit is driven throughout readout.
+                with for_(*from_array(df, dfs)):
+                    for i, qubit in multiplexed_qubits.items():
+                        rr = qubit.resonator
+                        rr.update_frequency(df + rr.intermediate_frequency)
+                        align(qubit.xy.name, rr.name)
+                        qubit.xy.play(
+                            "saturation",
+                            amplitude_scale=node.parameters.saturation_amplitude_factor,
+                        )
+                        rr.wait(node.parameters.saturation_lead_time_in_ns * u.ns)
+                        rr.measure("readout", qua_vars=(Im[i], Qm[i]))
+                        rr.wait(rr.depletion_time * u.ns)
+                        save(Im[i], Im_st[i])
+                        save(Qm[i], Qm_st[i])
+                        qubit.xy.wait(node.parameters.thermalization_time_in_ns * u.ns)
                     align()
 
         with stream_processing():
             n_st.save("n")
             for i in range(num_qubits):
-                I_st[i].buffer(len(dfs)).average().save(f"I{i + 1}")
-                Q_st[i].buffer(len(dfs)).average().save(f"Q{i + 1}")
+                Ig_st[i].buffer(len(dfs)).average().save(f"Ig{i + 1}")
+                Qg_st[i].buffer(len(dfs)).average().save(f"Qg{i + 1}")
+                Im_st[i].buffer(len(dfs)).average().save(f"Im{i + 1}")
+                Qm_st[i].buffer(len(dfs)).average().save(f"Qm{i + 1}")
 
 
 # %% {Simulate}
@@ -195,11 +232,13 @@ def plot_data(node: QualibrationNode[Parameters, Quam]):
     fig_fit_amplitude = plot_raw_amplitude_with_fit(
         node.results["ds_raw"], node.namespace["qubits"], node.results["ds_fit"]
     )
+    fig_iq_response = plot_iq_response(node.results["ds_raw"], node.namespace["qubits"])
     plt.show()
     # Store the generated figures
     node.results["figures"] = {
         "phase": fig_raw_phase,
         "amplitude": fig_fit_amplitude,
+        "iq_response": fig_iq_response,
     }
 
 

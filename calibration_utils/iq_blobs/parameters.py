@@ -5,7 +5,7 @@ from qualibration_libs.parameters import QubitsExperimentNodeParameters, CommonN
 
 
 class NodeSpecificParameters(RunnableParameters):
-    num_shots: int = 2000
+    num_shots: int = 20000
     """Number of runs to perform. Default is 2000."""
     operation: Literal["readout", "readout_QND"] = "readout"
     """Type of operation to perform. Default is "readout"."""

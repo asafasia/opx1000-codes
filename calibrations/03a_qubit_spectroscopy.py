@@ -74,7 +74,7 @@ node.machine = create_machine()
 
 node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
 
-node.machine.qmm.close_all_quantum_machines()
+node.machine.qmm.close_all_qms()
 
 # %% {Create_QUA_program}
 @node.run_action(skip_if=node.parameters.load_data_id is not None)
@@ -140,7 +140,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                         # readout the resonator
                         qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
                         # wait for the resonator to deplete
-                        qubit.resonator.wait(node.machine.depletion_time * u.ns)
+                        qubit.resonator.wait(200 * u.us)
                         # save data
                         save(I[i], I_st[i])
                         save(Q[i], Q_st[i])

@@ -8,12 +8,10 @@
         0
       ],
       "frequencies_hz": {
-        "qubit_f01": 5500000000,
+        "qubit_f01": 4491800000,
         "qubit_f12": null,
-        "qubit_lo": 5400000000,
-        "resonator": 6500000000,
-        "resonator_bare": null,
-        "resonator_lo": 6400000000
+        "resonator": 7580000000,
+        "resonator_bare": null
       },
       "transmon": {
         "anharmonicity_hz": 150000000,
@@ -38,19 +36,17 @@
       }
     },
     "q2": {
-      "enabled": true,
+      "enabled": false,
       "calibration_note": "Initial q2 seed values. Calibrate resonator frequency, readout threshold, and control pulses before hardware experiments.",
       "grid_location": [
         1,
         0
       ],
       "frequencies_hz": {
-        "qubit_f01": 5300000000,
+        "qubit_f01": 4491800000,
         "qubit_f12": null,
-        "qubit_lo": 5300000000,
-        "resonator": 6300000000,
-        "resonator_bare": null,
-        "resonator_lo": 6400000000
+        "resonator": 7580000000,
+        "resonator_bare": null
       },
       "transmon": {
         "anharmonicity_hz": 200000000,

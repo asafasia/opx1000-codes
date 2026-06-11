@@ -13,28 +13,28 @@
           "type": "mw_fem",
           "outputs": {
             "1": {
-              "band": 2,
-              "lo_frequency_hz": 6400000000,
+              "band": 3,
+              "lo_frequency_hz": 7600000000,
               "full_scale_power_dbm": 16,
               "sampling_rate_hz": 1000000000
             },
             "2": {
               "band": 2,
-              "lo_frequency_hz": 5400000000,
+              "lo_frequency_hz": 4500000000,
               "full_scale_power_dbm": 10,
               "sampling_rate_hz": 1000000000
             },
             "3": {
               "band": 2,
-              "lo_frequency_hz": 5300000000,
+              "lo_frequency_hz": 4500000000,
               "full_scale_power_dbm": 10,
               "sampling_rate_hz": 1000000000
             }
           },
           "inputs": {
             "1": {
-              "band": 2,
-              "lo_frequency_hz": 6400000000,
+              "band": 3,
+              "lo_frequency_hz": 7600000000,
               "sampling_rate_hz": 1000000000
             }
           }

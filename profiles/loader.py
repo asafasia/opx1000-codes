@@ -9,6 +9,11 @@ PROFILES_ROOT = Path(__file__).resolve().parent
 SUPPORTED_SCHEMA_VERSION = 1
 PULSE_TYPES = {"constant", "drag", "cosine", "saturation"}
 STATE_1_RULES = {"above_threshold", "below_threshold"}
+MW_FEM_BAND_RANGES_HZ = {
+    1: (50e6, 5.5e9),
+    2: (4.5e9, 7.5e9),
+    3: (6.5e9, 10.5e9),
+}
 
 
 class ProfileError(ValueError):
@@ -71,6 +76,22 @@ def _get_port(connectivity: dict[str, Any], reference: dict[str, Any], direction
         raise ProfileError(f"{label} references an undefined {direction[:-1]}") from exc
 
 
+def _validate_mw_port(port: dict[str, Any], label: str) -> None:
+    band = port.get("band")
+    lo_frequency = port.get("lo_frequency_hz")
+    _require(band in MW_FEM_BAND_RANGES_HZ, f"{label} has unsupported MW-FEM band {band!r}")
+    _require(
+        isinstance(lo_frequency, (int, float)) and lo_frequency > 0,
+        f"{label} needs positive lo_frequency_hz",
+    )
+    minimum, maximum = MW_FEM_BAND_RANGES_HZ[band]
+    _require(
+        minimum <= lo_frequency <= maximum,
+        f"{label} LO {lo_frequency} Hz is outside band {band} range "
+        f"[{minimum:g}, {maximum:g}] Hz",
+    )
+
+
 def _validate_connectivity(connectivity: dict[str, Any], qubits_document: dict[str, Any]) -> None:
     connections = connectivity.get("connections")
     qubits = qubits_document.get("qubits")
@@ -93,17 +114,22 @@ def _validate_connectivity(connectivity: dict[str, Any], qubits_document: dict[s
             f"{qubit_name}.resonator_input",
         )
         frequencies = qubits[qubit_name]["frequencies_hz"]
+        _validate_mw_port(xy_output, f"Qubit {qubit_name!r} XY output")
+        _validate_mw_port(resonator_output, f"Qubit {qubit_name!r} resonator output")
+        _validate_mw_port(resonator_input, f"Qubit {qubit_name!r} resonator input")
         _require(
-            xy_output.get("lo_frequency_hz") == frequencies["qubit_lo"],
-            f"Qubit {qubit_name!r} qubit LO does not match its XY output",
+            resonator_input.get("lo_frequency_hz") == resonator_output["lo_frequency_hz"],
+            f"Qubit {qubit_name!r} resonator input and output LOs do not match",
         )
         _require(
-            resonator_output.get("lo_frequency_hz") == frequencies["resonator_lo"],
-            f"Qubit {qubit_name!r} resonator LO does not match its output",
+            abs(frequencies["qubit_f01"] - xy_output["lo_frequency_hz"]) <= 400e6,
+            f"Qubit {qubit_name!r} qubit IF exceeds 400 MHz: "
+            f"RF={frequencies['qubit_f01']} Hz, connectivity XY LO={xy_output['lo_frequency_hz']} Hz",
         )
         _require(
-            resonator_input.get("lo_frequency_hz") == frequencies["resonator_lo"],
-            f"Qubit {qubit_name!r} resonator LO does not match its input",
+            abs(frequencies["resonator"] - resonator_output["lo_frequency_hz"]) <= 400e6,
+            f"Qubit {qubit_name!r} resonator IF exceeds 400 MHz: "
+            f"RF={frequencies['resonator']} Hz, connectivity output LO={resonator_output['lo_frequency_hz']} Hz",
         )
 
 
@@ -117,14 +143,12 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
         operations = qubit.get("operations", {})
         readout = qubit.get("readout", {})
 
-        for frequency_name in ("qubit_f01", "qubit_lo", "resonator", "resonator_lo"):
+        for frequency_name in ("qubit_f01", "resonator"):
             _require(
                 isinstance(frequencies.get(frequency_name), (int, float)) and frequencies[frequency_name] > 0,
                 f"Qubit {name!r} needs positive frequencies_hz.{frequency_name}",
             )
 
-        _require(abs(frequencies["qubit_f01"] - frequencies["qubit_lo"]) <= 400e6, f"Qubit {name!r} qubit IF exceeds 400 MHz")
-        _require(abs(frequencies["resonator"] - frequencies["resonator_lo"]) <= 400e6, f"Qubit {name!r} resonator IF exceeds 400 MHz")
         _require(readout.get("state_1_when") in STATE_1_RULES, f"Qubit {name!r} has invalid readout.state_1_when")
         _require(isinstance(operations, dict) and operations, f"Qubit {name!r} must define operations")
 
