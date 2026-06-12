@@ -47,24 +47,30 @@ def _validate_version(document: dict[str, Any], document_name: str) -> None:
 
 
 def _validate_pulses(pulses_document: dict[str, Any]) -> None:
-    pulses = pulses_document.get("pulses")
-    _require(isinstance(pulses, dict) and pulses, "pulses.json must define pulses")
+    pulses_by_qubit = pulses_document.get("pulses")
+    _require(isinstance(pulses_by_qubit, dict) and pulses_by_qubit, "pulses.json must define pulses")
 
-    for name, pulse in pulses.items():
-        _require(isinstance(pulse, dict), f"Pulse {name!r} must be an object")
-        pulse_type = pulse.get("type")
-        target = pulse.get("target")
-        _require(pulse_type in PULSE_TYPES, f"Pulse {name!r} has unsupported type {pulse_type!r}")
-        _require(target in {"qubit", "resonator"}, f"Pulse {name!r} has invalid target {target!r}")
-        _require(isinstance(pulse.get("amplitude"), (int, float)), f"Pulse {name!r} needs amplitude")
-        _require(pulse["amplitude"] != 0, f"Pulse {name!r} amplitude cannot be zero")
-        _require(isinstance(pulse.get("length_ns"), int) and pulse["length_ns"] > 0, f"Pulse {name!r} needs positive integer length_ns")
-        _require(target != "resonator" or pulse_type == "constant", f"Readout pulse {name!r} must use type 'constant'")
+    for qubit_name, pulses in pulses_by_qubit.items():
+        _require(isinstance(pulses, dict) and pulses, f"Qubit {qubit_name!r} must define pulses")
+        for name, pulse in pulses.items():
+            _validate_pulse(f"{qubit_name}.{name}", pulse)
 
-        if pulse_type == "drag":
-            _require(isinstance(pulse.get("sigma_ns"), (int, float)) and pulse["sigma_ns"] > 0, f"DRAG pulse {name!r} needs positive sigma_ns")
-            _require(isinstance(pulse.get("beta"), (int, float)), f"DRAG pulse {name!r} needs beta")
-            _require(isinstance(pulse.get("detuning_hz"), (int, float)), f"DRAG pulse {name!r} needs detuning_hz")
+
+def _validate_pulse(name: str, pulse: Any) -> None:
+    _require(isinstance(pulse, dict), f"Pulse {name!r} must be an object")
+    pulse_type = pulse.get("type")
+    target = pulse.get("target")
+    _require(pulse_type in PULSE_TYPES, f"Pulse {name!r} has unsupported type {pulse_type!r}")
+    _require(target in {"qubit", "resonator"}, f"Pulse {name!r} has invalid target {target!r}")
+    _require(isinstance(pulse.get("amplitude"), (int, float)), f"Pulse {name!r} needs amplitude")
+    _require(pulse["amplitude"] != 0, f"Pulse {name!r} amplitude cannot be zero")
+    _require(isinstance(pulse.get("length_ns"), int) and pulse["length_ns"] > 0, f"Pulse {name!r} needs positive integer length_ns")
+    _require(target != "resonator" or pulse_type == "constant", f"Readout pulse {name!r} must use type 'constant'")
+
+    if pulse_type == "drag":
+        _require(isinstance(pulse.get("sigma_ns"), (int, float)) and pulse["sigma_ns"] > 0, f"DRAG pulse {name!r} needs positive sigma_ns")
+        _require(isinstance(pulse.get("beta"), (int, float)), f"DRAG pulse {name!r} needs beta")
+        _require(isinstance(pulse.get("detuning_hz"), (int, float)), f"DRAG pulse {name!r} needs detuning_hz")
 
 
 def _get_port(connectivity: dict[str, Any], reference: dict[str, Any], direction: str, label: str) -> dict[str, Any]:
@@ -139,6 +145,12 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
     _require(isinstance(qubits, dict) and qubits, "qubits.json must define qubits")
 
     for name, qubit in qubits.items():
+        _require(
+            "enabled" not in qubit,
+            f"Qubit {name!r} must not define enabled; use profile.json active_qubits",
+        )
+        _require(name in pulses, f"Qubit {name!r} has no pulse definitions")
+        qubit_pulses = pulses[name]
         frequencies = qubit.get("frequencies_hz", {})
         operations = qubit.get("operations", {})
         readout = qubit.get("readout", {})
@@ -159,8 +171,8 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
         _require(isinstance(operations, dict) and operations, f"Qubit {name!r} must define operations")
 
         for operation_name, pulse_name in operations.items():
-            _require(pulse_name in pulses, f"Qubit {name!r} operation {operation_name!r} references unknown pulse {pulse_name!r}")
-            target = pulses[pulse_name]["target"]
+            _require(pulse_name in qubit_pulses, f"Qubit {name!r} operation {operation_name!r} references unknown pulse {pulse_name!r}")
+            target = qubit_pulses[pulse_name]["target"]
             expected_target = "resonator" if operation_name.startswith("readout") else "qubit"
             _require(target == expected_target, f"Qubit {name!r} operation {operation_name!r} must target {expected_target}")
 
@@ -200,3 +212,13 @@ def load_profile(name: str = "main") -> dict[str, Any]:
     }
     validate_profile(profile)
     return profile
+
+
+
+
+if __name__ == "__main__":
+    try:
+        profile = load_profile()
+        print("Profile loaded and validated successfully.")
+    except ProfileError as exc:
+        print(f"Profile validation error: {exc}")

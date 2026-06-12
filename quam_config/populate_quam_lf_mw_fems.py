@@ -120,6 +120,7 @@ def apply_profile(machine: Quam, profile: dict[str, Any]) -> Quam:
 
         qubit = machine.qubits[qubit_name]
         settings = qubit_profiles[qubit_name]
+        qubit_pulse_profiles = pulse_profiles[qubit_name]
         frequencies = settings["frequencies_hz"]
         transmon = settings["transmon"]
         readout = settings["readout"]
@@ -164,13 +165,13 @@ def apply_profile(machine: Quam, profile: dict[str, Any]) -> Quam:
         for operation_name, pulse_name in settings["operations"].items():
             pulse = _create_pulse(
                 pulse_name,
-                pulse_profiles[pulse_name],
+                qubit_pulse_profiles[pulse_name],
                 qubit,
                 readout,
             )
             target_operations = (
                 qubit.resonator.operations
-                if pulse_profiles[pulse_name]["target"] == "resonator"
+                if qubit_pulse_profiles[pulse_name]["target"] == "resonator"
                 else qubit.xy.operations
             )
             target_operations[operation_name] = pulse

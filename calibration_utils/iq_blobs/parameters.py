@@ -15,6 +15,8 @@ class NodeSpecificParameters(RunnableParameters):
     """Amplitude factor applied to the selected qubit operation."""
     pi_repetitions: int = 1
     """Number of x180_const pulses used to prepare the excited-state blob. Default is 1."""
+    xy_to_readout_delay_in_ns: int = 100
+    """Delay between the end of the prepared-state XY pulse and readout. Default is 100 ns."""
 
 
 class Parameters(

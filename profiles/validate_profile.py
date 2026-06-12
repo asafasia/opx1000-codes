@@ -17,7 +17,7 @@ def main() -> int:
         return 1
 
     qubit_count = len(profile["qubits"]["qubits"])
-    pulse_count = len(profile["pulses"]["pulses"])
+    pulse_count = sum(len(pulses) for pulses in profile["pulses"]["pulses"].values())
     print(f"Profile {args.name!r} is valid: {qubit_count} qubit(s), {pulse_count} pulse(s).")
     return 0
 

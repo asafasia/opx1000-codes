@@ -63,7 +63,7 @@ def plot_raw_phase(ds: xr.Dataset, qubits: List[AnyTransmon]) -> Figure:
 
 def plot_raw_amplitude(ds: xr.Dataset, qubits: List[AnyTransmon]):
     """
-    Plot overlaid absolute resonator responses for ground and mixed states.
+    Plot mean resonator responses and normalized shot-cloud separation.
 
     Parameters
     ----------
@@ -103,14 +103,14 @@ def plot_raw_amplitude(ds: xr.Dataset, qubits: List[AnyTransmon]):
         selected = ds.assign_coords(full_freq_GHz=ds.full_freq / u.GHz).sel(qubit=qubit.name)
         ground = selected.ground_IQ_abs / u.mV
         mixed = selected.mixed_IQ_abs / u.mV
-        separation = selected.IQ_separation / u.mV
+        separation = selected.IQ_separation
         max_separation_index = int(separation.argmax(dim="detuning").values)
         max_separation_frequency_ghz = float(
             selected.full_freq_GHz.isel(detuning=max_separation_index).values
         )
         current_frequency_ghz = float(qubit.resonator.RF_frequency) / u.GHz
         max_separation_label = (
-            f"New resonance (maximum IQ separation): {max_separation_frequency_ghz:.6f} GHz"
+            f"New resonance (maximum normalized IQ separation): {max_separation_frequency_ghz:.6f} GHz"
         )
         current_frequency_label = f"Current resonance: {current_frequency_ghz:.6f} GHz"
 
@@ -147,7 +147,7 @@ def plot_raw_amplitude(ds: xr.Dataset, qubits: List[AnyTransmon]):
             label=max_separation_label,
         )
         difference_ax.set_xlabel("RF frequency [GHz]")
-        difference_ax.set_ylabel(r"$|IQ_{mixed}-IQ_{ground}|$ [mV]")
+        difference_ax.set_ylabel("IQ separation / pooled std")
         difference_ax.legend()
         _add_detuning_axis(spectrum_ax, current_frequency_ghz)
         _add_detuning_axis(difference_ax, current_frequency_ghz)

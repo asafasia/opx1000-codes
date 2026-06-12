@@ -122,7 +122,7 @@ def build_2d_pseudo_spin_program(
         raise ValueError("live_latest_configuration requires save_configurations")
     initial_spins = problem.validate_spins(initial_spins)
     validate_controller_ranges(problem, temperature_start, temperature_end)
-    output = machine.qubits["q1"].resonator
+    output = machine.qubits["q9"].resonator
     n_spins = problem.n_spins
     temperature_step = (
         0.0

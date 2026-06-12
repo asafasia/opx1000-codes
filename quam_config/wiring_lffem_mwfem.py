@@ -14,6 +14,11 @@ if str(REPOSITORY_ROOT) not in sys.path:
 
 import matplotlib.pyplot as plt
 from qualang_tools.wirer import Connectivity, Instruments, allocate_wiring, visualize
+from qualang_tools.wirer.connectivity.wiring_spec import (
+    WiringFrequency,
+    WiringIOType,
+    WiringLineType,
+)
 from qualang_tools.wirer.wirer.channel_specs import mw_fem_spec
 from quam_builder.builder.qop_connectivity import build_quam_wiring
 from quam_builder.builder.superconducting import build_quam
@@ -36,7 +41,7 @@ def _controller_number(controller_name: str) -> int:
 
 
 def _qubit_reference(qubit_name: str) -> int:
-    """Convert profile qubit names such as 'q1' to wirer qubit IDs."""
+    """Convert profile qubit names such as 'q9' to wirer qubit IDs."""
     match = re.fullmatch(r"q(\d+)", qubit_name)
     if match is None:
         raise ProfileError(f"Qubit {qubit_name!r} must use the form 'q<number>'")
@@ -83,6 +88,22 @@ def _resonator_lines(
     return dict(lines)
 
 
+def _xy_lines(
+    connections: dict[str, Any], active_qubits: list[str]
+) -> dict[tuple[int, int, int], list[int]]:
+    """Group qubits that share the same XY output line."""
+    lines: dict[tuple[int, int, int], list[int]] = defaultdict(list)
+    for qubit_name in active_qubits:
+        output = connections[qubit_name]["xy_output"]
+        key = (
+            _controller_number(output["controller"]),
+            int(output["fem"]),
+            int(output["port"]),
+        )
+        lines[key].append(_qubit_reference(qubit_name))
+    return dict(lines)
+
+
 def create_profile_connectivity(
     profile: dict[str, Any],
 ) -> tuple[Connectivity, Instruments]:
@@ -109,16 +130,29 @@ def create_profile_connectivity(
             ),
         )
 
-    for qubit_name in active_qubits:
-        xy_output = connections[qubit_name]["xy_output"]
-        connectivity.add_qubit_drive_lines(
-            qubits=_qubit_reference(qubit_name),
-            constraints=mw_fem_spec(
-                con=_controller_number(xy_output["controller"]),
-                slot=int(xy_output["fem"]),
-                out_port=int(xy_output["port"]),
-            ),
+    for (controller, fem, output_port), qubits in _xy_lines(
+        connections, active_qubits
+    ).items():
+        constraints = mw_fem_spec(
+            con=controller,
+            slot=fem,
+            out_port=output_port,
         )
+        if len(qubits) == 1:
+            connectivity.add_qubit_drive_lines(
+                qubits=qubits,
+                constraints=constraints,
+            )
+        else:
+            connectivity.add_wiring_spec(
+                frequency=WiringFrequency.RF,
+                io_type=WiringIOType.OUTPUT,
+                line_type=WiringLineType.DRIVE,
+                triggered=False,
+                constraints=constraints,
+                elements=connectivity._make_qubit_elements(qubits),
+                shared_line=True,
+            )
 
     allocate_wiring(connectivity, instruments)
     return connectivity, instruments

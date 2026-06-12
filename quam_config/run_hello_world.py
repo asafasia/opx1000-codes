@@ -30,7 +30,7 @@ node = QualibrationNode(
 
 
 # with program() as prog:
-#     qubit = machine.qubits["q1"]
+#     qubit = machine.qubits["q9"]
 
 #     I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
 
@@ -39,7 +39,7 @@ node = QualibrationNode(
 #             qubit.xy.play("saturation")
 #             rr = qubit.resonator
 
-#             align("q1.xy")
+#             align("q9.xy")
 
 
 #             rr.measure("readout")

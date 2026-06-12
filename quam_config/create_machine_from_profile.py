@@ -7,6 +7,8 @@ import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
+from pprint import pprint
+
 # Allow direct execution and `python -m quam_config.create_machine_from_profile`.
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 if str(REPOSITORY_ROOT) not in sys.path:
@@ -82,10 +84,13 @@ def main() -> Quam:
 
     machine = create_machine_from_profile(args.profile, save=not args.no_save)
     machine.generate_config()
-    print(
+    pprint(
         f"Created machine from profile {args.profile!r}: "
         f"{len(machine.active_qubit_names)} active qubit(s)."
     )
+
+
+    pprint(machine.qubits["q9"])
     return machine
 
 

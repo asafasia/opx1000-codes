@@ -79,7 +79,7 @@ def build_pseudo_spin_program(
         raise ValueError("iterations must be positive")
     initial_spins = problem.validate_spins(initial_spins)
     validate_controller_ranges(problem, temperature_start, temperature_end)
-    output = machine.qubits["q1"].resonator
+    output = machine.qubits["q9"].resonator
     n_spins = problem.n_spins
     ring_parameters = uniform_ring_parameters(problem)
     temperature_step = (

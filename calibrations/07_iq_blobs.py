@@ -11,7 +11,7 @@ from qualang_tools.results import progress_counter
 from qualang_tools.units import unit
 
 from qualibrate import QualibrationNode
-from quam_config import Quam
+from quam_config import Quam, create_machine
 from calibration_utils.iq_blobs import (
     Parameters,
     process_raw_dataset,
@@ -51,9 +51,12 @@ node = QualibrationNode[Parameters, Quam](
     name="07_iq_blobs",  # Name should be unique
     description=description,  # Describe what the node is doing, which is also reflected in the QUAlibrate GUI
     parameters=Parameters(),  # Node parameters defined under quam_experiment/experiments/node_name
-    machine=Quam.load(),
+    machine=create_machine(),
 )
 
+
+node.machine.connect()
+node.machine.qmm.close_all_qms()
 
 # Any parameters that should change for debugging purposes only should go in here
 # These parameters are ignored when run through the GUI or as part of a graph
@@ -64,7 +67,7 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     execution in the Python IDE.
     """
     # You can get type hinting in your IDE by typing node.parameters.
-    # node.parameters.qubits = ["q1", "q2"]
+    node.parameters.qubits = ["q9"]
     pass
 
 
@@ -87,6 +90,8 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
     qua_qubit_operation = "x180" if selected_qubit_operation == "x180_const" else selected_qubit_operation
     if node.parameters.pi_repetitions < 1:
         raise ValueError("pi_repetitions must be a positive integer.")
+    if node.parameters.xy_to_readout_delay_in_ns < 0:
+        raise ValueError("xy_to_readout_delay_in_ns cannot be negative.")
     for qubit in qubits:
         if qua_qubit_operation not in qubit.xy.operations:
             raise ValueError(
@@ -119,7 +124,6 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
             with for_(n, 0, n < n_runs, n + 1):
                 for qubit in multiplexed_qubits.values():
                     qubit.resonator.wait(200 * u.us)
-                    qubit.xy.wait(200 * u.us)
                 align()
 
                 for qubit in multiplexed_qubits.values():
@@ -133,7 +137,10 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                             qua_qubit_operation,
                             amplitude_scale=node.parameters.qubit_amplitude_factor,
                         )
+                # Synchronize XY and resonator timelines, then delay readout explicitly.
                 align()
+                for qubit in multiplexed_qubits.values():
+                    qubit.resonator.wait(node.parameters.xy_to_readout_delay_in_ns * u.ns)
                 for i, qubit in multiplexed_qubits.items():
                     qubit.resonator.measure(operation, qua_vars=(I_e[i], Q_e[i]))
                     save(I_e[i], I_e_st[i])

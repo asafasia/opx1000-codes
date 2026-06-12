@@ -22,7 +22,7 @@ from qualang_tools.units import unit
 from quam_config import Quam
 
 
-DEFAULT_QUBIT = "q1"
+DEFAULT_QUBIT = "q9"
 DEFAULT_NUM_SHOTS = 1_000
 DEFAULT_SIMULATION_DURATION = 20_000
 DEFAULT_SIMULATION_TIMEOUT = 120

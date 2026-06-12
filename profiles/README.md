@@ -6,7 +6,7 @@ pulse definitions. Each profile is a versioned directory:
 ```text
 profiles/
   main/
-    profile.json       Profile manifest and active qubits
+    profile.json       Profile manifest and the single active-qubit list
     connectivity.json Hardware, network, ports, line connections, and LOs
     qubits.json        Qubit, resonator, coherence, and readout parameters
     pulses.json        Reusable pulse definitions
@@ -21,9 +21,9 @@ experiments use this value through `qubit.reset_qubit_thermal()`. Because QuAM
 represents thermalization as an integer multiple of T1, the configured value
 must be an integer multiple of `t1_ns`, or of 10,000 ns when T1 is unknown.
 
-Pulse definitions are reusable. Qubits reference them by name under
-`operations`, so a calibrated pulse can be shared or replaced without copying
-its parameters. Supported pulse types are:
+Pulse definitions are grouped by qubit name in `pulses.json`. Each qubit
+references pulse names from its own group under `operations`, so the same
+operation names can be calibrated independently. Supported pulse types are:
 
 - `constant`: rectangular envelope; the only allowed resonator/readout type.
 - `drag`: requires `sigma_ns`, `beta`, and `detuning_hz`.
@@ -42,49 +42,29 @@ Load it from Python:
 from profiles import load_profile
 
 profile = load_profile("main")
-q1 = profile["qubits"]["qubits"]["q1"]
+q9 = profile["qubits"]["qubits"]["q9"]
 ```
 
-Generate the QuAM wiring and base state from the main profile:
-
-```powershell
-python -m quam_config.wiring_lffem_mwfem
-```
-
-Then apply the profile's calibrated qubit, resonator, port, and pulse values:
-
-```powershell
-python -m quam_config.populate_quam_lf_mw_fems --profile main
-```
-
-Test profile application without writing `state.json`:
-
-```powershell
-python -m quam_config.populate_quam_lf_mw_fems --profile main --no-save
-```
-
-The preferred single-step command creates the wiring, base QuAM, calibrated
-parameters, and pulses together:
-
-```powershell
-python -m quam_config.create_machine_from_profile --profile main
-```
-
-Create and validate the complete machine without writing files:
+Create and validate the complete machine in memory:
 
 ```powershell
 python -m quam_config.create_machine_from_profile --profile main --no-save
 ```
+
+Define activation only in `profile.json.active_qubits`. Qubit entries in
+`qubits.json` contain parameters for both active and inactive qubits and must
+not define an `enabled` field.
 
 Use it from Python:
 
 ```python
 from quam_config.create_machine_from_profile import create_machine_from_profile
 
-machine = create_machine_from_profile("main")
+machine = create_machine_from_profile("main", save=False)
 ```
 
-Calibration experiments can use the shorter in-memory factory:
+Calibration experiments use the shorter in-memory factory at startup. Generated
+`state.json`, `wiring.json`, and physical-state files are not repository inputs:
 
 ```python
 from quam_config import create_machine
@@ -92,6 +72,9 @@ from quam_config import create_machine
 machine = create_machine()          # profiles/main
 machine = create_machine("testing") # profiles/testing
 ```
+
+Qualibrate still stores an explicit machine snapshot with each saved run, but
+implicit saves to the repository root are disabled.
 
 Set `QUAM_PROFILE` to select a profile for all calibration experiments without
 editing their source:

@@ -36,7 +36,7 @@ DEFAULT_RESULTS_PATH = REPOSITORY_ROOT / "data" / "ising_machine" / "one_spin_ex
 
 def required_simulation_duration(machine, iterations):
     """Estimate enough 4 ns clock cycles to complete every loop iteration."""
-    readout_length_ns = machine.qubits["q1"].resonator.operations["readout"].length
+    readout_length_ns = machine.qubits["q9"].resonator.operations["readout"].length
     pulse_cycles_per_iteration = 2 * readout_length_ns // 4
     control_flow_margin_per_iteration = 100
     return iterations * (pulse_cycles_per_iteration + control_flow_margin_per_iteration) + 1_000
@@ -51,7 +51,7 @@ def build_one_spin_program(
     high_signal: float,
 ):
     """Build the controller-only one-spin Ising experiment."""
-    output = machine.qubits["q1"].resonator
+    output = machine.qubits["q9"].resonator
 
     with program() as one_spin_program:
         iteration = declare(int)

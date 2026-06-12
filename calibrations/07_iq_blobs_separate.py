@@ -4,6 +4,8 @@ import numpy as np
 import xarray as xr
 from dataclasses import asdict
 
+from qm import SimulationConfig
+from qm.exceptions import QMSimulationError
 from qm.qua import *
 
 from qualang_tools.multi_user import qm_session
@@ -21,7 +23,6 @@ from calibration_utils.iq_blobs import (
     plot_iq_blobs_dashboard,
 )
 from qualibration_libs.parameters import get_qubits
-from qualibration_libs.runtime import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 
 # %% {Description}
@@ -45,13 +46,16 @@ node.machine = create_machine()
 @node.run_action(skip_if=node.modes.external)
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow local debugging parameter overrides."""
-    # node.parameters.qubits = ["q1"]
+    node.parameters.qubits = ["q10"]
     # node.parameters.simulate = True
     # node.parameters.samples = 1000
 
 
 def make_state_program(
-    node: QualibrationNode[Parameters, Quam], state: str, n_runs: int | None = None
+    node: QualibrationNode[Parameters, Quam],
+    state: str,
+    n_runs: int | None = None,
+    initialization_wait_in_ns: int = 200_000,
 ):
     """Build one independent IQ acquisition program for state 'g' or 'e'."""
     if state not in {"g", "e"}:
@@ -66,6 +70,8 @@ def make_state_program(
     qua_qubit_operation = "x180" if selected_qubit_operation == "x180_const" else selected_qubit_operation
     if node.parameters.pi_repetitions < 1:
         raise ValueError("pi_repetitions must be a positive integer.")
+    if node.parameters.xy_to_readout_delay_in_ns < 0:
+        raise ValueError("xy_to_readout_delay_in_ns cannot be negative.")
     for qubit in qubits:
         if qua_qubit_operation not in qubit.xy.operations:
             raise ValueError(
@@ -79,7 +85,7 @@ def make_state_program(
             with for_(n, 0, n < n_runs, n + 1):
                 save(n, n_st)
                 for qubit in multiplexed_qubits.values():
-                    qubit.wait(200 * u.us)
+                    qubit.wait(initialization_wait_in_ns * u.ns)
                 align()
 
                 if state == "e":
@@ -94,7 +100,10 @@ def make_state_program(
                                 qua_qubit_operation,
                                 amplitude_scale=node.parameters.qubit_amplitude_factor,
                             )
+                    # Synchronize XY and resonator timelines before the explicit delay.
                     align()
+                    for qubit in multiplexed_qubits.values():
+                        qubit.resonator.wait(node.parameters.xy_to_readout_delay_in_ns * u.ns)
 
                 for i, qubit in multiplexed_qubits.items():
                     qubit.resonator.measure(operation, qua_vars=(I[i], Q[i]))
@@ -131,6 +140,32 @@ def acquire_state(
     return dataset.rename({"I": f"I{suffix}", "Q": f"Q{suffix}"})
 
 
+def simulate_state_program(node, qmm, config, qua_program):
+    """Simulate and plot samples, falling back to the waveform report if needed."""
+    simulation_config = SimulationConfig(duration=node.parameters.simulation_duration_ns // 4)
+    job = qmm.simulate(config, qua_program, simulation_config)
+    # QOP v2 may return the simulated job before reports and samples are ready.
+    job.wait_until("Done", timeout=node.parameters.timeout)
+    wf_report = job.get_simulated_waveform_report()
+    try:
+        samples = job.get_simulated_samples()
+        fig, axes = plt.subplots(nrows=len(samples.keys()), sharex=True, squeeze=False)
+        for axis, controller in zip(axes.flat, samples.keys()):
+            plt.sca(axis)
+            samples[controller].plot()
+            axis.set_title(controller)
+        fig.tight_layout()
+    except QMSimulationError:
+        node.log(
+            "QOP simulated the program but qm-qua could not pull analog samples; "
+            "showing the waveform report instead."
+        )
+        wf_report.create_plot(samples=None, plot=True, save_path=None)
+        fig = plt.gcf()
+        samples = None
+    return samples, fig, wf_report
+
+
 # %% {Create_QUA_programs}
 @node.run_action(skip_if=node.parameters.load_data_id is not None)
 def create_qua_programs(node: QualibrationNode[Parameters, Quam]):
@@ -156,9 +191,16 @@ def simulate_qua_programs(node: QualibrationNode[Parameters, Quam]):
     for state in ("g", "e"):
         # Simulating all experimental shots can span seconds and overwhelm the
         # simulator sample pull. One shot contains the complete state sequence.
-        qua_program = make_state_program(node, state, n_runs=1)
-        samples, fig, wf_report = simulate_and_plot(qmm, config, qua_program, node.parameters)
-        simulations[state] = {"figure": fig, "wf_report": wf_report, "samples": samples}
+        qua_program = make_state_program(
+            node,
+            state,
+            n_runs=1,
+            initialization_wait_in_ns=100,
+        )
+        samples, fig, wf_report = simulate_state_program(node, qmm, config, qua_program)
+        # Saving raw v2 waveform reports currently fails in qualang-tools for
+        # MW-FEM reports. Keep the rendered figure, which is the useful output.
+        simulations[state] = {"figure": fig}
     node.results["simulation"] = simulations
     plt.show()
 

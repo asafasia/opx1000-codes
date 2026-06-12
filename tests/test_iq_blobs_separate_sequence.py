@@ -19,13 +19,19 @@ class SeparateIQBlobsSequenceTests(unittest.TestCase):
         self.assertIn("node.parameters.qubit_operation", self.source)
         self.assertIn("node.parameters.qubit_amplitude_factor", self.source)
         self.assertIn("node.parameters.pi_repetitions", self.source)
+        self.assertIn("node.parameters.xy_to_readout_delay_in_ns * u.ns", self.source)
         self.assertIn(
             "with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:",
             self.source,
         )
 
     def test_simulation_uses_short_representative_programs(self):
-        self.assertIn("make_state_program(node, state, n_runs=1)", self.source)
+        self.assertIn("initialization_wait_in_ns: int = 200_000", self.source)
+        self.assertIn("initialization_wait_in_ns=100", self.source)
+        self.assertIn('job.wait_until("Done"', self.source)
+        self.assertIn("except QMSimulationError:", self.source)
+        self.assertIn("wf_report.create_plot(samples=None", self.source)
+        self.assertIn('simulations[state] = {"figure": fig}', self.source)
 
     def test_merges_into_current_analysis_variable_names(self):
         self.assertIn('dataset.rename({"I": f"I{suffix}", "Q": f"Q{suffix}"})', self.source)

@@ -13,6 +13,7 @@ from qualang_tools.units import unit
 
 from qualibrate import QualibrationNode
 from quam_config import Quam, create_machine
+from profiles import load_profile
 from calibration_utils.power_rabi import (
     Parameters,
     get_number_of_pulses,
@@ -53,10 +54,8 @@ node = QualibrationNode[Parameters, Quam](
     name="04b_power_rabi",  # Name should be unique
     description=description,  # Describe what the node is doing, which is also reflected in the QUAlibrate GUI
     parameters=Parameters(),  # Node parameters defined under quam_experiment/experiments/node_name
-    machine=Quam.load(),
+    machine=create_machine(),
 )
-
-node.machine = create_machine()
 
 node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
 
@@ -69,7 +68,7 @@ node.machine.qmm.close_all_qms()
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow the user to locally set the node parameters for debugging purposes, or execution in the Python IDE."""
     # You can get type hinting in your IDE by typing node.parameters.
-    # node.parameters.qubits = ["q1", "q2"]
+    node.parameters.qubits = ["q9"]
     # node.parameters.max_number_pulses_per_sweep = 100
     # node.parameters.pi_repetitions = 3
     # node.parameters.min_amp_factor = 0.8
@@ -115,18 +114,18 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
         for multiplexed_qubits in qubits.batch():
             # Initialize the QPU in terms of flux points (flux tunable transmons and/or tunable couplers)
-            # for qubit in multiplexed_qubits.values():
-            #     node.machine.initialize_qpu(target=qubit)
-            # align()
+            for qubit in multiplexed_qubits.values():
+                node.machine.initialize_qpu(target=qubit)
+            align()
 
             with for_(n, 0, n < n_avg, n + 1):
                 save(n, n_st)
                 with for_(*from_array(npi, N_pi_vec)):
                     with for_(*from_array(a, amps)):
                         # Qubit initialization
-                        # for i, qubit in multiplexed_qubits.items():
-                        #     qubit.reset(node.parameters.reset_type, node.parameters.simulate)
-                        # align()
+                        for i, qubit in multiplexed_qubits.items():
+                            qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                        align()
 
                         # Qubit manipulation
                         for i, qubit in multiplexed_qubits.items():
@@ -276,6 +275,8 @@ def plot_data(node: QualibrationNode[Parameters, Quam]):
 def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
     """Stage fitted pulse amplitudes and apply them only after confirmation."""
     updates = {}
+    profile_name = current_profile_name()
+    qubit_profiles = load_profile(profile_name)["qubits"]["qubits"]
     for q in node.namespace["qubits"]:
         if node.outcomes[q.name] != "successful":
             continue
@@ -286,9 +287,10 @@ def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
             )
             continue
         amplitude = float(node.results["fit_results"][q.name]["opt_amp"])
-        updates["pulses.json.pulses.x180_const.amplitude"] = amplitude
+        pulse_name = qubit_profiles[q.name]["operations"]["x180"]
+        updates[f"pulses.json.pulses.{q.name}.{pulse_name}.amplitude"] = amplitude
     if updates:
-        proposal = ProfileUpdater().stage(node.name, updates, profile_name=current_profile_name())
+        proposal = ProfileUpdater().stage(node.name, updates, profile_name=profile_name)
         ProfileUpdater().confirm_and_apply(proposal)
 
 

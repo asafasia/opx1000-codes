@@ -60,7 +60,8 @@ node = QualibrationNode[Parameters, Quam](
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow the user to locally set the node parameters for debugging purposes, or execution in the Python IDE."""
     # You can get type hinting in your IDE by typing node.parameters.
-    node.parameters.qubits = ["q1"]
+    node.parameters.qubits = ["q9"]
+    node.parameters.qubit_operation = 'x180'
     pass
 
 
@@ -81,7 +82,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
     node.namespace["qubits"] = qubits = get_qubits(node)
     num_qubits = len(qubits)
     # Extract the sweep parameters and axes from the node parameters
-    n_avg = node.parameters.num_shots
+    n_runs = node.parameters.num_shots
     selected_operation = node.parameters.qubit_operation
     qua_operation = "x180" if selected_operation == "x180_const" else selected_operation
     # The frequency sweep around the resonator resonance frequency
@@ -103,6 +104,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
     # Register the sweep axes to be added to the dataset when fetching data
     node.namespace["sweep_axes"] = {
         "qubit": xr.DataArray(qubits.get_names()),
+        "n_runs": xr.DataArray(np.arange(n_runs), attrs={"long_name": "shot index"}),
         "detuning": xr.DataArray(dfs, attrs={"long_name": "readout frequency", "units": "Hz"}),
     }
 
@@ -117,7 +119,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
             # for qubit in multiplexed_qubits.values():
             #     node.machine.initialize_qpu(target=qubit)
             # align()
-            with for_(n, 0, n < n_avg, n + 1):
+            with for_(n, 0, n < n_runs, n + 1):
                 save(n, n_st)
 
                 # Complete ground-state resonator spectroscopy scan.
@@ -162,10 +164,10 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
         with stream_processing():
             n_st.save("n")
             for i in range(num_qubits):
-                Ig_st[i].buffer(len(dfs)).average().save(f"Ig{i + 1}")
-                Qg_st[i].buffer(len(dfs)).average().save(f"Qg{i + 1}")
-                Im_st[i].buffer(len(dfs)).average().save(f"Im{i + 1}")
-                Qm_st[i].buffer(len(dfs)).average().save(f"Qm{i + 1}")
+                Ig_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Ig{i + 1}")
+                Qg_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Qg{i + 1}")
+                Im_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Im{i + 1}")
+                Qm_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Qm{i + 1}")
 
 
 # %% {Simulate}
@@ -253,7 +255,7 @@ def analyse_data(node: QualibrationNode[Parameters, Quam]):
 # %% {Plot_data}
 @node.run_action(skip_if=node.parameters.simulate)
 def plot_data(node: QualibrationNode[Parameters, Quam]):
-    """Plot overlaid absolute resonator responses for the ground and mixed states."""
+    """Plot mean resonator responses and shot-level IQ separation."""
     fig_amplitude = plot_raw_amplitude(node.results["ds_raw"], node.namespace["qubits"])
     plt.show()
     node.results["figures"] = {"amplitude": fig_amplitude}
@@ -263,6 +265,10 @@ def plot_data(node: QualibrationNode[Parameters, Quam]):
             node.results["figures"],
         )
         node.log(f"Calibration figures saved to {figures_directory}")
+
+
+
+        
 
 
 # %% {Propose_profile_update}
@@ -281,7 +287,7 @@ def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
         ProfileUpdater().confirm_and_apply(proposal)
 
 
-# %% {Save_results}
-@node.run_action()
-def save_results(node: QualibrationNode[Parameters, Quam]):
-    node.save()
+# # %% {Save_results}
+# @node.run_action()
+# def save_results(node: QualibrationNode[Parameters, Quam]):
+#     node.save()

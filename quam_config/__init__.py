@@ -16,3 +16,12 @@ def create_machine(profile_name: str | None = None) -> Quam:
 
 
 __all__ = ["Quam", "create_machine"]
+
+
+
+if __name__ == "__main__":
+    try:
+        machine = create_machine()
+        print("Machine created successfully from profile.")
+    except Exception as exc:
+        print(f"Error creating machine: {exc}")

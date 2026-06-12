@@ -18,6 +18,24 @@ class FitParameters:
     success: bool
 
 
+def calculate_iq_separation(ds: xr.Dataset) -> xr.DataArray:
+    """Return IQ-center distance divided by the pooled shot-cloud width."""
+    ground_I = ds.Ig.mean(dim="n_runs")
+    ground_Q = ds.Qg.mean(dim="n_runs")
+    mixed_I = ds.Im.mean(dim="n_runs")
+    mixed_Q = ds.Qm.mean(dim="n_runs")
+    center_distance = np.hypot(mixed_I - ground_I, mixed_Q - ground_Q)
+    ground_width = np.sqrt(ds.Ig.var(dim="n_runs") + ds.Qg.var(dim="n_runs"))
+    mixed_width = np.sqrt(ds.Im.var(dim="n_runs") + ds.Qm.var(dim="n_runs"))
+    pooled_width = np.sqrt((ground_width**2 + mixed_width**2) / 2)
+    separation = xr.where(pooled_width > 0, center_distance / pooled_width, np.nan)
+    separation.attrs = {
+        "long_name": "IQ center separation / pooled standard deviation",
+        "units": "",
+    }
+    return separation
+
+
 def log_fitted_results(fit_results: Dict, log_callable=None):
     """
     Logs the node-specific fitted results for all qubits from the fit results
@@ -34,7 +52,7 @@ def log_fitted_results(fit_results: Dict, log_callable=None):
         log_callable = logging.getLogger(__name__).info
     for q in fit_results.keys():
         s_qubit = f"Results for qubit {q}: "
-        s_freq = f"\tResonator frequency: {1e-9 * fit_results[q]['frequency']:.3f} GHz | "
+        s_freq = f"\tMaximum-separation readout frequency: {1e-9 * fit_results[q]['frequency']:.6f} GHz | "
         s_fwhm = f"FWHM: {1e-3 * fit_results[q]['fwhm']:.1f} kHz | "
         if fit_results[q]["success"]:
             s_qubit += " SUCCESS!\n"
@@ -45,13 +63,22 @@ def log_fitted_results(fit_results: Dict, log_callable=None):
 
 def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
     ds = convert_IQ_to_V(ds, node.namespace["qubits"], IQ_list=["Ig", "Qg", "Im", "Qm"])
+    if "n_runs" not in ds.dims:
+        raise ValueError(
+            "Resonator spectroscopy requires individual shots along the 'n_runs' dimension."
+        )
+
+    ground_I = ds.Ig.mean(dim="n_runs")
+    ground_Q = ds.Qg.mean(dim="n_runs")
+    mixed_I = ds.Im.mean(dim="n_runs")
+    mixed_Q = ds.Qm.mean(dim="n_runs")
     ground = add_amplitude_and_phase(
-        ds[["Ig", "Qg"]].rename({"Ig": "I", "Qg": "Q"}),
+        xr.Dataset({"I": ground_I, "Q": ground_Q}),
         "detuning",
         subtract_slope_flag=True,
     )
     mixed = add_amplitude_and_phase(
-        ds[["Im", "Qm"]].rename({"Im": "I", "Qm": "Q"}),
+        xr.Dataset({"I": mixed_I, "Q": mixed_Q}),
         "detuning",
         subtract_slope_flag=True,
     )
@@ -59,7 +86,7 @@ def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
     ds["ground_phase"] = ground.phase
     ds["mixed_IQ_abs"] = mixed.IQ_abs
     ds["mixed_phase"] = mixed.phase
-    ds["IQ_separation"] = np.abs((ds.Im + 1j * ds.Qm) - (ds.Ig + 1j * ds.Qg))
+    ds["IQ_separation"] = calculate_iq_separation(ds)
     full_freq = np.array([ds.detuning + q.resonator.RF_frequency for q in node.namespace["qubits"]])
     ds = ds.assign_coords(full_freq=(["qubit", "detuning"], full_freq))
     ds.full_freq.attrs = {"long_name": "RF frequency", "units": "Hz"}
@@ -85,19 +112,27 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     # Fit the resonator line
     fit_results = peaks_dips(ds.ground_IQ_abs, "detuning")
     # Extract the relevant fitted parameters
-    fit_data, fit_results = _extract_relevant_fit_parameters(fit_results, node)
+    fit_data, fit_results = _extract_relevant_fit_parameters(fit_results, ds, node)
     return fit_data, fit_results
 
 
-def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
+def _extract_relevant_fit_parameters(
+    fit: xr.Dataset, spectroscopy_data: xr.Dataset, node: QualibrationNode
+):
     """Add metadata to the dataset and fit results."""
     # Add metadata to fit results
     fit.attrs = {"long_name": "frequency", "units": "Hz"}
-    # Get the fitted resonator frequency
+    # Choose the readout frequency that maximizes normalized state separation.
     full_freq = np.array([q.resonator.RF_frequency for q in node.namespace["qubits"]])
-    res_freq = fit.position + full_freq
+    separation_detuning = spectroscopy_data.detuning.isel(
+        detuning=spectroscopy_data.IQ_separation.argmax(dim="detuning")
+    )
+    res_freq = separation_detuning + full_freq
     fit = fit.assign_coords(res_freq=("qubit", res_freq.data))
-    fit.res_freq.attrs = {"long_name": "resonator frequency", "units": "Hz"}
+    fit.res_freq.attrs = {
+        "long_name": "maximum-separation readout frequency",
+        "units": "Hz",
+    }
     # Get the fitted FWHM
     fwhm = np.abs(fit.width)
     fit = fit.assign_coords(fwhm=("qubit", fwhm.data))

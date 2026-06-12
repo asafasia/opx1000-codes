@@ -1,6 +1,6 @@
 # Dynamic Circuit: Active Reset
 
-This experiment demonstrates a simple dynamic circuit on `q1`:
+This experiment demonstrates a simple dynamic circuit on `q9`:
 
 1. Prepare `|1>` for half the shots and leave `|0>` unchanged for the rest.
 2. Measure the qubit.

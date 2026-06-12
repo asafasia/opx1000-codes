@@ -27,7 +27,7 @@ from qualibration_libs.data import XarrayDataFetcher, convert_IQ_to_V
 from quam_config import create_machine
 
 
-QUBIT_NAME = "q1"
+QUBIT_NAME = "q9"
 NUM_SHOTS = 150
 QUBIT_DRIVE_AMPLITUDE = 0.5
 READOUT_AMPLITUDE_FACTORS = np.array([0.5,1])

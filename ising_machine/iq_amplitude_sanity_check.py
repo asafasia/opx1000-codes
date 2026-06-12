@@ -20,7 +20,7 @@ from qm.qua import *
 from qualang_tools.units import unit
 
 
-DEFAULT_QUBIT = "q1"
+DEFAULT_QUBIT = "q9"
 DEFAULT_NUM_SHOTS = 1_0000
 HIGH_AMPLITUDE = 1.0
 LOW_AMPLITUDE = 0.5
