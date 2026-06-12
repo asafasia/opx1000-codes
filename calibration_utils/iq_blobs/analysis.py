@@ -61,13 +61,21 @@ def log_blob_diagnostics(ds: xr.Dataset, log_callable=None):
         center_separation = float(
             np.hypot(selected.Ie.mean() - selected.Ig.mean(), selected.Qe.mean() - selected.Qg.mean())
         )
+        pooled_width = np.sqrt((ground_width**2 + prepared_width**2) / 2)
+        separation_to_width = center_separation / pooled_width if pooled_width else np.nan
         prepared_points = np.column_stack((selected.Ie.values, selected.Qe.values))
         prepared_unique_fraction = len(np.unique(prepared_points, axis=0)) / len(prepared_points)
-        warning = " | WARNING: strongly asymmetric blob widths" if not 0.5 <= width_ratio <= 2 else ""
+        warnings = []
+        if not 0.5 <= width_ratio <= 2:
+            warnings.append("strongly asymmetric blob widths")
+        if separation_to_width < 1:
+            warnings.append("blob separation is smaller than measurement noise")
+        warning = f" | WARNING: {', '.join(warnings)}" if warnings else ""
         log_callable(
             f"Blob diagnostics for {qubit}: ground width={ground_width * 1e3:.3f} mV | "
             f"prepared width={prepared_width * 1e3:.3f} mV | "
             f"width ratio={width_ratio:.3f} | center separation={center_separation * 1e3:.3f} mV | "
+            f"separation/width={separation_to_width:.3f} | "
             f"prepared unique fraction={prepared_unique_fraction:.3f}{warning}"
         )
 

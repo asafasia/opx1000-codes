@@ -15,7 +15,7 @@
             "1": {
               "band": 3,
               "lo_frequency_hz": 7800000000,
-              "full_scale_power_dbm": 0,
+              "full_scale_power_dbm": 16,
               "sampling_rate_hz": 1000000000
             },
             "2": {

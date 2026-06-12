@@ -1,0 +1,49 @@
+{
+  "experiment_name": "07_iq_blobs",
+  "profile_name": "main",
+  "timestamp": "2026-06-12T10:56:18.833524+03:00",
+  "sweep": {
+    "qubit": {
+      "shape": [
+        1
+      ],
+      "dtype": "<U2"
+    },
+    "n_runs": {
+      "shape": [
+        20000
+      ],
+      "dtype": "float64"
+    }
+  },
+  "results": {
+    "Ig": {
+      "shape": [
+        1,
+        20000
+      ],
+      "dtype": "float64"
+    },
+    "Qg": {
+      "shape": [
+        1,
+        20000
+      ],
+      "dtype": "float64"
+    },
+    "Ie": {
+      "shape": [
+        1,
+        20000
+      ],
+      "dtype": "float64"
+    },
+    "Qe": {
+      "shape": [
+        1,
+        20000
+      ],
+      "dtype": "float64"
+    }
+  }
+}

@@ -22,6 +22,8 @@ from calibration_utils.iq_blobs import (
     plot_iq_blobs,
     plot_confusion_matrices,
 )
+from saver import CalibrationSaver, current_profile_name
+from updater import ProfileUpdater
 from qualibration_libs.parameters import get_qubits
 from qualibration_libs.runtime import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
@@ -95,10 +97,30 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
     operation = node.parameters.operation
     selected_qubit_operation = node.parameters.qubit_operation
     qua_qubit_operation = "x180" if selected_qubit_operation == "x180_const" else selected_qubit_operation
+    pi_repetitions = node.parameters.pi_repetitions
+    if pi_repetitions < 1:
+        raise ValueError("pi_repetitions must be a positive integer.")
+    if not -2 <= node.parameters.qubit_amplitude_factor < 2:
+        raise ValueError("qubit_amplitude_factor must be within the QUA range [-2, 2).")
     for qubit in qubits:
         if qua_qubit_operation not in qubit.xy.operations:
             raise ValueError(
                 f"{qubit.name} does not define qubit operation {qua_qubit_operation!r}."
+            )
+        readout_amplitude = qubit.resonator.operations[operation].amplitude
+        t1_us = qubit.T1 * 1e6 if qubit.T1 is not None else float("nan")
+        node.log(
+            f"{qubit.name}: IQ blobs uses readout amplitude {readout_amplitude:.6g}, "
+            f"qubit operation {selected_qubit_operation!r} at amplitude factor "
+            f"{node.parameters.qubit_amplitude_factor:.6g}, repetitions="
+            f"{pi_repetitions if selected_qubit_operation == 'x180_const' else 1}, "
+            f"T1={t1_us:.1f} us, "
+            f"thermalization={qubit.thermalization_time / 1e3:.1f} us."
+        )
+        if abs(readout_amplitude) < 0.01:
+            node.log(
+                f"WARNING: {qubit.name} readout amplitude {readout_amplitude:.6g} is very low; "
+                "ground and prepared IQ blobs may be hidden by receiver noise."
             )
     # Register the sweep axes to be added to the dataset when fetching data
     node.namespace["sweep_axes"] = {
@@ -140,7 +162,17 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 # Qubit readout
                 for i, qubit in multiplexed_qubits.items():
                     # Prepare the second IQ blob using the selected qubit operation.
-                    qubit.xy.play(qua_qubit_operation)
+                    if selected_qubit_operation == "x180_const":
+                        for _ in range(pi_repetitions):
+                            qubit.xy.play(
+                                qua_qubit_operation,
+                                amplitude_scale=node.parameters.qubit_amplitude_factor,
+                            )
+                    else:
+                        qubit.xy.play(
+                            qua_qubit_operation,
+                            amplitude_scale=node.parameters.qubit_amplitude_factor,
+                        )
                     # Align the elements to measure after playing the qubit pulses.
                     qubit.align()
                     # Measure the state of the resonators
@@ -170,6 +202,7 @@ def simulate_qua_program(node: QualibrationNode[Parameters, Quam]):
     samples, fig, wf_report = simulate_and_plot(qmm, config, node.namespace["qua_program"], node.parameters)
     # Store the figure, waveform report and simulated samples
     node.results["simulation"] = {"figure": fig, "wf_report": wf_report, "samples": samples}
+    plt.show()
 
 
 # %% {Execute}
@@ -213,6 +246,19 @@ def load_data(node: QualibrationNode[Parameters, Quam]):
     node.namespace["qubits"] = get_qubits(node)
 
 
+# %% {Save_raw_results}
+@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
+def save_raw_results(node: QualibrationNode[Parameters, Quam]):
+    """Save the acquired vectors and a snapshot of the selected profile."""
+    output_directory = CalibrationSaver().save_xarray(
+        node.name,
+        node.results["ds_raw"],
+        profile_name=current_profile_name(),
+    )
+    node.namespace["calibration_run_directory"] = output_directory
+    node.log(f"Raw calibration results saved to {output_directory}")
+
+
 # %% {Analyse_data}
 @node.run_action(skip_if=node.parameters.simulate)
 def analyse_data(node: QualibrationNode[Parameters, Quam]):
@@ -249,25 +295,33 @@ def plot_data(node: QualibrationNode[Parameters, Quam]):
         "confusion_matrix": fig_confusion,
         "histograms": fig_histogram,
     }
+    if "calibration_run_directory" in node.namespace:
+        figures_directory = CalibrationSaver().save_figures(
+            node.namespace["calibration_run_directory"],
+            node.results["figures"],
+        )
+        node.log(f"Calibration figures saved to {figures_directory}")
 
 
-# # %% {Update_state}
-# @node.run_action(skip_if=node.parameters.simulate)
-# def update_state(node: QualibrationNode[Parameters, Quam]):
-#     """Update the relevant parameters if the qubit data analysis was successful."""
-#     with node.record_state_updates():
-#         for q in node.namespace["qubits"]:
-#             if node.outcomes[q.name] == "failed":
-#                 continue
-
-#             fit_result = node.results["fit_results"][q.name]
-#             operation = q.resonator.operations[node.parameters.operation]
-#             operation.integration_weights_angle -= float(fit_result["iw_angle"])
-#             # Convert the thresholds back to demod units
-#             operation.threshold = float(fit_result["ge_threshold"]) * operation.length / 2**12
-#             operation.rus_exit_threshold = float(fit_result["rus_threshold"]) * operation.length / 2**12
-#             if node.parameters.operation == "readout":
-#                 q.resonator.confusion_matrix = fit_result["confusion_matrix"]
+# %% {Propose_profile_update}
+@node.run_action(skip_if=node.parameters.simulate)
+def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
+    """Stage IQ discrimination settings and apply them only after confirmation."""
+    updates = {}
+    for q in node.namespace["qubits"]:
+        if node.outcomes[q.name] != "successful":
+            continue
+        fit_result = node.results["fit_results"][q.name]
+        operation = q.resonator.operations[node.parameters.operation]
+        updates[f"qubits.json.qubits.{q.name}.readout.integration_weights_angle_rad"] = (
+            operation.integration_weights_angle - float(fit_result["iw_angle"])
+        )
+        updates[f"qubits.json.qubits.{q.name}.readout.threshold"] = (
+            float(fit_result["ge_threshold"]) * operation.length / 2**12
+        )
+    if updates:
+        proposal = ProfileUpdater().stage(node.name, updates, profile_name=current_profile_name())
+        ProfileUpdater().confirm_and_apply(proposal)
 
 
 # # %% {Save_results}

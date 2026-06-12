@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from .iq_amplitude_sanity_check import iq_summary, plot_iq_results
+from ising_machine.iq_amplitude_sanity_check import iq_summary, plot_iq_results
 
 
 def test_iq_summary_ratio() -> None:

@@ -1,4 +1,5 @@
 # %% {Imports}
+import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
@@ -111,6 +112,7 @@ def simulate_qua_program(node: QualibrationNode[Parameters, Quam]):
         "wf_report": wf_report,
         "samples": samples,
     }
+    plt.show()
 
 
 # %% {Execute}

@@ -8,9 +8,9 @@ from qualibration_libs.parameters import QubitsExperimentNodeParameters, CommonN
 class NodeSpecificParameters(RunnableParameters):
     num_shots: int = 300
     """Number of averages to perform. Defaut is 100."""
-    frequency_span_in_mhz: float = 100.
+    frequency_span_in_mhz: float = 30.
     """Span of frequencies to sweep in MHz. Default is 130 MHz."""
-    frequency_step_in_mhz: float = 1
+    frequency_step_in_mhz: float = 0.3
     """Step size for frequency sweep in MHz. Default is 0.1 MHz."""
     qubit_operation: Literal["saturation", "x180_const"] = "saturation"
     """Qubit-drive pulse used before or during the driven-state resonator scan."""

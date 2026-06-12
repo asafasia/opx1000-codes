@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from .model import IsingProblem, IsingRun, metropolis_reference, ring_couplings
-from .pseudo_spin_experiment import uniform_ring_parameters
+from ising_machine.model import IsingProblem, IsingRun, metropolis_reference, ring_couplings
+from ising_machine.pseudo_spin_experiment import uniform_ring_parameters
 
 
 def test_amplitude_mapping() -> None:

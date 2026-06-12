@@ -21,6 +21,8 @@ from calibration_utils.power_rabi import (
     log_fitted_results,
     plot_raw_data_with_fit,
 )
+from saver import CalibrationSaver, current_profile_name
+from updater import ProfileUpdater
 from qualibration_libs.parameters import get_qubits
 from qualibration_libs.runtime import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
@@ -181,6 +183,7 @@ def simulate_qua_program(node: QualibrationNode[Parameters, Quam]):
     samples, fig, wf_report = simulate_and_plot(qmm, config, node.namespace["qua_program"], node.parameters)
     # Store the figure, waveform report and simulated samples
     node.results["simulation"] = {"figure": fig, "wf_report": wf_report, "samples": samples}
+    plt.show()
 
 
 # %% {Execute}
@@ -221,6 +224,19 @@ def load_data(node: QualibrationNode[Parameters, Quam]):
     node.namespace["qubits"] = get_qubits(node)
 
 
+# %% {Save_raw_results}
+@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
+def save_raw_results(node: QualibrationNode[Parameters, Quam]):
+    """Save the acquired vectors and a snapshot of the selected profile."""
+    output_directory = CalibrationSaver().save_xarray(
+        node.name,
+        node.results["ds_raw"],
+        profile_name=current_profile_name(),
+    )
+    node.namespace["calibration_run_directory"] = output_directory
+    node.log(f"Raw calibration results saved to {output_directory}")
+
+
 # %% {Analyse_data}
 @node.run_action(skip_if=node.parameters.simulate)
 def analyse_data(node: QualibrationNode[Parameters, Quam]):
@@ -247,21 +263,33 @@ def plot_data(node: QualibrationNode[Parameters, Quam]):
     node.results["figures"] = {
         "amplitude": fig_raw_fit,
     }
+    if "calibration_run_directory" in node.namespace:
+        figures_directory = CalibrationSaver().save_figures(
+            node.namespace["calibration_run_directory"],
+            node.results["figures"],
+        )
+        node.log(f"Calibration figures saved to {figures_directory}")
 
 
-# # %% {Update_state}
-# @node.run_action(skip_if=node.parameters.simulate)
-# def update_state(node: QualibrationNode[Parameters, Quam]):
-#     """Update the relevant parameters if the qubit data analysis was successful."""
-#     with node.record_state_updates():
-#         for q in node.namespace["qubits"]:
-#             if node.outcomes[q.name] == "failed":
-#                 continue
-
-#             operation = q.xy.operations[node.parameters.operation]
-#             operation.amplitude = node.results["fit_results"][q.name]["opt_amp"]
-#             if node.parameters.operation == "x180":
-#                 q.xy.operations["x90"].amplitude = node.results["fit_results"][q.name]["opt_amp"] / 2
+# %% {Propose_profile_update}
+@node.run_action(skip_if=node.parameters.simulate)
+def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
+    """Stage fitted pulse amplitudes and apply them only after confirmation."""
+    updates = {}
+    for q in node.namespace["qubits"]:
+        if node.outcomes[q.name] != "successful":
+            continue
+        if node.parameters.operation != "x180":
+            node.log(
+                f"Profile update skipped: operation {node.parameters.operation!r} "
+                "does not have a dedicated pulse in profiles/main/pulses.json."
+            )
+            continue
+        amplitude = float(node.results["fit_results"][q.name]["opt_amp"])
+        updates["pulses.json.pulses.x180_const.amplitude"] = amplitude
+    if updates:
+        proposal = ProfileUpdater().stage(node.name, updates, profile_name=current_profile_name())
+        ProfileUpdater().confirm_and_apply(proposal)
 
 
 # # %% {Save_results}
