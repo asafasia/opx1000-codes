@@ -1,0 +1,221 @@
+# %% {Imports}
+import matplotlib.pyplot as plt
+import numpy as np
+import xarray as xr
+from dataclasses import asdict
+
+from qm.qua import *
+
+from qualang_tools.multi_user import qm_session
+from qualang_tools.results import progress_counter
+from qualang_tools.units import unit
+
+from qualibrate import QualibrationNode
+from quam_config import Quam, create_machine
+from calibration_utils.iq_blobs import (
+    Parameters,
+    process_raw_dataset,
+    fit_raw_data,
+    log_fitted_results,
+    log_blob_diagnostics,
+    plot_iq_blobs_dashboard,
+)
+from qualibration_libs.parameters import get_qubits
+from qualibration_libs.runtime import simulate_and_plot
+from qualibration_libs.data import XarrayDataFetcher
+
+# %% {Description}
+description = """
+        IQ BLOBS - SEPARATE ACQUISITIONS
+This diagnostic calibration acquires the ground and excited IQ clouds in two
+independent QUA programs and jobs. It then combines both acquisitions and uses
+the standard IQ-blobs analysis and dashboard.
+
+This node intentionally does not update the device state.
+"""
+
+node = QualibrationNode[Parameters, Quam](
+    name="07_iq_blobs_separate",
+    description=description,
+    parameters=Parameters(),
+)
+
+node.machine = create_machine()
+
+@node.run_action(skip_if=node.modes.external)
+def custom_param(node: QualibrationNode[Parameters, Quam]):
+    """Allow local debugging parameter overrides."""
+    # node.parameters.qubits = ["q1"]
+    # node.parameters.simulate = True
+    # node.parameters.samples = 1000
+
+
+def make_state_program(
+    node: QualibrationNode[Parameters, Quam], state: str, n_runs: int | None = None
+):
+    """Build one independent IQ acquisition program for state 'g' or 'e'."""
+    if state not in {"g", "e"}:
+        raise ValueError("state must be 'g' or 'e'")
+
+    u = unit(coerce_to_integer=True)
+    qubits = node.namespace["qubits"]
+    num_qubits = len(qubits)
+    n_runs = node.parameters.num_shots if n_runs is None else n_runs
+    operation = node.parameters.operation
+    selected_qubit_operation = node.parameters.qubit_operation
+    qua_qubit_operation = "x180" if selected_qubit_operation == "x180_const" else selected_qubit_operation
+    if node.parameters.pi_repetitions < 1:
+        raise ValueError("pi_repetitions must be a positive integer.")
+    for qubit in qubits:
+        if qua_qubit_operation not in qubit.xy.operations:
+            raise ValueError(
+                f"{qubit.name} does not define qubit operation {qua_qubit_operation!r}."
+            )
+
+    with program() as qua_program:
+        I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
+
+        for multiplexed_qubits in qubits.batch():
+            with for_(n, 0, n < n_runs, n + 1):
+                save(n, n_st)
+                for qubit in multiplexed_qubits.values():
+                    qubit.wait(200 * u.us)
+                align()
+
+                if state == "e":
+                    for _, qubit in multiplexed_qubits.items():
+                        repetitions = (
+                            node.parameters.pi_repetitions
+                            if selected_qubit_operation == "x180_const"
+                            else 1
+                        )
+                        for _ in range(repetitions):
+                            qubit.xy.play(
+                                qua_qubit_operation,
+                                amplitude_scale=node.parameters.qubit_amplitude_factor,
+                            )
+                    align()
+
+                for i, qubit in multiplexed_qubits.items():
+                    qubit.resonator.measure(operation, qua_vars=(I[i], Q[i]))
+                    save(I[i], I_st[i])
+                    save(Q[i], Q_st[i])
+                    qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
+                align()
+
+        with stream_processing():
+            n_st.save("n")
+            for i in range(num_qubits):
+                I_st[i].buffer(n_runs).save(f"I{i + 1}")
+                Q_st[i].buffer(n_runs).save(f"Q{i + 1}")
+
+    return qua_program
+
+
+def acquire_state(
+    node: QualibrationNode[Parameters, Quam], qmm, config: dict, state: str
+) -> xr.Dataset:
+    """Execute one state in its own QM session and rename its I/Q results."""
+    node.log(f"Starting independent {state}-state acquisition")
+    with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
+        job = qm.execute(node.namespace["qua_programs"][state])
+        fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
+        for dataset in fetcher:
+            progress_counter(
+                fetcher.get("n", 0),
+                node.parameters.num_shots,
+                start_time=fetcher.t_start,
+            )
+        node.log(f"{state}-state acquisition:\n{job.execution_report()}")
+    suffix = "g" if state == "g" else "e"
+    return dataset.rename({"I": f"I{suffix}", "Q": f"Q{suffix}"})
+
+
+# %% {Create_QUA_programs}
+@node.run_action(skip_if=node.parameters.load_data_id is not None)
+def create_qua_programs(node: QualibrationNode[Parameters, Quam]):
+    """Create independent ground-state and excited-state QUA programs."""
+    node.namespace["qubits"] = qubits = get_qubits(node)
+    n_runs = node.parameters.num_shots
+    node.namespace["sweep_axes"] = {
+        "qubit": xr.DataArray(qubits.get_names()),
+        "n_runs": xr.DataArray(np.arange(n_runs), attrs={"long_name": "shot index"}),
+    }
+    node.namespace["qua_programs"] = {
+        state: make_state_program(node, state) for state in ("g", "e")
+    }
+
+
+# %% {Simulate}
+@node.run_action(skip_if=node.parameters.load_data_id is not None or not node.parameters.simulate)
+def simulate_qua_programs(node: QualibrationNode[Parameters, Quam]):
+    """Simulate short representative versions of both acquisition programs."""
+    qmm = node.machine.connect()
+    config = node.machine.generate_config()
+    simulations = {}
+    for state in ("g", "e"):
+        # Simulating all experimental shots can span seconds and overwhelm the
+        # simulator sample pull. One shot contains the complete state sequence.
+        qua_program = make_state_program(node, state, n_runs=1)
+        samples, fig, wf_report = simulate_and_plot(qmm, config, qua_program, node.parameters)
+        simulations[state] = {"figure": fig, "wf_report": wf_report, "samples": samples}
+    node.results["simulation"] = simulations
+    plt.show()
+
+
+# %% {Execute}
+@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
+def execute_qua_programs(node: QualibrationNode[Parameters, Quam]):
+    """Execute ground and excited acquisition as separate jobs, then merge them."""
+    qmm = node.machine.connect()
+    config = node.machine.generate_config()
+    ground = acquire_state(node, qmm, config, "g")
+    excited = acquire_state(node, qmm, config, "e")
+
+    node.results["ds_ground_raw"] = ground
+    node.results["ds_excited_raw"] = excited
+    node.results["ds_raw"] = process_raw_dataset(xr.merge([ground, excited]), node)
+
+
+# %% {Load_historical_data}
+@node.run_action(skip_if=node.parameters.load_data_id is None)
+def load_data(node: QualibrationNode[Parameters, Quam]):
+    """Load a previously acquired combined IQ dataset."""
+    load_data_id = node.parameters.load_data_id
+    node.load_from_id(load_data_id)
+    node.parameters.load_data_id = load_data_id
+    node.namespace["qubits"] = get_qubits(node)
+
+
+# %% {Analyse_data}
+@node.run_action(skip_if=node.parameters.simulate)
+def analyse_data(node: QualibrationNode[Parameters, Quam]):
+    """Run the standard IQ-blobs analysis on the merged dataset."""
+    node.results["ds_fit"], fit_results = fit_raw_data(node.results["ds_raw"], node)
+    node.results["fit_results"] = {name: asdict(result) for name, result in fit_results.items()}
+    log_blob_diagnostics(node.results["ds_raw"], log_callable=node.log)
+    log_fitted_results(node.results["fit_results"], log_callable=node.log)
+    node.outcomes = {
+        name: ("successful" if result["success"] else "failed")
+        for name, result in node.results["fit_results"].items()
+    }
+
+
+# %% {Plot_data}
+@node.run_action(skip_if=node.parameters.simulate)
+def plot_data(node: QualibrationNode[Parameters, Quam]):
+    """Plot the standard combined IQ-blobs dashboard."""
+    dashboard = plot_iq_blobs_dashboard(
+        node.results["ds_raw"],
+        node.namespace["qubits"],
+        node.results["ds_fit"],
+    )
+    node.results["figures"] = {"iq_blobs_separate_dashboard": dashboard}
+    plt.show()
+
+
+# %% {Save_results}
+@node.run_action()
+def save_results(node: QualibrationNode[Parameters, Quam]):
+    """Save the two raw acquisitions, merged analysis, and dashboard."""
+    node.save()

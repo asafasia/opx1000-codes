@@ -4,7 +4,7 @@
     "x180_const": {
       "target": "qubit",
       "type": "constant",
-      "amplitude": 0.025,
+      "amplitude": 0.02831380177529626,
       "length_ns": 40,
       "axis_angle_rad": 0.0
     },
@@ -35,7 +35,7 @@
     "readout": {
       "target": "resonator",
       "type": "constant",
-      "amplitude": 0.0215848931924611134,
+      "amplitude": 0.021584893192461114,
       "length_ns": 2000,
       "digital_marker": "ON"
     }

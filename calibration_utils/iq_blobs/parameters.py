@@ -13,8 +13,8 @@ class NodeSpecificParameters(RunnableParameters):
     """Qubit operation used to prepare the second IQ blob."""
     qubit_amplitude_factor: float = 1.0
     """Amplitude factor applied to the selected qubit operation."""
-    pi_repetitions: int = 3
-    """Number of x180_const pulses used to prepare the excited-state blob."""
+    pi_repetitions: int = 1
+    """Number of x180_const pulses used to prepare the excited-state blob. Default is 1."""
 
 
 class Parameters(

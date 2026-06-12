@@ -17,6 +17,8 @@ class FitParameters:
     ge_threshold: float
     rus_threshold: float
     readout_fidelity: float
+    center_separation: float
+    separation_to_width: float
     confusion_matrix: list
     success: bool
 
@@ -40,7 +42,8 @@ def log_fitted_results(fit_results: Dict, log_callable=None):
         s = f"IW angle: {fit_results[q]['iw_angle'] * 180 / np.pi:.1f} deg | "
         s += f"ge_threshold: {fit_results[q]['ge_threshold'] * 1e3:.1f} mV | "
         s += f"rus_threshold: {fit_results[q]['rus_threshold'] * 1e3:.1f} mV | "
-        s += f"readout fidelity: {fit_results[q]['readout_fidelity']:.1f} % \n "
+        s += f"readout fidelity: {fit_results[q]['readout_fidelity']:.1f} % | "
+        s += f"separation/width: {fit_results[q]['separation_to_width']:.2f} \n "
         if fit_results[q]["success"]:
             s_qubit += " SUCCESS!\n"
         else:
@@ -166,6 +169,15 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     ds_fit = ds_fit.assign(
         {"readout_fidelity": xr.DataArray(100 * (ds_fit.gg + ds_fit.ee) / 2, coords=dict(qubit=ds_fit.qubit.data))}
     )
+    center_separation = np.hypot(
+        ds_fit.Ie.mean(dim="n_runs") - ds_fit.Ig.mean(dim="n_runs"),
+        ds_fit.Qe.mean(dim="n_runs") - ds_fit.Qg.mean(dim="n_runs"),
+    )
+    ground_width = np.sqrt(ds_fit.Ig.var(dim="n_runs") + ds_fit.Qg.var(dim="n_runs"))
+    prepared_width = np.sqrt(ds_fit.Ie.var(dim="n_runs") + ds_fit.Qe.var(dim="n_runs"))
+    pooled_width = np.sqrt((ground_width**2 + prepared_width**2) / 2)
+    ds_fit = ds_fit.assign({"center_separation": center_separation})
+    ds_fit = ds_fit.assign({"separation_to_width": center_separation / pooled_width})
 
     # Extract the relevant fitted parameters
     fit_data, fit_results = _extract_relevant_fit_parameters(ds_fit, node)
@@ -190,7 +202,7 @@ def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
         | np.isnan(fit.rus_threshold)
         | np.isnan(fit.readout_fidelity)
     )
-    success_criteria = ~nan_success
+    success_criteria = ~nan_success & (fit.separation_to_width >= 1) & (fit.readout_fidelity >= 60)
     fit = fit.assign({"success": success_criteria})
 
     fit_results = {
@@ -199,6 +211,8 @@ def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
             ge_threshold=float(fit.sel(qubit=q).ge_threshold),
             rus_threshold=float(fit.sel(qubit=q).rus_threshold),
             readout_fidelity=float(fit.sel(qubit=q).readout_fidelity),
+            center_separation=float(fit.sel(qubit=q).center_separation),
+            separation_to_width=float(fit.sel(qubit=q).separation_to_width),
             confusion_matrix=[
                 [float(fit.sel(qubit=q).gg), float(fit.sel(qubit=q).ge)],
                 [float(fit.sel(qubit=q).eg), float(fit.sel(qubit=q).ee)],

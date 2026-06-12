@@ -82,12 +82,14 @@ def plot_individual_data_with_fit_1D(ax: Axes, ds: xr.Dataset, variable: str, fi
 
     if "nb_of_pulses" not in ds or len(ds.nb_of_pulses.data) == 1:
         if fit is not None:
+            fit_variable = f"fit_{variable}" if f"fit_{variable}" in fit else "fit"
+            channel_fit = fit[fit_variable]
             fitted_data = oscillation(
                 fit.amp_prefactor.data,
-                fit.fit.sel(fit_vals="a").data,
-                fit.fit.sel(fit_vals="f").data,
-                fit.fit.sel(fit_vals="phi").data,
-                fit.fit.sel(fit_vals="offset").data,
+                channel_fit.sel(fit_vals="a").data,
+                channel_fit.sel(fit_vals="f").data,
+                channel_fit.sel(fit_vals="phi").data,
+                channel_fit.sel(fit_vals="offset").data,
             )
         else:
             fitted_data = None
@@ -98,8 +100,16 @@ def plot_individual_data_with_fit_1D(ax: Axes, ds: xr.Dataset, variable: str, fi
         selected = selected.assign_coords(amp_mV=selected.full_amp * 1e3)
         scale = 1 if variable == "state" else 1e3
         (selected[variable] * scale).plot(ax=ax, x="amp_mV")
-        if fitted_data is not None and variable in ("I", "state"):
-            ax.plot(fit.full_amp * 1e3, scale * fitted_data, "r--", label="Fit")
+        if fitted_data is not None:
+            selected = "selected_quadrature" in fit and str(fit.selected_quadrature.values) == variable
+            score_name = f"r_squared_{variable}"
+            score = float(fit[score_name].values) if score_name in fit else None
+            label = "Fit"
+            if score is not None:
+                label += f" ($R^2$={score:.3f})"
+            if selected:
+                label += " - selected"
+            ax.plot(fit.full_amp * 1e3, scale * fitted_data, "r--", label=label)
             ax.legend()
         ax.set_ylabel("Qubit state" if variable == "state" else f"{variable} [mV]")
         ax.set_xlabel("Pulse amplitude [mV]")

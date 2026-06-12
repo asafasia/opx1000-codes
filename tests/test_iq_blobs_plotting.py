@@ -1,0 +1,49 @@
+import unittest
+from types import SimpleNamespace
+
+import matplotlib
+import numpy as np
+import xarray as xr
+
+matplotlib.use("Agg")
+
+from calibration_utils.iq_blobs.plotting import plot_iq_blobs_dashboard
+
+
+class IQBlobsPlottingTests(unittest.TestCase):
+    def test_dashboard_contains_all_three_views_and_correct_centers(self):
+        runs = np.arange(4)
+        fit = xr.Dataset(
+            {
+                "Ig_rot": (("qubit", "n_runs"), [[-2e-3, -2e-3, -2e-3, -2e-3]]),
+                "Qg_rot": (("qubit", "n_runs"), [[1e-3, 1e-3, 1e-3, 1e-3]]),
+                "Ie_rot": (("qubit", "n_runs"), [[3e-3, 3e-3, 3e-3, 3e-3]]),
+                "Qe_rot": (("qubit", "n_runs"), [[-1e-3, -1e-3, -1e-3, -1e-3]]),
+                "rus_threshold": ("qubit", [-2e-3]),
+                "ge_threshold": ("qubit", [0.5e-3]),
+                "gg": ("qubit", [0.9]),
+                "ge": ("qubit", [0.1]),
+                "eg": ("qubit", [0.2]),
+                "ee": ("qubit", [0.8]),
+                "success": ("qubit", [True]),
+                "separation_to_width": ("qubit", [3.0]),
+                "readout_fidelity": ("qubit", [85.0]),
+            },
+            coords={"qubit": ["q1"], "n_runs": runs},
+        )
+
+        fig = plot_iq_blobs_dashboard(xr.Dataset(), [SimpleNamespace(name="q1")], fit)
+
+        self.assertEqual(len(fig.axes), 3)
+        center_points = fig.axes[0].lines[-3:-1]
+        self.assertEqual(tuple(center_points[0].get_data()), ((-2.0,), (1.0,)))
+        self.assertEqual(tuple(center_points[1].get_data()), ((3.0,), (-1.0,)))
+        self.assertEqual(len(fig.axes[1].texts), 4)
+        self.assertAlmostEqual(fig.axes[0].get_position().y0, fig.axes[1].get_position().y0)
+        self.assertLess(fig.axes[2].get_position().y1, fig.axes[0].get_position().y0)
+        self.assertLessEqual(fig.axes[2].get_position().x0, fig.axes[0].get_position().x0)
+        self.assertGreaterEqual(fig.axes[2].get_position().x1, fig.axes[1].get_position().x1)
+
+
+if __name__ == "__main__":
+    unittest.main()

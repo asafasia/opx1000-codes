@@ -13,7 +13,7 @@
                         "length": 40,
                         "id": null,
                         "digital_marker": null,
-                        "amplitude": 0.025,
+                        "amplitude": 0.02831380177529626,
                         "axis_angle": 0.0,
                         "__class__": "quam.components.pulses.SquarePulse"
                     },
@@ -65,7 +65,7 @@
             "resonator": {
                 "depletion_time": 2500,
                 "frequency_bare": null,
-                "f_01": 7470000000,
+                "f_01": 7470000000.0,
                 "f_12": null,
                 "confusion_matrix": null,
                 "gef_centers": null,
@@ -96,7 +96,7 @@
                 "time_of_flight": 32,
                 "smearing": 0,
                 "LO_frequency": "#./upconverter_frequency",
-                "RF_frequency": 7470000000,
+                "RF_frequency": 7470000000.0,
                 "opx_output": "#/wiring/qubits/q1/rr/opx_output",
                 "upconverter": 1,
                 "__class__": "quam_builder.architecture.superconducting.components.readout_resonator.ReadoutResonatorMW"

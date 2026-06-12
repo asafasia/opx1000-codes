@@ -12,6 +12,19 @@ from quam_builder.architecture.superconducting.qubit import AnyTransmon
 u = unit(coerce_to_integer=True)
 
 
+def _add_detuning_axis(ax, current_frequency_ghz: float):
+    """Add a top x-axis showing detuning from the configured resonance."""
+    detuning_axis = ax.secondary_xaxis(
+        "top",
+        functions=(
+            lambda frequency_ghz: (frequency_ghz - current_frequency_ghz) * 1e3,
+            lambda detuning_mhz: current_frequency_ghz + detuning_mhz / 1e3,
+        ),
+    )
+    detuning_axis.set_xlabel("Detuning from current resonance [MHz]")
+    return detuning_axis
+
+
 def plot_raw_phase(ds: xr.Dataset, qubits: List[AnyTransmon]) -> Figure:
     """
     Plots the raw phase data for the given qubits.
@@ -95,12 +108,20 @@ def plot_raw_amplitude(ds: xr.Dataset, qubits: List[AnyTransmon]):
         max_separation_frequency_ghz = float(
             selected.full_freq_GHz.isel(detuning=max_separation_index).values
         )
+        current_frequency_ghz = float(qubit.resonator.RF_frequency) / u.GHz
         max_separation_label = (
-            f"Maximum IQ separation: {max_separation_frequency_ghz:.6f} GHz"
+            f"New resonance (maximum IQ separation): {max_separation_frequency_ghz:.6f} GHz"
         )
+        current_frequency_label = f"Current resonance: {current_frequency_ghz:.6f} GHz"
 
         ground.plot(ax=spectrum_ax, x="full_freq_GHz", label="Ground")
         mixed.plot(ax=spectrum_ax, x="full_freq_GHz", label="Driven")
+        spectrum_ax.axvline(
+            current_frequency_ghz,
+            color="black",
+            linestyle=":",
+            label=current_frequency_label,
+        )
         spectrum_ax.axvline(
             max_separation_frequency_ghz,
             color="tab:red",
@@ -114,6 +135,12 @@ def plot_raw_amplitude(ds: xr.Dataset, qubits: List[AnyTransmon]):
 
         separation.plot(ax=difference_ax, x="full_freq_GHz", color="tab:blue")
         difference_ax.axvline(
+            current_frequency_ghz,
+            color="black",
+            linestyle=":",
+            label=current_frequency_label,
+        )
+        difference_ax.axvline(
             max_separation_frequency_ghz,
             color="tab:red",
             linestyle="--",
@@ -122,6 +149,8 @@ def plot_raw_amplitude(ds: xr.Dataset, qubits: List[AnyTransmon]):
         difference_ax.set_xlabel("RF frequency [GHz]")
         difference_ax.set_ylabel(r"$|IQ_{mixed}-IQ_{ground}|$ [mV]")
         difference_ax.legend()
+        _add_detuning_axis(spectrum_ax, current_frequency_ghz)
+        _add_detuning_axis(difference_ax, current_frequency_ghz)
 
     for row in range(2 * rows):
         for column in range(columns):
