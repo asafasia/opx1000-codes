@@ -24,6 +24,8 @@ class NodeSpecificParameters(BasePowerRabiParameters):
 
     operation: Literal["x180", "x90", "-x90", "y90", "-y90"] = "x180"
     """Type of operation to perform. Default is "x180"."""
+    pi_repetitions: int = 3
+    """Number of times to repeat each pulse-count point. Default is 3."""
     max_number_pulses_per_sweep: int = 1
     """Maximum number of Rabi pulses per sweep (error amplification). Default is 1."""
     update_x90: bool = True
@@ -60,6 +62,7 @@ class HasErrorAmplification(Protocol):
     """Structural typing for objects supporting error amplification controls."""
 
     max_number_pulses_per_sweep: int
+    pi_repetitions: int
     operation: str
 
 
@@ -71,6 +74,9 @@ def get_number_of_pulses(node_parameter: BasePowerRabiParameters):
     # If the parameter object lacks error amplification attributes, default to single pulse.
     if not isinstance(node_parameter, HasErrorAmplification):
         return np.array([1], dtype=int)
+
+    if node_parameter.pi_repetitions < 1:
+        raise ValueError("pi_repetitions must be a positive integer.")
 
     if node_parameter.max_number_pulses_per_sweep > 1:
         if node_parameter.operation == "x180":
@@ -85,4 +91,4 @@ def get_number_of_pulses(node_parameter: BasePowerRabiParameters):
             node_parameter.max_number_pulses_per_sweep,
             node_parameter.max_number_pulses_per_sweep,
         ).astype(int)[::2]
-    return N_pulses
+    return N_pulses * node_parameter.pi_repetitions

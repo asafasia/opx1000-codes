@@ -48,6 +48,38 @@ def log_fitted_results(fit_results: Dict, log_callable=None):
         log_callable(s_qubit + s)
 
 
+def log_blob_diagnostics(ds: xr.Dataset, log_callable=None):
+    """Log raw cloud centers and widths to expose acquisition asymmetries."""
+    if log_callable is None:
+        log_callable = logging.getLogger(__name__).info
+
+    for qubit in ds.qubit.values:
+        selected = ds.sel(qubit=qubit)
+        ground_width = float(np.sqrt(selected.Ig.var() + selected.Qg.var()))
+        prepared_width = float(np.sqrt(selected.Ie.var() + selected.Qe.var()))
+        width_ratio = prepared_width / ground_width if ground_width else np.nan
+        center_separation = float(
+            np.hypot(selected.Ie.mean() - selected.Ig.mean(), selected.Qe.mean() - selected.Qg.mean())
+        )
+        pooled_width = np.sqrt((ground_width**2 + prepared_width**2) / 2)
+        separation_to_width = center_separation / pooled_width if pooled_width else np.nan
+        prepared_points = np.column_stack((selected.Ie.values, selected.Qe.values))
+        prepared_unique_fraction = len(np.unique(prepared_points, axis=0)) / len(prepared_points)
+        warnings = []
+        if not 0.5 <= width_ratio <= 2:
+            warnings.append("strongly asymmetric blob widths")
+        if separation_to_width < 1:
+            warnings.append("blob separation is smaller than measurement noise")
+        warning = f" | WARNING: {', '.join(warnings)}" if warnings else ""
+        log_callable(
+            f"Blob diagnostics for {qubit}: ground width={ground_width * 1e3:.3f} mV | "
+            f"prepared width={prepared_width * 1e3:.3f} mV | "
+            f"width ratio={width_ratio:.3f} | center separation={center_separation * 1e3:.3f} mV | "
+            f"separation/width={separation_to_width:.3f} | "
+            f"prepared unique fraction={prepared_unique_fraction:.3f}{warning}"
+        )
+
+
 def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
     # Fix the structure of ds to avoid tuples
     def extract_value(element):

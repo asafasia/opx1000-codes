@@ -13,7 +13,7 @@ import numpy as np
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_OUTPUT_ROOT = REPOSITORY_ROOT / "calibrations"
+DEFAULT_OUTPUT_ROOT = REPOSITORY_ROOT / "data" / "calibrations"
 DEFAULT_PROFILES_ROOT = REPOSITORY_ROOT / "profiles"
 _VALID_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 
@@ -130,3 +130,16 @@ class CalibrationSaver:
         sweep = {name: coordinate.values for name, coordinate in dataset.coords.items()}
         results = {name: variable.values for name, variable in dataset.data_vars.items()}
         return self.save(experiment_name, sweep, results, profile_name=profile_name, now=now)
+
+    def save_figures(self, run_directory: Path | str, figures: Mapping[str, Any]) -> Path:
+        """Save named Matplotlib figures into an existing calibration run."""
+        run_directory = Path(run_directory)
+        if not run_directory.is_dir():
+            raise FileNotFoundError(f"Calibration run directory does not exist: {run_directory}")
+
+        figures_directory = run_directory / "figures"
+        figures_directory.mkdir(exist_ok=True)
+        for name, figure in figures.items():
+            filename = f"{_validate_name(str(name), 'figure name')}.png"
+            figure.savefig(figures_directory / filename, dpi=180, bbox_inches="tight")
+        return figures_directory

@@ -37,6 +37,27 @@ def _optional_assign(component: Any, attribute: str, value: Any) -> None:
         setattr(component, attribute, value)
 
 
+def _apply_transmon_times(qubit: Any, transmon: dict[str, Any]) -> None:
+    """Apply profile times while respecting QuAM's seconds-based T1/T2 fields."""
+    for profile_key, quam_attribute in (
+        ("t1_ns", "T1"),
+        ("t2_ramsey_ns", "T2ramsey"),
+        ("t2_echo_ns", "T2echo"),
+    ):
+        value_ns = transmon[profile_key]
+        _optional_assign(qubit, quam_attribute, None if value_ns is None else value_ns * 1e-9)
+
+    reference_t1_ns = transmon["t1_ns"] if transmon["t1_ns"] is not None else 10_000
+    requested_thermalization_ns = transmon["thermalization_time_ns"]
+    factor = round(requested_thermalization_ns / reference_t1_ns)
+    if factor < 1 or factor * reference_t1_ns != requested_thermalization_ns:
+        raise ProfileError(
+            f"{qubit.name} thermalization_time_ns must be a positive integer multiple of "
+            f"T1 ({reference_t1_ns} ns, or the 10000 ns default)"
+        )
+    qubit.thermalization_time_factor = factor
+
+
 def _create_pulse(
     pulse_name: str,
     pulse: dict[str, Any],
@@ -56,6 +77,7 @@ def _create_pulse(
             axis_angle=axis_angle,
             threshold=readout["threshold"],
             integration_weights_angle=readout["integration_weights_angle_rad"],
+            # amplitude=common["amplitude"],  # Account for mixer conversion loss.
         )
 
     if pulse["type"] in {"constant", "saturation"}:
@@ -115,12 +137,10 @@ def apply_profile(machine: Quam, profile: dict[str, Any]) -> Quam:
         qubit.f_12 = frequencies["qubit_f12"]
         qubit.anharmonicity = transmon["anharmonicity_hz"]
         qubit.grid_location = ",".join(str(value) for value in settings["grid_location"])
-        _optional_assign(qubit, "T1", transmon["t1_ns"])
-        _optional_assign(qubit, "T2ramsey", transmon["t2_ramsey_ns"])
-        _optional_assign(qubit, "T2echo", transmon["t2_echo_ns"])
+        _apply_transmon_times(qubit, transmon)
 
         qubit.xy.RF_frequency = frequencies["qubit_f01"]
-        qubit.xy.opx_output.upconverter_frequency = frequencies["qubit_lo"]
+        qubit.xy.opx_output.upconverter_frequency = xy_port["lo_frequency_hz"]
         qubit.xy.opx_output.band = xy_port["band"]
         qubit.xy.opx_output.full_scale_power_dbm = xy_port["full_scale_power_dbm"]
         qubit.xy.opx_output.sampling_rate = xy_port["sampling_rate_hz"]
@@ -130,7 +150,7 @@ def apply_profile(machine: Quam, profile: dict[str, Any]) -> Quam:
         qubit.resonator.RF_frequency = frequencies["resonator"]
         qubit.resonator.time_of_flight = readout["time_of_flight_ns"]
         qubit.resonator.depletion_time = readout["depletion_time_ns"]
-        qubit.resonator.opx_output.upconverter_frequency = frequencies["resonator_lo"]
+        qubit.resonator.opx_output.upconverter_frequency = rr_output["lo_frequency_hz"]
         qubit.resonator.opx_output.band = rr_output["band"]
         qubit.resonator.opx_output.full_scale_power_dbm = rr_output[
             "full_scale_power_dbm"

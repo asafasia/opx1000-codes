@@ -44,8 +44,22 @@ def log_fitted_results(fit_results: Dict, log_callable=None):
 
 
 def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
-    ds = convert_IQ_to_V(ds, node.namespace["qubits"])
-    ds = add_amplitude_and_phase(ds, "detuning", subtract_slope_flag=True)
+    ds = convert_IQ_to_V(ds, node.namespace["qubits"], IQ_list=["Ig", "Qg", "Im", "Qm"])
+    ground = add_amplitude_and_phase(
+        ds[["Ig", "Qg"]].rename({"Ig": "I", "Qg": "Q"}),
+        "detuning",
+        subtract_slope_flag=True,
+    )
+    mixed = add_amplitude_and_phase(
+        ds[["Im", "Qm"]].rename({"Im": "I", "Qm": "Q"}),
+        "detuning",
+        subtract_slope_flag=True,
+    )
+    ds["ground_IQ_abs"] = ground.IQ_abs
+    ds["ground_phase"] = ground.phase
+    ds["mixed_IQ_abs"] = mixed.IQ_abs
+    ds["mixed_phase"] = mixed.phase
+    ds["IQ_separation"] = np.abs((ds.Im + 1j * ds.Qm) - (ds.Ig + 1j * ds.Qg))
     full_freq = np.array([ds.detuning + q.resonator.RF_frequency for q in node.namespace["qubits"]])
     ds = ds.assign_coords(full_freq=(["qubit", "detuning"], full_freq))
     ds.full_freq.attrs = {"long_name": "RF frequency", "units": "Hz"}
@@ -69,7 +83,7 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
         Dataset containing the fit results.
     """
     # Fit the resonator line
-    fit_results = peaks_dips(ds.IQ_abs, "detuning")
+    fit_results = peaks_dips(ds.ground_IQ_abs, "detuning")
     # Extract the relevant fitted parameters
     fit_data, fit_results = _extract_relevant_fit_parameters(fit_results, node)
     return fit_data, fit_results

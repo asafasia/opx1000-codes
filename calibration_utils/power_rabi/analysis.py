@@ -81,10 +81,10 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     xr.Dataset
         Dataset containing the fit results.
     """
-    max_pulses = getattr(node.parameters, "max_number_pulses_per_sweep", 1)
     operation = getattr(node.parameters, "operation", "EF_x180" if node.name == "13_power_rabi_ef" else "x180")
-    if max_pulses == 1:
-        ds_fit = ds.sel(nb_of_pulses=1) if node.name != "13_power_rabi_ef" else ds
+    is_1d_scan = "nb_of_pulses" not in ds.dims or ds.sizes["nb_of_pulses"] == 1
+    if is_1d_scan:
+        ds_fit = ds.isel(nb_of_pulses=0, drop=True) if "nb_of_pulses" in ds.dims else ds
         # Fit the power Rabi oscillations
         if node.parameters.use_state_discrimination:
             fit_vals = fit_oscillation(ds_fit.state, "amp_prefactor")
@@ -117,12 +117,14 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
 def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
     """Add metadata to the dataset and fit results."""
     limits = [instrument_limits(q.xy) for q in node.namespace["qubits"]]
-    max_pulses = getattr(node.parameters, "max_number_pulses_per_sweep", 1)
     operation = getattr(node.parameters, "operation", "EF_x180" if node.name == "13_power_rabi_ef" else "x180")
-    if max_pulses == 1:
+    is_1d_scan = "nb_of_pulses" not in fit.dims or fit.sizes["nb_of_pulses"] == 1
+    if is_1d_scan:
         # Process the fit parameters to get the right amplitude
         phase = fit.fit.sel(fit_vals="phi") - np.pi * (fit.fit.sel(fit_vals="phi") > np.pi / 2)
         factor = (np.pi - phase) / (2 * np.pi * fit.fit.sel(fit_vals="f"))
+        if "nb_of_pulses" in fit.coords:
+            factor *= int(fit.nb_of_pulses.values[0])
         fit = fit.assign({"opt_amp_prefactor": factor})
         fit.opt_amp_prefactor.attrs = {
             "long_name": "factor to get a pi pulse",

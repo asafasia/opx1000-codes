@@ -1,10 +1,10 @@
 from typing import List
+import matplotlib.pyplot as plt
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from qualang_tools.units import unit
-from qualibration_libs.plotting import QubitGrid, grid_iter
 from qualibration_libs.analysis import oscillation
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 
@@ -13,7 +13,7 @@ u = unit(coerce_to_integer=True)
 
 def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
     """
-    Plots the resonator spectroscopy amplitude IQ_abs with fitted curves for the given qubits.
+    Plot power-Rabi I and Q responses in vertically stacked subplots.
 
     Parameters
     ----------
@@ -31,23 +31,36 @@ def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.D
 
     Notes
     -----
-    - The function creates a grid of subplots, one for each qubit.
-    - Each subplot contains the raw data and the fitted curve.
+    - Each qubit occupies two rows containing separate I and Q subplots.
+    - State-discriminated datasets use one subplot per qubit.
     """
-    grid = QubitGrid(ds, [q.grid_location for q in qubits])
-    for ax, qubit in grid_iter(grid):
-        if "nb_of_pulses" not in ds or len(ds.nb_of_pulses) == 1:
-            plot_individual_data_with_fit_1D(ax, ds, qubit, fits.sel(qubit=qubit["qubit"]))
-        else:
-            plot_individual_data_with_fit_2D(ax, ds, qubit, fits.sel(qubit=qubit["qubit"]))
+    variables = ("I", "Q") if "I" in ds and "Q" in ds else ("state",)
+    fig, axes = plt.subplots(
+        len(qubits) * len(variables),
+        1,
+        figsize=(10, max(4, 4 * len(qubits) * len(variables))),
+        squeeze=False,
+    )
 
-    grid.fig.suptitle("Power Rabi")
-    grid.fig.set_size_inches(15, 9)
-    grid.fig.tight_layout()
-    return grid.fig
+    axis_index = 0
+    for qubit in qubits:
+        selected = ds.sel(qubit=qubit.name)
+        fit = fits.sel(qubit=qubit.name)
+        for variable in variables:
+            ax = axes[axis_index, 0]
+            if "nb_of_pulses" not in ds or len(ds.nb_of_pulses) == 1:
+                plot_individual_data_with_fit_1D(ax, selected, variable, fit)
+            else:
+                plot_individual_data_with_fit_2D(ax, selected, variable, fit)
+            ax.set_title(f"{qubit.name}: {variable}")
+            axis_index += 1
+
+    fig.suptitle("Power Rabi: I and Q quadratures")
+    fig.tight_layout()
+    return fig
 
 
-def plot_individual_data_with_fit_1D(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fit: xr.Dataset = None):
+def plot_individual_data_with_fit_1D(ax: Axes, ds: xr.Dataset, variable: str, fit: xr.Dataset = None):
     """
     Plots individual qubit data on a given axis with optional fit.
 
@@ -57,8 +70,8 @@ def plot_individual_data_with_fit_1D(ax: Axes, ds: xr.Dataset, qubit: dict[str, 
         The axis on which to plot the data.
     ds : xr.Dataset
         The dataset containing the quadrature data.
-    qubit : dict[str, str]
-        mapping to the qubit to plot.
+    variable : str
+        Dataset variable to plot.
     fit : xr.Dataset, optional
         The dataset containing the fit parameters (default is None).
 
@@ -68,7 +81,7 @@ def plot_individual_data_with_fit_1D(ax: Axes, ds: xr.Dataset, qubit: dict[str, 
     """
 
     if "nb_of_pulses" not in ds or len(ds.nb_of_pulses.data) == 1:
-        if fit:
+        if fit is not None:
             fitted_data = oscillation(
                 fit.amp_prefactor.data,
                 fit.fit.sel(fit_vals="a").data,
@@ -79,28 +92,21 @@ def plot_individual_data_with_fit_1D(ax: Axes, ds: xr.Dataset, qubit: dict[str, 
         else:
             fitted_data = None
 
-        if hasattr(ds, "IQ_abs"):
-            data = "IQ_abs"
-            label = "IQ amplitude [mV]"
-        elif hasattr(ds, "I"):
-            data = "I"
-            label = "Rotated I quadrature [mV]"
-        elif hasattr(ds, "state"):
-            data = "state"
-            label = "Qubit state"
-        else:
-            raise RuntimeError("The dataset must contain either 'I' or 'state' for the plotting function to work.")
-
-        (ds.assign_coords(amp_mV=ds.full_amp * 1e3).loc[qubit] * 1e3)[data].plot(ax=ax, x="amp_mV")
-        ax.plot(fit.full_amp * 1e3, 1e3 * fitted_data)
-        ax.set_ylabel(label)
+        selected = ds
+        if "nb_of_pulses" in selected:
+            selected = selected.isel(nb_of_pulses=0, drop=True)
+        selected = selected.assign_coords(amp_mV=selected.full_amp * 1e3)
+        scale = 1 if variable == "state" else 1e3
+        (selected[variable] * scale).plot(ax=ax, x="amp_mV")
+        if fitted_data is not None and variable in ("I", "state"):
+            ax.plot(fit.full_amp * 1e3, scale * fitted_data, "r--", label="Fit")
+            ax.legend()
+        ax.set_ylabel("Qubit state" if variable == "state" else f"{variable} [mV]")
         ax.set_xlabel("Pulse amplitude [mV]")
-        ax2 = ax.twiny()
-        (ds.assign_coords(amp_mV=ds.amp_prefactor).loc[qubit] * 1e3)[data].plot(ax=ax2, x="amp_mV")
-        ax2.set_xlabel("amplitude prefactor")
+        ax.grid(alpha=0.25)
 
 
-def plot_individual_data_with_fit_2D(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fit: xr.Dataset = None):
+def plot_individual_data_with_fit_2D(ax: Axes, ds: xr.Dataset, variable: str, fit: xr.Dataset = None):
     """
     Plots individual qubit data on a given axis with optional fit.
 
@@ -110,8 +116,8 @@ def plot_individual_data_with_fit_2D(ax: Axes, ds: xr.Dataset, qubit: dict[str, 
         The axis on which to plot the data.
     ds : xr.Dataset
         The dataset containing the quadrature data.
-    qubit : dict[str, str]
-        mapping to the qubit to plot.
+    variable : str
+        Dataset variable to plot.
     fit : xr.Dataset, optional
         The dataset containing the fit parameters (default is None).
 
@@ -120,25 +126,16 @@ def plot_individual_data_with_fit_2D(ax: Axes, ds: xr.Dataset, qubit: dict[str, 
     - If the fit dataset is provided, the fitted curve is plotted along with the raw data.
     """
 
-    if hasattr(ds, "I"):
-        data = "I"
-    elif hasattr(ds, "state"):
-        data = "state"
-    else:
-        raise RuntimeError("The dataset must contain either 'I' or 'state' for the plotting function to work.")
-    (ds.assign_coords(amp_mV=ds.full_amp * 1e3).loc[qubit])[data].plot(
-        ax=ax, add_colorbar=False, x="amp_mV", y="nb_of_pulses", robust=True
+    ds.assign_coords(amp_mV=ds.full_amp * 1e3)[variable].plot(
+        ax=ax, x="amp_mV", y="nb_of_pulses", robust=True
     )
-    ax.set_ylabel(f"Number of pulses")
+    ax.set_ylabel("Number of pulses")
     ax.set_xlabel("Pulse amplitude [mV]")
-    ax2 = ax.twiny()
-    (ds.assign_coords(amp_mV=ds.amp_prefactor).loc[qubit])[data].plot(
-        ax=ax2, add_colorbar=False, x="amp_mV", y="nb_of_pulses", robust=True
-    )
-    ax2.set_xlabel("amplitude prefactor")
-    if fit.success:
-        ax2.axvline(
-            x=fit.opt_amp_prefactor,
+    if bool(fit.success.values):
+        ax.axvline(
+            x=float(fit.opt_amp.values) * 1e3,
             color="g",
             linestyle="-",
+            label="Optimal amplitude",
         )
+        ax.legend()

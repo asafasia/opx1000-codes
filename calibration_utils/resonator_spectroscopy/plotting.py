@@ -1,4 +1,5 @@
 from typing import List
+import matplotlib.pyplot as plt
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -34,24 +35,22 @@ def plot_raw_phase(ds: xr.Dataset, qubits: List[AnyTransmon]) -> Figure:
     """
     grid = QubitGrid(ds, [q.grid_location for q in qubits])
     for ax1, qubit in grid_iter(grid):
-        # Create a first x-axis for full_freq_GHz
-        ds.assign_coords(full_freq_GHz=ds.full_freq / u.GHz).loc[qubit].phase.plot(ax=ax1, x="full_freq_GHz")
+        selected = ds.assign_coords(full_freq_GHz=ds.full_freq / u.GHz).loc[qubit]
+        selected.ground_phase.plot(ax=ax1, x="full_freq_GHz", label="Ground")
+        selected.mixed_phase.plot(ax=ax1, x="full_freq_GHz", label="Driven")
         ax1.set_xlabel("RF frequency [GHz]")
         ax1.set_ylabel("phase [rad]")
-        # Create a second x-axis for detuning_MHz
-        ax2 = ax1.twiny()
-        ds.assign_coords(detuning_MHz=ds.detuning / u.MHz).loc[qubit].phase.plot(ax=ax2, x="detuning_MHz")
-        ax2.set_xlabel("Detuning [MHz]")
-    grid.fig.suptitle("Resonator spectroscopy (phase)")
+        ax1.legend()
+    grid.fig.suptitle("Resonator spectroscopy: ground and mixed-state phase")
     grid.fig.set_size_inches(15, 9)
     grid.fig.tight_layout()
 
     return grid.fig
 
 
-def plot_raw_amplitude_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
+def plot_raw_amplitude(ds: xr.Dataset, qubits: List[AnyTransmon]):
     """
-    Plots the resonator spectroscopy amplitude IQ_abs with fitted curves for the given qubits.
+    Plot overlaid absolute resonator responses for ground and mixed states.
 
     Parameters
     ----------
@@ -59,9 +58,6 @@ def plot_raw_amplitude_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits:
         The dataset containing the quadrature data.
     qubits : list of AnyTransmon
         A list of qubits to plot.
-    fits : xr.Dataset
-        The dataset containing the fit parameters.
-
     Returns
     -------
     Figure
@@ -72,14 +68,69 @@ def plot_raw_amplitude_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits:
     - The function creates a grid of subplots, one for each qubit.
     - Each subplot contains the raw data and the fitted curve.
     """
-    grid = QubitGrid(ds, [q.grid_location for q in qubits])
-    for ax, qubit in grid_iter(grid):
-        plot_individual_amplitude_with_fit(ax, ds, qubit, fits.sel(qubit=qubit["qubit"]))
+    locations = [tuple(int(value) for value in q.grid_location.split(",")) for q in qubits]
+    rows = max(row for row, _ in locations) + 1
+    columns = max(column for _, column in locations) + 1
+    height_ratios = [3, 1] * rows
+    fig, axes = plt.subplots(
+        2 * rows,
+        columns,
+        figsize=(15, 9),
+        squeeze=False,
+        sharex="col",
+        gridspec_kw={"height_ratios": height_ratios},
+    )
 
-    grid.fig.suptitle("Resonator spectroscopy (amplitude + fit)")
-    grid.fig.set_size_inches(15, 9)
-    grid.fig.tight_layout()
-    return grid.fig
+    used_axes = set()
+    for qubit, (row, column) in zip(qubits, locations):
+        spectrum_ax = axes[2 * row, column]
+        difference_ax = axes[2 * row + 1, column]
+        used_axes.update({(2 * row, column), (2 * row + 1, column)})
+
+        selected = ds.assign_coords(full_freq_GHz=ds.full_freq / u.GHz).sel(qubit=qubit.name)
+        ground = selected.ground_IQ_abs / u.mV
+        mixed = selected.mixed_IQ_abs / u.mV
+        separation = selected.IQ_separation / u.mV
+        max_separation_index = int(separation.argmax(dim="detuning").values)
+        max_separation_frequency_ghz = float(
+            selected.full_freq_GHz.isel(detuning=max_separation_index).values
+        )
+        max_separation_label = (
+            f"Maximum IQ separation: {max_separation_frequency_ghz:.6f} GHz"
+        )
+
+        ground.plot(ax=spectrum_ax, x="full_freq_GHz", label="Ground")
+        mixed.plot(ax=spectrum_ax, x="full_freq_GHz", label="Driven")
+        spectrum_ax.axvline(
+            max_separation_frequency_ghz,
+            color="tab:red",
+            linestyle="--",
+            label=max_separation_label,
+        )
+        spectrum_ax.set_title(qubit.name)
+        spectrum_ax.set_xlabel("")
+        spectrum_ax.set_ylabel(r"$|IQ|$ [mV]")
+        spectrum_ax.legend()
+
+        separation.plot(ax=difference_ax, x="full_freq_GHz", color="tab:blue")
+        difference_ax.axvline(
+            max_separation_frequency_ghz,
+            color="tab:red",
+            linestyle="--",
+            label=max_separation_label,
+        )
+        difference_ax.set_xlabel("RF frequency [GHz]")
+        difference_ax.set_ylabel(r"$|IQ_{mixed}-IQ_{ground}|$ [mV]")
+        difference_ax.legend()
+
+    for row in range(2 * rows):
+        for column in range(columns):
+            if (row, column) not in used_axes:
+                axes[row, column].set_visible(False)
+
+    fig.suptitle("Resonator spectroscopy")
+    fig.tight_layout()
+    return fig
 
 
 def plot_individual_amplitude_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fit: xr.Dataset = None):
@@ -112,14 +163,29 @@ def plot_individual_amplitude_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str
     else:
         fitted_data = None
 
-    # Create a first x-axis for full_freq_GHz
-    (ds.assign_coords(full_freq_GHz=ds.full_freq / u.GHz).loc[qubit].IQ_abs / u.mV).plot(ax=ax, x="full_freq_GHz")
+    selected = ds.assign_coords(full_freq_GHz=ds.full_freq / u.GHz).loc[qubit]
+    (selected.ground_IQ_abs / u.mV).plot(ax=ax, x="full_freq_GHz", label="Ground")
+    (selected.mixed_IQ_abs / u.mV).plot(ax=ax, x="full_freq_GHz", label="Driven")
     ax.set_xlabel("RF frequency [GHz]")
     ax.set_ylabel(r"$R=\sqrt{I^2 + Q^2}$ [mV]")
-    # Create a second x-axis for detuning_MHz
-    ax2 = ax.twiny()
-    (ds.assign_coords(detuning_MHz=ds.detuning / u.MHz).loc[qubit].IQ_abs / u.mV).plot(ax=ax2, x="detuning_MHz")
-    ax2.set_xlabel("Detuning [MHz]")
-    # Plot the fitted data
     if fitted_data is not None:
-        ax2.plot(ds.detuning / u.MHz, fitted_data / u.mV, "r--")
+        ax.plot(ds.full_freq.loc[qubit] / u.GHz, fitted_data / u.mV, "k--", label="Ground fit")
+    ax.legend()
+
+
+def plot_iq_response(ds: xr.Dataset, qubits: List[AnyTransmon]) -> Figure:
+    """Plot ground and mixed-state resonator trajectories in the IQ plane."""
+    grid = QubitGrid(ds, [q.grid_location for q in qubits])
+    for ax, qubit in grid_iter(grid):
+        selected = ds.loc[qubit]
+        ax.plot(selected.Ig / u.mV, selected.Qg / u.mV, ".-", label="Ground", markersize=3)
+        ax.plot(selected.Im / u.mV, selected.Qm / u.mV, ".-", label="Driven", markersize=3)
+        ax.set_xlabel("I [mV]")
+        ax.set_ylabel("Q [mV]")
+        ax.axis("equal")
+        ax.legend()
+
+    grid.fig.suptitle("Resonator spectroscopy: ground and mixed-state IQ response")
+    grid.fig.set_size_inches(15, 9)
+    grid.fig.tight_layout()
+    return grid.fig
