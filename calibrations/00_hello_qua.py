@@ -81,7 +81,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                     for i, qubit in multiplexed_qubits.items():
                         # qubit.z.play("const", duration=qubit.xy.operations["x180"].length * u.ns)
                         qubit.xy.play("saturation", amplitude_scale=a)
-                        qubit.wait(250 * u.us)
+                        qubit.reset_qubit_thermal()
                     align()
 
         with stream_processing():

@@ -139,8 +139,8 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                     for i, qubit in multiplexed_qubits.items():
                         # readout the resonator
                         qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
-                        # wait for the resonator to deplete
-                        qubit.resonator.wait(200 * u.us)
+                        # Return the qubit to the ground state before the next shot.
+                        qubit.reset_qubit_thermal()
                         # save data
                         save(I[i], I_st[i])
                         save(Q[i], Q_st[i])

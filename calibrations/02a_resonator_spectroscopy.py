@@ -119,7 +119,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                         # Update the resonator frequencies for all resonators
                         rr.update_frequency(df + rr.intermediate_frequency)
                         # Measure the resonator
-                        rr.measure("readout", qua_vars=(Ig[i], Qg[i]))
+                        rr.measure("readout", qua_vars=(Ig[i], Qg[i]), amplitude_scale=0.5)
                         # wait for the resonator to deplete
                         rr.wait(rr.depletion_time * u.ns)
                         save(Ig[i], Ig_st[i])
@@ -138,11 +138,11 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                             amplitude_scale=node.parameters.saturation_amplitude_factor,
                         )
                         rr.wait(node.parameters.saturation_lead_time_in_ns * u.ns)
-                        rr.measure("readout", qua_vars=(Im[i], Qm[i]))
+                        rr.measure("readout", qua_vars=(Im[i], Qm[i]),amplitude_scale=0.5)
                         rr.wait(rr.depletion_time * u.ns)
                         save(Im[i], Im_st[i])
                         save(Qm[i], Qm_st[i])
-                        qubit.xy.wait(node.parameters.thermalization_time_in_ns * u.ns)
+                        qubit.reset_qubit_thermal()
                     align()
 
         with stream_processing():

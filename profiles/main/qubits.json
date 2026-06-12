@@ -8,9 +8,9 @@
         0
       ],
       "frequencies_hz": {
-        "qubit_f01": 4491800000,
+        "qubit_f01": 4386600000,
         "qubit_f12": null,
-        "resonator": 7580000000,
+        "resonator": 7470000000,
         "resonator_bare": null
       },
       "transmon": {
@@ -18,7 +18,7 @@
         "t1_ns": null,
         "t2_ramsey_ns": null,
         "t2_echo_ns": null,
-        "thermalization_time_ns": null
+        "thermalization_time_ns": 100000
       },
       "readout": {
         "time_of_flight_ns": 32,
@@ -53,7 +53,7 @@
         "t1_ns": null,
         "t2_ramsey_ns": null,
         "t2_echo_ns": null,
-        "thermalization_time_ns": null
+        "thermalization_time_ns": 100000
       },
       "readout": {
         "time_of_flight_ns": 32,

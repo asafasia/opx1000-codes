@@ -142,6 +142,7 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
         frequencies = qubit.get("frequencies_hz", {})
         operations = qubit.get("operations", {})
         readout = qubit.get("readout", {})
+        transmon = qubit.get("transmon", {})
 
         for frequency_name in ("qubit_f01", "resonator"):
             _require(
@@ -150,6 +151,11 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
             )
 
         _require(readout.get("state_1_when") in STATE_1_RULES, f"Qubit {name!r} has invalid readout.state_1_when")
+        _require(
+            isinstance(transmon.get("thermalization_time_ns"), int)
+            and transmon["thermalization_time_ns"] > 0,
+            f"Qubit {name!r} needs positive integer transmon.thermalization_time_ns",
+        )
         _require(isinstance(operations, dict) and operations, f"Qubit {name!r} must define operations")
 
         for operation_name, pulse_name in operations.items():

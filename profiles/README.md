@@ -16,6 +16,11 @@ All physical values include their unit in the field name, such as
 `frequency_hz`, `length_ns`, and `axis_angle_rad`. This avoids implicit-unit
 mistakes and keeps the JSON readable without a custom parser.
 
+Set each qubit's `transmon.thermalization_time_ns` explicitly. Calibration
+experiments use this value through `qubit.reset_qubit_thermal()`. Because QuAM
+represents thermalization as an integer multiple of T1, the configured value
+must be an integer multiple of `t1_ns`, or of 10,000 ns when T1 is unknown.
+
 Pulse definitions are reusable. Qubits reference them by name under
 `operations`, so a calibrated pulse can be shared or replaced without copying
 its parameters. Supported pulse types are:

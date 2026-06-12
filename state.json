@@ -45,7 +45,7 @@
                         "length": 50000,
                         "id": null,
                         "digital_marker": null,
-                        "amplitude": 0.6548133892335755,
+                        "amplitude": 0.2548133892335755,
                         "axis_angle": 0.0,
                         "__class__": "quam.components.pulses.SquarePulse"
                     }
@@ -57,7 +57,7 @@
                 "thread": null,
                 "core": null,
                 "LO_frequency": "#./upconverter_frequency",
-                "RF_frequency": 4491800000,
+                "RF_frequency": 4386600000,
                 "opx_output": "#/wiring/qubits/q1/xy/opx_output",
                 "upconverter": 1,
                 "__class__": "quam_builder.architecture.superconducting.components.xy_drive.XYDriveMW"
@@ -65,7 +65,7 @@
             "resonator": {
                 "depletion_time": 2500,
                 "frequency_bare": null,
-                "f_01": 7582000000.0,
+                "f_01": 7467000000.0,
                 "f_12": null,
                 "confusion_matrix": null,
                 "gef_centers": null,
@@ -96,12 +96,12 @@
                 "time_of_flight": 32,
                 "smearing": 0,
                 "LO_frequency": "#./upconverter_frequency",
-                "RF_frequency": 7582000000.0,
+                "RF_frequency": 7467000000.0,
                 "opx_output": "#/wiring/qubits/q1/rr/opx_output",
                 "upconverter": 1,
                 "__class__": "quam_builder.architecture.superconducting.components.readout_resonator.ReadoutResonatorMW"
             },
-            "f_01": 4491800000,
+            "f_01": 4386600000,
             "f_12": null,
             "anharmonicity": 150000000,
             "T1": null,
