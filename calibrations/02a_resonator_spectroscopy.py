@@ -28,8 +28,9 @@ from qualibration_libs.data import XarrayDataFetcher
 description = """
         1D RESONATOR SPECTROSCOPY
 This sequence performs two separate resonator-frequency scans. The first measures the resonator while the qubit
-remains in the ground state. The second measures the resonator while a saturation pulse is continuously applied to
-the qubit during readout, preparing an approximately mixed state. The overlaid responses expose the dispersive shift.
+remains in the ground state. The second measures the resonator after applying the selected qubit operation. Saturation
+is continuously applied during readout, while x180_const is completed before readout. The overlaid responses expose
+the dispersive shift.
 The data is then post-processed to determine the resonator resonance frequency.
 This frequency is used to update the readout frequency in the state.
 
@@ -79,19 +80,24 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
     num_qubits = len(qubits)
     # Extract the sweep parameters and axes from the node parameters
     n_avg = node.parameters.num_shots
+    selected_operation = node.parameters.qubit_operation
+    qua_operation = "x180" if selected_operation == "x180_const" else selected_operation
     # The frequency sweep around the resonator resonance frequency
     span = node.parameters.frequency_span_in_mhz * u.MHz
     step = node.parameters.frequency_step_in_mhz * u.MHz
     dfs = np.arange(-span / 2, +span / 2, step)
     for qubit in qubits:
-        saturation_length = qubit.xy.operations["saturation"].length
-        readout_length = qubit.resonator.operations["readout"].length
-        required_length = node.parameters.saturation_lead_time_in_ns + readout_length
-        if saturation_length < required_length:
-            raise ValueError(
-                f"{qubit.name} saturation pulse is {saturation_length} ns, but at least "
-                f"{required_length} ns is required to cover the lead-in and readout."
-            )
+        if qua_operation not in qubit.xy.operations:
+            raise ValueError(f"{qubit.name} does not define qubit operation {qua_operation!r}.")
+        if selected_operation == "saturation":
+            saturation_length = qubit.xy.operations["saturation"].length
+            readout_length = qubit.resonator.operations["readout"].length
+            required_length = node.parameters.saturation_lead_time_in_ns + readout_length
+            if saturation_length < required_length:
+                raise ValueError(
+                    f"{qubit.name} saturation pulse is {saturation_length} ns, but at least "
+                    f"{required_length} ns is required to cover the lead-in and readout."
+                )
     # Register the sweep axes to be added to the dataset when fetching data
     node.namespace["sweep_axes"] = {
         "qubit": xr.DataArray(qubits.get_names()),
@@ -119,26 +125,32 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                         # Update the resonator frequencies for all resonators
                         rr.update_frequency(df + rr.intermediate_frequency)
                         # Measure the resonator
-                        rr.measure("readout", qua_vars=(Ig[i], Qg[i]), amplitude_scale=0.5)
+                        rr.measure("readout", qua_vars=(Ig[i], Qg[i]))
                         # wait for the resonator to deplete
                         rr.wait(rr.depletion_time * u.ns)
                         save(Ig[i], Ig_st[i])
                         save(Qg[i], Qg_st[i])
                     align()
 
-                # Complete mixed-state scan. Saturation and readout start together
-                # on separate elements, so the qubit is driven throughout readout.
+                # Complete the driven-state resonator spectroscopy scan.
                 with for_(*from_array(df, dfs)):
                     for i, qubit in multiplexed_qubits.items():
                         rr = qubit.resonator
                         rr.update_frequency(df + rr.intermediate_frequency)
-                        align(qubit.xy.name, rr.name)
-                        qubit.xy.play(
-                            "saturation",
-                            amplitude_scale=node.parameters.saturation_amplitude_factor,
-                        )
-                        rr.wait(node.parameters.saturation_lead_time_in_ns * u.ns)
-                        rr.measure("readout", qua_vars=(Im[i], Qm[i]),amplitude_scale=0.5)
+                        if selected_operation == "saturation":
+                            align(qubit.xy.name, rr.name)
+                            qubit.xy.play(
+                                qua_operation,
+                                amplitude_scale=node.parameters.saturation_amplitude_factor,
+                            )
+                            rr.wait(node.parameters.saturation_lead_time_in_ns * u.ns)
+                        else:
+                            qubit.xy.play(
+                                qua_operation,
+                                amplitude_scale=node.parameters.saturation_amplitude_factor,
+                            )
+                            qubit.align()
+                        rr.measure("readout", qua_vars=(Im[i], Qm[i]))
                         rr.wait(rr.depletion_time * u.ns)
                         save(Im[i], Im_st[i])
                         save(Qm[i], Qm_st[i])

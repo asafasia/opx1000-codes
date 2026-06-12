@@ -18,6 +18,7 @@ from calibration_utils.iq_blobs import (
     process_raw_dataset,
     fit_raw_data,
     log_fitted_results,
+    log_blob_diagnostics,
     plot_iq_blobs,
     plot_confusion_matrices,
 )
@@ -29,7 +30,7 @@ from qualibration_libs.data import XarrayDataFetcher
 description = """
         IQ BLOBS
 This sequence involves measuring the state of the resonator 'N' times, first after thermalization (with the qubit in
-the |g> state) and then after applying a x180 (pi) pulse to the qubit (bringing the qubit to the |e> state).
+the |g> state) and then after applying the selected qubit preparation operation.
 The resulting IQ blobs are displayed, and the data is processed to determine:
     - The rotation angle required for the integration weights, ensuring that the
       separation between |g> and |e> states aligns with the 'I' quadrature.
@@ -92,6 +93,13 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
     n_runs = node.parameters.num_shots  # Number of runs
     operation = node.parameters.operation
+    selected_qubit_operation = node.parameters.qubit_operation
+    qua_qubit_operation = "x180" if selected_qubit_operation == "x180_const" else selected_qubit_operation
+    for qubit in qubits:
+        if qua_qubit_operation not in qubit.xy.operations:
+            raise ValueError(
+                f"{qubit.name} does not define qubit operation {qua_qubit_operation!r}."
+            )
     # Register the sweep axes to be added to the dataset when fetching data
     node.namespace["sweep_axes"] = {
         "qubit": xr.DataArray(qubits.get_names()),
@@ -112,35 +120,31 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 save(n, n_st)
 
                 # Ground state iq blobs for all qubits
-                # Qubit initialization
-                # for i, qubit in multiplexed_qubits.items():
-                #     qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                for qubit in multiplexed_qubits.values():
+                    qubit.reset_qubit_thermal()
                 align()
                 # Qubit readout
                 for i, qubit in multiplexed_qubits.items():
                     # Measure the state of the resonators
                     qubit.resonator.measure(operation, qua_vars=(I_g[i], Q_g[i]))
-                    qubit.reset_qubit_thermal()
                     # save data to their respective streams
                     save(I_g[i], I_g_st[i])
                     save(Q_g[i], Q_g_st[i])
                 align()
 
-                # Excited state iq blobs for all qubits
-                # Qubit initialization
-                # for i, qubit in multiplexed_qubits.items():
-                #     qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                # Prepared-state IQ blobs for all qubits
+                for qubit in multiplexed_qubits.values():
+                    qubit.reset_qubit_thermal()
                 align()
 
                 # Qubit readout
                 for i, qubit in multiplexed_qubits.items():
-                    # Play the x180 gate to put the qubits in the excited state
-                    qubit.xy.play("saturation")
+                    # Prepare the second IQ blob using the selected qubit operation.
+                    qubit.xy.play(qua_qubit_operation)
                     # Align the elements to measure after playing the qubit pulses.
                     qubit.align()
                     # Measure the state of the resonators
                     qubit.resonator.measure(operation, qua_vars=(I_e[i], Q_e[i]))
-                    qubit.reset_qubit_thermal()
                     # save data to their respective streams
                     save(I_e[i], I_e_st[i])
                     save(Q_e[i], Q_e_st[i])
@@ -220,6 +224,7 @@ def analyse_data(node: QualibrationNode[Parameters, Quam]):
     node.results["fit_results"] = {k: asdict(v) for k, v in fit_results.items()}
 
     # Log the relevant information extracted from the data analysis
+    log_blob_diagnostics(node.results["ds_raw"], log_callable=node.log)
     log_fitted_results(node.results["fit_results"], log_callable=node.log)
     node.outcomes = {
         qubit_name: ("successful" if fit_result["success"] else "failed")
@@ -246,26 +251,26 @@ def plot_data(node: QualibrationNode[Parameters, Quam]):
     }
 
 
-# %% {Update_state}
-@node.run_action(skip_if=node.parameters.simulate)
-def update_state(node: QualibrationNode[Parameters, Quam]):
-    """Update the relevant parameters if the qubit data analysis was successful."""
-    with node.record_state_updates():
-        for q in node.namespace["qubits"]:
-            if node.outcomes[q.name] == "failed":
-                continue
+# # %% {Update_state}
+# @node.run_action(skip_if=node.parameters.simulate)
+# def update_state(node: QualibrationNode[Parameters, Quam]):
+#     """Update the relevant parameters if the qubit data analysis was successful."""
+#     with node.record_state_updates():
+#         for q in node.namespace["qubits"]:
+#             if node.outcomes[q.name] == "failed":
+#                 continue
 
-            fit_result = node.results["fit_results"][q.name]
-            operation = q.resonator.operations[node.parameters.operation]
-            operation.integration_weights_angle -= float(fit_result["iw_angle"])
-            # Convert the thresholds back to demod units
-            operation.threshold = float(fit_result["ge_threshold"]) * operation.length / 2**12
-            operation.rus_exit_threshold = float(fit_result["rus_threshold"]) * operation.length / 2**12
-            if node.parameters.operation == "readout":
-                q.resonator.confusion_matrix = fit_result["confusion_matrix"]
+#             fit_result = node.results["fit_results"][q.name]
+#             operation = q.resonator.operations[node.parameters.operation]
+#             operation.integration_weights_angle -= float(fit_result["iw_angle"])
+#             # Convert the thresholds back to demod units
+#             operation.threshold = float(fit_result["ge_threshold"]) * operation.length / 2**12
+#             operation.rus_exit_threshold = float(fit_result["rus_threshold"]) * operation.length / 2**12
+#             if node.parameters.operation == "readout":
+#                 q.resonator.confusion_matrix = fit_result["confusion_matrix"]
 
 
-# %% {Save_results}
-@node.run_action()
-def save_results(node: QualibrationNode[Parameters, Quam]):
-    node.save()
+# # %% {Save_results}
+# @node.run_action()
+# def save_results(node: QualibrationNode[Parameters, Quam]):
+#     node.save()

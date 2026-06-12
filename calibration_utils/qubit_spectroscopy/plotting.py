@@ -1,11 +1,9 @@
 from typing import List
+import matplotlib.pyplot as plt
 import xarray as xr
-from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from qualang_tools.units import unit
-from qualibration_libs.plotting import QubitGrid, grid_iter
-from qualibration_libs.analysis import lorentzian_peak
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 
 u = unit(coerce_to_integer=True)
@@ -13,7 +11,7 @@ u = unit(coerce_to_integer=True)
 
 def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
     """
-    Plots the resonator spectroscopy amplitude IQ_abs with fitted curves for the given qubits.
+    Plot the raw I and Q qubit-spectroscopy responses on separate subplots.
 
     Parameters
     ----------
@@ -31,57 +29,38 @@ def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.D
 
     Notes
     -----
-    - The function creates a grid of subplots, one for each qubit.
-    - Each subplot contains the raw data and the fitted curve.
+    - Each qubit occupies two rows containing separate I and Q subplots.
+    - The fitted qubit frequency is marked on both subplots.
     """
-    grid = QubitGrid(ds, [q.grid_location for q in qubits])
-    for ax, qubit in grid_iter(grid):
-        plot_individual_data_with_fit(ax, ds, qubit, fits.sel(qubit=qubit["qubit"]))
+    fig, axes = plt.subplots(
+        2 * len(qubits),
+        1,
+        figsize=(10, max(7, 7 * len(qubits))),
+        squeeze=False,
+    )
 
-    grid.fig.suptitle("Qubit spectroscopy (rotated 'I' quadrature + fit)")
-    grid.fig.set_size_inches(15, 9)
-    grid.fig.tight_layout()
-    return grid.fig
-
-
-def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fit: xr.Dataset = None):
-    """
-    Plots individual qubit data on a given axis with optional fit.
-
-    Parameters
-    ----------
-    ax : matplotlib.axes.Axes
-        The axis on which to plot the data.
-    ds : xr.Dataset
-        The dataset containing the quadrature data.
-    qubit : dict[str, str]
-        mapping to the qubit to plot.
-    fit : xr.Dataset, optional
-        The dataset containing the fit parameters (default is None).
-
-    Notes
-    -----
-    - If the fit dataset is provided, the fitted curve is plotted along with the raw data.
-    """
-    if fit:
-        fitted_data = lorentzian_peak(
-            ds.detuning,
-            float(fit.amplitude.values),
-            float(fit.position.values),
-            float(fit.width.values) / 2,
-            float(fit.base_line.mean().values),
+    for qubit_index, qubit in enumerate(qubits):
+        selected = ds.sel(qubit=qubit.name).assign_coords(
+            full_freq_GHz=ds.full_freq.sel(qubit=qubit.name) / u.GHz
         )
-    else:
-        fitted_data = None
+        fit = fits.sel(qubit=qubit.name)
+        fitted_frequency_ghz = float(fit.res_freq.values) / u.GHz
 
-    # Create a first x-axis for full_freq_GHz
-    (fit.assign_coords(full_freq_GHz=fit.full_freq / u.GHz).I_rot / u.mV).plot(ax=ax, x="full_freq_GHz")
-    ax.set_xlabel("RF frequency [GHz]")
-    ax.set_ylabel("Rotated I [mV]")
-    # Create a second x-axis for detuning_MHz
-    ax2 = ax.twiny()
-    (fit.assign_coords(detuning_MHz=fit.detuning / u.MHz).I_rot / u.mV).plot(ax=ax2, x="detuning_MHz", label="")
-    ax2.set_xlabel("Detuning [MHz]")
-    # Plot the fitted data
-    if fitted_data is not None:
-        ax2.plot(fit.detuning / u.MHz, fitted_data / u.mV, "r--")
+        qubit_axes = axes[2 * qubit_index : 2 * qubit_index + 2, 0]
+        for ax, quadrature, color in zip(qubit_axes, ("I", "Q"), ("tab:blue", "tab:orange")):
+            (selected[quadrature] / u.mV).plot(ax=ax, x="full_freq_GHz", color=color)
+            ax.axvline(
+                fitted_frequency_ghz,
+                color="tab:red",
+                linestyle="--",
+                label=f"Fit center: {fitted_frequency_ghz:.6f} GHz",
+            )
+            ax.set_title(f"{qubit.name}: {quadrature}")
+            ax.set_xlabel("RF frequency [GHz]")
+            ax.set_ylabel(f"{quadrature} [mV]")
+            ax.legend()
+            ax.grid(alpha=0.25)
+
+    fig.suptitle("Qubit spectroscopy: I and Q quadratures")
+    fig.tight_layout()
+    return fig

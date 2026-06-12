@@ -74,7 +74,7 @@ def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fi
         1e3 * fit.Qe_rot,
         ".",
         alpha=0.2,
-        label="Excited",
+        label="Prepared",
         markersize=1,
     )
     ax.axvline(
@@ -147,7 +147,7 @@ def plot_individual_histograms(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], 
     """
 
     ax.hist(1e3 * fit.Ig_rot, bins=100, alpha=0.5, label="Ground")
-    ax.hist(1e3 * fit.Ie_rot, bins=100, alpha=0.5, label="Excited")
+    ax.hist(1e3 * fit.Ie_rot, bins=100, alpha=0.5, label="Prepared")
     ax.axvline(
         1e3 * fit.rus_threshold,
         color="k",

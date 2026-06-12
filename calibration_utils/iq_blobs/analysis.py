@@ -48,6 +48,30 @@ def log_fitted_results(fit_results: Dict, log_callable=None):
         log_callable(s_qubit + s)
 
 
+def log_blob_diagnostics(ds: xr.Dataset, log_callable=None):
+    """Log raw cloud centers and widths to expose acquisition asymmetries."""
+    if log_callable is None:
+        log_callable = logging.getLogger(__name__).info
+
+    for qubit in ds.qubit.values:
+        selected = ds.sel(qubit=qubit)
+        ground_width = float(np.sqrt(selected.Ig.var() + selected.Qg.var()))
+        prepared_width = float(np.sqrt(selected.Ie.var() + selected.Qe.var()))
+        width_ratio = prepared_width / ground_width if ground_width else np.nan
+        center_separation = float(
+            np.hypot(selected.Ie.mean() - selected.Ig.mean(), selected.Qe.mean() - selected.Qg.mean())
+        )
+        prepared_points = np.column_stack((selected.Ie.values, selected.Qe.values))
+        prepared_unique_fraction = len(np.unique(prepared_points, axis=0)) / len(prepared_points)
+        warning = " | WARNING: strongly asymmetric blob widths" if not 0.5 <= width_ratio <= 2 else ""
+        log_callable(
+            f"Blob diagnostics for {qubit}: ground width={ground_width * 1e3:.3f} mV | "
+            f"prepared width={prepared_width * 1e3:.3f} mV | "
+            f"width ratio={width_ratio:.3f} | center separation={center_separation * 1e3:.3f} mV | "
+            f"prepared unique fraction={prepared_unique_fraction:.3f}{warning}"
+        )
+
+
 def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
     # Fix the structure of ds to avoid tuples
     def extract_value(element):
