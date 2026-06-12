@@ -60,7 +60,7 @@ node = QualibrationNode[Parameters, Quam](
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     # You can get type hinting in your IDE by typing node.parameters.
     # node.parameters.qubits = ["q1", "q2"]
-    pass
+    pass 
 
 
 # %% {Create_QUA_program}
@@ -88,8 +88,8 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
         for multiplexed_qubits in qubits.batch():
             # Initialize the QPU in terms of flux points (flux tunable transmons and/or tunable couplers)
-            # for qubit in multiplexed_qubits.values():
-            #     node.machine.initialize_qpu(target=qubit)
+            for qubit in multiplexed_qubits.values():
+                node.machine.initialize_qpu(target=qubit)
             align()
 
             with for_(n, 0, n < n_runs, n + 1):
@@ -98,7 +98,8 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 with for_(*from_array(a, amps)):
                     # Qubit initialization
                     for i, qubit in multiplexed_qubits.items():
-                        qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                        # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                        qubit.resonator.wait(15000)
                     align()
                     # Qubit readout
                     for i, qubit in multiplexed_qubits.items():
@@ -110,7 +111,8 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
                     # Qubit initialization
                     for i, qubit in multiplexed_qubits.items():
-                        qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                        # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                        qubit.resonator.wait(15000)
                     align()
                     # Qubit readout
                     for i, qubit in multiplexed_qubits.items():

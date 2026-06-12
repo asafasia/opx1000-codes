@@ -48,6 +48,35 @@ class IQBlobsAnalysisTests(unittest.TestCase):
 
         self.assertTrue(results["q1"].success)
 
+    def test_rotation_aligns_blob_means_with_positive_i_axis(self):
+        rng = np.random.default_rng(6)
+        ground_i = rng.normal(-4e-5, 2e-6, (1, 2000))
+        ground_q = rng.normal(-4e-5, 2e-6, (1, 2000))
+        excited_i = rng.normal(4e-5, 2e-6, (1, 2000))
+        excited_q = rng.normal(4e-5, 2e-6, (1, 2000))
+        ds = xr.Dataset(
+            {
+                "Ig": (("qubit", "n_runs"), ground_i),
+                "Qg": (("qubit", "n_runs"), ground_q),
+                "Ie": (("qubit", "n_runs"), excited_i),
+                "Qe": (("qubit", "n_runs"), excited_q),
+            },
+            coords={"qubit": ["q1"], "n_runs": np.arange(2000)},
+        )
+
+        fit, results = fit_raw_data(ds, self.make_node())
+
+        self.assertAlmostEqual(results["q1"].iw_angle, -np.pi / 4, places=2)
+        self.assertAlmostEqual(
+            float((fit.Qe_rot.mean(dim="n_runs") - fit.Qg_rot.mean(dim="n_runs")).sel(qubit="q1")),
+            0.0,
+            places=7,
+        )
+        self.assertGreater(
+            float((fit.Ie_rot.mean(dim="n_runs") - fit.Ig_rot.mean(dim="n_runs")).sel(qubit="q1")),
+            0.0,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

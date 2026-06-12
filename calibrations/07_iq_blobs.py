@@ -12,6 +12,8 @@ from qualang_tools.units import unit
 
 from qualibrate import QualibrationNode
 from quam_config import Quam, create_machine
+from saver import current_profile_name
+from updater import ProfileUpdater
 from calibration_utils.iq_blobs import (
     Parameters,
     process_raw_dataset,
@@ -112,7 +114,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
             with for_(n, 0, n < n_runs, n + 1):
                 save(n, n_st)
                 for qubit in multiplexed_qubits.values():
-                    qubit.resonator.wait(200 * u.us)
+                    qubit.resonator.wait(15000)
                 align()
                 for i, qubit in multiplexed_qubits.items():
                     qubit.resonator.measure(operation, qua_vars=(I_g[i], Q_g[i]))
@@ -123,7 +125,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
             with for_(n, 0, n < n_runs, n + 1):
                 for qubit in multiplexed_qubits.values():
-                    qubit.resonator.wait(200 * u.us)
+                    qubit.resonator.wait(15000)
                 align()
 
                 for qubit in multiplexed_qubits.values():
@@ -263,6 +265,32 @@ def update_state(node: QualibrationNode[Parameters, Quam]):
             operation.rus_exit_threshold = float(fit_result["rus_threshold"]) * operation.length / 2**12
             if node.parameters.operation == "readout":
                 q.resonator.confusion_matrix = fit_result["confusion_matrix"]
+
+
+# %% {Propose_profile_update}
+@node.run_action(skip_if=node.parameters.simulate)
+def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
+    """Stage the fitted readout angle and threshold for successful qubits."""
+    if node.parameters.operation != "readout":
+        node.log(
+            f"Profile update skipped: operation {node.parameters.operation!r} "
+            "does not use the profile's default readout parameters."
+        )
+        return
+
+    updates = {}
+    for q in node.namespace["qubits"]:
+        if node.outcomes[q.name] != "successful":
+            continue
+        operation = q.resonator.operations["readout"]
+        updates[f"qubits.json.qubits.{q.name}.readout.integration_weights_angle_rad"] = float(
+            operation.integration_weights_angle
+        )
+        updates[f"qubits.json.qubits.{q.name}.readout.threshold"] = float(operation.threshold)
+
+    if updates:
+        proposal = ProfileUpdater().stage(node.name, updates, profile_name=current_profile_name())
+        ProfileUpdater().confirm_and_apply(proposal)
 
 
 # %% {Save_results}

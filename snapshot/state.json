@@ -1,0 +1,12 @@
+{
+    "octaves": {},
+    "mixers": {},
+    "twpas": {},
+    "qubits": {},
+    "qubit_pairs": {},
+    "active_qubit_names": [],
+    "active_qubit_pair_names": [],
+    "ports": null,
+    "extras": {},
+    "__class__": "quam_config.my_quam.Quam"
+}

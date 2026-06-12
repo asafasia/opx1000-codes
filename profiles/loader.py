@@ -163,6 +163,15 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
             )
 
         _require(readout.get("state_1_when") in STATE_1_RULES, f"Qubit {name!r} has invalid readout.state_1_when")
+        for timing_name in ("time_of_flight_ns", "depletion_time_ns"):
+            _require(
+                isinstance(readout.get(timing_name), int) and readout[timing_name] > 0,
+                f"Qubit {name!r} needs positive integer readout.{timing_name}",
+            )
+        _require(
+            isinstance(readout.get("smearing_ns"), int) and readout["smearing_ns"] >= 0,
+            f"Qubit {name!r} needs non-negative integer readout.smearing_ns",
+        )
         _require(
             isinstance(transmon.get("thermalization_time_ns"), int)
             and transmon["thermalization_time_ns"] > 0,

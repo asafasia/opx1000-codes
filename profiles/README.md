@@ -21,6 +21,11 @@ experiments use this value through `qubit.reset_qubit_thermal()`. Because QuAM
 represents thermalization as an integer multiple of T1, the configured value
 must be an integer multiple of `t1_ns`, or of 10,000 ns when T1 is unknown.
 
+Readout acquisition timing is configured per qubit with
+`readout.time_of_flight_ns`, `readout.smearing_ns`, and
+`readout.depletion_time_ns`. The profile population step applies these values
+directly to the QuAM resonator.
+
 Pulse definitions are grouped by qubit name in `pulses.json`. Each qubit
 references pulse names from its own group under `operations`, so the same
 operation names can be calibrated independently. Supported pulse types are:

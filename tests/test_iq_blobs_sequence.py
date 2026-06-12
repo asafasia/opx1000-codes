@@ -39,6 +39,13 @@ class IQBlobsSequenceTests(unittest.TestCase):
         self.assertEqual(acquisition_block.count("with for_(n, 0, n < n_runs, n + 1):"), 2)
         self.assertIn("qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)", acquisition_block)
 
+    def test_successful_fit_updates_profile_angle_and_threshold(self):
+        source = (Path(__file__).parent.parent / "calibrations" / "07_iq_blobs.py").read_text()
+
+        self.assertIn("readout.integration_weights_angle_rad", source)
+        self.assertIn("readout.threshold", source)
+        self.assertIn("ProfileUpdater().confirm_and_apply(proposal)", source)
+
 
 if __name__ == "__main__":
     unittest.main()

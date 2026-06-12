@@ -9,8 +9,8 @@ from qualibration_libs.parameters import CommonNodeParameters, QubitsExperimentN
 class BasePowerRabiParameters(RunnableParameters):
     """Parameters shared by both 04b (GE power Rabi) and 12b (EF power Rabi) nodes."""
 
-    num_shots: int = 50
-    """Number of averages to perform. Default is 50."""
+    num_shots: int = 300
+    """Number of averages to perform. Default is 300    ."""
     min_amp_factor: float = 0.0
     """Minimum amplitude factor for the operation. Default is 0."""
     max_amp_factor: float = 1.99

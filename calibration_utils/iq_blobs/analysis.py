@@ -118,20 +118,15 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
         Dataset containing the fit results.
     """
     ds_fit = ds
-    # Condition to have the Q equal for both states:
-    angle = np.arctan2(
-        ds_fit.Qe.mean(dim="n_runs") - ds_fit.Qg.mean(dim="n_runs"),
-        ds_fit.Ig.mean(dim="n_runs") - ds_fit.Ie.mean(dim="n_runs"),
-    )
-    ds_fit = ds_fit.assign({"iw_angle": xr.DataArray(angle, coords=dict(qubit=ds_fit.qubit.data))})
-
+    # Rotate the axis connecting the two blob means onto +I, independently for
+    # each qubit. This also guarantees that the excited-state mean is above the
+    # discrimination threshold.
+    delta_i = ds_fit.Ie.mean(dim="n_runs") - ds_fit.Ig.mean(dim="n_runs")
+    delta_q = ds_fit.Qe.mean(dim="n_runs") - ds_fit.Qg.mean(dim="n_runs")
+    angle = np.arctan2(-delta_q, delta_i)
     C = np.cos(angle)
     S = np.sin(angle)
-    # Condition for having e > Ig
-    if np.mean((ds_fit.Ig - ds_fit.Ie) * C - (ds_fit.Qg - ds_fit.Qe) * S) > 0:
-        angle += np.pi
-        C = np.cos(angle)
-        S = np.sin(angle)
+    ds_fit = ds_fit.assign({"iw_angle": xr.DataArray(angle, coords=dict(qubit=ds_fit.qubit.data))})
 
     ds_fit = ds_fit.assign({"Ig_rot": ds_fit.Ig * C - ds_fit.Qg * S})
     ds_fit = ds_fit.assign({"Qg_rot": ds_fit.Ig * S + ds_fit.Qg * C})

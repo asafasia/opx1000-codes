@@ -46,7 +46,7 @@ node.machine = create_machine()
 @node.run_action(skip_if=node.modes.external)
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow local debugging parameter overrides."""
-    node.parameters.qubits = ["q10"]
+    node.parameters.qubits = ["q9"]
     # node.parameters.simulate = True
     # node.parameters.samples = 1000
 
@@ -84,26 +84,22 @@ def make_state_program(
         for multiplexed_qubits in qubits.batch():
             with for_(n, 0, n < n_runs, n + 1):
                 save(n, n_st)
-                for qubit in multiplexed_qubits.values():
-                    qubit.wait(initialization_wait_in_ns * u.ns)
+                # for qubit in multiplexed_qubits.values():
+                #     wait(1000, "q9.xy", "q9.resonator")  # 300 µs
                 align()
 
                 if state == "e":
-                    for _, qubit in multiplexed_qubits.items():
-                        repetitions = (
-                            node.parameters.pi_repetitions
-                            if selected_qubit_operation == "x180_const"
-                            else 1
-                        )
-                        for _ in range(repetitions):
-                            qubit.xy.play(
-                                qua_qubit_operation,
-                                amplitude_scale=node.parameters.qubit_amplitude_factor,
-                            )
+                
+                    qubit.xy.play(
+                        qua_qubit_operation,
+                        amplitude_scale=node.parameters.qubit_amplitude_factor,
+                    )
                     # Synchronize XY and resonator timelines before the explicit delay.
                     align()
                     for qubit in multiplexed_qubits.values():
                         qubit.resonator.wait(node.parameters.xy_to_readout_delay_in_ns * u.ns)
+                        qubit.reset_qubit_thermal()
+                    align()
 
                 for i, qubit in multiplexed_qubits.items():
                     qubit.resonator.measure(operation, qua_vars=(I[i], Q[i]))

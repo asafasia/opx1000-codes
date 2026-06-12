@@ -6,6 +6,7 @@ from unittest.mock import patch
 from profiles import ProfileError, load_profile
 from profiles.loader import validate_profile
 from quam_config import Quam
+from quam_config.create_machine_from_profile import create_machine_from_profile
 from quam_builder.architecture.superconducting.qpu import FluxTunableQuam
 from quam_config.wiring_lffem_mwfem import _xy_lines
 
@@ -59,6 +60,16 @@ class WiringProfileTests(unittest.TestCase):
         for calibration in calibrations.glob("*.py"):
             with self.subTest(calibration=calibration.name):
                 self.assertNotIn("Quam.load()", calibration.read_text(encoding="utf-8"))
+
+    def test_readout_acquisition_timing_is_applied_to_quam(self):
+        machine = create_machine_from_profile("main", save=False)
+        profile = load_profile("main")
+        readout = profile["qubits"]["qubits"]["q9"]["readout"]
+        resonator = machine.qubits["q9"].resonator
+
+        self.assertEqual(resonator.time_of_flight, readout["time_of_flight_ns"])
+        self.assertEqual(resonator.smearing, readout["smearing_ns"])
+        self.assertEqual(resonator.depletion_time, readout["depletion_time_ns"])
 
 
 if __name__ == "__main__":

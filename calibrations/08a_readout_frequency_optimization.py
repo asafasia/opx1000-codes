@@ -96,9 +96,9 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
         for multiplexed_qubits in qubits.batch():
             # Initialize the QPU in terms of flux points (flux tunable transmons and/or tunable couplers)
-            # for qubit in multiplexed_qubits.values():
-            #     node.machine.initialize_qpu(target=qubit)
-            # align()
+            for qubit in multiplexed_qubits.values():
+                node.machine.initialize_qpu(target=qubit)
+            align()
 
             with for_(n, 0, n < n_avg, n + 1):
                 save(n, n_st)
@@ -107,7 +107,9 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                     for i, qubit in multiplexed_qubits.items():
                         # Update the resonator frequencies & reset the qubits
                         update_frequency(qubit.resonator.name, df + qubit.resonator.intermediate_frequency)
-                        qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                        # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                        qubit.resonator.wait(15000)
+
                     align()
 
                     # Qubit readout - |g> state
@@ -121,7 +123,8 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
                     # Qubit initialization
                     for i, qubit in multiplexed_qubits.items():
-                        qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                        # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                        qubit.resonator.wait(15000)
                     align()
                     # Qubit readout - |e> state
                     for i, qubit in multiplexed_qubits.items():
