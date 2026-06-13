@@ -25,6 +25,7 @@ from qualang_tools.units import unit
 from qualibration_libs.data import XarrayDataFetcher, convert_IQ_to_V
 
 from quam_config import create_machine
+from utils.plotting_settings import FIGURE_SIZE
 
 
 QUBIT_NAME = "q9"
@@ -229,7 +230,7 @@ def analyze_and_save(dataset: xr.Dataset, output_dir: Path) -> pd.DataFrame:
         values="apparent_resonator_shift_hz",
     )
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    fig, axes = plt.subplots(1, 2, figsize=FIGURE_SIZE)
     extent = [
         READOUT_AMPLITUDE_FACTORS.min(),
         READOUT_AMPLITUDE_FACTORS.max(),
@@ -263,7 +264,7 @@ def analyze_and_save(dataset: xr.Dataset, output_dir: Path) -> pd.DataFrame:
     fig.savefig(output_dir / "scan_heatmaps.png", dpi=180)
     plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     ax.plot(
         strongest["resonator_pulse_amplitude"],
         strongest["apparent_qubit_frequency_hz"] / 1e9,

@@ -23,7 +23,7 @@ from calibration_utils.readout_frequency_optimization import (
     plot_IQ_abs_with_fit,
 )
 from qualibration_libs.parameters import get_qubits
-from qualibration_libs.runtime import simulate_and_plot
+from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 
 # %% {Node initialisation}

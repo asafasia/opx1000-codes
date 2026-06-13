@@ -16,6 +16,7 @@ from calibration_utils.iq_blobs import Parameters
 from saver import CalibrationSaver, current_profile_name
 from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.parameters import get_qubits
+from utils.plotting_settings import FIGURE_SIZE
 
 
 description = """
@@ -166,7 +167,7 @@ def plot_raw_results(node: QualibrationNode[Parameters, Quam]):
     figures = {}
     for qubit_name in ds.qubit.values:
         selected = ds.sel(qubit=qubit_name)
-        figure, axis = plt.subplots()
+        figure, axis = plt.subplots(figsize=FIGURE_SIZE)
         axis.scatter(selected.Ig, selected.Qg, s=4, alpha=0.3, label="Ground")
         axis.scatter(selected.Im, selected.Qm, s=4, alpha=0.3, label="Prepared")
         axis.scatter(

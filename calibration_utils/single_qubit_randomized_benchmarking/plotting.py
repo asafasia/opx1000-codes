@@ -1,10 +1,12 @@
 from typing import List
 import xarray as xr
+import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from qualang_tools.units import unit
 from qualibration_libs.plotting import QubitGrid, grid_iter
+from qualibration_libs.analysis import decay_exp
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 from utils.plotting_settings import FIGURE_SIZE
 
@@ -37,9 +39,8 @@ def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.D
     grid = QubitGrid(ds, [q.grid_location for q in qubits])
     for ax, qubit in grid_iter(grid):
         plot_individual_data_with_fit(ax, ds, qubit, fits.sel(qubit=qubit["qubit"]))
-    handles, labels = ax.get_legend_handles_labels()
-    grid.fig.legend(handles, labels, loc="lower center", ncol=1)
-    grid.fig.suptitle("Assignment fidelity and non-outlier probability")
+
+    grid.fig.suptitle("Single qubit randomized benchmarking")
     grid.fig.set_size_inches(*FIGURE_SIZE)
     grid.fig.tight_layout()
     return grid.fig
@@ -64,10 +65,42 @@ def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str
     -----
     - If the fit dataset is provided, the fitted curve is plotted along with the raw data.
     """
-    fit.fit_data.plot(
-        ax=ax, x="readout_amplitude", hue="fit_vals", add_legend=False, label=("readout fidelity", "non-outliers")
+    # Fitted decay
+    fitted = decay_exp(
+        fit.depths,
+        fit.fit_data.sel(fit_vals="a"),
+        fit.fit_data.sel(fit_vals="offset"),
+        fit.fit_data.sel(fit_vals="decay"),
     )
-    ax.axvline(float(fit.optimal_amp), color="k", linestyle="dashed", label="optimal readout amplitude")
-    ax.set_xlabel("Relative power")
-    ax.set_ylabel("Fidelity / outliers")
-    ax.set_title(qubit["qubit"])
+    if hasattr(fit, "population"):
+        data = fit.population
+        label = "Ground-state population"
+    elif hasattr(fit, "state"):
+        data = 1 - fit.state
+        label = "Ground-state population"
+    elif hasattr(fit, "I"):
+        data = fit.I
+        label = "I quadrature [mV]"
+    else:
+        raise RuntimeError("The dataset must contain either 'I' or 'state' for the plotting function to work.")
+    data_std = data.std(dim="nb_of_sequences") / np.sqrt(ds.nb_of_sequences.size)
+    ax.errorbar(
+        fit.depths,
+        fit.averaged_data,
+        yerr=data_std,
+        fmt=".",
+        markersize=10,
+        capsize=2,
+        elinewidth=0.5,
+    )
+    ax.grid("all")
+    ax.set_title(qubit["qubit"], pad=22)
+    ax.set_xlabel("Circuit depth")
+    ax.set_ylabel(label)
+    ax.plot(fit.depths, fitted, "r--", label="fit")
+    ax.text(
+        0.15,
+        0.9,
+        f"1Q RB fidelity = {100*(1 - float(fit.error_per_gate.values)):.3f}%",
+        transform=ax.transAxes,
+    )

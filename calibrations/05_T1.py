@@ -14,7 +14,7 @@ from quam_config import Quam
 from saver import CalibrationSaver, current_profile_name
 from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.parameters import get_qubits, get_idle_times_in_clock_cycles
-from qualibration_libs.runtime import simulate_and_plot
+from utils.simulation import simulate_and_plot
 from calibration_utils.T1 import (
     Parameters,
     process_raw_dataset,

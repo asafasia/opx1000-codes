@@ -22,7 +22,7 @@ from calibration_utils.iq_blobs import (
     plot_iq_blobs_dashboard,
 )
 from qualibration_libs.parameters import get_qubits
-from qualibration_libs.runtime import simulate_and_plot
+from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 
 # %% {Description}

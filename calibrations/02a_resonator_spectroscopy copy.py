@@ -14,8 +14,9 @@ from quam_config import Quam, create_machine
 from calibration_utils.resonator_spectroscopy import Parameters
 from saver import CalibrationSaver, current_profile_name
 from qualibration_libs.parameters import get_qubits
-from qualibration_libs.runtime import simulate_and_plot
+from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
+from utils.plotting_settings import FIGURE_SIZE
 
 
 # %% {Node initialisation}
@@ -277,7 +278,7 @@ def plot_data(node: QualibrationNode[Parameters, Quam]):
         ground_mean = np.mean(Ig) + 1j * np.mean(Qg)
         driven_mean = np.mean(Im) + 1j * np.mean(Qm)
 
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=FIGURE_SIZE)
 
         ax.plot(Ig, Qg, ".", label="Ground", alpha=0.3, color="blue", markersize=4)
         ax.plot(Im, Qm, ".", label="Driven", alpha=0.3, color="orange",markersize=4)

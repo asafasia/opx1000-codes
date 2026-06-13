@@ -8,13 +8,14 @@ from matplotlib.figure import Figure
 from qualang_tools.units import unit
 from qualibration_libs.plotting import QubitGrid, grid_iter
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
+from utils.plotting_settings import FIGURE_SIZE
 
 u = unit(coerce_to_integer=True)
 
 
 def plot_iq_blobs_dashboard(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset) -> Figure:
     """Plot IQ clouds, rotated-I histograms, and confusion matrices together."""
-    fig = plt.figure(figsize=(14, max(8, 8 * len(qubits))))
+    fig = plt.figure(figsize=FIGURE_SIZE)
     outer_grid = fig.add_gridspec(
         len(qubits),
         1,
@@ -88,7 +89,7 @@ def plot_iq_blobs(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
     leg.legend_handles[0].set_markersize(6)
     leg.legend_handles[1].set_markersize(6)
     grid.fig.suptitle("g.s. and e.s. discriminators (rotated)")
-    grid.fig.set_size_inches(15, 9)
+    grid.fig.set_size_inches(*FIGURE_SIZE)
     grid.fig.tight_layout()
     return grid.fig
 
@@ -172,7 +173,7 @@ def plot_historams(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
     grid.fig.legend(handles, labels, loc="lower center", ncol=2)
     leg = grid.fig.legend(handles, labels, loc="lower center", ncol=2)
     grid.fig.suptitle("g.s. and e.s. histograms (rotated)")
-    grid.fig.set_size_inches(15, 9)
+    grid.fig.set_size_inches(*FIGURE_SIZE)
     grid.fig.tight_layout()
     return grid.fig
 
@@ -241,7 +242,7 @@ def plot_confusion_matrices(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.
         plot_individual_confusion_matrix(ax, ds, qubit, fits.sel(qubit=qubit["qubit"]))
 
     grid.fig.suptitle("g.s. and e.s. fidelity")
-    grid.fig.set_size_inches(15, 9)
+    grid.fig.set_size_inches(*FIGURE_SIZE)
     grid.fig.tight_layout()
     return grid.fig
 

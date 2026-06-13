@@ -8,6 +8,7 @@ from qualang_tools.units import unit
 from qualibration_libs.plotting import QubitGrid, grid_iter
 from qualibration_libs.analysis import lorentzian_dip
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
+from utils.plotting_settings import FIGURE_SIZE
 
 u = unit(coerce_to_integer=True)
 
@@ -55,7 +56,7 @@ def plot_raw_phase(ds: xr.Dataset, qubits: List[AnyTransmon]) -> Figure:
         ax1.set_ylabel("phase [rad]")
         ax1.legend()
     grid.fig.suptitle("Resonator spectroscopy: ground and mixed-state phase")
-    grid.fig.set_size_inches(15, 9)
+    grid.fig.set_size_inches(*FIGURE_SIZE)
     grid.fig.tight_layout()
 
     return grid.fig
@@ -88,7 +89,7 @@ def plot_raw_amplitude(ds: xr.Dataset, qubits: List[AnyTransmon]):
     fig, axes = plt.subplots(
         2 * rows,
         columns,
-        figsize=(15, 9),
+        figsize=FIGURE_SIZE,
         squeeze=False,
         sharex="col",
         gridspec_kw={"height_ratios": height_ratios},
@@ -215,6 +216,6 @@ def plot_iq_response(ds: xr.Dataset, qubits: List[AnyTransmon]) -> Figure:
         ax.legend()
 
     grid.fig.suptitle("Resonator spectroscopy: ground and mixed-state IQ response")
-    grid.fig.set_size_inches(15, 9)
+    grid.fig.set_size_inches(*FIGURE_SIZE)
     grid.fig.tight_layout()
     return grid.fig

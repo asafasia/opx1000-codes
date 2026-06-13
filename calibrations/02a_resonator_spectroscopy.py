@@ -23,7 +23,7 @@ from calibration_utils.resonator_spectroscopy import (
 from saver import CalibrationSaver, current_profile_name
 from updater import ProfileUpdater
 from qualibration_libs.parameters import get_qubits
-from qualibration_libs.runtime import simulate_and_plot
+from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 
 # %% {Node initialisation}

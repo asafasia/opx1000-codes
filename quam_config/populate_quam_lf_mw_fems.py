@@ -19,6 +19,7 @@ from quam.components.pulses import (
 
 from profiles import ProfileError, load_profile
 from quam_config import Quam
+from quam_config.derived_gates import add_derived_single_qubit_gates
 
 
 DEFAULT_PROFILE = "main"
@@ -179,6 +180,7 @@ def apply_profile(machine: Quam, profile: dict[str, Any]) -> Quam:
                 else qubit.xy.operations
             )
             target_operations[operation_name] = pulse
+        add_derived_single_qubit_gates(qubit)
 
     machine.active_qubit_names = profile["manifest"]["active_qubits"]
     return machine

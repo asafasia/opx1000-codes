@@ -5,6 +5,7 @@ from matplotlib.figure import Figure
 
 from qualang_tools.units import unit
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
+from utils.plotting_settings import FIGURE_SIZE
 
 u = unit(coerce_to_integer=True)
 
@@ -22,7 +23,12 @@ def _add_detuning_axis(ax, current_frequency_ghz: float):
     return detuning_axis
 
 
-def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
+def plot_raw_data_with_fit(
+    ds: xr.Dataset,
+    qubits: List[AnyTransmon],
+    fits: xr.Dataset,
+    use_state_discrimination: bool = False,
+):
     """
     Plot the raw I and Q qubit-spectroscopy responses on separate subplots.
 
@@ -45,10 +51,18 @@ def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.D
     - Each qubit occupies two rows containing separate I and Q subplots.
     - The fitted qubit frequency is marked on both subplots.
     """
+    variables = ("state",) if use_state_discrimination else ("I", "Q")
+    missing = [variable for variable in variables if variable not in ds]
+    if missing:
+        raise RuntimeError(
+            f"Qubit-spectroscopy plot expected {variables} for "
+            f"use_state_discrimination={use_state_discrimination}, but dataset contains {list(ds.data_vars)}"
+        )
+
     fig, axes = plt.subplots(
-        2 * len(qubits),
+        len(variables) * len(qubits),
         1,
-        figsize=(10, max(7, 7 * len(qubits))),
+        figsize=FIGURE_SIZE,
         squeeze=False,
     )
 
@@ -60,9 +74,12 @@ def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.D
         fitted_frequency_ghz = float(fit.res_freq.values) / u.GHz
         current_frequency_ghz = float(qubit.xy.RF_frequency) / u.GHz
 
-        qubit_axes = axes[2 * qubit_index : 2 * qubit_index + 2, 0]
-        for ax, quadrature, color in zip(qubit_axes, ("I", "Q"), ("tab:blue", "tab:orange")):
-            (selected[quadrature] / u.mV).plot(ax=ax, x="full_freq_GHz", color=color)
+        start = len(variables) * qubit_index
+        qubit_axes = axes[start : start + len(variables), 0]
+        for ax, variable, color in zip(qubit_axes, variables, ("tab:blue", "tab:orange")):
+            scale = 1 if variable == "state" else 1 / u.mV
+            label = "Measured state" if variable == "state" else f"{variable} [mV]"
+            (selected[variable] * scale).plot(ax=ax, x="full_freq_GHz", color=color)
             ax.axvline(
                 current_frequency_ghz,
                 color="black",
@@ -75,13 +92,17 @@ def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.D
                 linestyle="--",
                 label=f"New resonance: {fitted_frequency_ghz:.6f} GHz",
             )
-            ax.set_title(f"{qubit.name}: {quadrature}")
+            ax.set_title(f"{qubit.name}: {label}")
             ax.set_xlabel("RF frequency [GHz]")
-            ax.set_ylabel(f"{quadrature} [mV]")
+            ax.set_ylabel(label)
             ax.legend()
             ax.grid(alpha=0.25)
             _add_detuning_axis(ax, current_frequency_ghz)
 
-    fig.suptitle("Qubit spectroscopy: I and Q quadratures")
+    fig.suptitle(
+        "Qubit spectroscopy: measured state"
+        if use_state_discrimination
+        else "Qubit spectroscopy: I and Q quadratures"
+    )
     fig.tight_layout()
     return fig

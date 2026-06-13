@@ -23,7 +23,7 @@ from calibration_utils.readout_power_optimization import (
 )
 from calibration_utils.iq_blobs.plotting import plot_iq_blobs, plot_confusion_matrices
 from qualibration_libs.parameters import get_qubits
-from qualibration_libs.runtime import simulate_and_plot
+from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 
 # %% {Description}

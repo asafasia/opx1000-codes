@@ -4,6 +4,7 @@ from matplotlib.axes import Axes
 from qualibration_libs.analysis import decay_exp
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 from qualibration_libs.plotting import QubitGrid, grid_iter
+from utils.plotting_settings import FIGURE_SIZE
 
 
 def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
@@ -32,7 +33,7 @@ def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.D
         plot_individual_data_with_fit(ax, ds, qubit, fits.sel(qubit=qubit["qubit"]))
 
     grid.fig.suptitle("T1 vs. idle time")
-    grid.fig.set_size_inches(15, 9)
+    grid.fig.set_size_inches(*FIGURE_SIZE)
     grid.fig.tight_layout()
     return grid.fig
 

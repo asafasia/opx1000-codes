@@ -30,7 +30,7 @@ class SeparateIQBlobsSequenceTests(unittest.TestCase):
         self.assertIn("initialization_wait_in_ns=100", self.source)
         self.assertIn('job.wait_until("Done"', self.source)
         self.assertIn("except QMSimulationError:", self.source)
-        self.assertIn("wf_report.create_plot(samples=None", self.source)
+        self.assertIn("plot_waveform_report_safely(wf_report, samples=None)", self.source)
         self.assertIn('simulations[state] = {"figure": fig}', self.source)
 
     def test_merges_into_current_analysis_variable_names(self):

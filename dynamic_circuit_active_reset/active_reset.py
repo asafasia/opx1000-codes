@@ -19,6 +19,8 @@ from calibration_utils.iq_blobs import Parameters
 from saver import CalibrationSaver, current_profile_name
 from qualibration_libs.data import XarrayDataFetcher, convert_IQ_to_V
 from qualibration_libs.parameters import get_qubits
+from utils.plotting_settings import FIGURE_SIZE
+from utils.simulation import plot_waveform_report_safely
 
 
 # %% {Description}
@@ -197,7 +199,12 @@ def simulate_program(node, qmm, config, qua_program):
     waveform_report = job.get_simulated_waveform_report()
     try:
         samples = job.get_simulated_samples()
-        figure, axes = plt.subplots(nrows=len(samples.keys()), sharex=True, squeeze=False)
+        figure, axes = plt.subplots(
+            nrows=len(samples.keys()),
+            sharex=True,
+            squeeze=False,
+            figsize=FIGURE_SIZE,
+        )
         for axis, controller in zip(axes.flat, samples.keys()):
             plt.sca(axis)
             samples[controller].plot()
@@ -205,8 +212,7 @@ def simulate_program(node, qmm, config, qua_program):
         figure.tight_layout()
     except QMSimulationError:
         node.log("Could not pull simulated samples; showing the waveform report instead.")
-        waveform_report.create_plot(samples=None, plot=True, save_path=None)
-        figure = plt.gcf()
+        figure = plot_waveform_report_safely(waveform_report, samples=None)
         samples = None
     return samples, figure, waveform_report
 
@@ -317,7 +323,7 @@ def plot_data(node: QualibrationNode[Parameters, Quam]):
     figures = {}
     for qubit_name in ds.qubit.values:
         selected = ds.sel(qubit=qubit_name)
-        figure, axes = plt.subplots(1, 3, figsize=(18, 5))
+        figure, axes = plt.subplots(1, 3, figsize=FIGURE_SIZE)
         for preparation, color in (("g", "tab:blue"), ("e", "tab:red")):
             axes[0].scatter(
                 1e3 * selected[f"initial_I_{preparation}"],

@@ -24,7 +24,7 @@ from calibration_utils.qubit_spectroscopy import (
 from saver import CalibrationSaver, current_profile_name
 from updater import ProfileUpdater
 from qualibration_libs.parameters import get_qubits
-from qualibration_libs.runtime import simulate_and_plot
+from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 
 # %% {Node initialisation}
@@ -78,6 +78,23 @@ node.machine.connect()  # Connect to the machine to fetch the qubits information
 
 node.machine.qmm.close_all_qms()
 
+
+def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> None:
+    """Ensure fetched results match the requested readout mode."""
+    variables = set(ds.data_vars)
+    expected = {"state"} if use_state_discrimination else {"I", "Q"}
+    unexpected = {"I", "Q"} if use_state_discrimination else {"state"}
+    missing = expected - variables
+    present_unexpected = unexpected & variables
+    if missing or present_unexpected:
+        raise RuntimeError(
+            "Qubit-spectroscopy readout mode mismatch: "
+            f"use_state_discrimination={use_state_discrimination}, "
+            f"dataset variables={sorted(variables)}, "
+            f"missing={sorted(missing)}, unexpected={sorted(present_unexpected)}"
+        )
+
+
 # %% {Create_QUA_program}
 @node.run_action(skip_if=node.parameters.load_data_id is not None)
 def create_qua_program(node: QualibrationNode[Parameters, Quam]):
@@ -110,6 +127,9 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
     with program() as node.namespace["qua_program"]:
         # Macro to declare I, Q, n and their respective streams for a given number of qubit
         I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
+        if node.parameters.use_state_discrimination:
+            state = [declare(int) for _ in range(num_qubits)]
+            state_st = [declare_stream() for _ in range(num_qubits)]
         df = declare(int)  # QUA variable for the qubit frequency
 
         for multiplexed_qubits in qubits.batch():
@@ -140,20 +160,26 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
                     for i, qubit in multiplexed_qubits.items():
                         # readout the resonator
-                        qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
+                        if node.parameters.use_state_discrimination:
+                            qubit.readout_state(state[i])
+                            save(state[i], state_st[i])
+                        else:
+                            qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
+                            save(I[i], I_st[i])
+                            save(Q[i], Q_st[i])
                         # Return the qubit to the ground state before the next shot.
                         qubit.reset_qubit_thermal()
-                        # save data
-                        save(I[i], I_st[i])
-                        save(Q[i], Q_st[i])
                     align()
 
         with stream_processing():
             # pass
             n_st.save("n")
             for i in range(num_qubits):
-                I_st[i].buffer(len(dfs)).average().save(f"I{i + 1}")
-                Q_st[i].buffer(len(dfs)).average().save(f"Q{i + 1}")
+                if node.parameters.use_state_discrimination:
+                    state_st[i].buffer(len(dfs)).average().save(f"state{i + 1}")
+                else:
+                    I_st[i].buffer(len(dfs)).average().save(f"I{i + 1}")
+                    Q_st[i].buffer(len(dfs)).average().save(f"Q{i + 1}")
 
 
 # %% {Simulate}
@@ -204,6 +230,7 @@ def execute_qua_program(node: QualibrationNode[Parameters, Quam]):
         # Display the execution report to expose possible runtime errors
         node.log(job.execution_report())
     # Register the raw dataset
+    validate_readout_dataset(dataset, node.parameters.use_state_discrimination)
     node.results["ds_raw"] = dataset
 
 
@@ -236,6 +263,7 @@ def save_raw_results(node: QualibrationNode[Parameters, Quam]):
 @node.run_action(skip_if=node.parameters.simulate)
 def analyse_data(node: QualibrationNode[Parameters, Quam]):
     """Analyse the raw data and store the fitted data in another xarray dataset "ds_fit" and the fitted results in the "fit_results" dictionary."""
+    validate_readout_dataset(node.results["ds_raw"], node.parameters.use_state_discrimination)
     node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
     node.results["ds_fit"], fit_results = fit_raw_data(node.results["ds_raw"], node)
     node.results["fit_results"] = {k: asdict(v) for k, v in fit_results.items()}
@@ -253,7 +281,10 @@ def analyse_data(node: QualibrationNode[Parameters, Quam]):
 def plot_data(node: QualibrationNode[Parameters, Quam]):
     """Plot the raw and fitted data in specific figures whose shape is given by qubit.grid_location."""
     fig_raw_fit = plot_raw_data_with_fit(
-        node.results["ds_raw"], node.namespace["qubits"], node.results["ds_fit"]
+        node.results["ds_raw"],
+        node.namespace["qubits"],
+        node.results["ds_fit"],
+        use_state_discrimination=node.parameters.use_state_discrimination,
     )
     plt.show()
     # Store the generated figures

@@ -39,6 +39,30 @@ class SpectroscopyPlottingTests(unittest.TestCase):
             "Detuning from current resonance [MHz]",
         )
 
+    def test_qubit_plot_shows_only_state_when_discrimination_is_enabled(self):
+        frequencies = np.linspace(4.34e9, 4.36e9, 11)
+        ds = xr.Dataset(
+            {
+                "state": (("qubit", "detuning"), np.linspace(0, 1, 11)[None, :]),
+                "I": (("qubit", "detuning"), np.zeros((1, 11))),
+                "Q": (("qubit", "detuning"), np.zeros((1, 11))),
+            },
+            coords={
+                "qubit": ["q1"],
+                "detuning": np.arange(11),
+                "full_freq": (("qubit", "detuning"), frequencies[None, :]),
+            },
+        )
+        fits = xr.Dataset({"res_freq": ("qubit", [4.351e9])}, coords={"qubit": ["q1"]})
+        qubit = SimpleNamespace(name="q1", xy=SimpleNamespace(RF_frequency=4.3496e9))
+
+        fig = plot_raw_data_with_fit(ds, [qubit], fits, use_state_discrimination=True)
+
+        self.assertEqual(fig.axes[0].get_title(), "q1: Measured state")
+        self.assertEqual(fig.axes[0].get_ylabel(), "Measured state")
+        self.assertNotIn("q1: I [mV]", [axis.get_title() for axis in fig.axes])
+        self.assertNotIn("q1: Q [mV]", [axis.get_title() for axis in fig.axes])
+
     def test_resonator_plot_labels_current_and_new_resonances(self):
         frequencies = np.linspace(7.46e9, 7.48e9, 11)
         separation = np.zeros((1, 11))

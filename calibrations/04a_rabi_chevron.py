@@ -22,7 +22,7 @@ from calibration_utils.rabi_chevron import (
     plot_raw_data_with_fit,
 )
 from qualibration_libs.parameters import get_qubits
-from qualibration_libs.runtime import simulate_and_plot
+from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.core import tracked_updates
 

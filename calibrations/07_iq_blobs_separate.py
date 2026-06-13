@@ -26,6 +26,8 @@ from calibration_utils.iq_blobs import (
 )
 from qualibration_libs.parameters import get_qubits
 from qualibration_libs.data import XarrayDataFetcher
+from utils.plotting_settings import FIGURE_SIZE
+from utils.simulation import plot_waveform_report_safely
 
 # %% {Description}
 description = """
@@ -150,7 +152,12 @@ def simulate_state_program(node, qmm, config, qua_program):
     wf_report = job.get_simulated_waveform_report()
     try:
         samples = job.get_simulated_samples()
-        fig, axes = plt.subplots(nrows=len(samples.keys()), sharex=True, squeeze=False)
+        fig, axes = plt.subplots(
+            nrows=len(samples.keys()),
+            sharex=True,
+            squeeze=False,
+            figsize=FIGURE_SIZE,
+        )
         for axis, controller in zip(axes.flat, samples.keys()):
             plt.sca(axis)
             samples[controller].plot()
@@ -161,8 +168,7 @@ def simulate_state_program(node, qmm, config, qua_program):
             "QOP simulated the program but qm-qua could not pull analog samples; "
             "showing the waveform report instead."
         )
-        wf_report.create_plot(samples=None, plot=True, save_path=None)
-        fig = plt.gcf()
+        fig = plot_waveform_report_safely(wf_report, samples=None)
         samples = None
     return samples, fig, wf_report
 

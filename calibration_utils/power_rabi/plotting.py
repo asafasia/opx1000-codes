@@ -7,6 +7,7 @@ from matplotlib.figure import Figure
 from qualang_tools.units import unit
 from qualibration_libs.analysis import oscillation
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
+from utils.plotting_settings import FIGURE_SIZE
 
 u = unit(coerce_to_integer=True)
 
@@ -49,7 +50,7 @@ def plot_raw_data_with_fit(
     fig, axes = plt.subplots(
         len(qubits) * len(variables),
         1,
-        figsize=(10, max(4, 4 * len(qubits) * len(variables))),
+        figsize=FIGURE_SIZE,
         squeeze=False,
     )
 

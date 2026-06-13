@@ -86,6 +86,32 @@ class WiringProfileTests(unittest.TestCase):
         self.assertEqual(pulse.threshold, readout["threshold"])
         self.assertEqual(pulse.rus_exit_threshold, readout["rus_exit_threshold"])
 
+    def test_rb_gates_are_derived_from_x180(self):
+        machine = create_machine_from_profile("main", save=False)
+        qubit = machine.qubits["q9"]
+        x180 = qubit.xy.operations["x180"]
+        expected = {
+            "y180": (x180.amplitude, 0.5 * 3.141592653589793),
+            "x90": (x180.amplitude / 2, 0.0),
+            "-x90": (-x180.amplitude / 2, 0.0),
+            "y90": (x180.amplitude / 2, 0.5 * 3.141592653589793),
+            "-y90": (-x180.amplitude / 2, 0.5 * 3.141592653589793),
+        }
+
+        for gate_name, (amplitude, axis_angle) in expected.items():
+            gate = qubit.xy.operations[gate_name]
+            self.assertEqual(gate.length, x180.length)
+            self.assertAlmostEqual(gate.amplitude, amplitude)
+            self.assertAlmostEqual(gate.axis_angle, axis_angle)
+
+    def test_profile_does_not_duplicate_derived_rb_gates(self):
+        profile = load_profile("main")
+        derived_gates = {"y180", "x90", "-x90", "y90", "-y90"}
+
+        for qubit_name, qubit in profile["qubits"]["qubits"].items():
+            self.assertTrue(derived_gates.isdisjoint(qubit["operations"]))
+            self.assertTrue(derived_gates.isdisjoint(profile["pulses"]["pulses"][qubit_name]))
+
 
 if __name__ == "__main__":
     unittest.main()

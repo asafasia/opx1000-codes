@@ -52,8 +52,9 @@ def log_fitted_results(fit_results: Dict, log_callable=None):
 
 
 def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
-    ds = convert_IQ_to_V(ds, node.namespace["qubits"])
-    ds = add_amplitude_and_phase(ds, "detuning", subtract_slope_flag=True)
+    if not node.parameters.use_state_discrimination:
+        ds = convert_IQ_to_V(ds, node.namespace["qubits"])
+        ds = add_amplitude_and_phase(ds, "detuning", subtract_slope_flag=True)
     full_freq = np.array([ds.detuning + q.xy.RF_frequency for q in node.namespace["qubits"]])
     ds = ds.assign_coords(full_freq=(["qubit", "detuning"], full_freq))
     ds.full_freq.attrs = {"long_name": "RF frequency", "units": "Hz"}
@@ -77,18 +78,32 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
         Dataset containing the fit results.
     """
     ds_fit = ds
-    # search for frequency for which the amplitude the farthest from the mean to indicate the approximate location of the peak
-    shifts = np.abs((ds_fit.IQ_abs - ds_fit.IQ_abs.mean(dim="detuning"))).idxmax(dim="detuning")
-    # Find the rotation angle to align the separation along the 'I' axis
-    angle = np.arctan2(
-        ds_fit.sel(detuning=shifts).Q - ds_fit.Q.mean(dim="detuning"),
-        ds_fit.sel(detuning=shifts).I - ds_fit.I.mean(dim="detuning"),
-    )
-    ds_fit = ds_fit.assign({"iw_angle": angle})
-    # rotate the data to the new I axis
-    ds_fit = ds_fit.assign({"I_rot": ds_fit.I * np.cos(ds_fit.iw_angle) + ds_fit.Q * np.sin(ds_fit.iw_angle)})
-    # Find the peak with minimal prominence as defined, if no such peak found, returns nan
-    fit_vals = peaks_dips(ds_fit.I_rot, dim="detuning", prominence_factor=5)
+    if node.parameters.use_state_discrimination:
+        fit_signal = ds_fit.state
+        ds_fit = ds_fit.assign(
+            {
+                "iw_angle": xr.DataArray(
+                    [
+                        q.resonator.operations["readout"].integration_weights_angle
+                        for q in node.namespace["qubits"]
+                    ],
+                    coords={"qubit": ds_fit.qubit},
+                )
+            }
+        )
+    else:
+        shifts = np.abs((ds_fit.IQ_abs - ds_fit.IQ_abs.mean(dim="detuning"))).idxmax(dim="detuning")
+        angle = np.arctan2(
+            ds_fit.sel(detuning=shifts).Q - ds_fit.Q.mean(dim="detuning"),
+            ds_fit.sel(detuning=shifts).I - ds_fit.I.mean(dim="detuning"),
+        )
+        ds_fit = ds_fit.assign({"iw_angle": angle})
+        ds_fit = ds_fit.assign(
+            {"I_rot": ds_fit.I * np.cos(ds_fit.iw_angle) + ds_fit.Q * np.sin(ds_fit.iw_angle)}
+        )
+        fit_signal = ds_fit.I_rot
+
+    fit_vals = peaks_dips(fit_signal, dim="detuning", prominence_factor=5)
     ds_fit = xr.merge([ds_fit, fit_vals])
     # Extract the relevant fitted parameters
     fit_data, fit_results = _extract_relevant_fit_parameters(ds_fit, node)
@@ -111,11 +126,12 @@ def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
     fwhm = np.abs(fit.width)
     fit = fit.assign({"fwhm": fwhm})
     fit.fwhm.attrs = {"long_name": "qubit fwhm", "units": "Hz"}
-    # Get optimum iw angle
-    prev_angles = np.array(
-        [q.resonator.operations["readout"].integration_weights_angle for q in node.namespace["qubits"]]
-    )
-    fit = fit.assign({"iw_angle": (prev_angles + fit.iw_angle) % (2 * np.pi)})
+    # State-discriminated data already uses the configured angle.
+    if not node.parameters.use_state_discrimination:
+        prev_angles = np.array(
+            [q.resonator.operations["readout"].integration_weights_angle for q in node.namespace["qubits"]]
+        )
+        fit = fit.assign({"iw_angle": (prev_angles + fit.iw_angle) % (2 * np.pi)})
     fit.iw_angle.attrs = {"long_name": "integration weight angle", "units": "rad"}
     # Get saturation amplitude
     x180_length = np.array([q.xy.operations["x180"].length * 1e-9 for q in node.namespace["qubits"]])
