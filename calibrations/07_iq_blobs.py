@@ -12,7 +12,7 @@ from qualang_tools.units import unit
 
 from qualibrate import QualibrationNode
 from quam_config import Quam, create_machine
-from saver import current_profile_name
+from saver import CalibrationSaver, current_profile_name
 from updater import ProfileUpdater
 from calibration_utils.iq_blobs import (
     Parameters,
@@ -69,7 +69,7 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     execution in the Python IDE.
     """
     # You can get type hinting in your IDE by typing node.parameters.
-    node.parameters.qubits = ["q9"]
+    # node.parameters.qubits = ["q10"]
     pass
 
 
@@ -118,6 +118,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 align()
                 for i, qubit in multiplexed_qubits.items():
                     qubit.resonator.measure(operation, qua_vars=(I_g[i], Q_g[i]))
+
                     save(I_g[i], I_g_st[i])
                     save(Q_g[i], Q_g_st[i])
                     qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
@@ -202,6 +203,19 @@ def execute_qua_program(node: QualibrationNode[Parameters, Quam]):
     node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
 
 
+# %% {Save_raw_results}
+@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
+def save_raw_results(node: QualibrationNode[Parameters, Quam]):
+    """Save the acquired vectors and a snapshot of the selected profile."""
+    output_directory = CalibrationSaver().save_xarray(
+        node.name,
+        node.results["ds_raw"],
+        profile_name=current_profile_name(),
+    )
+    node.namespace["calibration_run_directory"] = output_directory
+    node.log(f"Raw calibration results saved to {output_directory}")
+
+
 # %% {Load_historical_data}
 @node.run_action(skip_if=node.parameters.load_data_id is None)
 def load_data(node: QualibrationNode[Parameters, Quam]):
@@ -246,6 +260,12 @@ def plot_data(node: QualibrationNode[Parameters, Quam]):
     )
     plt.show()
     node.results["figures"] = {"iq_blobs_dashboard": fig_dashboard}
+    if "calibration_run_directory" in node.namespace:
+        figures_directory = CalibrationSaver().save_figures(
+            node.namespace["calibration_run_directory"],
+            node.results["figures"],
+        )
+        node.log(f"Calibration figures saved to {figures_directory}")
 
 
 # %% {Update_state}

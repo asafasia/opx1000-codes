@@ -76,6 +76,7 @@ def _create_pulse(
             digital_marker=pulse.get("digital_marker", "ON"),
             axis_angle=axis_angle,
             threshold=readout["threshold"],
+            integration_weights=pulse["integration_weights"],
             integration_weights_angle=readout["integration_weights_angle_rad"],
             # amplitude=common["amplitude"],  # Account for mixer conversion loss.
         )

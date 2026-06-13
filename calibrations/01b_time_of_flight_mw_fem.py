@@ -12,6 +12,7 @@ from qualang_tools.units import unit
 
 from qualibrate import QualibrationNode
 from quam_config import Quam, create_machine
+from saver import CalibrationSaver, current_profile_name
 from calibration_utils.time_of_flight_mw import (
     Parameters,
     process_raw_dataset,
@@ -165,6 +166,19 @@ def execute_qua_program(node: QualibrationNode[Parameters, Quam]):
     node.results["ds_raw"] = dataset
 
 
+# %% {Save_raw_results}
+@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
+def save_raw_results(node: QualibrationNode[Parameters, Quam]):
+    """Save the acquired vectors and a snapshot of the selected profile."""
+    output_directory = CalibrationSaver().save_xarray(
+        node.name,
+        node.results["ds_raw"],
+        profile_name=current_profile_name(),
+    )
+    node.namespace["calibration_run_directory"] = output_directory
+    node.log(f"Raw calibration results saved to {output_directory}")
+
+
 # %% {Data_loading_and_dataset_creation}
 @node.run_action(skip_if=node.parameters.load_data_id is None)
 def load_data(node: QualibrationNode[Parameters, Quam]):
@@ -209,6 +223,12 @@ def plot_data(node: QualibrationNode[Parameters, Quam]):
         "single_run": fig_single_run_fit,
         "averaged_run": fig_averaged_run_fit,
     }
+    if "calibration_run_directory" in node.namespace:
+        figures_directory = CalibrationSaver().save_figures(
+            node.namespace["calibration_run_directory"],
+            node.results["figures"],
+        )
+        node.log(f"Calibration figures saved to {figures_directory}")
 
 
 # %% {Update_state}

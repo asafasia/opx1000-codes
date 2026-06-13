@@ -60,7 +60,7 @@ node = QualibrationNode[Parameters, Quam](
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow the user to locally set the node parameters for debugging purposes, or execution in the Python IDE."""
     # You can get type hinting in your IDE by typing node.parameters.
-    node.parameters.qubits = ["q9"]
+    # node.parameters.qubits = ["q9"]
     node.parameters.qubit_operation = 'x180'
     pass
 
@@ -116,9 +116,9 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
         for multiplexed_qubits in qubits.batch():
             # Initialize the QPU in terms of flux points (flux tunable transmons and/or tunable couplers)
-            # for qubit in multiplexed_qubits.values():
-            #     node.machine.initialize_qpu(target=qubit)
-            # align()
+            for qubit in multiplexed_qubits.values():
+                node.machine.initialize_qpu(target=qubit)
+            align()
             with for_(n, 0, n < n_runs, n + 1):
                 save(n, n_st)
 
@@ -131,7 +131,9 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                         # Measure the resonator
                         rr.measure("readout", qua_vars=(Ig[i], Qg[i]))
                         # wait for the resonator to deplete
-                        rr.wait(rr.depletion_time * u.ns)
+                        # rr.wait(rr.depletion_time * u.ns)
+                        rr.wait(15000)
+
                         save(Ig[i], Ig_st[i])
                         save(Qg[i], Qg_st[i])
                     align()
@@ -155,7 +157,8 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                             )
                             qubit.align()
                         rr.measure("readout", qua_vars=(Im[i], Qm[i]))
-                        rr.wait(rr.depletion_time * u.ns)
+                        # rr.wait(rr.depletion_time * u.ns)
+                        rr.wait(15000)
                         save(Im[i], Im_st[i])
                         save(Qm[i], Qm_st[i])
                         qubit.reset_qubit_thermal()

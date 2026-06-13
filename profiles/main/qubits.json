@@ -20,7 +20,7 @@
         "thermalization_time_ns": 300000
       },
       "readout": {
-        "time_of_flight_ns": 420,
+        "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
         "threshold": 0.0,
@@ -43,7 +43,7 @@
       "frequencies_hz": {
         "qubit_f01": 4410800000.0,
         "qubit_f12": null,
-        "resonator": 7584980000.0,
+        "resonator": 7585580000.0,
         "resonator_bare": null
       },
       "transmon": {
@@ -54,7 +54,7 @@
         "thermalization_time_ns": 300000
       },
       "readout": {
-        "time_of_flight_ns": 420,
+        "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
         "threshold": 0.0,

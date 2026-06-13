@@ -67,6 +67,28 @@ def _validate_pulse(name: str, pulse: Any) -> None:
     _require(isinstance(pulse.get("length_ns"), int) and pulse["length_ns"] > 0, f"Pulse {name!r} needs positive integer length_ns")
     _require(target != "resonator" or pulse_type == "constant", f"Readout pulse {name!r} must use type 'constant'")
 
+    if target == "resonator":
+        integration_weights = pulse.get("integration_weights")
+        _require(
+            isinstance(integration_weights, list) and integration_weights,
+            f"Readout pulse {name!r} needs integration_weights",
+        )
+        _require(
+            all(
+                isinstance(segment, list)
+                and len(segment) == 2
+                and isinstance(segment[0], (int, float))
+                and isinstance(segment[1], int)
+                and segment[1] > 0
+                for segment in integration_weights
+            ),
+            f"Readout pulse {name!r} integration_weights must contain [weight, length_ns] segments",
+        )
+        _require(
+            sum(segment[1] for segment in integration_weights) == pulse["length_ns"],
+            f"Readout pulse {name!r} integration_weights must span length_ns",
+        )
+
     if pulse_type == "drag":
         _require(isinstance(pulse.get("sigma_ns"), (int, float)) and pulse["sigma_ns"] > 0, f"DRAG pulse {name!r} needs positive sigma_ns")
         _require(isinstance(pulse.get("beta"), (int, float)), f"DRAG pulse {name!r} needs beta")

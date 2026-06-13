@@ -71,6 +71,19 @@ class WiringProfileTests(unittest.TestCase):
         self.assertEqual(resonator.smearing, readout["smearing_ns"])
         self.assertEqual(resonator.depletion_time, readout["depletion_time_ns"])
 
+    def test_constant_readout_integration_weights_and_angle_are_applied(self):
+        machine = create_machine_from_profile("main", save=False)
+        profile = load_profile("main")
+        readout = profile["qubits"]["qubits"]["q9"]["readout"]
+        pulse_profile = profile["pulses"]["pulses"]["q9"]["readout"]
+        pulse = machine.qubits["q9"].resonator.operations["readout"]
+
+        self.assertEqual(pulse.integration_weights, pulse_profile["integration_weights"])
+        self.assertEqual(
+            pulse.integration_weights_angle,
+            readout["integration_weights_angle_rad"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

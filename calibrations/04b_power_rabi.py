@@ -68,7 +68,8 @@ node.machine.qmm.close_all_qms()
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow the user to locally set the node parameters for debugging purposes, or execution in the Python IDE."""
     # You can get type hinting in your IDE by typing node.parameters.
-    node.parameters.qubits = ["q9"]
+    node.use_state_discrimination=True
+    # node.parameters.qubits = ["q9"]
     # node.parameters.max_number_pulses_per_sweep = 100
     # node.parameters.pi_repetitions = 3
     # node.parameters.min_amp_factor = 0.8
@@ -123,10 +124,10 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 with for_(*from_array(npi, N_pi_vec)):
                     with for_(*from_array(a, amps)):
                         # Qubit initialization
-                        for i, qubit in multiplexed_qubits.items():
-                            # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
-                            # qubit.reset_qubit_thermal()
-                            wait(16000, "q9.xy", "q9.resonator")  # 300 µs
+                        # for i, qubit in multiplexed_qubits.items():
+                        #     # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                        #     # qubit.reset_qubit_thermal()
+                        #     qubit.wait(16000)  # Wait for the qubit to relax to the ground state before starting the sequence
                         align()
 
                         # Qubit manipulation
@@ -139,10 +140,14 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
                         # Qubit readout
                         for i, qubit in multiplexed_qubits.items():
-                            qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
-                            save(I[i], I_st[i])
-                            save(Q[i], Q_st[i])
-                                # qubit.reset_qubit_thermal()
+                            if node.parameters.use_state_discrimination:
+                                qubit.readout_state(state[i])
+                                save(state[i], state_st[i])
+                            else:
+                                qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
+                                save(I[i], I_st[i])
+                                save(Q[i], Q_st[i])
+                            qubit.reset_qubit_thermal()
                         # Return the qubit to the ground state before the next shot.
                         align()
 
@@ -151,9 +156,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
             for i, qubit in enumerate(qubits):
                 if operation == "x180":
                     if node.parameters.use_state_discrimination:
-                        state_st[i].buffer(len(amps)).buffer(
-                            np.ceil(node.parameters.max_number_pulses_per_sweep / 2)
-                        ).average().save(f"state{i + 1}")
+                        state_st[i].buffer(len(amps)).buffer(len(N_pi_vec)).average().save(f"state{i + 1}")
                     else:
                         I_st[i].buffer(len(amps)).buffer(len(N_pi_vec)).average().save(f"I{i + 1}")
                         Q_st[i].buffer(len(amps)).buffer(len(N_pi_vec)).average().save(f"Q{i + 1}")

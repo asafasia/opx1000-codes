@@ -11,7 +11,7 @@ class NodeSpecificParameters(RunnableParameters):
     """Type of operation to perform. Default is "readout"."""
     qubit_operation: Literal["saturation", "x180_const"] = "x180_const"
     """Qubit operation used to prepare the second IQ blob."""
-    qubit_amplitude_factor: float = 1.0
+    qubit_amplitude_factor: float = 1
     """Amplitude factor applied to the selected qubit operation."""
     pi_repetitions: int = 1
     """Number of x180_const pulses used to prepare the excited-state blob. Default is 1."""

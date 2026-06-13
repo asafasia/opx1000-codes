@@ -153,6 +153,7 @@ def save_raw_results(node: QualibrationNode[Parameters, Quam]):
         node.results["ds_raw"][["Ig", "Qg", "Im", "Qm"]],
         profile_name=current_profile_name(),
     )
+    node.namespace["calibration_run_directory"] = output_directory
     node.results["raw_data_directory"] = str(output_directory)
     node.log(f"Raw IQ data saved to {output_directory}")
 
@@ -193,5 +194,11 @@ def plot_raw_results(node: QualibrationNode[Parameters, Quam]):
         figures[str(qubit_name)] = figure
     node.results["figures"] = figures
     plt.show(block=False)
+    if "calibration_run_directory" in node.namespace:
+        figures_directory = CalibrationSaver().save_figures(
+            node.namespace["calibration_run_directory"],
+            node.results["figures"],
+        )
+        node.log(f"Calibration figures saved to {figures_directory}")
 
 # %%

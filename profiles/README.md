@@ -35,6 +35,12 @@ operation names can be calibrated independently. Supported pulse types are:
 - `cosine`: cosine-shaped qubit-control envelope.
 - `saturation`: long constant qubit drive.
 
+Readout pulses define piecewise-constant integration kernels as
+`integration_weights: [[weight, length_ns], ...]`. The segment lengths must
+span the full readout pulse. The per-qubit
+`readout.integration_weights_angle_rad` rotates this kernel when the QuAM
+configuration is generated.
+
 Validate the main profile:
 
 ```powershell

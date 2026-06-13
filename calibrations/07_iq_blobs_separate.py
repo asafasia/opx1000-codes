@@ -14,6 +14,7 @@ from qualang_tools.units import unit
 
 from qualibrate import QualibrationNode
 from quam_config import Quam, create_machine
+from saver import CalibrationSaver, current_profile_name
 from calibration_utils.iq_blobs import (
     Parameters,
     process_raw_dataset,
@@ -46,7 +47,7 @@ node.machine = create_machine()
 @node.run_action(skip_if=node.modes.external)
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow local debugging parameter overrides."""
-    node.parameters.qubits = ["q9"]
+    # node.parameters.qubits = ["q9"]
     # node.parameters.simulate = True
     # node.parameters.samples = 1000
 
@@ -85,7 +86,7 @@ def make_state_program(
             with for_(n, 0, n < n_runs, n + 1):
                 save(n, n_st)
                 # for qubit in multiplexed_qubits.values():
-                #     wait(1000, "q9.xy", "q9.resonator")  # 300 µs
+                #     qubit.resonator.wait(15000)  # 300 µs
                 align()
 
                 if state == "e":
@@ -95,17 +96,18 @@ def make_state_program(
                         amplitude_scale=node.parameters.qubit_amplitude_factor,
                     )
                     # Synchronize XY and resonator timelines before the explicit delay.
-                    align()
-                    for qubit in multiplexed_qubits.values():
-                        qubit.resonator.wait(node.parameters.xy_to_readout_delay_in_ns * u.ns)
-                        qubit.reset_qubit_thermal()
+                    # align()
+                    # for qubit in multiplexed_qubits.values():
+                    #     qubit.resonator.wait(node.parameters.xy_to_readout_delay_in_ns * u.ns)
+                    #     # qubit.reset_qubit_thermal()
                     align()
 
                 for i, qubit in multiplexed_qubits.items():
                     qubit.resonator.measure(operation, qua_vars=(I[i], Q[i]))
                     save(I[i], I_st[i])
                     save(Q[i], Q_st[i])
-                    qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
+                    # qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
+                    qubit.resonator.wait(200*u.us)  # 300 µs, to ensure the resonator is depleted before the next shot, even if the qubit is in |e> and T1 is long.
                 align()
 
         with stream_processing():
@@ -215,6 +217,19 @@ def execute_qua_programs(node: QualibrationNode[Parameters, Quam]):
     node.results["ds_raw"] = process_raw_dataset(xr.merge([ground, excited]), node)
 
 
+# %% {Save_raw_results}
+@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
+def save_raw_results(node: QualibrationNode[Parameters, Quam]):
+    """Save the merged acquisition and a snapshot of the selected profile."""
+    output_directory = CalibrationSaver().save_xarray(
+        node.name,
+        node.results["ds_raw"],
+        profile_name=current_profile_name(),
+    )
+    node.namespace["calibration_run_directory"] = output_directory
+    node.log(f"Raw calibration results saved to {output_directory}")
+
+
 # %% {Load_historical_data}
 @node.run_action(skip_if=node.parameters.load_data_id is None)
 def load_data(node: QualibrationNode[Parameters, Quam]):
@@ -250,6 +265,12 @@ def plot_data(node: QualibrationNode[Parameters, Quam]):
     )
     node.results["figures"] = {"iq_blobs_separate_dashboard": dashboard}
     plt.show()
+    if "calibration_run_directory" in node.namespace:
+        figures_directory = CalibrationSaver().save_figures(
+            node.namespace["calibration_run_directory"],
+            node.results["figures"],
+        )
+        node.log(f"Calibration figures saved to {figures_directory}")
 
 
 # %% {Save_results}
