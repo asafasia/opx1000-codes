@@ -22,7 +22,7 @@ class BasePowerRabiParameters(RunnableParameters):
 class NodeSpecificParameters(BasePowerRabiParameters):
     """04b-specific parameters (GE power Rabi with optional error amplification)."""
 
-    operation: Literal["x180", "x90", "-x90", "y90", "-y90"] = "x180"
+    operation: Literal["x180", "x180_drag", "x180_cosine", "x90", "-x90", "y90", "-y90"] = "x180"
     """Type of operation to perform. Default is "x180"."""
     pi_repetitions: int = 3
     """Number of times to repeat each pulse-count point. Default is 3."""
@@ -79,7 +79,7 @@ def get_number_of_pulses(node_parameter: BasePowerRabiParameters):
         raise ValueError("pi_repetitions must be a positive integer.")
 
     if node_parameter.max_number_pulses_per_sweep > 1:
-        if node_parameter.operation == "x180":
+        if node_parameter.operation.endswith("x180") or node_parameter.operation.startswith("x180_"):
             N_pulses = np.arange(1, node_parameter.max_number_pulses_per_sweep, 2).astype(int)
         elif node_parameter.operation in ["x90", "-x90", "y90", "-y90"]:
             N_pulses = np.arange(2, node_parameter.max_number_pulses_per_sweep, 4).astype(int)

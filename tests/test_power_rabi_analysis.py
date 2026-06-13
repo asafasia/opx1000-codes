@@ -4,6 +4,7 @@ import numpy as np
 import xarray as xr
 
 from calibration_utils.power_rabi.analysis import (
+    _amplitude_within_hardware_limits,
     _r_squared,
     _select_best_quadrature_fit,
     _target_amplitude_prefactor,
@@ -24,6 +25,47 @@ def make_amplitude_sweep():
 
 
 class PowerRabiAnalysisTests(unittest.TestCase):
+    def test_amplitude_above_subjective_x180_limit_can_succeed(self):
+        class Limits:
+            max_wf_amplitude = 1.0
+
+        class Qubit:
+            xy = object()
+
+        amplitudes = xr.DataArray([0.645], dims=["qubit"], coords={"qubit": ["q9"]})
+
+        with unittest.mock.patch(
+            "calibration_utils.power_rabi.analysis.instrument_limits",
+            return_value=Limits(),
+        ):
+            success = _amplitude_within_hardware_limits(amplitudes, [Qubit()])
+
+        self.assertTrue(bool(success.sel(qubit="q9").values))
+
+    def test_amplitude_limit_uses_absolute_value_and_each_qubit_channel(self):
+        class Limits:
+            def __init__(self, max_wf_amplitude):
+                self.max_wf_amplitude = max_wf_amplitude
+
+        class Qubit:
+            def __init__(self, name):
+                self.xy = name
+
+        amplitudes = xr.DataArray(
+            [-0.6, 0.6],
+            dims=["qubit"],
+            coords={"qubit": ["q1", "q2"]},
+        )
+
+        with unittest.mock.patch(
+            "calibration_utils.power_rabi.analysis.instrument_limits",
+            side_effect=[Limits(0.5), Limits(1.0)],
+        ):
+            success = _amplitude_within_hardware_limits(amplitudes, [Qubit("q1"), Qubit("q2")])
+
+        self.assertFalse(bool(success.sel(qubit="q1").values))
+        self.assertTrue(bool(success.sel(qubit="q2").values))
+
     def test_x180_applies_hardware_amplitude_correction(self):
         self.assertAlmostEqual(_target_amplitude_prefactor(0.5, 1, "x180"), 1.0)
 
@@ -37,6 +79,9 @@ class PowerRabiAnalysisTests(unittest.TestCase):
 
     def test_ef_x180_uses_full_pi_amplitude(self):
         self.assertAlmostEqual(_target_amplitude_prefactor(0.5, 1, "EF_x180"), 1.0)
+
+    def test_x180_drag_uses_full_pi_amplitude(self):
+        self.assertAlmostEqual(_target_amplitude_prefactor(0.5, 1, "x180_drag"), 1.0)
 
     def test_negative_fit_frequency_is_handled(self):
         self.assertAlmostEqual(_target_amplitude_prefactor(np.float64(-0.5), 1, "x180"), 1.0)

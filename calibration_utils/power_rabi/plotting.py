@@ -15,13 +15,15 @@ u = unit(coerce_to_integer=True)
 
 def ideal_state_response(amp_prefactor, number_of_pulses: int, operation: str):
     """Return the ideal excited-state population for repeated rotations."""
-    rotation = np.pi if operation.endswith("x180") else np.pi / 2
+    rotation = np.pi if operation.endswith("x180") or operation.startswith("x180_") else np.pi / 2
     return np.sin(number_of_pulses * rotation * amp_prefactor / 2) ** 2
 
 
 def expected_cycles_to_unit_prefactor(number_of_pulses: int, operation: str) -> float:
     """Return ideal full population cycles between amplitude prefactors 0 and 1."""
-    return number_of_pulses / (2 if operation.endswith("x180") else 4)
+    return number_of_pulses / (
+        2 if operation.endswith("x180") or operation.startswith("x180_") else 4
+    )
 
 
 def plot_raw_data_with_fit(
@@ -124,8 +126,12 @@ def plot_individual_data_with_fit_1D(ax: Axes, ds: xr.Dataset, variable: str, fi
         selected = selected.assign_coords(amp_mV=selected.full_amp * 1e3)
         scale = 1 if variable == "state" else 1e3
         (selected[variable] * scale).plot(ax=ax, x="amp_mV")
-        if variable == "state" and "nb_of_pulses" in ds.coords:
-            number_of_pulses = int(np.asarray(ds.nb_of_pulses.values).flat[0])
+        if variable == "state":
+            number_of_pulses = (
+                int(np.asarray(ds.nb_of_pulses.values).flat[0])
+                if "nb_of_pulses" in ds.coords
+                else 1
+            )
             operation = str(fit.operation.values) if "operation" in fit else "x180"
             ideal_state = ideal_state_response(
                 selected.amp_prefactor,

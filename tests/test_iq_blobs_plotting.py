@@ -35,7 +35,8 @@ class IQBlobsPlottingTests(unittest.TestCase):
         fig = plot_iq_blobs_dashboard(xr.Dataset(), [SimpleNamespace(name="q1")], fit)
 
         self.assertEqual(len(fig.axes), 3)
-        center_points = fig.axes[0].lines[-3:-1]
+        lines_by_label = {line.get_label(): line for line in fig.axes[0].lines}
+        center_points = [lines_by_label["Ground center"], lines_by_label["Prepared center"]]
         self.assertEqual(tuple(center_points[0].get_data()), ((-2.0,), (1.0,)))
         self.assertEqual(tuple(center_points[1].get_data()), ((3.0,), (-1.0,)))
         self.assertEqual(len(fig.axes[1].texts), 4)
@@ -43,6 +44,43 @@ class IQBlobsPlottingTests(unittest.TestCase):
         self.assertLess(fig.axes[2].get_position().y1, fig.axes[0].get_position().y0)
         self.assertLessEqual(fig.axes[2].get_position().x0, fig.axes[0].get_position().x0)
         self.assertGreaterEqual(fig.axes[2].get_position().x1, fig.axes[1].get_position().x1)
+
+    def test_dashboard_draws_kde_contours(self):
+        axis = np.linspace(-2e-3, 2e-3, 20)
+        i_grid, q_grid = np.meshgrid(axis, axis)
+        density = np.exp(-((i_grid / 1e-3) ** 2 + (q_grid / 1e-3) ** 2))
+        fit = xr.Dataset(
+            {
+                "Ig_rot": (("qubit", "n_runs"), [[-1e-3, -0.5e-3, 0.0]]),
+                "Qg_rot": (("qubit", "n_runs"), [[0.0, 0.5e-3, -0.5e-3]]),
+                "Ie_rot": (("qubit", "n_runs"), [[0.0, 0.5e-3, 1e-3]]),
+                "Qe_rot": (("qubit", "n_runs"), [[0.5e-3, -0.5e-3, 0.0]]),
+                "rus_threshold": ("qubit", [-0.5e-3]),
+                "ge_threshold": ("qubit", [0.0]),
+                "gg": ("qubit", [0.9]),
+                "ge": ("qubit", [0.1]),
+                "eg": ("qubit", [0.2]),
+                "ee": ("qubit", [0.8]),
+                "success": ("qubit", [True]),
+                "separation_to_width": ("qubit", [3.0]),
+                "readout_fidelity": ("qubit", [85.0]),
+                "ground_kde_I": (("qubit", "kde_y", "kde_x"), [i_grid]),
+                "ground_kde_Q": (("qubit", "kde_y", "kde_x"), [q_grid]),
+                "ground_kde_density": (("qubit", "kde_y", "kde_x"), [density]),
+                "ground_kde_95_level": ("qubit", [0.2]),
+                "prepared_kde_I": (("qubit", "kde_y", "kde_x"), [i_grid]),
+                "prepared_kde_Q": (("qubit", "kde_y", "kde_x"), [q_grid]),
+                "prepared_kde_density": (("qubit", "kde_y", "kde_x"), [density]),
+                "prepared_kde_95_level": ("qubit", [0.2]),
+            },
+            coords={"qubit": ["q1"], "n_runs": np.arange(3)},
+        )
+
+        fig = plot_iq_blobs_dashboard(xr.Dataset(), [SimpleNamespace(name="q1")], fit)
+        labels = {line.get_label() for line in fig.axes[0].lines}
+
+        self.assertIn("Ground 95% KDE", labels)
+        self.assertIn("Prepared 95% KDE", labels)
 
 
 if __name__ == "__main__":

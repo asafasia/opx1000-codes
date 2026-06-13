@@ -26,12 +26,12 @@ class SpectroscopyPlottingTests(unittest.TestCase):
             },
         )
         fits = xr.Dataset({"res_freq": ("qubit", [4.351e9])}, coords={"qubit": ["q1"]})
-        qubit = SimpleNamespace(name="q1", xy=SimpleNamespace(RF_frequency=4.3496e9))
+        qubit = SimpleNamespace(name="q1", f_01=4.3496e9, xy=SimpleNamespace(RF_frequency=4.3496e9))
 
         fig = plot_raw_data_with_fit(ds, [qubit], fits)
         labels = [label for axis in fig.axes for label in axis.get_legend_handles_labels()[1]]
 
-        self.assertTrue(any(label.startswith("Current resonance:") for label in labels))
+        self.assertTrue(any(label.startswith("Current ge:") for label in labels))
         self.assertTrue(any(label.startswith("New resonance:") for label in labels))
         self.assertEqual(len(fig.axes[0].child_axes), 1)
         self.assertEqual(
@@ -54,7 +54,7 @@ class SpectroscopyPlottingTests(unittest.TestCase):
             },
         )
         fits = xr.Dataset({"res_freq": ("qubit", [4.351e9])}, coords={"qubit": ["q1"]})
-        qubit = SimpleNamespace(name="q1", xy=SimpleNamespace(RF_frequency=4.3496e9))
+        qubit = SimpleNamespace(name="q1", f_01=4.3496e9, xy=SimpleNamespace(RF_frequency=4.3496e9))
 
         fig = plot_raw_data_with_fit(ds, [qubit], fits, use_state_discrimination=True)
 
@@ -62,6 +62,35 @@ class SpectroscopyPlottingTests(unittest.TestCase):
         self.assertEqual(fig.axes[0].get_ylabel(), "Measured state")
         self.assertNotIn("q1: I [mV]", [axis.get_title() for axis in fig.axes])
         self.assertNotIn("q1: Q [mV]", [axis.get_title() for axis in fig.axes])
+
+    def test_ef_plot_marks_current_ge_and_ef_without_expanding_sweep_limits(self):
+        frequencies = np.linspace(4.19e9, 4.21e9, 11)
+        ds = xr.Dataset(
+            {
+                "I": (("qubit", "detuning"), np.zeros((1, 11))),
+                "Q": (("qubit", "detuning"), np.zeros((1, 11))),
+            },
+            coords={
+                "qubit": ["q1"],
+                "detuning": np.arange(11),
+                "full_freq": (("qubit", "detuning"), frequencies[None, :]),
+            },
+        )
+        fits = xr.Dataset({"res_freq": ("qubit", [4.201e9])}, coords={"qubit": ["q1"]})
+        qubit = SimpleNamespace(
+            name="q1",
+            f_01=4.35e9,
+            f_12=4.2e9,
+            anharmonicity=150e6,
+            xy=SimpleNamespace(RF_frequency=4.35e9),
+        )
+
+        fig = plot_raw_data_with_fit(ds, [qubit], fits, transition="ef")
+        labels = [label for axis in fig.axes for label in axis.get_legend_handles_labels()[1]]
+
+        self.assertTrue(any(label.startswith("Current ge:") for label in labels))
+        self.assertTrue(any(label.startswith("Current ef:") for label in labels))
+        self.assertEqual(fig.axes[0].get_xlim(), (4.19, 4.21))
 
     def test_resonator_plot_labels_current_and_new_resonances(self):
         frequencies = np.linspace(7.46e9, 7.48e9, 11)

@@ -7,6 +7,81 @@ import xarray as xr
 from qualibrate import QualibrationNode
 from qualibration_libs.data import convert_IQ_to_V
 from scipy.optimize import minimize
+from scipy.stats import gaussian_kde
+
+
+KDE_GRID_SIZE = 80
+KDE_PROBABILITY = 0.95
+
+
+def _kde_density_region(i_values, q_values, probability=KDE_PROBABILITY, grid_size=KDE_GRID_SIZE):
+    """Return a 2D KDE grid and highest-density threshold enclosing the requested points."""
+    points = np.vstack((np.asarray(i_values, dtype=float), np.asarray(q_values, dtype=float)))
+    finite = np.isfinite(points).all(axis=0)
+    points = points[:, finite]
+    if points.shape[1] < 3:
+        return None
+    try:
+        if np.linalg.matrix_rank(np.cov(points)) < 2:
+            return None
+        kde = gaussian_kde(points)
+    except (np.linalg.LinAlgError, ValueError):
+        return None
+
+    padding = 0.15 * np.maximum(np.ptp(points, axis=1), np.std(points, axis=1))
+    padding = np.maximum(padding, np.finfo(float).eps)
+    i_axis = np.linspace(points[0].min() - padding[0], points[0].max() + padding[0], grid_size)
+    q_axis = np.linspace(points[1].min() - padding[1], points[1].max() + padding[1], grid_size)
+    i_grid, q_grid = np.meshgrid(i_axis, q_axis)
+    density = kde(np.vstack((i_grid.ravel(), q_grid.ravel()))).reshape(i_grid.shape)
+
+    # A highest-density region contains points whose KDE density is above this threshold.
+    sample_density = kde(points)
+    level = float(np.quantile(sample_density, 1 - probability))
+    enclosed_fraction = float(np.mean(sample_density >= level))
+    return i_grid, q_grid, density, level, enclosed_fraction
+
+
+def _empty_kde_region():
+    nan_grid = np.full((KDE_GRID_SIZE, KDE_GRID_SIZE), np.nan)
+    return nan_grid.copy(), nan_grid.copy(), nan_grid.copy(), np.nan, np.nan
+
+
+def _add_kde_regions(ds_fit: xr.Dataset, qubits) -> xr.Dataset:
+    """Add ground/prepared 95% KDE regions to the fitted IQ dataset."""
+    results = []
+    for qubit in qubits:
+        selected = ds_fit.sel(qubit=qubit.name)
+        ground = _kde_density_region(selected.Ig_rot, selected.Qg_rot)
+        prepared = _kde_density_region(selected.Ie_rot, selected.Qe_rot)
+        if ground is None:
+            ground = _empty_kde_region()
+        if prepared is None:
+            prepared = _empty_kde_region()
+        results.append((ground, prepared))
+
+    coords = {
+        "qubit": ds_fit.qubit.data,
+        "kde_y": np.arange(KDE_GRID_SIZE),
+        "kde_x": np.arange(KDE_GRID_SIZE),
+    }
+    for state_index, state_name in enumerate(("ground", "prepared")):
+        ds_fit[f"{state_name}_kde_I"] = xr.DataArray(
+            np.stack([result[state_index][0] for result in results]), dims=("qubit", "kde_y", "kde_x"), coords=coords
+        )
+        ds_fit[f"{state_name}_kde_Q"] = xr.DataArray(
+            np.stack([result[state_index][1] for result in results]), dims=("qubit", "kde_y", "kde_x"), coords=coords
+        )
+        ds_fit[f"{state_name}_kde_density"] = xr.DataArray(
+            np.stack([result[state_index][2] for result in results]), dims=("qubit", "kde_y", "kde_x"), coords=coords
+        )
+        ds_fit[f"{state_name}_kde_95_level"] = xr.DataArray(
+            [result[state_index][3] for result in results], dims="qubit", coords={"qubit": ds_fit.qubit.data}
+        )
+        ds_fit[f"{state_name}_kde_enclosed_fraction"] = xr.DataArray(
+            [result[state_index][4] for result in results], dims="qubit", coords={"qubit": ds_fit.qubit.data}
+        )
+    return ds_fit
 
 
 @dataclass
@@ -132,15 +207,7 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     ds_fit = ds_fit.assign({"Qg_rot": ds_fit.Ig * S + ds_fit.Qg * C})
     ds_fit = ds_fit.assign({"Ie_rot": ds_fit.Ie * C - ds_fit.Qe * S})
     ds_fit = ds_fit.assign({"Qe_rot": ds_fit.Ie * S + ds_fit.Qe * C})
-
-    # Get the blobs histogram along the rotated axis
-    hist = [np.histogram(ds_fit.Ig_rot.sel(qubit=q.name), bins=100) for q in node.namespace["qubits"]]
-    # Get the discriminating threshold along the rotated axis
-    rus_threshold = [
-        hist[ii][1][1:][np.argmax(np.histogram(ds_fit.Ig_rot.sel(qubit=q.name), bins=100)[0])]
-        for ii, q in enumerate(node.namespace["qubits"])
-    ]
-    ds_fit = ds_fit.assign({"rus_threshold": xr.DataArray(rus_threshold, coords=dict(qubit=ds_fit.qubit.data))})
+    ds_fit = _add_kde_regions(ds_fit, node.namespace["qubits"])
 
     threshold = []
     gg, ge, eg, ee = [], [], [], []
@@ -157,6 +224,8 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
         eg.append(np.sum(ds_fit.Ie_rot.sel(qubit=q.name) < fit.x[0]) / len(ds_fit.Ie_rot.sel(qubit=q.name)))
         ee.append(np.sum(ds_fit.Ie_rot.sel(qubit=q.name) > fit.x[0]) / len(ds_fit.Ie_rot.sel(qubit=q.name)))
     ds_fit = ds_fit.assign({"ge_threshold": xr.DataArray(threshold, coords=dict(qubit=ds_fit.qubit.data))})
+    # Active-reset exit and standard state-discrimination use the same threshold.
+    ds_fit = ds_fit.assign({"rus_threshold": ds_fit.ge_threshold.copy()})
     ds_fit = ds_fit.assign({"gg": xr.DataArray(gg, coords=dict(qubit=ds_fit.qubit.data))})
     ds_fit = ds_fit.assign({"ge": xr.DataArray(ge, coords=dict(qubit=ds_fit.qubit.data))})
     ds_fit = ds_fit.assign({"eg": xr.DataArray(eg, coords=dict(qubit=ds_fit.qubit.data))})

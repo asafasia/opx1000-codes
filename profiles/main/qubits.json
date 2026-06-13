@@ -8,12 +8,12 @@
       ],
       "frequencies_hz": {
         "qubit_f01": 4349600000,
-        "qubit_f12": null,
+        "qubit_f12": 4241600000.0,
         "resonator": 7471500000.0,
         "resonator_bare": null
       },
       "transmon": {
-        "anharmonicity_hz": 150000000,
+        "anharmonicity_hz": 108000000.0,
         "t1_ns": 1000,
         "t2_ramsey_ns": null,
         "t2_echo_ns": null,
@@ -23,13 +23,14 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0.00028004047324190997,
-        "rus_exit_threshold": 0.00018804198098511523,
+        "threshold": 0.0002613128521580582,
+        "rus_exit_threshold": 0.0002613128521580582,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 0.8241511748584615
+        "integration_weights_angle_rad": 0.4557355175676593
       },
       "operations": {
         "x180": "x180_const",
+        "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
@@ -59,12 +60,13 @@
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
         "threshold": 9.493856096641864e-05,
-        "rus_exit_threshold": 3.369874346323802e-05,
+        "rus_exit_threshold": 9.493856096641864e-05,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": 2.8418476523244647
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_drag",
+        "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",

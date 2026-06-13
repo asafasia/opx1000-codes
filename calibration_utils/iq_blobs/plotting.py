@@ -134,6 +134,22 @@ def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fi
     )
     ax.plot(*g_center, "ko", markersize=6, label="Ground center")
     ax.plot(*e_center, "ro", markersize=6, label="Prepared center")
+    for state_name, color, label in (
+        ("ground", "navy", "Ground 95% KDE"),
+        ("prepared", "darkred", "Prepared 95% KDE"),
+    ):
+        level_name = f"{state_name}_kde_95_level"
+        if level_name not in fit or not np.isfinite(float(fit[level_name].values)):
+            continue
+        ax.contour(
+            1e3 * fit[f"{state_name}_kde_I"].values,
+            1e3 * fit[f"{state_name}_kde_Q"].values,
+            fit[f"{state_name}_kde_density"].values,
+            levels=[float(fit[level_name].values)],
+            colors=[color],
+            linewidths=1.5,
+        )
+        ax.plot([], [], color=color, linewidth=1.5, label=label)
 
     ax.axvline(1e3 * fit.ge_threshold, color="r", linestyle="--", lw=0.5, label="Threshold")
     ax.axis("equal")

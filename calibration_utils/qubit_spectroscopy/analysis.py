@@ -10,6 +10,15 @@ from qualibration_libs.analysis import peaks_dips
 from quam_config.instrument_limits import instrument_limits
 
 
+def _spectroscopy_center_frequency(qubit, node_name: str) -> float:
+    """Return the configured transition frequency around which the experiment sweeps."""
+    if node_name == "12_qubit_spectroscopy_EF":
+        if qubit.f_12 is not None:
+            return float(qubit.f_12)
+        return float(qubit.f_01 - qubit.anharmonicity)
+    return float(qubit.xy.RF_frequency)
+
+
 @dataclass
 class FitParameters:
     """Stores the relevant qubit spectroscopy experiment fit parameters for a single qubit"""
@@ -55,7 +64,9 @@ def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
     if not node.parameters.use_state_discrimination:
         ds = convert_IQ_to_V(ds, node.namespace["qubits"])
         ds = add_amplitude_and_phase(ds, "detuning", subtract_slope_flag=True)
-    full_freq = np.array([ds.detuning + q.xy.RF_frequency for q in node.namespace["qubits"]])
+    full_freq = np.array(
+        [ds.detuning + _spectroscopy_center_frequency(q, node.name) for q in node.namespace["qubits"]]
+    )
     ds = ds.assign_coords(full_freq=(["qubit", "detuning"], full_freq))
     ds.full_freq.attrs = {"long_name": "RF frequency", "units": "Hz"}
     return ds
@@ -116,7 +127,9 @@ def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
     # Add metadata to fit results
     fit.attrs = {"long_name": "frequency", "units": "Hz"}
     # Get the fitted resonator frequency
-    full_freq = np.array([q.xy.RF_frequency for q in node.namespace["qubits"]])
+    full_freq = np.array(
+        [_spectroscopy_center_frequency(q, node.name) for q in node.namespace["qubits"]]
+    )
     res_freq = fit.position + full_freq
     rel_freq = fit.position
     fit = fit.assign({"res_freq": ("qubit", res_freq.data)})

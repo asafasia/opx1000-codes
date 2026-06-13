@@ -34,7 +34,7 @@ The resulting IQ blobs are displayed, and the data is processed to determine:
     - The rotation angle required for the integration weights, ensuring that the
       separation between |g> and |e> states aligns with the 'I' quadrature.
     - The threshold along the 'I' quadrature for effective qubit state discrimination (at the center between the two blobs).
-    - The repeat-until-success threshold along the 'I' quadrature for effective active reset (at the center of the |g> blob).
+    - The repeat-until-success threshold, set equal to the state-discrimination threshold.
     - The readout confusion matrix, which is also influenced by the x180 pulse fidelity.
 
 Prerequisites:
@@ -68,6 +68,8 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     Allow the user to locally set the node parameters for debugging purposes, or
     execution in the Python IDE.
     """
+    node.parameters.reset_type = "active"
+
     # You can get type hinting in your IDE by typing node.parameters.
     # node.parameters.qubits = ["q10"]
     pass
@@ -114,7 +116,8 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
             with for_(n, 0, n < n_runs, n + 1):
                 save(n, n_st)
                 for qubit in multiplexed_qubits.values():
-                    qubit.resonator.wait(15000)
+                    # qubit.resonator.wait(15000)
+                    qubit.reset(node.parameters.reset_type, node.parameters.simulate)
                 align()
                 for i, qubit in multiplexed_qubits.items():
                     qubit.resonator.measure(operation, qua_vars=(I_g[i], Q_g[i]))
@@ -126,7 +129,8 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
             with for_(n, 0, n < n_runs, n + 1):
                 for qubit in multiplexed_qubits.values():
-                    qubit.resonator.wait(15000)
+                    # qubit.resonator.wait(15000)
+                    qubit.reset(node.parameters.reset_type, node.parameters.simulate)
                 align()
 
                 for qubit in multiplexed_qubits.values():

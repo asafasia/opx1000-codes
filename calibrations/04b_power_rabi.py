@@ -73,6 +73,7 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     # node.parameters.qubits = ["q9"]
     # node.parameters.max_number_pulses_per_sweep = 100
     node.parameters.pi_repetitions = 4
+    node.parameters.operation = "x180_drag"
     # node.parameters.min_amp_factor = 0.8
     # node.parameters.max_amp_factor = 1.2
     # node.parameters.amp_factor_step = 0.01
@@ -107,6 +108,9 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
     n_avg = node.parameters.num_shots  # The number of averages
     operation = node.parameters.operation  # The qubit operation to play
+    for qubit in qubits:
+        if operation not in qubit.xy.operations:
+            raise ValueError(f"{qubit.name} does not define operation {operation!r}.")
     # Pulse amplitude sweep (as a pre-factor of the qubit pulse amplitude) - must be within [-2; 2)
     amps = np.arange(
         node.parameters.min_amp_factor,
@@ -172,7 +176,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
         with stream_processing():
             n_st.save("n")
             for i, qubit in enumerate(qubits):
-                if operation == "x180":
+                if operation.endswith("x180") or operation.startswith("x180_"):
                     if node.parameters.use_state_discrimination:
                         state_st[i].buffer(len(amps)).buffer(len(N_pi_vec)).average().save(f"state{i + 1}")
                     else:
@@ -231,7 +235,7 @@ def execute_qua_program(node: QualibrationNode[Parameters, Quam]):
     node.results["ds_raw"] = dataset
 
 
-# %% {Load_historical_data}
+# %% {Load_historical_data} 
 @node.run_action(skip_if=node.parameters.load_data_id is None)
 def load_data(node: QualibrationNode[Parameters, Quam]):
     """Load a previously acquired dataset."""
@@ -306,14 +310,14 @@ def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
     for q in node.namespace["qubits"]:
         if node.outcomes[q.name] != "successful":
             continue
-        if node.parameters.operation != "x180":
+        if node.parameters.operation not in qubit_profiles[q.name]["operations"]:
             node.log(
                 f"Profile update skipped: operation {node.parameters.operation!r} "
-                "does not have a dedicated pulse in profiles/main/pulses.json."
+                "does not have a dedicated profile pulse."
             )
             continue
         amplitude = float(node.results["fit_results"][q.name]["opt_amp"])
-        pulse_name = qubit_profiles[q.name]["operations"]["x180"]
+        pulse_name = qubit_profiles[q.name]["operations"][node.parameters.operation]
         updates[f"pulses.json.pulses.{q.name}.{pulse_name}.amplitude"] = amplitude
     if updates:
         proposal = ProfileUpdater().stage(node.name, updates, profile_name=profile_name)

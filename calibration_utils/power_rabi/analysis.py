@@ -26,7 +26,7 @@ class FitParameters:
 def _target_amplitude_prefactor(frequency, number_of_pulses: int, operation: str):
     """Convert a Rabi oscillation frequency into the selected operation amplitude."""
     # fit_oscillation uses cos(2*pi*f*x + phi), so 1/f is a full 2*pi rotation.
-    if operation.endswith("x180"):
+    if operation.endswith("x180") or operation.startswith("x180_"):
         rotation_fraction = 0.5
     elif operation.endswith("x90") or operation.endswith("y90"):
         rotation_fraction = 0.25
@@ -64,6 +64,16 @@ def _select_best_quadrature_fit(
     selected_fit = xr.where(select_Q, fit_Q, fit_I)
     selected_quadrature = xr.where(select_Q, "Q", "I")
     return selected_fit, r_squared_I, r_squared_Q, selected_quadrature
+
+
+def _amplitude_within_hardware_limits(opt_amp: xr.DataArray, qubits) -> xr.DataArray:
+    """Return whether each fitted amplitude is physically playable."""
+    max_amplitudes = xr.DataArray(
+        [instrument_limits(q.xy).max_wf_amplitude for q in qubits],
+        dims=["qubit"],
+        coords={"qubit": opt_amp.qubit.values},
+    )
+    return np.abs(opt_amp) <= max_amplitudes
 
 
 def log_fitted_results(fit_results: Dict, log_callable=None):
@@ -164,8 +174,9 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
             ds_fit["data_mean"] = ds.state.mean(dim="nb_of_pulses")
         else:
             ds_fit["data_mean"] = ds.I.mean(dim="nb_of_pulses")
-        if (ds.nb_of_pulses.data[0] % 2 == 0 and operation == "x180") or (
-            ds.nb_of_pulses.data[0] % 2 != 0 and operation != "x180"
+        is_pi_operation = operation.endswith("x180") or operation.startswith("x180_")
+        if (ds.nb_of_pulses.data[0] % 2 == 0 and is_pi_operation) or (
+            ds.nb_of_pulses.data[0] % 2 != 0 and not is_pi_operation
         ):
             ds_fit["opt_amp_prefactor"] = ds_fit["data_mean"].idxmin(dim="amp_prefactor")
         else:
@@ -178,8 +189,8 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
 
 def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
     """Add metadata to the dataset and fit results."""
-    limits = [instrument_limits(q.xy) for q in node.namespace["qubits"]]
     operation = getattr(node.parameters, "operation", "EF_x180" if node.name == "13_power_rabi_ef" else "x180")
+    fit = fit.assign({"operation": operation})
     is_1d_scan = "nb_of_pulses" not in fit.dims or fit.sizes["nb_of_pulses"] == 1
     if is_1d_scan:
         # The fitted frequency gives the complete Rabi period. Deriving the
@@ -223,7 +234,7 @@ def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
 
     # Assess whether the fit was successful or not
     nan_success = np.isnan(fit.opt_amp_prefactor) | np.isnan(fit.opt_amp)
-    amp_success = fit.opt_amp < limits[0].max_x180_wf_amplitude
+    amp_success = _amplitude_within_hardware_limits(fit.opt_amp, node.namespace["qubits"])
     success_criteria = ~nan_success & amp_success
     if is_1d_scan and "selected_quadrature" in fit:
         success_criteria &= np.isfinite(fit.r_squared_I) | np.isfinite(fit.r_squared_Q)

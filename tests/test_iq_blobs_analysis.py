@@ -47,6 +47,45 @@ class IQBlobsAnalysisTests(unittest.TestCase):
         _, results = fit_raw_data(ds, self.make_node())
 
         self.assertTrue(results["q1"].success)
+        self.assertEqual(results["q1"].rus_threshold, results["q1"].ge_threshold)
+
+    def test_kde_regions_enclose_95_percent_of_each_blob(self):
+        rng = np.random.default_rng(7)
+        runs = 500
+        ds = xr.Dataset(
+            {
+                "Ig": (("qubit", "n_runs"), rng.normal(-5e-5, 7e-6, (1, runs))),
+                "Qg": (("qubit", "n_runs"), rng.normal(0, 4e-6, (1, runs))),
+                "Ie": (("qubit", "n_runs"), rng.normal(5e-5, 6e-6, (1, runs))),
+                "Qe": (("qubit", "n_runs"), rng.normal(0, 5e-6, (1, runs))),
+            },
+            coords={"qubit": ["q1"], "n_runs": np.arange(runs)},
+        )
+
+        fit, _ = fit_raw_data(ds, self.make_node())
+
+        for state in ("ground", "prepared"):
+            level = float(fit[f"{state}_kde_95_level"].sel(qubit="q1"))
+            fraction = float(fit[f"{state}_kde_enclosed_fraction"].sel(qubit="q1"))
+            self.assertTrue(np.isfinite(level))
+            self.assertAlmostEqual(fraction, 0.95, delta=0.01)
+
+    def test_degenerate_blob_does_not_break_kde_analysis(self):
+        runs = 100
+        ds = xr.Dataset(
+            {
+                "Ig": (("qubit", "n_runs"), np.full((1, runs), -5e-5)),
+                "Qg": (("qubit", "n_runs"), np.zeros((1, runs))),
+                "Ie": (("qubit", "n_runs"), np.full((1, runs), 5e-5)),
+                "Qe": (("qubit", "n_runs"), np.zeros((1, runs))),
+            },
+            coords={"qubit": ["q1"], "n_runs": np.arange(runs)},
+        )
+
+        fit, _ = fit_raw_data(ds, self.make_node())
+
+        self.assertTrue(np.isnan(float(fit.ground_kde_95_level.sel(qubit="q1"))))
+        self.assertTrue(np.isnan(float(fit.prepared_kde_95_level.sel(qubit="q1"))))
 
     def test_rotation_aligns_blob_means_with_positive_i_axis(self):
         rng = np.random.default_rng(6)

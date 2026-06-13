@@ -23,11 +23,20 @@ def _add_detuning_axis(ax, current_frequency_ghz: float):
     return detuning_axis
 
 
+def _transition_frequency(qubit, transition: str) -> float:
+    if transition == "ef":
+        if qubit.f_12 is not None:
+            return float(qubit.f_12)
+        return float(qubit.f_01 - qubit.anharmonicity)
+    return float(qubit.xy.RF_frequency)
+
+
 def plot_raw_data_with_fit(
     ds: xr.Dataset,
     qubits: List[AnyTransmon],
     fits: xr.Dataset,
     use_state_discrimination: bool = False,
+    transition: str = "ge",
 ):
     """
     Plot the raw I and Q qubit-spectroscopy responses on separate subplots.
@@ -72,7 +81,12 @@ def plot_raw_data_with_fit(
         )
         fit = fits.sel(qubit=qubit.name)
         fitted_frequency_ghz = float(fit.res_freq.values) / u.GHz
-        current_frequency_ghz = float(qubit.xy.RF_frequency) / u.GHz
+        current_frequency_ghz = _transition_frequency(qubit, transition) / u.GHz
+        current_ge_frequency_ghz = float(qubit.f_01) / u.GHz if transition == "ef" else None
+        sweep_limits = (
+            float(selected.full_freq_GHz.min()),
+            float(selected.full_freq_GHz.max()),
+        )
 
         start = len(variables) * qubit_index
         qubit_axes = axes[start : start + len(variables), 0]
@@ -84,14 +98,22 @@ def plot_raw_data_with_fit(
                 current_frequency_ghz,
                 color="black",
                 linestyle=":",
-                label=f"Current resonance: {current_frequency_ghz:.6f} GHz",
+                label=f"Current {transition}: {current_frequency_ghz:.6f} GHz",
             )
+            if current_ge_frequency_ghz is not None:
+                ax.axvline(
+                    current_ge_frequency_ghz,
+                    color="tab:purple",
+                    linestyle=":",
+                    label=f"Current ge: {current_ge_frequency_ghz:.6f} GHz",
+                )
             ax.axvline(
                 fitted_frequency_ghz,
                 color="tab:red",
                 linestyle="--",
                 label=f"New resonance: {fitted_frequency_ghz:.6f} GHz",
             )
+            ax.set_xlim(*sweep_limits)
             ax.set_title(f"{qubit.name}: {label}")
             ax.set_xlabel("RF frequency [GHz]")
             ax.set_ylabel(label)
