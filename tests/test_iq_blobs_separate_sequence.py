@@ -39,8 +39,12 @@ class SeparateIQBlobsSequenceTests(unittest.TestCase):
         self.assertIn("fit_raw_data(node.results[\"ds_raw\"], node)", self.source)
         self.assertIn("plot_iq_blobs_dashboard(", self.source)
 
-    def test_diagnostic_copy_does_not_update_state(self):
-        self.assertNotIn("record_state_updates", self.source)
+    def test_successful_fit_updates_profile_angle_and_threshold(self):
+        self.assertIn("record_state_updates", self.source)
+        self.assertIn("readout.integration_weights_angle_rad", self.source)
+        self.assertIn("readout.threshold", self.source)
+        self.assertIn("proposing fitted parameters despite failed IQ-blob quality checks", self.source)
+        self.assertIn("ProfileUpdater().confirm_and_apply(proposal)", self.source)
 
 
 if __name__ == "__main__":

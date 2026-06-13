@@ -21,9 +21,9 @@ class NodeSpecificParameters(RunnableParameters):
 
     num_shots: int = 500
     min_wait_time_in_ns: int = 16
-    max_wait_time_in_ns: int = 250
-    time_step_in_ns: int = 4
-    frequency_step_in_mhz: float = 1
+    max_wait_time_in_ns: int = 20000
+    time_step_in_ns: int = 100
+    frequency_step_in_mhz: float = 3
     frequency_span_in_mhz: float = 100
 
 

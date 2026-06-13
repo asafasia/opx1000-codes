@@ -23,9 +23,9 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0.0,
+        "threshold": 0.00029083796432645913,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 0.0
+        "integration_weights_angle_rad": 0.8206774895271315
       },
       "operations": {
         "x180": "x180_const",
@@ -59,7 +59,7 @@
         "depletion_time_ns": 2500,
         "threshold": 0.0,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 0.0
+        "integration_weights_angle_rad": 0.7853981633974483
       },
       "operations": {
         "x180": "x180_const",

@@ -274,10 +274,13 @@ def update_state(node: QualibrationNode[Parameters, Quam]):
     """Update the relevant parameters if the qubit data analysis was successful."""
     with node.record_state_updates():
         for q in node.namespace["qubits"]:
-            if node.outcomes[q.name] == "failed":
+            fit_result = node.results["fit_results"][q.name]
+            if not np.isfinite(fit_result["iw_angle"]) or not np.isfinite(fit_result["ge_threshold"]):
+                node.log(f"Skipping {q.name} update because its fitted angle or threshold is not finite.")
                 continue
 
-            fit_result = node.results["fit_results"][q.name]
+            if node.outcomes[q.name] == "failed":
+                node.log(f"{q.name} failed IQ-blob quality checks; its fitted parameters can still be reviewed.")
             operation = q.resonator.operations[node.parameters.operation]
             operation.integration_weights_angle -= float(fit_result["iw_angle"])
             # Convert the thresholds back to demod units
@@ -300,7 +303,8 @@ def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
 
     updates = {}
     for q in node.namespace["qubits"]:
-        if node.outcomes[q.name] != "successful":
+        fit_result = node.results["fit_results"][q.name]
+        if not np.isfinite(fit_result["iw_angle"]) or not np.isfinite(fit_result["ge_threshold"]):
             continue
         operation = q.resonator.operations["readout"]
         updates[f"qubits.json.qubits.{q.name}.readout.integration_weights_angle_rad"] = float(
@@ -309,6 +313,12 @@ def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
         updates[f"qubits.json.qubits.{q.name}.readout.threshold"] = float(operation.threshold)
 
     if updates:
+        failed_qubits = [q.name for q in node.namespace["qubits"] if node.outcomes[q.name] == "failed"]
+        if failed_qubits:
+            node.log(
+                "WARNING: proposing fitted parameters despite failed IQ-blob quality checks for "
+                + ", ".join(failed_qubits)
+            )
         proposal = ProfileUpdater().stage(node.name, updates, profile_name=current_profile_name())
         ProfileUpdater().confirm_and_apply(proposal)
 

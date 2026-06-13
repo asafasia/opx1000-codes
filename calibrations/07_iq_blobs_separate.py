@@ -15,6 +15,7 @@ from qualang_tools.units import unit
 from qualibrate import QualibrationNode
 from quam_config import Quam, create_machine
 from saver import CalibrationSaver, current_profile_name
+from updater import ProfileUpdater
 from calibration_utils.iq_blobs import (
     Parameters,
     process_raw_dataset,
@@ -271,6 +272,60 @@ def plot_data(node: QualibrationNode[Parameters, Quam]):
             node.results["figures"],
         )
         node.log(f"Calibration figures saved to {figures_directory}")
+
+
+# %% {Update_state}
+@node.run_action(skip_if=node.parameters.simulate)
+def update_state(node: QualibrationNode[Parameters, Quam]):
+    """Update fitted readout parameters in memory for successful qubits."""
+    with node.record_state_updates():
+        for q in node.namespace["qubits"]:
+            fit_result = node.results["fit_results"][q.name]
+            if not np.isfinite(fit_result["iw_angle"]) or not np.isfinite(fit_result["ge_threshold"]):
+                node.log(f"Skipping {q.name} update because its fitted angle or threshold is not finite.")
+                continue
+
+            if node.outcomes[q.name] == "failed":
+                node.log(f"{q.name} failed IQ-blob quality checks; its fitted parameters can still be reviewed.")
+            operation = q.resonator.operations[node.parameters.operation]
+            operation.integration_weights_angle -= float(fit_result["iw_angle"])
+            operation.threshold = float(fit_result["ge_threshold"]) * operation.length / 2**12
+            operation.rus_exit_threshold = float(fit_result["rus_threshold"]) * operation.length / 2**12
+            if node.parameters.operation == "readout":
+                q.resonator.confusion_matrix = fit_result["confusion_matrix"]
+
+
+# %% {Propose_profile_update}
+@node.run_action(skip_if=node.parameters.simulate)
+def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
+    """Ask before applying fitted readout angle and threshold to the profile."""
+    if node.parameters.operation != "readout":
+        node.log(
+            f"Profile update skipped: operation {node.parameters.operation!r} "
+            "does not use the profile's default readout parameters."
+        )
+        return
+
+    updates = {}
+    for q in node.namespace["qubits"]:
+        fit_result = node.results["fit_results"][q.name]
+        if not np.isfinite(fit_result["iw_angle"]) or not np.isfinite(fit_result["ge_threshold"]):
+            continue
+        operation = q.resonator.operations["readout"]
+        updates[f"qubits.json.qubits.{q.name}.readout.integration_weights_angle_rad"] = float(
+            operation.integration_weights_angle
+        )
+        updates[f"qubits.json.qubits.{q.name}.readout.threshold"] = float(operation.threshold)
+
+    if updates:
+        failed_qubits = [q.name for q in node.namespace["qubits"] if node.outcomes[q.name] == "failed"]
+        if failed_qubits:
+            node.log(
+                "WARNING: proposing fitted parameters despite failed IQ-blob quality checks for "
+                + ", ".join(failed_qubits)
+            )
+        proposal = ProfileUpdater().stage(node.name, updates, profile_name=current_profile_name())
+        ProfileUpdater().confirm_and_apply(proposal)
 
 
 # %% {Save_results}

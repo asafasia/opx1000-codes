@@ -68,7 +68,7 @@ node.machine.qmm.close_all_qms()
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow the user to locally set the node parameters for debugging purposes, or execution in the Python IDE."""
     # You can get type hinting in your IDE by typing node.parameters.
-    node.use_state_discrimination=True
+    node.use_state_discrimination=False
     # node.parameters.qubits = ["q9"]
     # node.parameters.max_number_pulses_per_sweep = 100
     # node.parameters.pi_repetitions = 3
