@@ -55,7 +55,9 @@ node = QualibrationNode[Parameters, Quam](
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     # You can get type hinting in your IDE by typing node.parameters.
     # node.parameters.qubits = ["q1", "q2"]
-    pass
+    node.parameters.use_state_discrimination = True
+    node.parameters.reset_type = "active"
+
 
 
 # %% {Create_QUA_program}
@@ -94,12 +96,12 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 with for_each_(t, idle_times):
                     # Reset the qubits to the ground state
                     for i, qubit in multiplexed_qubits.items():
-                        # qubit.reset(
-                        #     node.parameters.reset_type,
-                        #     node.parameters.simulate,
-                        #     log_callable=node.log,
-                        # )
-                        qubit.wait(10000)
+                        qubit.reset(
+                            node.parameters.reset_type,
+                            node.parameters.simulate,
+                            log_callable=node.log,
+                        )
+                        # qubit.wait(10000)
                     # Multiplexed sync: every qubit must finish reset (possibly different durations, e.g. active reset)
                     # before any manipulation starts; also keeps shared resources (e.g. TWPA sticky elements) coherent.
                     align()
@@ -125,6 +127,8 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                             save(I[i], I_st[i])
                             save(Q[i], Q_st[i])
                     # End-of-segment barrier before the next sweep step (and before sticky/aux elements ramp down early).
+                        # qubit.wait(10000)
+
                     align()
 
         with stream_processing():

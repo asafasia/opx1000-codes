@@ -57,6 +57,8 @@ node = QualibrationNode[Parameters, Quam](
 @node.run_action(skip_if=node.modes.external)
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow the user to locally set the node parameters for debugging purposes, or execution in the Python IDE."""
+    node.parameters.use_state_discrimination = True
+    node.parameters.reset_type = "active"
     # You can get type hinting in your IDE by typing node.parameters.
     # node.parameters.qubits = ["q1", "q2"]
     pass
@@ -137,7 +139,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                         for i, qubit in multiplexed_qubits.items():
                             # Set the xy drive frequency back to the qubit frequency for active reset
                             qubit.xy.update_frequency(qubit.xy.intermediate_frequency)
-                            # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                            qubit.reset(node.parameters.reset_type, node.parameters.simulate)
 
                             # Update the xy drive frequency
                             qubit.xy.update_frequency(df + qubit.xy.intermediate_frequency)
@@ -156,7 +158,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                                 qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
                                 save(I[i], I_st[i])
                                 save(Q[i], Q_st[i])
-                                qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                                # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
 
                         align()
 

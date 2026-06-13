@@ -3,12 +3,14 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
 matplotlib.use("Agg")
 
 from calibration_utils.power_rabi.plotting import plot_raw_data_with_fit
+from calibration_utils.rabi_chevron.plotting import plot_individual_data_with
 
 
 REPOSITORY_ROOT = Path(__file__).parent.parent
@@ -64,6 +66,52 @@ class RabiStateDiscriminationTests(unittest.TestCase):
 
         titled_axes = [axis for axis in figure.axes if axis.get_title()]
         self.assertEqual([axis.get_title() for axis in titled_axes], ["q9: state"])
+
+    def test_rabi_chevron_plot_uses_state_when_discrimination_is_true(self):
+        dataset = self._make_chevron_dataset()
+        figure, axis = plt.subplots()
+
+        plot_individual_data_with(
+            axis,
+            dataset,
+            {"qubit": "q9"},
+            dataset.sel(qubit="q9"),
+            use_state_discrimination=True,
+        )
+
+        self.assertEqual(axis.get_title(), "q9: Measured state")
+        self.assertEqual(figure.axes[1].get_ylabel(), "Measured state")
+
+    def test_rabi_chevron_plot_uses_i_when_discrimination_is_false(self):
+        dataset = self._make_chevron_dataset()
+        figure, axis = plt.subplots()
+
+        plot_individual_data_with(
+            axis,
+            dataset,
+            {"qubit": "q9"},
+            dataset.sel(qubit="q9"),
+            use_state_discrimination=False,
+        )
+
+        self.assertEqual(axis.get_title(), "q9: I [mV]")
+        self.assertEqual(figure.axes[1].get_ylabel(), "I [mV]")
+
+    @staticmethod
+    def _make_chevron_dataset():
+        coords = {
+            "qubit": ["q9"],
+            "detuning": [-1e6, 0.0, 1e6],
+            "pulse_duration": [16, 20],
+        }
+        shape = (1, 3, 2)
+        return xr.Dataset(
+            {
+                "state": (("qubit", "detuning", "pulse_duration"), np.zeros(shape)),
+                "I": (("qubit", "detuning", "pulse_duration"), np.ones(shape) * 1e-3),
+            },
+            coords=coords,
+        ).assign_coords(full_freq=(("qubit", "detuning"), [[4.349e9, 4.35e9, 4.351e9]]))
 
 
 if __name__ == "__main__":

@@ -69,7 +69,7 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow the user to locally set the node parameters for debugging purposes, or execution in the Python IDE."""
     # You can get type hinting in your IDE by typing node.parameters.
     node.parameters.use_state_discrimination = True
-    node.parameters.num_shots = 100
+    node.parameters.num_shots = 500
     # node.parameters.qubits = ["q9"]
     # node.parameters.max_number_pulses_per_sweep = 100
     # node.parameters.pi_repetitions = 3
@@ -162,10 +162,10 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                                 qubit.readout_state(state[i])
                                 save(state[i], state_st[i])
                             else:
-                                # qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
+                                qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
                                 save(I[i], I_st[i])
                                 save(Q[i], Q_st[i])
-                            qubit.reset_qubit_thermal()
+                            # qubit.reset_qubit_thermal()
                         # Return the qubit to the ground state before the next shot.
                         align()
 

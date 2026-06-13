@@ -48,7 +48,8 @@ def plot_raw_data_with_fit(
             use_state_discrimination=use_state_discrimination,
         )
 
-    grid.fig.suptitle("Rabi chevron")
+    plotted_quantity = "measured state" if use_state_discrimination else "I quadrature"
+    grid.fig.suptitle(f"Rabi chevron: {plotted_quantity}")
     grid.fig.set_size_inches(15, 9)
     grid.fig.tight_layout()
     return grid.fig
@@ -87,11 +88,14 @@ def plot_individual_data_with(
             f"use_state_discrimination={use_state_discrimination}, but dataset contains {list(ds.data_vars)}"
         )
     scale = 1 if data == "state" else 1 / u.mV
+    data_label = "Measured state" if data == "state" else "I [mV]"
 
     # Create a first x-axis for full_freq_GHz
-    (fit.assign_coords(full_freq_GHz=fit.full_freq / u.GHz)[data] * scale).plot(
-        ax=ax, y="pulse_duration", x="full_freq_GHz", add_colorbar=False
+    plotted = (fit.assign_coords(full_freq_GHz=fit.full_freq / u.GHz)[data] * scale).plot(
+        ax=ax, y="pulse_duration", x="full_freq_GHz", add_colorbar=True
     )
+    plotted.colorbar.set_label(data_label)
+    ax.set_title(f"{qubit['qubit']}: {data_label}")
     ax.set_xlabel("RF frequency [GHz]")
     ax.set_ylabel("Pulse duration [ns]")
     # Create a second x-axis for detuning_MHz

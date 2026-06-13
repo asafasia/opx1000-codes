@@ -14,7 +14,7 @@
       },
       "transmon": {
         "anharmonicity_hz": 150000000,
-        "t1_ns": 30000,
+        "t1_ns": 1000,
         "t2_ramsey_ns": null,
         "t2_echo_ns": null,
         "thermalization_time_ns": 300000
@@ -49,7 +49,7 @@
       },
       "transmon": {
         "anharmonicity_hz": 150000000,
-        "t1_ns": 3000,
+        "t1_ns": 1000,
         "t2_ramsey_ns": null,
         "t2_echo_ns": null,
         "thermalization_time_ns": 300000
@@ -58,10 +58,10 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0.0,
-        "rus_exit_threshold": 0.0,
+        "threshold": 0.00011285494950700788,
+        "rus_exit_threshold": 1.2199806346511334e-05,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 0.7853981633974483
+        "integration_weights_angle_rad": 3.4167296989213662
       },
       "operations": {
         "x180": "x180_const",
