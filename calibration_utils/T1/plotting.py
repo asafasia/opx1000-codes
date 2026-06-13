@@ -40,7 +40,7 @@ def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.D
 
 def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fit: xr.Dataset = None):
     """Plot individual qubit data on a given axis."""
-    if fit:
+    if fit is not None:
         fitted = decay_exp(
             ds.idle_time,
             fit.fit_data.sel(fit_vals="a"),
@@ -56,10 +56,11 @@ def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str
             ax.plot(ds.idle_time, fitted, "r--")
         ax.set_ylabel("State")
     elif hasattr(fit, "I"):
-        (ds.sel(qubit=qubit["qubit"]).I * 1e3).plot(ax=ax)
+        quadrature = str(fit.selected_quadrature.values) if "selected_quadrature" in fit else "I"
+        (ds.sel(qubit=qubit["qubit"])[quadrature] * 1e3).plot(ax=ax)
         if fitted is not None:
             ax.plot(ds.idle_time, fitted * 1e3, "r--")
-        ax.set_ylabel("Trans. amp. I [mV]")
+        ax.set_ylabel(f"Trans. amp. {quadrature} [mV]")
     else:
         raise RuntimeError("The dataset must contain either 'I' or 'state' for the plotting function to work.")
 
