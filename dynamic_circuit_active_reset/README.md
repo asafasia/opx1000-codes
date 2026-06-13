@@ -1,49 +1,31 @@
-# Dynamic Circuit: Active Reset
+# Dynamic Circuit: Separate Active Reset
 
-This experiment demonstrates a simple dynamic circuit on `q9`:
+`active_reset.py` is a Qualibration node organized like
+`calibrations/07_iq_blobs_separate.py`.
 
-1. Prepare `|1>` for half the shots and leave `|0>` unchanged for the rest.
-2. Measure the qubit.
-3. If the measured state is `1`, apply the configured `x180` pi pulse.
-4. Otherwise, do nothing.
-5. Measure again to verify that the qubit was reset to `|0>`.
+It runs two independent jobs:
 
-The conditional branch is:
+1. Ground-prepared acquisition.
+2. Excited-prepared acquisition.
+
+Each shot:
+
+1. Measures and saves the initial IQ point and thresholded state.
+2. Applies `x180` only when the initial I value is above the configured
+   readout threshold.
+3. Measures and saves the final IQ point and thresholded state.
+
+The saved dataset contains before/after IQ clouds, measured states, and whether
+the reset pulse was applied for both preparations. The generated figure compares
+the IQ clouds and measured excited-state fractions before and after reset.
+
+The active-reset decision uses:
 
 ```python
-with if_(initial_i > threshold):
+with if_(initial_i[i] > threshold):
     qubit.xy.play("x180")
 ```
 
-The threshold comes from:
-
-```python
-qubit.resonator.operations["readout"].threshold
-```
-
-Before running on hardware, make sure this threshold is calibrated and that
-state `|1>` corresponds to `I > threshold`. If the readout polarity is
-reversed, change both comparisons in `active_reset.py` to `I < threshold`.
-
-Simulate the sequence:
-
-```powershell
-python -m dynamic_circuit_active_reset.active_reset --num-shots 10
-```
-
-Simulation automatically plots the raw simulated samples. If the QOP cannot
-provide raw samples, it falls back to plotting the waveform report. The script
-waits for simulation completion before requesting either plot. Each simulated
-controller is shown in its own subplot.
-
-Run without opening a plot with:
-
-```powershell
-python -m dynamic_circuit_active_reset.active_reset --num-shots 10 --no-plot
-```
-
-Execute it on hardware:
-
-```powershell
-python -m dynamic_circuit_active_reset.active_reset --execute
-```
+The threshold and integration-weight rotation come from the selected device
+profile. Calibrate them with the IQ-blobs experiment before evaluating reset
+performance.

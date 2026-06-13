@@ -185,6 +185,11 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
             )
 
         _require(readout.get("state_1_when") in STATE_1_RULES, f"Qubit {name!r} has invalid readout.state_1_when")
+        for threshold_name in ("threshold", "rus_exit_threshold"):
+            _require(
+                isinstance(readout.get(threshold_name), (int, float)),
+                f"Qubit {name!r} needs numeric readout.{threshold_name}",
+            )
         for timing_name in ("time_of_flight_ns", "depletion_time_ns"):
             _require(
                 isinstance(readout.get(timing_name), int) and readout[timing_name] > 0,

@@ -275,8 +275,11 @@ def update_state(node: QualibrationNode[Parameters, Quam]):
     with node.record_state_updates():
         for q in node.namespace["qubits"]:
             fit_result = node.results["fit_results"][q.name]
-            if not np.isfinite(fit_result["iw_angle"]) or not np.isfinite(fit_result["ge_threshold"]):
-                node.log(f"Skipping {q.name} update because its fitted angle or threshold is not finite.")
+            if not all(
+                np.isfinite(fit_result[name])
+                for name in ("iw_angle", "ge_threshold", "rus_threshold")
+            ):
+                node.log(f"Skipping {q.name} update because a fitted readout parameter is not finite.")
                 continue
 
             if node.outcomes[q.name] == "failed":
@@ -304,13 +307,19 @@ def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
     updates = {}
     for q in node.namespace["qubits"]:
         fit_result = node.results["fit_results"][q.name]
-        if not np.isfinite(fit_result["iw_angle"]) or not np.isfinite(fit_result["ge_threshold"]):
+        if not all(
+            np.isfinite(fit_result[name])
+            for name in ("iw_angle", "ge_threshold", "rus_threshold")
+        ):
             continue
         operation = q.resonator.operations["readout"]
         updates[f"qubits.json.qubits.{q.name}.readout.integration_weights_angle_rad"] = float(
             operation.integration_weights_angle
         )
         updates[f"qubits.json.qubits.{q.name}.readout.threshold"] = float(operation.threshold)
+        updates[f"qubits.json.qubits.{q.name}.readout.rus_exit_threshold"] = float(
+            operation.rus_exit_threshold
+        )
 
     if updates:
         failed_qubits = [q.name for q in node.namespace["qubits"] if node.outcomes[q.name] == "failed"]

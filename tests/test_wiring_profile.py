@@ -83,6 +83,8 @@ class WiringProfileTests(unittest.TestCase):
             pulse.integration_weights_angle,
             readout["integration_weights_angle_rad"],
         )
+        self.assertEqual(pulse.threshold, readout["threshold"])
+        self.assertEqual(pulse.rus_exit_threshold, readout["rus_exit_threshold"])
 
 
 if __name__ == "__main__":

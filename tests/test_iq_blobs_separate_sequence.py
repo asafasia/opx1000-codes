@@ -43,6 +43,7 @@ class SeparateIQBlobsSequenceTests(unittest.TestCase):
         self.assertIn("record_state_updates", self.source)
         self.assertIn("readout.integration_weights_angle_rad", self.source)
         self.assertIn("readout.threshold", self.source)
+        self.assertIn("readout.rus_exit_threshold", self.source)
         self.assertIn("proposing fitted parameters despite failed IQ-blob quality checks", self.source)
         self.assertIn("ProfileUpdater().confirm_and_apply(proposal)", self.source)
 

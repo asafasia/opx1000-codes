@@ -11,7 +11,12 @@ from quam_builder.architecture.superconducting.qubit import AnyTransmon
 u = unit(coerce_to_integer=True)
 
 
-def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
+def plot_raw_data_with_fit(
+    ds: xr.Dataset,
+    qubits: List[AnyTransmon],
+    fits: xr.Dataset,
+    use_state_discrimination: bool = False,
+):
     """
     Plot power-Rabi I and Q responses in vertically stacked subplots.
 
@@ -34,7 +39,13 @@ def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.D
     - Each qubit occupies two rows containing separate I and Q subplots.
     - State-discriminated datasets use one subplot per qubit.
     """
-    variables = ("I", "Q") if "I" in ds and "Q" in ds else ("state",)
+    variables = ("state",) if use_state_discrimination else ("I", "Q")
+    missing = [variable for variable in variables if variable not in ds]
+    if missing:
+        raise RuntimeError(
+            f"Power-Rabi plot expected {variables} for "
+            f"use_state_discrimination={use_state_discrimination}, but dataset contains {list(ds.data_vars)}"
+        )
     fig, axes = plt.subplots(
         len(qubits) * len(variables),
         1,
@@ -55,7 +66,7 @@ def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.D
             ax.set_title(f"{qubit.name}: {variable}")
             axis_index += 1
 
-    fig.suptitle("Power Rabi: I and Q quadratures")
+    fig.suptitle("Power Rabi: state" if use_state_discrimination else "Power Rabi: I and Q quadratures")
     fig.tight_layout()
     return fig
 
