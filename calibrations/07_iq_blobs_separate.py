@@ -111,7 +111,7 @@ def make_state_program(
                     qubit.resonator.measure(operation, qua_vars=(I[i], Q[i]))
                     save(I[i], I_st[i])
                     save(Q[i], Q_st[i])
-                    # qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
+                    qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
                     # qubit.resonator.wait(200*u.us)  # 300 µs, to ensure the resonator is depleted before the next shot, even if the qubit is in |e> and T1 is long.
                 align()
 

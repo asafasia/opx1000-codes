@@ -25,21 +25,21 @@ def make_amplitude_sweep():
 
 class PowerRabiAnalysisTests(unittest.TestCase):
     def test_x180_applies_hardware_amplitude_correction(self):
-        self.assertAlmostEqual(_target_amplitude_prefactor(0.5, 1, "x180"), 0.5)
+        self.assertAlmostEqual(_target_amplitude_prefactor(0.5, 1, "x180"), 1.0)
 
     def test_x180_compensates_for_pi_repetitions(self):
         # Three repeated pulses triple the measured oscillation frequency,
         # but the calibrated amplitude must remain the single-pulse pi value.
-        self.assertAlmostEqual(_target_amplitude_prefactor(1.5, 3, "x180"), 0.5)
+        self.assertAlmostEqual(_target_amplitude_prefactor(1.5, 3, "x180"), 1.0)
 
     def test_x90_uses_quarter_period(self):
-        self.assertAlmostEqual(_target_amplitude_prefactor(0.25, 1, "x90"), 0.5)
+        self.assertAlmostEqual(_target_amplitude_prefactor(0.25, 1, "x90"), 1.0)
 
     def test_ef_x180_uses_full_pi_amplitude(self):
-        self.assertAlmostEqual(_target_amplitude_prefactor(0.5, 1, "EF_x180"), 0.5)
+        self.assertAlmostEqual(_target_amplitude_prefactor(0.5, 1, "EF_x180"), 1.0)
 
     def test_negative_fit_frequency_is_handled(self):
-        self.assertAlmostEqual(_target_amplitude_prefactor(np.float64(-0.5), 1, "x180"), 0.5)
+        self.assertAlmostEqual(_target_amplitude_prefactor(np.float64(-0.5), 1, "x180"), 1.0)
 
     def test_selects_I_when_I_has_higher_r_squared(self):
         amplitude = make_amplitude_sweep()
@@ -69,7 +69,7 @@ class PowerRabiAnalysisTests(unittest.TestCase):
 
         self.assertEqual(str(quadrature.values), "Q")
         selected_frequency = float(selected.sel(fit_vals="f").values)
-        self.assertEqual(_target_amplitude_prefactor(selected_frequency, 1, "x180"), 0.25)
+        self.assertEqual(_target_amplitude_prefactor(selected_frequency, 1, "x180"), 0.5)
 
     def test_constant_data_has_invalid_r_squared(self):
         amplitude = make_amplitude_sweep()

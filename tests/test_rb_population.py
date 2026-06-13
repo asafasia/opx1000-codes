@@ -69,6 +69,28 @@ class TestRbPopulation(unittest.TestCase):
         self.assertEqual(axis.get_ylabel(), "Ground-state population")
         plt.close(figure)
 
+    def test_failed_decay_fit_preserves_population_and_marks_failure(self):
+        state = np.zeros((1, 4, 2))
+        ds = xr.Dataset(
+            {"state": (("qubit", "depths", "nb_of_sequences"), state)},
+            coords={"qubit": ["q1"], "depths": [1, 2, 3, 4], "nb_of_sequences": [0, 1]},
+        )
+        node = SimpleNamespace(
+            parameters=SimpleNamespace(use_state_discrimination=True),
+            outcomes={},
+            log=lambda message: None,
+        )
+
+        with patch(
+            "calibration_utils.single_qubit_randomized_benchmarking.analysis.fit_decay_exp",
+            side_effect=AttributeError("fit returned None"),
+        ):
+            fit, results = fit_raw_data(ds, node)
+
+        self.assertIn("population", fit)
+        self.assertTrue(np.isnan(fit.fit_data).all())
+        self.assertFalse(results["q1"].success)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -10,7 +10,6 @@ from qualang_tools.multi_user import qm_session
 from qualang_tools.results import progress_counter
 from qualang_tools.units import unit
 from qualang_tools.bakery.randomized_benchmark_c1 import c1_table
-from qualang_tools.loops import from_array
 
 from qualibrate import QualibrationNode
 from quam_config import Quam
@@ -219,7 +218,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 # Generate the random sequence of length max_circuit_depth
                 sequence_list, inv_gate_list = generate_sequence()
 
-                with for_(*from_array(depth, depths)):
+                with for_each_(depth, depths.tolist()):
                     # Replacing the last gate in the sequence with the sequence's inverse gate
                     # The original gate is saved in 'saved_gate' and is being restored at the end
                     assign(saved_gate, sequence_list[depth])
@@ -228,8 +227,8 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                     with for_(n, 0, n < n_avg, n + 1):
                         # Initialize the qubits
                         for i, qubit in multiplexed_qubits.items():
-                            # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
-                            qubit.reset(10000)
+                            qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                            # qubit.reset(10000)
                         # Align the two elements to play the sequence after qubit initialization
                         align()
 

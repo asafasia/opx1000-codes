@@ -8,6 +8,8 @@ from qualibration_libs.parameters import CommonNodeParameters, QubitsExperimentN
 class NodeSpecificParameters(RunnableParameters):
     operation: Literal["x180", "x90"] = "x180"
     """Gate repeated in the train: x180 (pi) or x90 (pi/2)."""
+    use_state_discrimination: bool = True
+    """Measure excited-state population instead of raw I/Q. Default is True."""
     num_shots: int = 500
     """Number of averages for every pulse-count point."""
     max_number_of_pulses: int = 20

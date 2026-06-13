@@ -9,7 +9,11 @@ import xarray as xr
 
 matplotlib.use("Agg")
 
-from calibration_utils.power_rabi.plotting import plot_raw_data_with_fit
+from calibration_utils.power_rabi.plotting import (
+    expected_cycles_to_unit_prefactor,
+    ideal_state_response,
+    plot_raw_data_with_fit,
+)
 from calibration_utils.rabi_chevron.plotting import plot_individual_data_with
 
 
@@ -66,6 +70,36 @@ class RabiStateDiscriminationTests(unittest.TestCase):
 
         titled_axes = [axis for axis in figure.axes if axis.get_title()]
         self.assertEqual([axis.get_title() for axis in titled_axes], ["q9: state"])
+
+    def test_power_rabi_state_plot_shows_expected_repeated_x180_response(self):
+        amp_prefactor = np.linspace(0, 2, 9)
+        expected = np.sin(4 * np.pi * amp_prefactor / 2) ** 2
+        ds = xr.Dataset(
+            {
+                "state": (("qubit", "nb_of_pulses", "amp_prefactor"), expected[None, None, :]),
+            },
+            coords={"qubit": ["q9"], "nb_of_pulses": [4], "amp_prefactor": amp_prefactor},
+        ).assign_coords(full_amp=(("qubit", "amp_prefactor"), [0.1 * amp_prefactor]))
+        fits = ds.assign(
+            fit=(
+                ("qubit", "fit_vals"),
+                [[0.5, 2.0, np.pi, 0.5]],
+            ),
+            opt_amp=("qubit", [0.1]),
+            success=("qubit", [True]),
+        ).assign_coords(fit_vals=["a", "f", "phi", "offset"])
+
+        figure = plot_raw_data_with_fit(ds, [SimpleNamespace(name="q9")], fits, True)
+
+        np.testing.assert_allclose(figure.axes[0].lines[1].get_ydata(), expected, atol=1e-12)
+
+    def test_four_x180_gates_make_two_full_cycles_from_prefactor_zero_to_one(self):
+        amp_prefactor = np.linspace(0, 1, 1001)
+        ideal = ideal_state_response(amp_prefactor, 4, "x180")
+        midpoint_crossings = np.count_nonzero(np.diff(ideal >= 0.5))
+
+        self.assertEqual(expected_cycles_to_unit_prefactor(4, "x180"), 2)
+        self.assertEqual(midpoint_crossings, 4)
 
     def test_rabi_chevron_plot_uses_state_when_discrimination_is_true(self):
         dataset = self._make_chevron_dataset()

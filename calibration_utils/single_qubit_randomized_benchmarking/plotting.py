@@ -65,13 +65,7 @@ def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str
     -----
     - If the fit dataset is provided, the fitted curve is plotted along with the raw data.
     """
-    # Fitted decay
-    fitted = decay_exp(
-        fit.depths,
-        fit.fit_data.sel(fit_vals="a"),
-        fit.fit_data.sel(fit_vals="offset"),
-        fit.fit_data.sel(fit_vals="decay"),
-    )
+    fit_succeeded = "success" in fit and bool(fit.success.values)
     if hasattr(fit, "population"):
         data = fit.population
         label = "Ground-state population"
@@ -97,10 +91,15 @@ def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str
     ax.set_title(qubit["qubit"], pad=22)
     ax.set_xlabel("Circuit depth")
     ax.set_ylabel(label)
-    ax.plot(fit.depths, fitted, "r--", label="fit")
-    ax.text(
-        0.15,
-        0.9,
-        f"1Q RB fidelity = {100*(1 - float(fit.error_per_gate.values)):.3f}%",
-        transform=ax.transAxes,
-    )
+    if fit_succeeded:
+        fitted = decay_exp(
+            fit.depths,
+            fit.fit_data.sel(fit_vals="a"),
+            fit.fit_data.sel(fit_vals="offset"),
+            fit.fit_data.sel(fit_vals="decay"),
+        )
+        ax.plot(fit.depths, fitted, "r--", label="fit")
+        fit_text = f"1Q RB fidelity = {100*(1 - float(fit.error_per_gate.values)):.3f}%"
+    else:
+        fit_text = "RB decay fit failed"
+    ax.text(0.15, 0.9, fit_text, transform=ax.transAxes)

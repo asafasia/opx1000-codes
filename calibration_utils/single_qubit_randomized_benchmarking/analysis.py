@@ -34,11 +34,12 @@ def log_fitted_results(fit_results: Dict, log_callable=None):
         log_callable = logging.getLogger(__name__).info
     for q in fit_results.keys():
         s_qubit = f"Results for qubit {q}: "
-        s_fidelity = f"\tSingle qubit gate fidelity: {100 * (1 - fit_results[q]['error_per_gate']):.3f} %\n"
         if fit_results[q]["success"]:
             s_qubit += " SUCCESS!\n"
+            s_fidelity = f"\tSingle qubit gate fidelity: {100 * (1 - fit_results[q]['error_per_gate']):.3f} %\n"
         else:
             s_qubit += " FAIL!\n"
+            s_fidelity = "\tSingle qubit gate fidelity: unavailable because the decay fit failed\n"
         log_callable(s_qubit + s_fidelity)
     pass
 
@@ -71,8 +72,17 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
         ds_fit["averaged_data"] = ds_fit.population.mean(dim="nb_of_sequences")
     else:
         ds_fit["averaged_data"] = 1 - ds.I.mean(dim="nb_of_sequences")
-    # Fit the exponential decay
-    fit_data = fit_decay_exp(ds_fit["averaged_data"], "depths")
+    # Fit the exponential decay. qualibration_libs can raise after its
+    # per-qubit fitter returns None, so preserve the acquired data on failure.
+    try:
+        fit_data = fit_decay_exp(ds_fit["averaged_data"], "depths")
+    except Exception as error:
+        node.log(f"RB decay fit failed; preserving raw population data: {error}")
+        template = ds_fit["averaged_data"].isel(depths=0, drop=True)
+        fit_data = xr.concat(
+            [xr.full_like(template, np.nan, dtype=float) for _ in range(3)],
+            dim=xr.IndexVariable("fit_vals", ["a", "offset", "decay"]),
+        )
 
     ds_fit = xr.merge([ds, fit_data.rename("fit_data")])
 

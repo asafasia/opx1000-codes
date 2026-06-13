@@ -1,6 +1,7 @@
 from typing import List
 
 import matplotlib.pyplot as plt
+import numpy as np
 import xarray as xr
 from matplotlib.figure import Figure
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
@@ -38,7 +39,20 @@ def plot_pi_train(
                 x="number_of_pulses",
                 marker="o",
                 markersize=8,
+                label="Measured",
             )
+            if variable == "state":
+                rotation_angle = np.pi if operation == "x180" else np.pi / 2
+                ideal_population = np.sin(ds.number_of_pulses.values * rotation_angle / 2) ** 2
+                axis.plot(
+                    ds.number_of_pulses.values,
+                    ideal_population,
+                    "k--",
+                    alpha=0.6,
+                    label="Ideal",
+                )
+                axis.set_ylim(-0.05, 1.05)
+                axis.legend()
             label = "Excited-state population" if variable == "state" else f"{variable} [V]"
             axis.set_title(f"{qubit.name}: {label}")
             axis.set_xlabel(f"Number of consecutive {operation} gates")

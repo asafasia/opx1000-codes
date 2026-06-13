@@ -13,7 +13,7 @@ class BasePowerRabiParameters(RunnableParameters):
     """Number of averages to perform. Default is 300    ."""
     min_amp_factor: float = 0.0
     """Minimum amplitude factor for the operation. Default is 0."""
-    max_amp_factor: float = 1.99
+    max_amp_factor: float = 1
     """Maximum amplitude factor for the operation. Default is 1.99."""
     amp_factor_step: float = 0.005
     """Step size for the amplitude factor. Default is 0.005."""

@@ -72,7 +72,7 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     node.parameters.num_shots = 500
     # node.parameters.qubits = ["q9"]
     # node.parameters.max_number_pulses_per_sweep = 100
-    # node.parameters.pi_repetitions = 3
+    node.parameters.pi_repetitions = 4
     # node.parameters.min_amp_factor = 0.8
     # node.parameters.max_amp_factor = 1.2
     # node.parameters.amp_factor_step = 0.01

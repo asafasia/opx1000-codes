@@ -1,6 +1,5 @@
 # %% {Imports}
 import matplotlib.pyplot as plt
-import numpy as np
 import xarray as xr
 from dataclasses import asdict
 
@@ -12,44 +11,42 @@ from qualang_tools.results import progress_counter
 from qualang_tools.units import unit
 
 from qualibrate import QualibrationNode
-from quam_config import Quam, create_machine
-from saver import CalibrationSaver, current_profile_name
-from updater import ProfileUpdater
-from calibration_utils.readout_frequency_optimization import (
+from quam_config import Quam
+from calibration_utils.ramsey import (
     Parameters,
     process_raw_dataset,
     fit_raw_data,
     log_fitted_results,
-    plot_distances_with_fit,
-    plot_IQ_abs_with_fit,
+    plot_raw_data_with_fit,
 )
-from qualibration_libs.parameters import get_qubits
-from utils.simulation import simulate_and_plot
+from qualibration_libs.parameters import get_qubits, get_idle_times_in_clock_cycles
+from qualibration_libs.runtime import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 
-# %% {Node initialisation}
+# %% {Description}
 description = """
-        READOUT OPTIMISATION: FREQUENCY
-The sequence consists in measuring the state of the resonator after thermalization (qubit in |g>) and after
-playing a pi pulse to the qubit (qubit in |e>) successively while sweeping the readout frequency.
-The 'I' & 'Q' quadratures when the qubit is in |g> and |e> are extracted to derive the readout fidelity.
-The optimal readout frequency is chosen as to maximize the state discrimination Signal-to-Noise Ratio (SNR).
+        RAMSEY WITH VIRTUAL Z ROTATIONS
+The program consists in playing a Ramsey sequence (x90 - idle_time - x90/y90 - measurement) for different idle times.
+Instead of detuning the qubit gates, the frame of the second x90 pulse is rotated (de-phased) to mimic an accumulated
+phase acquired for a given detuning after the idle time.
+This method has the advantage of playing gates on resonance as opposed to the detuned Ramsey.
+
+From the results, one can fit the Ramsey oscillations and precisely measure the qubit resonance frequency and T2*.
 
 Prerequisites:
+    - Having calibrated the mixer or the Octave (nodes 01a or 01b).
     - Having calibrated the readout parameters (nodes 02a, 02b and/or 02c).
     - Having calibrated the qubit x180 pulse parameters (nodes 03a_qubit_spectroscopy.py and 04b_power_rabi.py).
+    - (optional) Having optimized the readout parameters (nodes 08a, 08b and 08c).
+    - Having specified the desired flux point if relevant (qubit.z.flux_point).
 
 State update:
-    - The readout frequency: qubit.resonator.f_01 & qubit.resonator.RF_frequency
-    - The dispersive shift: qubit.chi
+    - The qubit 0->1 frequency: qubit.f_01 & qubit.xy.RF_frequency
+    - T2*: qubit.T2ramsey.
 """
 
-
 node = QualibrationNode[Parameters, Quam](
-    name="08a_readout_frequency_optimization",
-    description=description,
-    parameters=Parameters(),
-    machine=create_machine(),
+    name="06a_ramsey", description=description, parameters=Parameters(), machine=Quam.load()
 )
 
 
@@ -59,6 +56,9 @@ node = QualibrationNode[Parameters, Quam](
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     # You can get type hinting in your IDE by typing node.parameters.
     # node.parameters.qubits = ["q1", "q2"]
+    node.parameters.use_state_discrimination = True
+    node.parameters.reset_type = 'reset'
+
     pass
 
 
@@ -72,29 +72,27 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
     node.namespace["qubits"] = qubits = get_qubits(node)
     num_qubits = len(qubits)
 
-    n_avg = node.parameters.num_shots  # The number of averages
-    # The frequency sweep around the resonator resonance frequency
-    span = node.parameters.frequency_span_in_mhz * u.MHz
-    step = node.parameters.frequency_step_in_mhz * u.MHz
-    dfs = np.arange(-span / 2, +span / 2, step)
+    n_avg = node.parameters.num_shots
+
+    idle_times = get_idle_times_in_clock_cycles(node.parameters)
+    detuning = node.parameters.frequency_detuning_in_mhz * u.MHz
+
+    detuning_signs = [-1, 1]
     # Register the sweep axes to be added to the dataset when fetching data
     node.namespace["sweep_axes"] = {
         "qubit": xr.DataArray(qubits.get_names()),
-        "detuning": xr.DataArray(dfs, attrs={"long_name": "readout frequency", "units": "Hz"}),
+        "idle_time": xr.DataArray(4 * idle_times, attrs={"long_name": "idle times", "units": "ns"}),
+        "detuning_signs": xr.DataArray(detuning_signs, attrs={"long_name": "detuning signs"}),
     }
-
     with program() as node.namespace["qua_program"]:
-        n = declare(int)
-        I_g = [declare(fixed) for _ in range(num_qubits)]
-        Q_g = [declare(fixed) for _ in range(num_qubits)]
-        I_e = [declare(fixed) for _ in range(num_qubits)]
-        Q_e = [declare(fixed) for _ in range(num_qubits)]
-        df = declare(int)
-        I_g_st = [declare_stream() for _ in range(num_qubits)]
-        Q_g_st = [declare_stream() for _ in range(num_qubits)]
-        I_e_st = [declare_stream() for _ in range(num_qubits)]
-        Q_e_st = [declare_stream() for _ in range(num_qubits)]
-        n_st = declare_stream()
+        I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
+        idle_time = declare(int)
+        detuning_sign = declare(int)
+        virtual_detuning_phases = [declare(fixed) for _ in range(num_qubits)]
+
+        if node.parameters.use_state_discrimination:
+            state = [declare(int) for _ in range(num_qubits)]
+            state_st = [declare_stream() for _ in range(num_qubits)]
 
         for multiplexed_qubits in qubits.batch():
             # Initialize the QPU in terms of flux points (flux tunable transmons and/or tunable couplers)
@@ -104,49 +102,52 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
             with for_(n, 0, n < n_avg, n + 1):
                 save(n, n_st)
-                with for_(*from_array(df, dfs)):
-                    # Qubit initialization
-                    for i, qubit in multiplexed_qubits.items():
-                        # Update the resonator frequencies & reset the qubits
-                        update_frequency(qubit.resonator.name, df + qubit.resonator.intermediate_frequency)
-                        # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
-                        qubit.resonator.wait(15000)
 
-                    align()
+                with for_each_(idle_time, idle_times):
+                    with for_(*from_array(detuning_sign, detuning_signs)):
+                        # Qubit initialization
+                        for i, qubit in multiplexed_qubits.items():
+                            reset_frame(qubit.xy.name)
+                            qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                        align()
+                        # Qubit manipulation
+                        for i, qubit in multiplexed_qubits.items():
+                            with if_(detuning_sign == 1):
+                                assign(
+                                    virtual_detuning_phases[i],
+                                    Cast.mul_fixed_by_int(detuning * 1e-9, 4 * idle_time),
+                                )
+                            with else_():
+                                assign(
+                                    virtual_detuning_phases[i],
+                                    Cast.mul_fixed_by_int(-detuning * 1e-9, 4 * idle_time),
+                                )
 
-                    # Qubit readout - |g> state
-                    for i, qubit in multiplexed_qubits.items():
-                        # Measure the state of the resonators
-                        qubit.resonator.measure("readout", qua_vars=(I_g[i], Q_g[i]))
-                        # save data to their respective streams
-                        save(I_g[i], I_g_st[i])
-                        save(Q_g[i], Q_g_st[i])
-                    align()
+                            # with strict_timing_():
+                            qubit.xy.play("x90")
+                            qubit.xy.frame_rotation_2pi(virtual_detuning_phases[i])
+                            qubit.xy.wait(idle_time)
+                            qubit.xy.play("x90")
 
-                    # Qubit initialization
-                    for i, qubit in multiplexed_qubits.items():
-                        # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
-                        qubit.resonator.wait(15000)
-                    align()
-                    # Qubit readout - |e> state
-                    for i, qubit in multiplexed_qubits.items():
-                        # Play the x180 gate to put the qubits in the excited state
-                        qubit.xy.play("x180")
-                        # Align the elements to measure after playing the qubit pulses.
-                        qubit.align()
-                        # Measure the state of the resonators
-                        qubit.resonator.measure("readout", qua_vars=(I_e[i], Q_e[i]))
-                        # save data to their respective streams
-                        save(I_e[i], I_e_st[i])
-                        save(Q_e[i], Q_e_st[i])
+                        align()
+                        for i, qubit in multiplexed_qubits.items():
+                            if node.parameters.use_state_discrimination:
+                                qubit.readout_state(state[i])
+                                save(state[i], state_st[i])
+                            else:
+                                qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
+                                save(I[i], I_st[i])
+                                save(Q[i], Q_st[i])
+                        align()
 
         with stream_processing():
             n_st.save("n")
             for i in range(num_qubits):
-                I_g_st[i].buffer(len(dfs)).average().save(f"I_g{i + 1}")
-                Q_g_st[i].buffer(len(dfs)).average().save(f"Q_g{i + 1}")
-                I_e_st[i].buffer(len(dfs)).average().save(f"I_e{i + 1}")
-                Q_e_st[i].buffer(len(dfs)).average().save(f"Q_e{i + 1}")
+                if node.parameters.use_state_discrimination:
+                    state_st[i].buffer(len(detuning_signs)).buffer(len(idle_times)).average().save(f"state{i + 1}")
+                else:
+                    I_st[i].buffer(len(detuning_signs)).buffer(len(idle_times)).average().save(f"I{i + 1}")
+                    Q_st[i].buffer(len(detuning_signs)).buffer(len(idle_times)).average().save(f"Q{i + 1}")
 
 
 # %% {Simulate}
@@ -189,19 +190,6 @@ def execute_qua_program(node: QualibrationNode[Parameters, Quam]):
     node.results["ds_raw"] = dataset
 
 
-# %% {Save_raw_results}
-@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
-def save_raw_results(node: QualibrationNode[Parameters, Quam]):
-    """Save the acquired vectors and a snapshot of the selected profile."""
-    output_directory = CalibrationSaver().save_xarray(
-        node.name,
-        node.results["ds_raw"],
-        profile_name=current_profile_name(),
-    )
-    node.namespace["calibration_run_directory"] = output_directory
-    node.log(f"Raw calibration results saved to {output_directory}")
-
-
 # %% {Load_historical_data}
 @node.run_action(skip_if=node.parameters.load_data_id is None)
 def load_data(node: QualibrationNode[Parameters, Quam]):
@@ -234,47 +222,27 @@ def analyse_data(node: QualibrationNode[Parameters, Quam]):
 @node.run_action(skip_if=node.parameters.simulate)
 def plot_data(node: QualibrationNode[Parameters, Quam]):
     """Plot the raw and fitted data in specific figures whose shape is given by qubit.grid_location."""
-    fig_distances = plot_distances_with_fit(node.results["ds_raw"], node.namespace["qubits"], node.results["ds_fit"])
-    fig_iq_abs = plot_IQ_abs_with_fit(node.results["ds_raw"], node.namespace["qubits"], node.results["ds_fit"])
+    fig_raw_fit = plot_raw_data_with_fit(node.results["ds_raw"], node.namespace["qubits"], node.results["ds_fit"])
     plt.show()
     # Store the generated figures
     node.results["figures"] = {
-        "distances": fig_distances,
-        "iq_abs": fig_iq_abs,
+        "amplitude": fig_raw_fit,
     }
-    if "calibration_run_directory" in node.namespace:
-        figures_directory = CalibrationSaver().save_figures(
-            node.namespace["calibration_run_directory"],
-            node.results["figures"],
-        )
-        node.log(f"Calibration figures saved to {figures_directory}")
 
 
 # %% {Update_state}
 @node.run_action(skip_if=node.parameters.simulate)
 def update_state(node: QualibrationNode[Parameters, Quam]):
-    """Update fitted values that are not currently represented in the profile."""
+    """Update the relevant parameters if the qubit data analysis was successful."""
     with node.record_state_updates():
         for q in node.namespace["qubits"]:
             if node.results["fit_results"][q.name]["success"]:
-                q.chi = node.results["fit_results"][q.name]["chi"]
+                q.f_01 -= float(node.results["fit_results"][q.name]["freq_offset"])
+                q.xy.RF_frequency -= float(node.results["fit_results"][q.name]["freq_offset"])
+                q.T2ramsey = float(node.results["fit_results"][q.name]["decay"])
 
 
-# %% {Propose_profile_update}
-@node.run_action(skip_if=node.parameters.simulate)
-def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
-    """Stage fitted readout frequencies and apply them only after confirmation."""
-    updates = {
-        f"qubits.json.qubits.{q.name}.frequencies_hz.resonator": float(
-            node.results["fit_results"][q.name]["optimal_frequency"]
-        )
-        for q in node.namespace["qubits"]
-        if node.results["fit_results"][q.name]["success"]
-    }
-    if updates:
-        proposal = ProfileUpdater().stage(
-            node.name,
-            updates,
-            profile_name=current_profile_name(),
-        )
-        ProfileUpdater().confirm_and_apply(proposal)
+# %% {Save_results}
+@node.run_action()
+def save_results(node: QualibrationNode[Parameters, Quam]):
+    node.save()

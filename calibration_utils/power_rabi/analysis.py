@@ -25,10 +25,11 @@ class FitParameters:
 
 def _target_amplitude_prefactor(frequency, number_of_pulses: int, operation: str):
     """Convert a Rabi oscillation frequency into the selected operation amplitude."""
+    # fit_oscillation uses cos(2*pi*f*x + phi), so 1/f is a full 2*pi rotation.
     if operation.endswith("x180"):
-        rotation_fraction = 0.25
+        rotation_fraction = 0.5
     elif operation.endswith("x90") or operation.endswith("y90"):
-        rotation_fraction = 0.125
+        rotation_fraction = 0.25
     else:
         raise ValueError(f"Unsupported Rabi operation {operation!r}.")
     return number_of_pulses * rotation_fraction / abs(frequency)
