@@ -122,6 +122,15 @@ def _validate_mw_port(port: dict[str, Any], label: str) -> None:
     )
 
 
+def _validate_mw_input_port(port: dict[str, Any], label: str) -> None:
+    band = port.get("band")
+    _require(band in MW_FEM_BAND_RANGES_HZ, f"{label} has unsupported MW-FEM band {band!r}")
+    _require(
+        "lo_frequency_hz" not in port,
+        f"{label} must not define lo_frequency_hz; it is derived from the resonator output",
+    )
+
+
 def _validate_shared_lo_output_pairs(connectivity: dict[str, Any]) -> None:
     """Require configured MW-FEM output pairs to use their shared physical LO."""
     for controller_name, controller in connectivity["controllers"].items():
@@ -166,10 +175,10 @@ def _validate_connectivity(connectivity: dict[str, Any], qubits_document: dict[s
         frequencies = qubits[qubit_name]["frequencies_hz"]
         _validate_mw_port(xy_output, f"Qubit {qubit_name!r} XY output")
         _validate_mw_port(resonator_output, f"Qubit {qubit_name!r} resonator output")
-        _validate_mw_port(resonator_input, f"Qubit {qubit_name!r} resonator input")
+        _validate_mw_input_port(resonator_input, f"Qubit {qubit_name!r} resonator input")
         _require(
-            resonator_input.get("lo_frequency_hz") == resonator_output["lo_frequency_hz"],
-            f"Qubit {qubit_name!r} resonator input and output LOs do not match",
+            resonator_input["band"] == resonator_output["band"],
+            f"Qubit {qubit_name!r} resonator input and output bands do not match",
         )
         _require(
             abs(frequencies["qubit_f01"] - xy_output["lo_frequency_hz"]) <= MW_FEM_MAX_IF_HZ,

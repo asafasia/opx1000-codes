@@ -42,6 +42,7 @@ node = QualibrationNode[Parameters, Quam](
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow local parameter overrides when running this file directly."""
     node.parameters.operation = 'saturation'
+    node.parameters.max_amp_factor = 1
 
 
 

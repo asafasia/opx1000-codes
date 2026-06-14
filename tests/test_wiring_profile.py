@@ -69,26 +69,73 @@ class WiringProfileTests(unittest.TestCase):
                 delta=1,
             )
 
+    def test_q11_q12_use_vendor_table_frequencies(self):
+        profile = load_profile("main")
+        qubits = profile["qubits"]["qubits"]
+        csv_path = Path(__file__).parent.parent / "docs" / "hardware" / "iqm_qubit_summary.csv"
+        with csv_path.open(newline="", encoding="utf-8") as file:
+            rows = {row["Qubit"]: row for row in csv.DictReader(file)}
+
+        for index in (11, 12):
+            settings = qubits[f"q{index}"]
+            self.assertAlmostEqual(
+                settings["frequencies_hz"]["qubit_f01"],
+                float(rows[str(index)]["Measured max. qubit frequency (GHz)"]) * 1e9,
+                delta=1,
+            )
+            self.assertAlmostEqual(
+                settings["frequencies_hz"]["resonator"],
+                float(rows[str(index)]["Measured readout frequency (GHz)"]) * 1e9,
+                delta=1,
+            )
+
     def test_all_configured_qubits_use_requested_shared_drive_ports(self):
         profile = load_profile("main")
         connections = profile["connectivity"]["connections"]
-        qubit_names = [f"q{index}" for index in range(1, 11)]
+        qubit_names = [f"q{index}" for index in range(1, 13)]
         lines = _xy_lines(connections, qubit_names)
 
-        for port, first_qubit in enumerate(range(1, 10, 2), start=2):
+        for port, first_qubit in enumerate(range(1, 12, 2), start=2):
             self.assertEqual(lines[(1, 7, port)], [first_qubit, first_qubit + 1])
 
     def test_all_drive_lines_use_same_lo(self):
         outputs = load_profile("main")["connectivity"]["controllers"]["con1"]["fems"]["7"]["outputs"]
 
-        for port in range(3, 7):
+        for port in range(3, 8):
             self.assertEqual(outputs["2"]["lo_frequency_hz"], outputs[str(port)]["lo_frequency_hz"])
             self.assertEqual(outputs["2"]["band"], outputs[str(port)]["band"])
 
-    def test_profile_contains_q1_through_q10_only(self):
+    def test_q11_q12_use_second_resonator_line(self):
+        connections = load_profile("main")["connectivity"]["connections"]
+
+        for qubit_name in ("q11", "q12"):
+            self.assertEqual(connections[qubit_name]["resonator_output"]["port"], 8)
+            self.assertEqual(connections[qubit_name]["resonator_input"]["port"], 2)
+
+    def test_resonator_input_los_are_derived_from_outputs(self):
+        profile = load_profile("main")
+        connectivity = profile["connectivity"]
+        inputs = connectivity["controllers"]["con1"]["fems"]["7"]["inputs"]
+
+        for input_port in inputs.values():
+            self.assertNotIn("lo_frequency_hz", input_port)
+
+        machine = create_machine_from_profile("main", save=False)
+        for qubit_name, connection in connectivity["connections"].items():
+            output_port = connection["resonator_output"]["port"]
+            output = connectivity["controllers"]["con1"]["fems"]["7"]["outputs"][
+                str(output_port)
+            ]
+            resonator = machine.qubits[qubit_name].resonator
+            self.assertEqual(
+                resonator.opx_input.downconverter_frequency,
+                output["lo_frequency_hz"],
+            )
+
+    def test_profile_contains_q1_through_q12_only(self):
         profile = load_profile("main")
 
-        expected = {f"q{index}" for index in range(1, 11)}
+        expected = {f"q{index}" for index in range(1, 13)}
         self.assertEqual(set(profile["qubits"]["qubits"]), expected)
         self.assertEqual(set(profile["connectivity"]["connections"]), expected)
         self.assertEqual(set(profile["pulses"]["pulses"]), expected)
@@ -117,9 +164,10 @@ class WiringProfileTests(unittest.TestCase):
 
     def test_machine_wiring_contains_all_configured_qubits(self):
         machine = create_machine_from_profile("main", save=False)
+        profile = load_profile("main")
 
-        self.assertEqual(set(machine.qubits), {f"q{index}" for index in range(1, 11)})
-        self.assertEqual(machine.active_qubit_names, ["q10"])
+        self.assertEqual(set(machine.qubits), {f"q{index}" for index in range(1, 13)})
+        self.assertEqual(machine.active_qubit_names, profile["manifest"]["active_qubits"])
 
     def test_quam_save_skips_implicit_root_state(self):
         machine = Quam()

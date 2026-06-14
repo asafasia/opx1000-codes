@@ -9,7 +9,7 @@ class NodeSpecificParameters(RunnableParameters):
     """Number of averages to perform. Default is 100."""
     frequency_span_in_mhz: float = 500
     """Span of frequencies to sweep in MHz. Default is 100 MHz."""
-    frequency_step_in_mhz: float = 1
+    frequency_step_in_mhz: float = 0.5
     """Step size for frequency sweep in MHz. Default is 2 MHz."""
     operation: str = "saturation"
     """Type of operation to perform. Default is "saturation"."""

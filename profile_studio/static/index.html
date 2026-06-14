@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Profile Studio</title>
+  <link rel="icon" type="image/png" href="/assets/Q.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img class="brand-logo" src="/assets/grouplogo.png" alt="Macroscopic Quantum Coherence Lab">
+      <div><p>OPX1000 / DEVICE CONFIGURATION</p><h1>Profile Studio</h1></div>
+    </div>
+    <div class="top-actions">
+      <span class="status-dot"></span><span id="statusText">Connecting</span>
+      <button id="reloadButton" class="secondary-button">Reload</button>
+      <button id="saveButton" class="save-button" disabled>Save changes</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <aside class="sidebar">
+      <section>
+        <label for="profileSelect">Profile</label>
+        <select id="profileSelect"><option>Loading profiles...</option></select>
+        <p class="help">Edits are written directly to the selected profile after you press save.</p>
+      </section>
+      <nav id="tabs" class="side-tabs"></nav>
+      <section class="sidebar-footer">
+        <strong>Structured JSON editor</strong>
+        <p>Values keep their original JSON type. Use Raw JSON for larger structural changes.</p>
+      </section>
+    </aside>
+
+    <section class="workspace">
+      <div class="workspace-head">
+        <div>
+          <div class="title-row"><h2 id="sectionTitle">Profile</h2><span id="dirtyBadge" class="badge hidden">Unsaved</span></div>
+          <p id="filePath" class="mono"></p>
+        </div>
+        <div class="view-switch">
+          <button class="view-button active" data-view="fields">Fields</button>
+          <button class="view-button" data-view="raw">Raw JSON</button>
+        </div>
+      </div>
+      <div id="message" class="message hidden"></div>
+      <div id="editor" class="editor"><div class="empty-state">Loading profile data...</div></div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

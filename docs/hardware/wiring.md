@@ -27,10 +27,17 @@ The operational values are defined in
 | Shared XY drive | q5, q6 | con1 / 7 | Output 4 | 1 | 4.2 GHz |
 | Shared XY drive | q7, q8 | con1 / 7 | Output 5 | 1 | 4.2 GHz |
 | Shared XY drive | q9, q10 | con1 / 7 | Output 6 | 1 | 4.2 GHz |
+| Shared XY drive | q11, q12 | con1 / 7 | Output 7 | 1 | 4.2 GHz |
 | Shared resonator output | q1-q10 | con1 / 7 | Output 1 | 3 | 7.125 GHz |
-| Shared resonator input | q1-q10 | con1 / 7 | Input 1 | 3 | 7.125 GHz |
+| Shared resonator input | q1-q10 | con1 / 7 | Input 1 | 3 | Derived from Output 1 |
+| Shared resonator output | q11, q12 | con1 / 7 | Output 8 | 3 | 7.725 GHz |
+| Shared resonator input | q11, q12 | con1 / 7 | Input 2 | 3 | Derived from Output 8 |
 
 Active qubits are selected separately in
 [`profiles/main/profile.json`](../../profiles/main/profile.json). The table
 above documents physical connections, including connections for inactive
 qubits.
+
+Resonator inputs do not define an independent `lo_frequency_hz`. Their
+downconverter frequency is always derived from the matching resonator output
+line, preventing input and output readout LOs from drifting apart.

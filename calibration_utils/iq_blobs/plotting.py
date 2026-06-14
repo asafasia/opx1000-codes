@@ -116,12 +116,12 @@ def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fi
     """
 
     raw = ds.sel(qubit=qubit["qubit"])
-    ax.plot(1e3 * raw.Ig, 1e3 * raw.Qg, ".", alpha=0.5, label="Ground", markersize=2)
+    ax.plot(1e3 * raw.Ig, 1e3 * raw.Qg, ".", alpha=0.8, label="Ground", markersize=2)
     ax.plot(
         1e3 * raw.Ie,
         1e3 * raw.Qe,
         ".",
-        alpha=1,
+        alpha=0.5,
         label="Prepared",
         markersize=2,
     )
@@ -146,9 +146,9 @@ def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fi
         )
         ax.plot([], [], color=color, linewidth=1.5, label=label)
 
+    ax.axis("equal")
     _plot_raw_threshold(ax, fit.rus_threshold, fit.iw_angle, color="k", label="RUS Threshold")
     _plot_raw_threshold(ax, fit.ge_threshold, fit.iw_angle, color="r", label="Threshold")
-    ax.axis("equal")
     ax.set_xlabel("I [mV]")
     ax.set_ylabel("Q [mV]")
     ax.set_title(f"{qubit['qubit']}\nFitted rotation={np.degrees(float(fit.iw_angle)):.1f} deg")
@@ -166,11 +166,10 @@ def _plot_raw_threshold(ax: Axes, threshold, angle, color: str, label: str):
 
     if abs(sine) < 1e-12:
         ax.axvline(threshold_mv / cosine, color=color, linestyle="--", lw=0.5, label=label)
-        return
-
-    i_values = np.asarray(i_limits)
-    q_values = (cosine * i_values - threshold_mv) / sine
-    ax.plot(i_values, q_values, color=color, linestyle="--", lw=0.5, label=label)
+    else:
+        i_values = np.asarray(i_limits)
+        q_values = (cosine * i_values - threshold_mv) / sine
+        ax.plot(i_values, q_values, color=color, linestyle="--", lw=0.5, label=label)
     ax.set_xlim(i_limits)
     ax.set_ylim(q_limits)
 
@@ -232,6 +231,7 @@ def plot_individual_histograms(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], 
 
     ax.hist(1e3 * fit.Ig_rot, bins=100, alpha=0.5, label="Ground")
     ax.hist(1e3 * fit.Ie_rot, bins=100, alpha=0.5, label="Prepared")
+    i_limits = ax.get_xlim()
     ax.axvline(
         1e3 * fit.rus_threshold,
         color="k",
@@ -240,6 +240,7 @@ def plot_individual_histograms(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], 
         label="RUS Threshold",
     )
     ax.axvline(1e3 * fit.ge_threshold, color="r", linestyle="--", lw=0.5, label="Threshold")
+    ax.set_xlim(i_limits)
     ax.set_xlabel("I Rotated [mV]")
     ax.set_ylabel("Counts")
     ax.set_title(qubit["qubit"])

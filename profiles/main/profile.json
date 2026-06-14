@@ -8,6 +8,6 @@
     "pulses": "pulses.json"
   },
   "active_qubits": [
-    "q4"
+    "q10"
   ]
 }

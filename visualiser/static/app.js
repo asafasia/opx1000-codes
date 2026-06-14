@@ -2,6 +2,7 @@ const state = { experiments: [], filtered: [], selected: null, detail: null, cal
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[c]));
 const formatBytes = n => n == null ? "unavailable" : n < 1024 ? `${n} B` : n < 1048576 ? `${(n/1024).toFixed(1)} KB` : `${(n/1048576).toFixed(1)} MB`;
+let refreshInProgress = false;
 
 async function api(url) {
   const response = await fetch(url);
@@ -19,6 +20,38 @@ async function loadDates() {
     else showGlobalError("No dated experiments were found under data/.");
     setStatus("Live archive");
   } catch (error) { showGlobalError(error.message); setStatus("Connection error"); }
+}
+
+async function refreshLiveData() {
+  if (refreshInProgress) return;
+  refreshInProgress = true;
+  try {
+    const currentDate = $("dateSelect").value;
+    const selectedId = state.selected?.id;
+    const [{ dates }, data] = await Promise.all([
+      api("/api/dates"),
+      api(`/api/experiments?date=${encodeURIComponent(currentDate)}`)
+    ]);
+    $("dateSelect").innerHTML = dates.map(date => `<option value="${date}" ${date === currentDate ? "selected" : ""}>${date}</option>`).join("");
+    state.experiments = data.experiments;
+    if (!state.experiments.some(experiment => experiment.type === state.calibrationType)) {
+      state.calibrationType = state.experiments.find(experiment => experiment.kind === "calibration")?.type || state.experiments[0]?.type || null;
+      state.qubit = "all";
+    }
+    applyFilters();
+    if (selectedId && state.experiments.some(experiment => experiment.id === selectedId)) {
+      state.selected = state.experiments.find(experiment => experiment.id === selectedId);
+      applyFilters();
+    } else if (state.filtered.length) {
+      await selectLatestRun();
+    }
+    setStatus("Live archive");
+  } catch (error) {
+    setStatus("Refresh failed");
+    console.warn("Automatic refresh failed", error);
+  } finally {
+    refreshInProgress = false;
+  }
 }
 
 async function loadExperiments(date) {
@@ -267,3 +300,4 @@ $("searchInput").oninput = applyFilters;
 $("refreshButton").onclick = () => loadDates();
 document.querySelectorAll(".tab").forEach(button => button.onclick = () => { state.tab=button.dataset.tab; renderTab(); });
 loadDates();
+setInterval(refreshLiveData, 10_000);

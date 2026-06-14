@@ -63,6 +63,8 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     # You can get type hinting in your IDE by typing node.parameters.
     # node.parameters.qubits = ["q9"]
     node.parameters.qubit_operation = 'saturation'
+    node.parameters.frequency_span_in_mhz = 30
+    node.parameters.frequency_step_in_mhz = 0.3
     pass
 
 

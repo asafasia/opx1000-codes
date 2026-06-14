@@ -6,8 +6,13 @@ import numpy as np
 import xarray as xr
 
 matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
-from calibration_utils.iq_blobs.plotting import plot_iq_blobs_dashboard
+from calibration_utils.iq_blobs.plotting import (
+    plot_individual_histograms,
+    plot_individual_iq_blobs,
+    plot_iq_blobs_dashboard,
+)
 
 
 class IQBlobsPlottingTests(unittest.TestCase):
@@ -46,6 +51,8 @@ class IQBlobsPlottingTests(unittest.TestCase):
 
         self.assertEqual(len(fig.axes), 3)
         lines_by_label = {line.get_label(): line for line in fig.axes[0].lines}
+        self.assertEqual(lines_by_label["Ground"].get_alpha(), 0.8)
+        self.assertEqual(lines_by_label["Prepared"].get_alpha(), 0.5)
         center_points = [lines_by_label["Ground center"], lines_by_label["Prepared center"]]
         self.assertEqual(tuple(center_points[0].get_data()), ((-4.0,), (2.0,)))
         self.assertEqual(tuple(center_points[1].get_data()), ((6.0,), (-2.0,)))
@@ -106,6 +113,37 @@ class IQBlobsPlottingTests(unittest.TestCase):
 
         self.assertIn("Ground 95% KDE", labels)
         self.assertIn("Prepared 95% KDE", labels)
+
+    def test_large_thresholds_do_not_expand_blob_or_histogram_limits(self):
+        raw = xr.Dataset(
+            {
+                "Ig": (("qubit", "n_runs"), [[-2e-3, -1e-3, 0.0]]),
+                "Qg": (("qubit", "n_runs"), [[-1e-3, 0.0, 1e-3]]),
+                "Ie": (("qubit", "n_runs"), [[1e-3, 2e-3, 3e-3]]),
+                "Qe": (("qubit", "n_runs"), [[-1e-3, 0.0, 1e-3]]),
+            },
+            coords={"qubit": ["q1"], "n_runs": np.arange(3)},
+        )
+        fit = xr.Dataset(
+            {
+                "Ig_rot": (("qubit", "n_runs"), [[-2e-3, -1e-3, 0.0]]),
+                "Ie_rot": (("qubit", "n_runs"), [[1e-3, 2e-3, 3e-3]]),
+                "rus_threshold": ("qubit", [10.0]),
+                "ge_threshold": ("qubit", [20.0]),
+                "iw_angle": ("qubit", [0.0]),
+            },
+            coords={"qubit": ["q1"], "n_runs": np.arange(3)},
+        )
+
+        blob_figure, blob_axis = plt.subplots()
+        plot_individual_iq_blobs(blob_axis, raw, {"qubit": "q1"}, fit.sel(qubit="q1"))
+        histogram_figure, histogram_axis = plt.subplots()
+        plot_individual_histograms(histogram_axis, raw, {"qubit": "q1"}, fit.sel(qubit="q1"))
+
+        self.assertLess(blob_axis.get_xlim()[1], 10)
+        self.assertLess(histogram_axis.get_xlim()[1], 10)
+        plt.close(blob_figure)
+        plt.close(histogram_figure)
 
 
 if __name__ == "__main__":

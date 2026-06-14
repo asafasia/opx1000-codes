@@ -147,10 +147,11 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                     with for_(*from_array(a, amps)):
                         # Qubit initialization
                         for i, qubit in multiplexed_qubits.items():
-                            # pass
-                            qubit.reset('active', node.parameters.simulate)
+                            pass
+                            # qubit.reset('active', node.parameters.simulate)
                             # qubit.reset_qubit_thermal()
                             # qubit.wait(16000)  # Wait for the qubit to relax to the ground state before starting the sequence
+
                         align()
 
                         # Qubit manipulation
@@ -170,7 +171,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                                 qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
                                 save(I[i], I_st[i])
                                 save(Q[i], Q_st[i])
-                            # qubit.reset_qubit_thermal()
+                            qubit.reset_qubit_thermal()
                         # Return the qubit to the ground state before the next shot.
                         align()
 

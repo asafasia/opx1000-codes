@@ -1,6 +1,7 @@
 # Generated experiment and simulation output
 data/
 /calibrations/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
+/visualiser/*.log
 
 # Generated QuAM machine artifacts
 /state.json
