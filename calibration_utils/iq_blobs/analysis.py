@@ -6,8 +6,8 @@ import xarray as xr
 
 from qualibrate import QualibrationNode
 from qualibration_libs.data import convert_IQ_to_V
-from scipy.optimize import minimize
-from scipy.stats import gaussian_kde
+from scipy.interpolate import RegularGridInterpolator
+from scipy.ndimage import gaussian_filter
 
 
 KDE_GRID_SIZE = 80
@@ -15,28 +15,39 @@ KDE_PROBABILITY = 0.95
 
 
 def _kde_density_region(i_values, q_values, probability=KDE_PROBABILITY, grid_size=KDE_GRID_SIZE):
-    """Return a 2D KDE grid and highest-density threshold enclosing the requested points."""
+    """Return a fast binned-KDE grid and highest-density region."""
     points = np.vstack((np.asarray(i_values, dtype=float), np.asarray(q_values, dtype=float)))
     finite = np.isfinite(points).all(axis=0)
     points = points[:, finite]
     if points.shape[1] < 3:
         return None
-    try:
-        if np.linalg.matrix_rank(np.cov(points)) < 2:
-            return None
-        kde = gaussian_kde(points)
-    except (np.linalg.LinAlgError, ValueError):
+    if np.linalg.matrix_rank(np.cov(points)) < 2:
         return None
 
     padding = 0.15 * np.maximum(np.ptp(points, axis=1), np.std(points, axis=1))
     padding = np.maximum(padding, np.finfo(float).eps)
-    i_axis = np.linspace(points[0].min() - padding[0], points[0].max() + padding[0], grid_size)
-    q_axis = np.linspace(points[1].min() - padding[1], points[1].max() + padding[1], grid_size)
+    i_edges = np.linspace(points[0].min() - padding[0], points[0].max() + padding[0], grid_size + 1)
+    q_edges = np.linspace(points[1].min() - padding[1], points[1].max() + padding[1], grid_size + 1)
+    i_axis = 0.5 * (i_edges[:-1] + i_edges[1:])
+    q_axis = 0.5 * (q_edges[:-1] + q_edges[1:])
     i_grid, q_grid = np.meshgrid(i_axis, q_axis)
-    density = kde(np.vstack((i_grid.ravel(), q_grid.ravel()))).reshape(i_grid.shape)
 
-    # A highest-density region contains points whose KDE density is above this threshold.
-    sample_density = kde(points)
+    # Histogram first, then apply Scott-bandwidth Gaussian smoothing. This
+    # approximates gaussian_kde without its O(num_samples * grid_points) cost.
+    histogram, _, _ = np.histogram2d(points[1], points[0], bins=(q_edges, i_edges))
+    scott_factor = points.shape[1] ** (-1 / 6)
+    grid_step = np.array((q_axis[1] - q_axis[0], i_axis[1] - i_axis[0]))
+    bandwidth = scott_factor * np.array((np.std(points[1]), np.std(points[0])))
+    sigma_in_bins = np.clip(bandwidth / grid_step, 0.75, grid_size / 4)
+    density = gaussian_filter(histogram, sigma=sigma_in_bins, mode="nearest")
+
+    interpolator = RegularGridInterpolator(
+        (q_axis, i_axis),
+        density,
+        bounds_error=False,
+        fill_value=0,
+    )
+    sample_density = interpolator(np.column_stack((points[1], points[0])))
     level = float(np.quantile(sample_density, 1 - probability))
     enclosed_fraction = float(np.mean(sample_density >= level))
     return i_grid, q_grid, density, level, enclosed_fraction
@@ -212,17 +223,14 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     threshold = []
     gg, ge, eg, ee = [], [], [], []
     for q in node.namespace["qubits"]:
-        fit = minimize(
-            _false_detections,
-            0.5 * (np.mean(ds_fit.Ig_rot.sel(qubit=q.name)) + np.mean(ds_fit.Ie_rot.sel(qubit=q.name))),
-            (ds_fit.Ig_rot.sel(qubit=q.name), ds_fit.Ie_rot.sel(qubit=q.name)),
-            method="Nelder-Mead",
-        )
-        threshold.append(fit.x[0])
-        gg.append(np.sum(ds_fit.Ig_rot.sel(qubit=q.name) < fit.x[0]) / len(ds_fit.Ig_rot.sel(qubit=q.name)))
-        ge.append(np.sum(ds_fit.Ig_rot.sel(qubit=q.name) > fit.x[0]) / len(ds_fit.Ig_rot.sel(qubit=q.name)))
-        eg.append(np.sum(ds_fit.Ie_rot.sel(qubit=q.name) < fit.x[0]) / len(ds_fit.Ie_rot.sel(qubit=q.name)))
-        ee.append(np.sum(ds_fit.Ie_rot.sel(qubit=q.name) > fit.x[0]) / len(ds_fit.Ie_rot.sel(qubit=q.name)))
+        ground = np.asarray(ds_fit.Ig_rot.sel(qubit=q.name), dtype=float)
+        prepared = np.asarray(ds_fit.Ie_rot.sel(qubit=q.name), dtype=float)
+        fitted_threshold = _optimal_threshold(ground, prepared)
+        threshold.append(fitted_threshold)
+        gg.append(np.mean(ground < fitted_threshold))
+        ge.append(np.mean(ground > fitted_threshold))
+        eg.append(np.mean(prepared < fitted_threshold))
+        ee.append(np.mean(prepared > fitted_threshold))
     ds_fit = ds_fit.assign({"ge_threshold": xr.DataArray(threshold, coords=dict(qubit=ds_fit.qubit.data))})
     # Active-reset exit and standard state-discrimination use the same threshold.
     ds_fit = ds_fit.assign({"rus_threshold": ds_fit.ge_threshold.copy()})
@@ -248,12 +256,37 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     return fit_data, fit_results
 
 
-def _false_detections(threshold, Ig, Ie):
-    if np.mean(Ig) < np.mean(Ie):
-        false_detections_var = np.sum(Ig > threshold) + np.sum(Ie < threshold)
-    else:
-        false_detections_var = np.sum(Ig < threshold) + np.sum(Ie > threshold)
-    return false_detections_var
+def _optimal_threshold(ground, prepared):
+    """Return the exact threshold that minimizes classification errors."""
+    ground = np.asarray(ground, dtype=float)
+    prepared = np.asarray(prepared, dtype=float)
+    ground = ground[np.isfinite(ground)]
+    prepared = prepared[np.isfinite(prepared)]
+    if ground.size == 0 or prepared.size == 0:
+        return np.nan
+
+    values = np.concatenate((ground, prepared))
+    labels = np.concatenate(
+        (np.zeros(ground.size, dtype=np.int8), np.ones(prepared.size, dtype=np.int8))
+    )
+    unique_values, inverse = np.unique(values, return_inverse=True)
+    ground_counts = np.bincount(inverse[labels == 0], minlength=unique_values.size)
+    prepared_counts = np.bincount(inverse[labels == 1], minlength=unique_values.size)
+
+    cumulative_ground = np.cumsum(ground_counts)
+    cumulative_prepared = np.cumsum(prepared_counts)
+    errors = np.concatenate(
+        (
+            [ground.size],
+            ground.size - cumulative_ground + cumulative_prepared,
+        )
+    )
+    best_index = int(np.argmin(errors))
+    if best_index == 0:
+        return float(np.nextafter(unique_values[0], -np.inf))
+    if best_index == unique_values.size:
+        return float(np.nextafter(unique_values[-1], np.inf))
+    return float(0.5 * (unique_values[best_index - 1] + unique_values[best_index]))
 
 
 def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):

@@ -8,6 +8,7 @@ import numpy as np
 from matplotlib.figure import Figure
 
 from saver import CalibrationSaver
+from utils.plotting_settings import CALIBRATION_TIMESTAMP_GID, add_calibration_timestamp
 
 
 class FakeDataArray:
@@ -79,13 +80,33 @@ class CalibrationSaverTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             run_directory = Path(directory) / "run"
             run_directory.mkdir()
+            (run_directory / "metadata.json").write_text(
+                '{"timestamp": "2026-06-14T09:30:00+03:00"}\n',
+                encoding="utf-8",
+            )
+            figure = Figure()
             figures_directory = CalibrationSaver().save_figures(
                 run_directory,
-                {"iq_blobs": Figure()},
+                {"iq_blobs": figure},
             )
 
             self.assertEqual(figures_directory, run_directory / "figures")
             self.assertTrue((figures_directory / "iq_blobs.png").is_file())
+            timestamps = [text for text in figure.texts if text.get_gid() == CALIBRATION_TIMESTAMP_GID]
+            self.assertEqual(len(timestamps), 1)
+            self.assertIn("2026-06-14T09:30:00+03:00", timestamps[0].get_text())
+
+    def test_save_figures_does_not_duplicate_existing_timestamp(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run_directory = Path(directory) / "run"
+            run_directory.mkdir()
+            figure = Figure()
+            add_calibration_timestamp(figure, "already stamped")
+
+            CalibrationSaver().save_figures(run_directory, {"figure": figure})
+
+            timestamps = [text for text in figure.texts if text.get_gid() == CALIBRATION_TIMESTAMP_GID]
+            self.assertEqual(len(timestamps), 1)
 
 
 if __name__ == "__main__":

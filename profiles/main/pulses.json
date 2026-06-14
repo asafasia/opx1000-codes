@@ -1,6 +1,112 @@
 {
   "schema_version": 1,
   "pulses": {
+    "q7": {
+      "x180_const": {
+        "target": "qubit",
+        "type": "constant",
+        "amplitude": 0.1,
+        "length_ns": 40,
+        "axis_angle_rad": 0.0
+      },
+      "EF_x180_const": {
+        "target": "qubit",
+        "type": "constant",
+        "amplitude": 0.1,
+        "length_ns": 40,
+        "axis_angle_rad": 0.0
+      },
+      "x180_drag": {
+        "target": "qubit",
+        "type": "drag",
+        "amplitude": 0.1,
+        "length_ns": 40,
+        "sigma_ns": 4.0,
+        "beta": 0.0,
+        "detuning_hz": 0,
+        "axis_angle_rad": 0.0
+      },
+      "x180_cosine": {
+        "target": "qubit",
+        "type": "cosine",
+        "amplitude": 0.1,
+        "length_ns": 40,
+        "axis_angle_rad": 0.0
+      },
+      "saturation": {
+        "target": "qubit",
+        "type": "saturation",
+        "amplitude": 0.05,
+        "length_ns": 50000,
+        "axis_angle_rad": 0.0
+      },
+      "readout": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.006,
+        "length_ns": 3000,
+        "digital_marker": "ON",
+        "integration_weights": [
+          [
+            1.0,
+            3000
+          ]
+        ]
+      }
+    },
+    "q8": {
+      "x180_const": {
+        "target": "qubit",
+        "type": "constant",
+        "amplitude": 0.1,
+        "length_ns": 40,
+        "axis_angle_rad": 0.0
+      },
+      "EF_x180_const": {
+        "target": "qubit",
+        "type": "constant",
+        "amplitude": 0.1,
+        "length_ns": 40,
+        "axis_angle_rad": 0.0
+      },
+      "x180_drag": {
+        "target": "qubit",
+        "type": "drag",
+        "amplitude": 0.1,
+        "length_ns": 40,
+        "sigma_ns": 4.0,
+        "beta": 0.0,
+        "detuning_hz": 0,
+        "axis_angle_rad": 0.0
+      },
+      "x180_cosine": {
+        "target": "qubit",
+        "type": "cosine",
+        "amplitude": 0.1,
+        "length_ns": 40,
+        "axis_angle_rad": 0.0
+      },
+      "saturation": {
+        "target": "qubit",
+        "type": "saturation",
+        "amplitude": 0.05,
+        "length_ns": 50000,
+        "axis_angle_rad": 0.0
+      },
+      "readout": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.006,
+        "length_ns": 3000,
+        "digital_marker": "ON",
+        "integration_weights": [
+          [
+            1.0,
+            3000
+          ]
+        ]
+      }
+    },
     "q9": {
       "x180_const": {
         "target": "qubit",
@@ -19,7 +125,7 @@
       "x180_drag": {
         "target": "qubit",
         "type": "drag",
-        "amplitude": 0.639265726863663,
+        "amplitude": 0.4825253872432773,
         "length_ns": 40,
         "sigma_ns": 4.0,
         "beta": 1.0800000000000018,

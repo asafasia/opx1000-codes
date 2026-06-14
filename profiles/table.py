@@ -1,4 +1,5 @@
 import pandas as pd
+from pathlib import Path
 
 data = [
 
@@ -48,7 +49,7 @@ df = pd.DataFrame(
 
 )
 
-csv_path = "iqm_qubit_summary.csv"
+csv_path = Path(__file__).resolve().parent.parent / "docs" / "hardware" / "iqm_qubit_summary.csv"
 
 df.to_csv(csv_path, index=False)
 

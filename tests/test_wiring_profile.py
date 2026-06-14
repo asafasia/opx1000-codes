@@ -1,4 +1,5 @@
 import unittest
+import csv
 from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
@@ -15,7 +16,9 @@ class WiringProfileTests(unittest.TestCase):
     def test_active_qubits_are_defined_only_in_manifest(self):
         profile = load_profile("main")
 
-        self.assertEqual(profile["manifest"]["active_qubits"], ["q9"])
+        self.assertTrue(profile["manifest"]["active_qubits"])
+        for qubit_name in profile["manifest"]["active_qubits"]:
+            self.assertIn(qubit_name, profile["qubits"]["qubits"])
         for qubit in profile["qubits"]["qubits"].values():
             self.assertNotIn("enabled", qubit)
 
@@ -35,6 +38,44 @@ class WiringProfileTests(unittest.TestCase):
         lines = _xy_lines(connections, ["q9", "q10"])
 
         self.assertEqual(lines, {(1, 7, 2): [9, 10]})
+
+    def test_iqm_summary_keeps_vendor_q7_q8_frequencies(self):
+        csv_path = Path(__file__).parent.parent / "docs" / "hardware" / "iqm_qubit_summary.csv"
+        with csv_path.open(newline="", encoding="utf-8") as file:
+            rows = {row["Qubit"]: row for row in csv.DictReader(file)}
+
+        self.assertEqual(float(rows["7"]["Measured max. qubit frequency (GHz)"]), 3.9366)
+        self.assertEqual(float(rows["7"]["Measured readout frequency (GHz)"]), 7.2712)
+        self.assertEqual(float(rows["8"]["Measured max. qubit frequency (GHz)"]), 4.098)
+        self.assertEqual(float(rows["8"]["Measured readout frequency (GHz)"]), 7.3834)
+
+    def test_q7_q8_share_drive_port_three(self):
+        profile = load_profile("main")
+        connections = profile["connectivity"]["connections"]
+        lines = _xy_lines(connections, ["q7", "q8", "q9", "q10"])
+
+        self.assertEqual(lines[(1, 7, 3)], [7, 8])
+        self.assertEqual(lines[(1, 7, 2)], [9, 10])
+
+    def test_q7_through_q10_drive_lines_use_same_lo(self):
+        outputs = load_profile("main")["connectivity"]["controllers"]["con1"]["fems"]["7"]["outputs"]
+
+        self.assertEqual(outputs["2"]["lo_frequency_hz"], outputs["3"]["lo_frequency_hz"])
+        self.assertEqual(outputs["2"]["band"], outputs["3"]["band"])
+
+    def test_profile_rejects_different_los_on_shared_output_pair(self):
+        profile = deepcopy(load_profile("main"))
+        outputs = profile["connectivity"]["controllers"]["con1"]["fems"]["7"]["outputs"]
+        outputs["3"]["lo_frequency_hz"] = outputs["2"]["lo_frequency_hz"] + 100e6
+
+        with self.assertRaisesRegex(ProfileError, "outputs 2 and 3 share an LO"):
+            validate_profile(profile)
+
+    def test_hardware_reference_files_are_documented(self):
+        hardware_docs = Path(__file__).parent.parent / "docs" / "hardware"
+
+        self.assertTrue((hardware_docs / "wiring.md").is_file())
+        self.assertTrue((hardware_docs / "iqm_qubit_summary.csv").is_file())
 
     def test_default_quam_load_builds_machine_from_profile(self):
         machine = object()
@@ -64,8 +105,9 @@ class WiringProfileTests(unittest.TestCase):
     def test_readout_acquisition_timing_is_applied_to_quam(self):
         machine = create_machine_from_profile("main", save=False)
         profile = load_profile("main")
-        readout = profile["qubits"]["qubits"]["q9"]["readout"]
-        resonator = machine.qubits["q9"].resonator
+        qubit_name = profile["manifest"]["active_qubits"][0]
+        readout = profile["qubits"]["qubits"][qubit_name]["readout"]
+        resonator = machine.qubits[qubit_name].resonator
 
         self.assertEqual(resonator.time_of_flight, readout["time_of_flight_ns"])
         self.assertEqual(resonator.smearing, readout["smearing_ns"])
@@ -74,9 +116,10 @@ class WiringProfileTests(unittest.TestCase):
     def test_constant_readout_integration_weights_and_angle_are_applied(self):
         machine = create_machine_from_profile("main", save=False)
         profile = load_profile("main")
-        readout = profile["qubits"]["qubits"]["q9"]["readout"]
-        pulse_profile = profile["pulses"]["pulses"]["q9"]["readout"]
-        pulse = machine.qubits["q9"].resonator.operations["readout"]
+        qubit_name = profile["manifest"]["active_qubits"][0]
+        readout = profile["qubits"]["qubits"][qubit_name]["readout"]
+        pulse_profile = profile["pulses"]["pulses"][qubit_name]["readout"]
+        pulse = machine.qubits[qubit_name].resonator.operations["readout"]
 
         self.assertEqual(pulse.integration_weights, pulse_profile["integration_weights"])
         self.assertEqual(
@@ -88,7 +131,7 @@ class WiringProfileTests(unittest.TestCase):
 
     def test_rb_gates_are_derived_from_x180(self):
         machine = create_machine_from_profile("main", save=False)
-        qubit = machine.qubits["q9"]
+        qubit = machine.qubits[machine.active_qubit_names[0]]
         x180 = qubit.xy.operations["x180"]
         expected = {
             "y180": (x180.amplitude, 0.5 * 3.141592653589793),

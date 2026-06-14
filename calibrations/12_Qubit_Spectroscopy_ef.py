@@ -234,6 +234,9 @@ def plot_data(node: QualibrationNode[Parameters, Quam]):
         node.namespace["qubits"],
         node.results["ds_fit"],
         transition="ef",
+        operation=node.parameters.operation,
+        operation_amplitude_factor=node.parameters.operation_amplitude_factor,
+        operation_len_in_ns=node.parameters.operation_len_in_ns,
     )
     plt.show()
     # Store the generated figures

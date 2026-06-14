@@ -3,6 +3,10 @@
 Profiles separate hardware connectivity, calibrated device parameters, and
 pulse definitions. Each profile is a versioned directory:
 
+Physical wiring constraints and vendor reference data are documented under
+[`docs/hardware`](../docs/hardware/). Profiles are the executable configuration
+and must respect those hardware constraints.
+
 ```text
 profiles/
   main/

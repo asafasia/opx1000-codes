@@ -11,6 +11,8 @@ from typing import Any, Mapping
 
 import numpy as np
 
+from utils.plotting_settings import add_calibration_timestamp
+
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT_ROOT = REPOSITORY_ROOT / "data" / "calibrations"
@@ -137,9 +139,16 @@ class CalibrationSaver:
         if not run_directory.is_dir():
             raise FileNotFoundError(f"Calibration run directory does not exist: {run_directory}")
 
+        timestamp = None
+        metadata_path = run_directory / "metadata.json"
+        if metadata_path.is_file():
+            with metadata_path.open(encoding="utf-8") as file:
+                timestamp = json.load(file).get("timestamp")
+
         figures_directory = run_directory / "figures"
         figures_directory.mkdir(exist_ok=True)
         for name, figure in figures.items():
             filename = f"{_validate_name(str(name), 'figure name')}.png"
+            add_calibration_timestamp(figure, timestamp)
             figure.savefig(figures_directory / filename, dpi=180, bbox_inches="tight")
         return figures_directory

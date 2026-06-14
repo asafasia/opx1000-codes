@@ -1,6 +1,78 @@
 {
   "schema_version": 1,
   "qubits": {
+    "q7": {
+      "grid_location": [
+        0,
+        1
+      ],
+      "frequencies_hz": {
+        "qubit_f01": 3936600000.0,
+        "qubit_f12": null,
+        "resonator": 7267300000.0,
+        "resonator_bare": null
+      },
+      "transmon": {
+        "anharmonicity_hz": 150000000,
+        "t1_ns": 24100,
+        "t2_ramsey_ns": 7400,
+        "t2_echo_ns": null,
+        "thermalization_time_ns": 241000
+      },
+      "readout": {
+        "time_of_flight_ns": 320,
+        "smearing_ns": 0,
+        "depletion_time_ns": 2500,
+        "threshold": 0.0,
+        "rus_exit_threshold": 0.0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0.0
+      },
+      "operations": {
+        "x180": "x180_const",
+        "EF_x180": "EF_x180_const",
+        "x180_drag": "x180_drag",
+        "x180_cosine": "x180_cosine",
+        "saturation": "saturation",
+        "readout": "readout"
+      }
+    },
+    "q8": {
+      "grid_location": [
+        1,
+        1
+      ],
+      "frequencies_hz": {
+        "qubit_f01": 4098000000.0,
+        "qubit_f12": null,
+        "resonator": 7381000000.0,
+        "resonator_bare": null
+      },
+      "transmon": {
+        "anharmonicity_hz": 150000000,
+        "t1_ns": 45300,
+        "t2_ramsey_ns": 13600,
+        "t2_echo_ns": null,
+        "thermalization_time_ns": 453000
+      },
+      "readout": {
+        "time_of_flight_ns": 320,
+        "smearing_ns": 0,
+        "depletion_time_ns": 2500,
+        "threshold": 0.0,
+        "rus_exit_threshold": 0.0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0.0
+      },
+      "operations": {
+        "x180": "x180_const",
+        "EF_x180": "EF_x180_const",
+        "x180_drag": "x180_drag",
+        "x180_cosine": "x180_cosine",
+        "saturation": "saturation",
+        "readout": "readout"
+      }
+    },
     "q9": {
       "grid_location": [
         0,
@@ -23,10 +95,10 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0.0002613128521580582,
-        "rus_exit_threshold": 0.0002613128521580582,
+        "threshold": 0.0005553778200324995,
+        "rus_exit_threshold": 0.0005553778200324995,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 0.4557355175676593
+        "integration_weights_angle_rad": -2.3129214971700396
       },
       "operations": {
         "x180": "x180_const",

@@ -14,6 +14,7 @@ MW_FEM_BAND_RANGES_HZ = {
     2: (4.5e9, 7.5e9),
     3: (6.5e9, 10.5e9),
 }
+MW_FEM_SHARED_LO_OUTPUT_PAIRS = ((2, 3), (4, 5), (6, 7), (8, 9), (10, 11))
 
 
 class ProfileError(ValueError):
@@ -120,10 +121,30 @@ def _validate_mw_port(port: dict[str, Any], label: str) -> None:
     )
 
 
+def _validate_shared_lo_output_pairs(connectivity: dict[str, Any]) -> None:
+    """Require configured MW-FEM output pairs to use their shared physical LO."""
+    for controller_name, controller in connectivity["controllers"].items():
+        for fem_name, fem in controller["fems"].items():
+            if fem["type"] != "mw_fem":
+                continue
+            outputs = fem.get("outputs", {})
+            for first, second in MW_FEM_SHARED_LO_OUTPUT_PAIRS:
+                first_port = outputs.get(str(first))
+                second_port = outputs.get(str(second))
+                if first_port is None or second_port is None:
+                    continue
+                _require(
+                    first_port.get("lo_frequency_hz") == second_port.get("lo_frequency_hz"),
+                    f"{controller_name} MW-FEM {fem_name} outputs {first} and {second} "
+                    "share an LO and must use the same lo_frequency_hz",
+                )
+
+
 def _validate_connectivity(connectivity: dict[str, Any], qubits_document: dict[str, Any]) -> None:
     connections = connectivity.get("connections")
     qubits = qubits_document.get("qubits")
     _require(isinstance(connections, dict), "connectivity.json must define connections")
+    _validate_shared_lo_output_pairs(connectivity)
 
     for qubit_name in qubits:
         _require(qubit_name in connections, f"Qubit {qubit_name!r} has no connectivity entry")

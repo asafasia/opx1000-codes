@@ -9,6 +9,7 @@ matplotlib.use("Agg")
 
 from calibration_utils.qubit_spectroscopy.plotting import plot_raw_data_with_fit
 from calibration_utils.resonator_spectroscopy.plotting import plot_raw_amplitude
+from utils.plotting_settings import CALIBRATION_TIMESTAMP_GID
 
 
 class SpectroscopyPlottingTests(unittest.TestCase):
@@ -26,17 +27,41 @@ class SpectroscopyPlottingTests(unittest.TestCase):
             },
         )
         fits = xr.Dataset({"res_freq": ("qubit", [4.351e9])}, coords={"qubit": ["q1"]})
-        qubit = SimpleNamespace(name="q1", f_01=4.3496e9, xy=SimpleNamespace(RF_frequency=4.3496e9))
+        qubit = SimpleNamespace(
+            name="q1",
+            f_01=4.3496e9,
+            xy=SimpleNamespace(
+                RF_frequency=4.3496e9,
+                operations={"saturation": SimpleNamespace(amplitude=0.2, length=50000)},
+            ),
+        )
 
-        fig = plot_raw_data_with_fit(ds, [qubit], fits)
+        fig = plot_raw_data_with_fit(
+            ds,
+            [qubit],
+            fits,
+            operation="saturation",
+            operation_amplitude_factor=0.1,
+            operation_len_in_ns=1000,
+        )
         labels = [label for axis in fig.axes for label in axis.get_legend_handles_labels()[1]]
 
-        self.assertTrue(any(label.startswith("Current ge:") for label in labels))
-        self.assertTrue(any(label.startswith("New resonance:") for label in labels))
+        self.assertTrue(any(label.startswith("Current drive f01:") for label in labels))
+        self.assertTrue(any(label.startswith("Fitted new f01:") for label in labels))
         self.assertEqual(len(fig.axes[0].child_axes), 1)
         self.assertEqual(
             fig.axes[0].child_axes[0].get_xlabel(),
             "Detuning from current resonance [MHz]",
+        )
+        parameter_text = next(text for text in fig.texts if text.get_gid() == "spectroscopy_parameters")
+        self.assertIn("operation=saturation", parameter_text.get_text())
+        self.assertIn("pulse length=1000 ns", parameter_text.get_text())
+        self.assertIn("pulse amp=20.000 mV", parameter_text.get_text())
+        self.assertIn("current drive f01=4.349600 GHz", parameter_text.get_text())
+        self.assertIn("fitted/new f01=4.351000 GHz", parameter_text.get_text())
+        self.assertEqual(
+            len([text for text in fig.texts if text.get_gid() == CALIBRATION_TIMESTAMP_GID]),
+            1,
         )
 
     def test_qubit_plot_shows_only_state_when_discrimination_is_enabled(self):
@@ -88,8 +113,9 @@ class SpectroscopyPlottingTests(unittest.TestCase):
         fig = plot_raw_data_with_fit(ds, [qubit], fits, transition="ef")
         labels = [label for axis in fig.axes for label in axis.get_legend_handles_labels()[1]]
 
-        self.assertTrue(any(label.startswith("Current ge:") for label in labels))
+        self.assertTrue(any(label.startswith("Current drive f01:") for label in labels))
         self.assertTrue(any(label.startswith("Current ef:") for label in labels))
+        self.assertTrue(any(label.startswith("Fitted new ef:") for label in labels))
         self.assertEqual(fig.axes[0].get_xlim(), (4.19, 4.21))
 
     def test_resonator_plot_labels_current_and_new_resonances(self):

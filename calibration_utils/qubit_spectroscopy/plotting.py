@@ -1,11 +1,11 @@
-from typing import List
+from typing import List, Optional
 import matplotlib.pyplot as plt
 import xarray as xr
 from matplotlib.figure import Figure
 
 from qualang_tools.units import unit
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
-from utils.plotting_settings import FIGURE_SIZE
+from utils.plotting_settings import FIGURE_SIZE, add_calibration_timestamp
 
 u = unit(coerce_to_integer=True)
 
@@ -31,12 +31,53 @@ def _transition_frequency(qubit, transition: str) -> float:
     return float(qubit.xy.RF_frequency)
 
 
+def _spectroscopy_parameter_lines(
+    qubits,
+    fits: xr.Dataset,
+    operation: str,
+    operation_amplitude_factor: float,
+    operation_len_in_ns: Optional[int],
+    transition: str,
+):
+    """Describe the pulse settings and configured/fitted frequencies."""
+    lines = [
+        "Parameters",
+        f"operation={operation}, amplitude factor={operation_amplitude_factor:g}",
+    ]
+    for qubit in qubits:
+        pulse = getattr(qubit.xy, "operations", {}).get(operation)
+        configured_amplitude = getattr(pulse, "amplitude", None)
+        configured_length = getattr(pulse, "length", None)
+        played_length = operation_len_in_ns if operation_len_in_ns is not None else configured_length
+        fitted_frequency_ghz = float(fits.sel(qubit=qubit.name).res_freq.values) / u.GHz
+        current_f01_ghz = float(qubit.xy.RF_frequency) / u.GHz
+
+        pulse_parts = [f"{qubit.name}: current drive f01={current_f01_ghz:.6f} GHz"]
+        if transition == "ef":
+            pulse_parts.append(f"fitted/new ef={fitted_frequency_ghz:.6f} GHz")
+        else:
+            pulse_parts.append(f"fitted/new f01={fitted_frequency_ghz:.6f} GHz")
+        if played_length is not None:
+            pulse_parts.append(f"pulse length={float(played_length):g} ns")
+        if configured_amplitude is not None:
+            played_amplitude = float(configured_amplitude) * operation_amplitude_factor
+            pulse_parts.append(
+                f"pulse amp={1e3 * played_amplitude:.3f} mV "
+                f"(configured {1e3 * float(configured_amplitude):.3f} mV)"
+            )
+        lines.append(" | ".join(pulse_parts))
+    return lines
+
+
 def plot_raw_data_with_fit(
     ds: xr.Dataset,
     qubits: List[AnyTransmon],
     fits: xr.Dataset,
     use_state_discrimination: bool = False,
     transition: str = "ge",
+    operation: str = "saturation",
+    operation_amplitude_factor: float = 1.0,
+    operation_len_in_ns: Optional[int] = None,
 ):
     """
     Plot the raw I and Q qubit-spectroscopy responses on separate subplots.
@@ -98,20 +139,28 @@ def plot_raw_data_with_fit(
                 current_frequency_ghz,
                 color="black",
                 linestyle=":",
-                label=f"Current {transition}: {current_frequency_ghz:.6f} GHz",
+                label=(
+                    f"Current drive f01: {current_frequency_ghz:.6f} GHz"
+                    if transition == "ge"
+                    else f"Current ef: {current_frequency_ghz:.6f} GHz"
+                ),
             )
             if current_ge_frequency_ghz is not None:
                 ax.axvline(
                     current_ge_frequency_ghz,
                     color="tab:purple",
                     linestyle=":",
-                    label=f"Current ge: {current_ge_frequency_ghz:.6f} GHz",
+                    label=f"Current drive f01: {current_ge_frequency_ghz:.6f} GHz",
                 )
             ax.axvline(
                 fitted_frequency_ghz,
                 color="tab:red",
                 linestyle="--",
-                label=f"New resonance: {fitted_frequency_ghz:.6f} GHz",
+                label=(
+                    f"Fitted new f01: {fitted_frequency_ghz:.6f} GHz"
+                    if transition == "ge"
+                    else f"Fitted new ef: {fitted_frequency_ghz:.6f} GHz"
+                ),
             )
             ax.set_xlim(*sweep_limits)
             ax.set_title(f"{qubit.name}: {label}")
@@ -126,5 +175,28 @@ def plot_raw_data_with_fit(
         if use_state_discrimination
         else "Qubit spectroscopy: I and Q quadratures"
     )
-    fig.tight_layout()
+    parameters = fig.text(
+        0.01,
+        0.01,
+        "\n".join(
+            _spectroscopy_parameter_lines(
+                qubits,
+                fits,
+                operation,
+                operation_amplitude_factor,
+                operation_len_in_ns,
+                transition,
+            )
+        ),
+        ha="left",
+        va="bottom",
+        fontsize=8,
+        family="monospace",
+        bbox={"boxstyle": "round", "facecolor": "white", "edgecolor": "0.7", "alpha": 0.9},
+    )
+    parameters.set_gid("spectroscopy_parameters")
+    add_calibration_timestamp(fig)
+    parameter_rows = len(qubits) + 2
+    bottom_margin = min(0.25, 0.055 + 0.018 * parameter_rows)
+    fig.tight_layout(rect=(0, bottom_margin, 1, 0.95))
     return fig
