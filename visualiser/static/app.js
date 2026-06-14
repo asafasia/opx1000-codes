@@ -1,4 +1,4 @@
-const state = { experiments: [], filtered: [], selected: null, detail: null, calibrationType: null, qubit: "all", tab: "figures", figureIndex: 0, plotData: null, plotResult: 0 };
+const state = { experiments: [], filtered: [], selected: null, detail: null, calibrationType: null, qubit: "all", tab: "figures", figureIndex: 0, plotData: null, plotResult: 0, plotHeatmap: 0, plotSlice: null };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[c]));
 const formatBytes = n => n == null ? "unavailable" : n < 1024 ? `${n} B` : n < 1048576 ? `${(n/1024).toFixed(1)} KB` : `${(n/1048576).toFixed(1)} MB`;
@@ -132,6 +132,8 @@ async function selectExperiment(id) {
   state.figureIndex = 0;
   state.plotData = null;
   state.plotResult = 0;
+  state.plotHeatmap = 0;
+  state.plotSlice = null;
   applyFilters();
   $("emptyState").classList.add("hidden"); $("detailView").classList.remove("hidden");
   $("tabContent").innerHTML = `<div class="empty-state"><p>Loading experiment files...</p></div>`;
@@ -213,12 +215,18 @@ function renderInteractivePlot() {
   const results = state.plotData?.results || [];
   if (!results.length) return `<div class="error-panel">No numeric NPZ result arrays are available for plotting.</div>`;
   const selected = results[Math.min(state.plotResult, results.length - 1)];
+  const heatmaps = selected.heatmaps || [];
+  const heatmap = heatmaps[Math.min(state.plotHeatmap, heatmaps.length - 1)];
+  const heatmapControl = heatmaps.length > 1 ? `<label><span class="section-label">Qubit / slice</span><select id="plotHeatmapSelect">${heatmaps.map((item, index) => `<option value="${index}" ${index === state.plotHeatmap ? "selected" : ""}>${escapeHtml(item.label)}</option>`).join("")}</select></label>` : "";
+  const plotArea = heatmap ? `<div class="heatmap-layout"><div class="heatmap-panel"><canvas id="heatmapPlot"></canvas></div><div class="slice-panel"><canvas id="slicePlot"></canvas></div></div><div class="slice-control"><span>${escapeHtml(heatmap.y_name)}</span><input id="sliceSlider" type="range" min="0" max="${heatmap.y.length - 1}" value="${state.plotSlice ?? Math.floor(heatmap.y.length / 2)}"><strong id="sliceValue"></strong></div>`
+    : `<div class="interactive-plot-wrap"><canvas id="interactivePlot"></canvas><div id="plotTooltip" class="plot-tooltip hidden"></div></div>`;
   return `<div class="fit-tab-panel"><div class="plot-toolbar">
     <label><span class="section-label">Result array</span><select id="plotResultSelect">${results.map((result, index) => `<option value="${index}" ${index === state.plotResult ? "selected" : ""}>${escapeHtml(result.name)} [${result.shape.join(" x ")}]</option>`).join("")}</select></label>
+    ${heatmapControl}
     <div class="plot-meta"><span>x: ${escapeHtml(selected.x_name)}</span><span>${selected.traces.length} trace${selected.traces.length === 1 ? "" : "s"}</span>${selected.downsampled ? "<span>downsampled</span>" : ""}</div>
     <button id="resetPlot" class="plot-button">Reset view</button>
   </div>
-  <div class="interactive-plot-wrap"><canvas id="interactivePlot"></canvas><div id="plotTooltip" class="plot-tooltip hidden"></div></div>
+  ${plotArea}
   <div id="plotLegend" class="plot-legend"></div></div>`;
 }
 function renderData() {
@@ -244,11 +252,48 @@ function bindFigures() {
 
 function bindInteractivePlot() {
   const canvas = $("interactivePlot");
-  if (!canvas) return;
   const result = state.plotData.results[state.plotResult];
-  const plot = createCanvasPlot(canvas, result, $("plotTooltip"), $("plotLegend"));
+  let plot;
+  if (result.heatmaps?.length) {
+    plot = createHeatmapPlot($("heatmapPlot"), $("slicePlot"), result.heatmaps[state.plotHeatmap]);
+    $("plotHeatmapSelect") && ($("plotHeatmapSelect").onchange = event => { state.plotHeatmap = Number(event.target.value); state.plotSlice = null; renderTab(); });
+    $("sliceSlider").oninput = event => { state.plotSlice = Number(event.target.value); plot.setSlice(state.plotSlice); };
+  } else if (canvas) {
+    plot = createCanvasPlot(canvas, result, $("plotTooltip"), $("plotLegend"));
+  } else return;
   $("plotResultSelect").onchange = event => { state.plotResult = Number(event.target.value); renderTab(); };
   $("resetPlot").onclick = () => plot.reset();
+}
+
+function createHeatmapPlot(heatCanvas, sliceCanvas, heatmap) {
+  const heatContext = heatCanvas.getContext("2d"), sliceContext = sliceCanvas.getContext("2d");
+  const slider = $("sliceSlider"), valueLabel = $("sliceValue");
+  let sliceIndex = Math.min(Number(slider.value), heatmap.y.length - 1);
+  const finite = heatmap.z.flat().filter(value => value != null), zMin = Math.min(...finite), zMax = Math.max(...finite);
+  const color = value => {
+    const t = Math.max(0, Math.min(1, (value - zMin) / (zMax - zMin || 1)));
+    return `hsl(${250 - t * 250} 75% ${32 + t * 28}%)`;
+  };
+  function sizeCanvas(canvas, context) { const r=canvas.getBoundingClientRect(),d=devicePixelRatio||1;canvas.width=r.width*d;canvas.height=r.height*d;context.setTransform(d,0,0,d,0,0);return r; }
+  function drawHeatmap() {
+    const r=sizeCanvas(heatCanvas,heatContext), p={l:68,r:18,t:15,b:38}, pw=r.width-p.l-p.r,ph=r.height-p.t-p.b,rows=heatmap.y.length,cols=heatmap.x.length,cw=pw/cols,ch=ph/rows;
+    heatContext.clearRect(0,0,r.width,r.height);
+    heatmap.z.forEach((row,yi)=>row.forEach((v,xi)=>{heatContext.fillStyle=v==null?"#eee":color(v);heatContext.fillRect(p.l+xi*cw,p.t+(rows-1-yi)*ch,cw+1,ch+1);}));
+    const lineY=p.t+(rows-1-sliceIndex+.5)*ch;heatContext.strokeStyle="#fff";heatContext.lineWidth=2;heatContext.beginPath();heatContext.moveTo(p.l,lineY);heatContext.lineTo(r.width-p.r,lineY);heatContext.stroke();heatContext.strokeStyle="#111";heatContext.lineWidth=.7;heatContext.stroke();
+    heatContext.fillStyle="#68747d";heatContext.font="10px system-ui";heatContext.fillText(heatmap.x_name,r.width/2,r.height-7);heatContext.save();heatContext.translate(12,r.height/2);heatContext.rotate(-Math.PI/2);heatContext.fillText(heatmap.y_name,0,0);heatContext.restore();
+  }
+  function drawSlice() {
+    const r=sizeCanvas(sliceCanvas,sliceContext), p={l:68,r:18,t:12,b:35}, values=heatmap.z[sliceIndex], valid=values.filter(v=>v!=null), y0=Math.min(...valid),y1=Math.max(...valid),x0=heatmap.x[0],x1=heatmap.x[heatmap.x.length-1];
+    sliceContext.clearRect(0,0,r.width,r.height);sliceContext.strokeStyle="#dfe3e6";for(let i=0;i<=5;i++){let x=p.l+i*(r.width-p.l-p.r)/5;sliceContext.beginPath();sliceContext.moveTo(x,p.t);sliceContext.lineTo(x,r.height-p.b);sliceContext.stroke();}
+    sliceContext.strokeStyle="#176b87";sliceContext.lineWidth=1.5;sliceContext.beginPath();values.forEach((v,i)=>{if(v==null)return;const x=p.l+(heatmap.x[i]-x0)/(x1-x0||1)*(r.width-p.l-p.r),y=r.height-p.b-(v-y0)/(y1-y0||1)*(r.height-p.t-p.b);i?sliceContext.lineTo(x,y):sliceContext.moveTo(x,y);});sliceContext.stroke();
+    sliceContext.fillStyle="#68747d";sliceContext.font="10px system-ui";sliceContext.fillText(`${heatmap.x_name} spectrum at ${heatmap.y_name} = ${Number(heatmap.y[sliceIndex]).toPrecision(5)}`,p.l,r.height-8);
+    valueLabel.textContent=Number(heatmap.y[sliceIndex]).toPrecision(6);
+  }
+  function setSlice(index){sliceIndex=Math.max(0,Math.min(heatmap.y.length-1,index));slider.value=sliceIndex;drawHeatmap();drawSlice();}
+  heatCanvas.onclick=e=>{const r=heatCanvas.getBoundingClientRect(),pTop=15,pBottom=38,ratio=1-(e.clientY-r.top-pTop)/(r.height-pTop-pBottom);setSlice(Math.round(ratio*(heatmap.y.length-1)));state.plotSlice=sliceIndex;};
+  heatCanvas.onmousemove=e=>{if(e.buttons===1)heatCanvas.onclick(e);};
+  const observer=new ResizeObserver(()=>{drawHeatmap();drawSlice();});observer.observe(heatCanvas);observer.observe(sliceCanvas);setSlice(sliceIndex);
+  return {setSlice,reset(){setSlice(Math.floor(heatmap.y.length/2));}};
 }
 
 function createCanvasPlot(canvas, result, tooltip, legend) {

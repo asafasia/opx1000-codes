@@ -43,6 +43,8 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow local parameter overrides when running this file directly."""
     node.parameters.operation = 'saturation'
     node.parameters.max_amp_factor = 1
+    node.parameters.frequency_span_in_mhz = 200
+    node.parameters.frequency_step_in_mhz = 2
 
 
 

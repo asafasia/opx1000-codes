@@ -53,7 +53,7 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     # node.parameters.reset_type = "active"
     # node.parameters.qubits = ["q9"]
     # node.parameters.simulate = True
-    # node.parameters.samples = 1000
+    node.parameters.num_shots = 5000
     # node.parameters.qubit_operation = 'x180_const'
     node.parameters.qubit_operation = 'saturation'
     # node.parameters.simulate = True

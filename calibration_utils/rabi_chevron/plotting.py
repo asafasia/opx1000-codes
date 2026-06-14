@@ -1,12 +1,13 @@
 from typing import List
+
+import matplotlib.pyplot as plt
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from qualang_tools.units import unit
-from qualibration_libs.plotting import QubitGrid, grid_iter
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
-from utils.plotting_settings import FIGURE_SIZE, qubit_grid_locations
+from utils.plotting_settings import FIGURE_SIZE
 
 u = unit(coerce_to_integer=True)
 
@@ -36,24 +37,41 @@ def plot_raw_data_with_fit(
 
     Notes
     -----
-    - The function creates a grid of subplots, one for each qubit.
-    - Each subplot contains the raw data and the fitted curve.
+    - State-discrimination mode creates one subplot per qubit.
+    - Analog-readout mode creates separate I and Q subplots per qubit.
     """
-    grid = QubitGrid(ds, qubit_grid_locations(qubits))
-    for ax, qubit in grid_iter(grid):
-        plot_individual_data_with(
-            ax,
-            ds,
-            qubit,
-            fits.sel(qubit=qubit["qubit"]),
-            use_state_discrimination=use_state_discrimination,
+    variables = ("state",) if use_state_discrimination else ("I", "Q")
+    missing = [variable for variable in variables if variable not in ds]
+    if missing:
+        raise RuntimeError(
+            f"Rabi-chevron plot expected {variables} for "
+            f"use_state_discrimination={use_state_discrimination}, but dataset contains {list(ds.data_vars)}"
         )
 
-    plotted_quantity = "measured state" if use_state_discrimination else "I quadrature"
-    grid.fig.suptitle(f"Rabi chevron: {plotted_quantity}")
-    grid.fig.set_size_inches(*FIGURE_SIZE)
-    grid.fig.tight_layout()
-    return grid.fig
+    fig, axes = plt.subplots(
+        len(variables) * len(qubits),
+        1,
+        figsize=FIGURE_SIZE,
+        squeeze=False,
+    )
+    for qubit_index, qubit in enumerate(qubits):
+        for variable_index, variable in enumerate(variables):
+            plot_individual_data_with(
+                axes[len(variables) * qubit_index + variable_index, 0],
+                ds,
+                {"qubit": qubit.name},
+                fits.sel(qubit=qubit.name),
+                use_state_discrimination=use_state_discrimination,
+                variable=variable,
+            )
+
+    fig.suptitle(
+        "Rabi chevron: measured state"
+        if use_state_discrimination
+        else "Rabi chevron: I and Q quadratures"
+    )
+    fig.tight_layout()
+    return fig
 
 
 def plot_individual_data_with(
@@ -62,6 +80,7 @@ def plot_individual_data_with(
     qubit: dict[str, str],
     fit: xr.Dataset = None,
     use_state_discrimination: bool = False,
+    variable: str | None = None,
 ):
     """
     Plots individual qubit data on a given axis with optional fit.
@@ -82,14 +101,20 @@ def plot_individual_data_with(
     - If the fit dataset is provided, the fitted curve is plotted along with the raw data.
     """
 
-    data = "state" if use_state_discrimination else "I"
+    data = variable or ("state" if use_state_discrimination else "I")
+    expected_variables = ("state",) if use_state_discrimination else ("I", "Q")
+    if data not in expected_variables:
+        raise ValueError(
+            f"Rabi-chevron variable {data!r} is incompatible with "
+            f"use_state_discrimination={use_state_discrimination}"
+        )
     if data not in ds:
         raise RuntimeError(
             f"Rabi-chevron plot expected {data!r} for "
             f"use_state_discrimination={use_state_discrimination}, but dataset contains {list(ds.data_vars)}"
         )
     scale = 1 if data == "state" else 1 / u.mV
-    data_label = "Measured state" if data == "state" else "I [mV]"
+    data_label = "Measured state" if data == "state" else f"{data} [mV]"
 
     # Create a first x-axis for full_freq_GHz
     plotted = (fit.assign_coords(full_freq_GHz=fit.full_freq / u.GHz)[data] * scale).plot(
@@ -104,4 +129,5 @@ def plot_individual_data_with(
     (fit.assign_coords(detuning_MHz=fit.detuning / u.MHz)[data] * scale).plot(
         ax=ax2, y="pulse_duration", x="detuning_MHz", add_colorbar=False
     )
+    ax2.set_title("")
     ax2.set_xlabel("Detuning [MHz]")

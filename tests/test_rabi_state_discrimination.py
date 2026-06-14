@@ -15,6 +15,7 @@ from calibration_utils.power_rabi.plotting import (
     plot_raw_data_with_fit,
 )
 from calibration_utils.rabi_chevron.plotting import plot_individual_data_with
+from calibration_utils.rabi_chevron.plotting import plot_raw_data_with_fit as plot_rabi_chevron
 
 
 REPOSITORY_ROOT = Path(__file__).parent.parent
@@ -131,6 +132,20 @@ class RabiStateDiscriminationTests(unittest.TestCase):
         self.assertEqual(axis.get_title(), "q9: I [mV]")
         self.assertEqual(figure.axes[1].get_ylabel(), "I [mV]")
 
+    def test_rabi_chevron_analog_plot_shows_both_i_and_q(self):
+        dataset = self._make_chevron_dataset()
+
+        figure = plot_rabi_chevron(
+            dataset,
+            [SimpleNamespace(name="q9")],
+            dataset,
+            use_state_discrimination=False,
+        )
+
+        titled_axes = [axis.get_title() for axis in figure.axes if axis.get_title()]
+        self.assertEqual(titled_axes, ["q9: I [mV]", "q9: Q [mV]"])
+        self.assertEqual(figure._suptitle.get_text(), "Rabi chevron: I and Q quadratures")
+
     @staticmethod
     def _make_chevron_dataset():
         coords = {
@@ -143,6 +158,7 @@ class RabiStateDiscriminationTests(unittest.TestCase):
             {
                 "state": (("qubit", "detuning", "pulse_duration"), np.zeros(shape)),
                 "I": (("qubit", "detuning", "pulse_duration"), np.ones(shape) * 1e-3),
+                "Q": (("qubit", "detuning", "pulse_duration"), np.ones(shape) * 2e-3),
             },
             coords=coords,
         ).assign_coords(full_freq=(("qubit", "detuning"), [[4.349e9, 4.35e9, 4.351e9]]))

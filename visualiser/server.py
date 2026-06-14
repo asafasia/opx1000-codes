@@ -33,6 +33,7 @@ PREVIEW_LIMIT = 128_000
 MAX_FILES = 600
 MAX_PLOT_POINTS = 5000
 MAX_PLOT_TRACES = 32
+MAX_HEATMAP_AXIS = 400
 
 
 def safe_iterdir(path: Path) -> tuple[list[Path], str | None]:
@@ -323,6 +324,18 @@ def _downsample(values: np.ndarray, indices: np.ndarray) -> list[float | None]:
     return [_json_number(value) for value in values.reshape(-1)[indices]]
 
 
+def _matching_numeric_sweep(
+    sweeps: dict[str, np.ndarray], size: int, excluded: set[str] | None = None
+) -> tuple[str, np.ndarray] | None:
+    excluded = excluded or set()
+    for name, sweep in sweeps.items():
+        if name in excluded or name == "qubit" or not np.issubdtype(sweep.dtype, np.number):
+            continue
+        if sweep.ndim == 1 and sweep.size == size:
+            return name, sweep.astype(float)
+    return None
+
+
 def npz_plot_data(raw_path: str) -> dict[str, Any]:
     path = resolve_project_path(raw_path)
     if not path.is_dir():
@@ -345,12 +358,9 @@ def npz_plot_data(raw_path: str) -> dict[str, Any]:
         point_count = int(array.shape[-1])
         x_name = "index"
         x_values = np.arange(point_count, dtype=float)
-        for sweep_name, sweep in sweeps.items():
-            if sweep_name == "qubit" or not np.issubdtype(sweep.dtype, np.number):
-                continue
-            if sweep.ndim == 1 and sweep.size == point_count:
-                x_name, x_values = sweep_name, sweep.astype(float)
-                break
+        x_sweep = _matching_numeric_sweep(sweeps, point_count)
+        if x_sweep:
+            x_name, x_values = x_sweep
         sample_indices = np.linspace(
             0, point_count - 1, min(point_count, MAX_PLOT_POINTS), dtype=int
         )
@@ -370,17 +380,47 @@ def npz_plot_data(raw_path: str) -> dict[str, Any]:
                     "y": _downsample(values, sample_indices),
                 }
             )
-        plot_results.append(
-            {
-                "name": result_name,
-                "shape": list(array.shape),
-                "x_name": x_name,
-                "x": _downsample(x_values, sample_indices),
-                "traces": traces,
-                "truncated_traces": len(trace_indices) > MAX_PLOT_TRACES,
-                "downsampled": point_count > MAX_PLOT_POINTS,
-            }
-        )
+        result_record = {
+            "name": result_name,
+            "shape": list(array.shape),
+            "x_name": x_name,
+            "x": _downsample(x_values, sample_indices),
+            "traces": traces,
+            "truncated_traces": len(trace_indices) > MAX_PLOT_TRACES,
+            "downsampled": point_count > MAX_PLOT_POINTS,
+            "heatmaps": [],
+        }
+        if array.ndim >= 2:
+            y_size, x_size = int(array.shape[-2]), int(array.shape[-1])
+            y_sweep = _matching_numeric_sweep(sweeps, y_size, {x_name})
+            x_sweep_2d = _matching_numeric_sweep(sweeps, x_size, {y_sweep[0]} if y_sweep else set())
+            if y_sweep and x_sweep_2d:
+                y_name, y_values = y_sweep
+                heat_x_name, heat_x_values = x_sweep_2d
+                x_indices = np.linspace(0, x_size - 1, min(x_size, MAX_HEATMAP_AXIS), dtype=int)
+                y_indices = np.linspace(0, y_size - 1, min(y_size, MAX_HEATMAP_AXIS), dtype=int)
+                leading_shape_2d = array.shape[:-2]
+                heatmap_indices = list(np.ndindex(leading_shape_2d)) if leading_shape_2d else [()]
+                for index in heatmap_indices[:MAX_PLOT_TRACES]:
+                    matrix = np.asarray(array[index] if index else array)
+                    matrix = np.abs(matrix) if np.iscomplexobj(matrix) else matrix.astype(float)
+                    label = qubits[index[0]] if index and qubits and index[0] < len(qubits) else (
+                        "slice " + ",".join(map(str, index)) if index else result_name
+                    )
+                    result_record["heatmaps"].append(
+                        {
+                            "label": label,
+                            "x_name": heat_x_name,
+                            "y_name": y_name,
+                            "x": _downsample(heat_x_values, x_indices),
+                            "y": _downsample(y_values, y_indices),
+                            "z": [
+                                [_json_number(value) for value in matrix[row_index, x_indices]]
+                                for row_index in y_indices
+                            ],
+                        }
+                    )
+        plot_results.append(result_record)
     return {
         "path": relative(path),
         "results": plot_results,
@@ -397,12 +437,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, directory=str(APP_ROOT / "static"), **kwargs)
 
+    def end_headers(self) -> None:
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def send_json(self, payload: Any, status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 

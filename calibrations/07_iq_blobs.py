@@ -70,7 +70,7 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     execution in the Python IDE.
     """
     node.parameters.reset_type = "active"
-    node.parameters.operation
+    node.parameters.qubit_operation = "saturation"
 
     # You can get type hinting in your IDE by typing node.parameters.
     # node.parameters.qubits = ["q10"]
@@ -118,8 +118,8 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
             with for_(n, 0, n < n_runs, n + 1):
                 save(n, n_st)
                 for qubit in multiplexed_qubits.values():
-                    # qubit.resonator.wait(15000)
-                    qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                    qubit.resonator.wait(15000)
+                    # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
                 align()
                 for i, qubit in multiplexed_qubits.items():
                     qubit.resonator.measure(operation, qua_vars=(I_g[i], Q_g[i]))
@@ -131,8 +131,8 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
             with for_(n, 0, n < n_runs, n + 1):
                 for qubit in multiplexed_qubits.values():
-                    # qubit.resonator.wait(15000)
-                    qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                    qubit.resonator.wait(15000)
+                    # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
                 align()
 
                 for qubit in multiplexed_qubits.values():
