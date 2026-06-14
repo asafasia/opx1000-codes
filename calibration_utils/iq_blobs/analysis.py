@@ -59,12 +59,12 @@ def _empty_kde_region():
 
 
 def _add_kde_regions(ds_fit: xr.Dataset, qubits) -> xr.Dataset:
-    """Add ground/prepared 95% KDE regions to the fitted IQ dataset."""
+    """Add ground/prepared 95% KDE regions in the acquired IQ coordinates."""
     results = []
     for qubit in qubits:
         selected = ds_fit.sel(qubit=qubit.name)
-        ground = _kde_density_region(selected.Ig_rot, selected.Qg_rot)
-        prepared = _kde_density_region(selected.Ie_rot, selected.Qe_rot)
+        ground = _kde_density_region(selected.Ig, selected.Qg)
+        prepared = _kde_density_region(selected.Ie, selected.Qe)
         if ground is None:
             ground = _empty_kde_region()
         if prepared is None:

@@ -50,10 +50,12 @@ node.machine = create_machine()
 @node.run_action(skip_if=node.modes.external)
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow local debugging parameter overrides."""
-    node.parameters.reset_type = "active"
+    # node.parameters.reset_type = "active"
     # node.parameters.qubits = ["q9"]
     # node.parameters.simulate = True
     # node.parameters.samples = 1000
+    # node.parameters.qubit_operation = 'x180_const'
+    node.parameters.qubit_operation = 'saturation'
 
 
 def make_state_program(
@@ -91,7 +93,8 @@ def make_state_program(
                 save(n, n_st)
                 for qubit in multiplexed_qubits.values():
                     # qubit.resonator.wait(15000)  # 300 µs
-                    qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                    # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                    pass
                 align()
 
                 if state == "e":
@@ -111,8 +114,8 @@ def make_state_program(
                     qubit.resonator.measure(operation, qua_vars=(I[i], Q[i]))
                     save(I[i], I_st[i])
                     save(Q[i], Q_st[i])
-                    qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
-                    # qubit.resonator.wait(200*u.us)  # 300 µs, to ensure the resonator is depleted before the next shot, even if the qubit is in |e> and T1 is long.
+                    # qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
+                    qubit.resonator.wait(15000)  # 300 µs, to ensure the resonator is depleted before the next shot, even if the qubit is in |e> and T1 is long.
                 align()
 
         with stream_processing():

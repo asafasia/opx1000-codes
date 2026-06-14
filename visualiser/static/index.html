@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Data Review Dashboard</title>
+  <link rel="icon" type="image/png" href="Q.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img class="brand-logo" src="grouplogo.png" alt="Macroscopic Quantum Coherence Lab">
+      <p class="eyebrow">OPX1000 / EXPERIMENT ARCHIVE</p>
+      <h1>Data Review Dashboard</h1>
+    </div>
+    <div class="top-actions">
+      <span class="status-dot"></span><span id="statusText">Connecting</span>
+      <button id="refreshButton" class="icon-button" title="Refresh live data">R</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <aside class="sidebar">
+      <section class="control-section">
+        <label class="section-label" for="dateSelect">Date Selection</label>
+        <select id="dateSelect"><option>Loading dates...</option></select>
+      </section>
+      <section class="control-section">
+        <label class="section-label">Calibration</label>
+        <div id="calibrationNav" class="side-tabs"></div>
+      </section>
+      <section id="qubitSection" class="control-section hidden">
+        <label class="section-label">Qubit</label>
+        <div id="qubitNav" class="side-tabs compact"></div>
+      </section>
+      <section class="control-section">
+        <label class="section-label" for="searchInput">Runs</label>
+        <div class="search-wrap"><span>/</span><input id="searchInput" placeholder="Search name, type, path..."></div>
+        <div class="list-meta"><span id="resultCount">0 experiments</span><span id="dateBadge"></span></div>
+      </section>
+      <div id="experimentList" class="experiment-list"></div>
+    </aside>
+
+    <section class="workspace">
+      <div id="emptyState" class="empty-state">
+        <div class="empty-mark">DATA</div>
+        <h2>Select an experiment</h2>
+        <p>Choose a date, then select a run to inspect metadata, figures, tables, and calibration assets.</p>
+      </div>
+      <div id="detailView" class="detail-view hidden">
+        <section class="hero">
+          <div>
+            <div class="hero-tags"><span id="kindTag" class="tag"></span><span id="dateTag" class="tag subtle"></span></div>
+            <h2 id="experimentName"></h2>
+            <p id="experimentPath" class="mono"></p>
+          </div>
+          <div class="hero-stat"><span>RUN TIME</span><strong id="runTime"></strong></div>
+        </section>
+        <nav class="tabs">
+          <button class="tab" data-tab="overview">Overview</button>
+          <button class="tab active" data-tab="figures">Figures <span id="figureCount"></span></button>
+          <button class="tab" data-tab="interactive">Interactive Plot</button>
+          <button class="tab" data-tab="data">Data</button>
+          <button class="tab" data-tab="calibrations">Calibrations</button>
+        </nav>
+        <div id="errorPanel" class="error-panel hidden"></div>
+        <div id="tabContent"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="lightbox" class="lightbox hidden">
+    <div class="lightbox-bar"><span id="lightboxName"></span><span>Scroll to zoom | drag to pan</span><button id="closeLightbox">X</button></div>
+    <div id="lightboxStage" class="lightbox-stage"><img id="lightboxImage" alt=""></div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

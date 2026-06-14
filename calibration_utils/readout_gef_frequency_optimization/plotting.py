@@ -9,6 +9,8 @@ from qualang_tools.units import unit
 from qualibration_libs.plotting import QubitGrid, grid_iter
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 
+from utils.plotting_settings import FIGURE_SIZE
+
 u = unit(coerce_to_integer=True)
 
 
@@ -40,7 +42,7 @@ def plot_distances_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.
         plot_individual_distance_with_fit(ax, ds, qubit, fits.sel(qubit=qubit["qubit"]))
 
     grid.fig.suptitle("Readout frequency optimization (distance)")
-    grid.fig.set_size_inches(15, 9)
+    grid.fig.set_size_inches(*FIGURE_SIZE)
     grid.fig.tight_layout()
     return grid.fig
 

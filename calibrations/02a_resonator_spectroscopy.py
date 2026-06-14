@@ -70,7 +70,7 @@ node.machine = create_machine()
 node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
 
 node.machine.qmm.close_all_qms()
-
+    
 
 # %% {Create_QUA_program}
 @node.run_action(skip_if=node.parameters.load_data_id is not None)

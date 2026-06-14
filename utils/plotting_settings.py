@@ -3,7 +3,7 @@
 from datetime import datetime
 
 
-FIGURE_SIZE = (15, 9)
+FIGURE_SIZE = (13, 8)
 CALIBRATION_TIMESTAMP_GID = "calibration_timestamp"
 
 

@@ -70,6 +70,26 @@ class IQBlobsAnalysisTests(unittest.TestCase):
             self.assertTrue(np.isfinite(level))
             self.assertAlmostEqual(fraction, 0.95, delta=0.01)
 
+    def test_kde_regions_use_acquired_iq_coordinates(self):
+        rng = np.random.default_rng(8)
+        runs = 500
+        ds = xr.Dataset(
+            {
+                "Ig": (("qubit", "n_runs"), rng.normal(-4e-5, 3e-6, (1, runs))),
+                "Qg": (("qubit", "n_runs"), rng.normal(-4e-5, 3e-6, (1, runs))),
+                "Ie": (("qubit", "n_runs"), rng.normal(4e-5, 3e-6, (1, runs))),
+                "Qe": (("qubit", "n_runs"), rng.normal(4e-5, 3e-6, (1, runs))),
+            },
+            coords={"qubit": ["q1"], "n_runs": np.arange(runs)},
+        )
+
+        fit, _ = fit_raw_data(ds, self.make_node())
+
+        ground_i_grid = fit.ground_kde_I.sel(qubit="q1").values
+        ground_q_grid = fit.ground_kde_Q.sel(qubit="q1").values
+        self.assertLess(np.nanmean(ground_i_grid), 0)
+        self.assertLess(np.nanmean(ground_q_grid), 0)
+
     def test_degenerate_blob_does_not_break_kde_analysis(self):
         runs = 100
         ds = xr.Dataset(

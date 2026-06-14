@@ -67,6 +67,7 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow the user to locally set the node parameters for debugging purposes, or execution in the Python IDE."""
     # You can get type hinting in your IDE by typing node.parameters.
     node.parameters.use_state_discrimination = False
+    
     pass
 
 
@@ -167,7 +168,8 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                             save(I[i], I_st[i])
                             save(Q[i], Q_st[i])
                         # Return the qubit to the ground state before the next shot.
-                        qubit.reset_qubit_thermal()
+                        # qubit.reset_qubit_thermal()
+                        qubit.wait(15000)
                     align()
 
         with stream_processing():

@@ -14,7 +14,7 @@ u = unit(coerce_to_integer=True)
 
 
 def plot_iq_blobs_dashboard(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset) -> Figure:
-    """Plot IQ clouds, rotated-I histograms, and confusion matrices together."""
+    """Plot acquired IQ clouds, rotated-I histograms, and confusion matrices."""
     fig = plt.figure(figsize=FIGURE_SIZE)
     outer_grid = fig.add_gridspec(
         len(qubits),
@@ -43,8 +43,9 @@ def plot_iq_blobs_dashboard(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.
 
         status = "PASS" if bool(fit.success.values) else "FAIL"
         iq_ax.set_title(
-            f"{qubit.name}: IQ clouds ({status})\n"
-            f"separation/width={float(fit.separation_to_width.values):.2f}"
+            f"{qubit.name}: acquired IQ clouds ({status})\n"
+            f"separation/width={float(fit.separation_to_width.values):.2f}, "
+            f"fitted rotation={np.degrees(float(fit.iw_angle.values)):.1f} deg"
         )
         matrix_ax.set_title(f"{qubit.name}: confusion matrix")
         histogram_ax.set_title(
@@ -88,7 +89,7 @@ def plot_iq_blobs(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
     leg = grid.fig.legend(handles, labels, loc="lower center", ncol=2)
     leg.legend_handles[0].set_markersize(6)
     leg.legend_handles[1].set_markersize(6)
-    grid.fig.suptitle("g.s. and e.s. discriminators (rotated)")
+    grid.fig.suptitle("g.s. and e.s. discriminators (acquired IQ coordinates)")
     grid.fig.set_size_inches(*FIGURE_SIZE)
     grid.fig.tight_layout()
     return grid.fig
@@ -114,24 +115,18 @@ def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fi
     - If the fit dataset is provided, the fitted curve is plotted along with the raw data.
     """
 
-    ax.plot(1e3 * fit.Ig_rot, 1e3 * fit.Qg_rot, ".", alpha=0.5, label="Ground", markersize=2)
+    raw = ds.sel(qubit=qubit["qubit"])
+    ax.plot(1e3 * raw.Ig, 1e3 * raw.Qg, ".", alpha=0.5, label="Ground", markersize=2)
     ax.plot(
-        1e3 * fit.Ie_rot,
-        1e3 * fit.Qe_rot,
+        1e3 * raw.Ie,
+        1e3 * raw.Qe,
         ".",
         alpha=1,
         label="Prepared",
         markersize=2,
     )
-    g_center = (float(fit.Ig_rot.mean()) * 1e3, float(fit.Qg_rot.mean()) * 1e3)
-    e_center = (float(fit.Ie_rot.mean()) * 1e3, float(fit.Qe_rot.mean()) * 1e3)
-    ax.axvline(
-        1e3 * fit.rus_threshold,
-        color="k",
-        linestyle="--",
-        lw=0.5,
-        label="RUS Threshold",
-    )
+    g_center = (float(raw.Ig.mean()) * 1e3, float(raw.Qg.mean()) * 1e3)
+    e_center = (float(raw.Ie.mean()) * 1e3, float(raw.Qe.mean()) * 1e3)
     ax.plot(*g_center, "ko", markersize=6, label="Ground center")
     ax.plot(*e_center, "ro", markersize=6, label="Prepared center")
     for state_name, color, label in (
@@ -151,12 +146,33 @@ def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fi
         )
         ax.plot([], [], color=color, linewidth=1.5, label=label)
 
-    ax.axvline(1e3 * fit.ge_threshold, color="r", linestyle="--", lw=0.5, label="Threshold")
+    _plot_raw_threshold(ax, fit.rus_threshold, fit.iw_angle, color="k", label="RUS Threshold")
+    _plot_raw_threshold(ax, fit.ge_threshold, fit.iw_angle, color="r", label="Threshold")
     ax.axis("equal")
     ax.set_xlabel("I [mV]")
     ax.set_ylabel("Q [mV]")
-    ax.set_title(qubit["qubit"])
+    ax.set_title(f"{qubit['qubit']}\nFitted rotation={np.degrees(float(fit.iw_angle)):.1f} deg")
     ax.legend(fontsize="small")
+
+
+def _plot_raw_threshold(ax: Axes, threshold, angle, color: str, label: str):
+    """Draw an I-rotated threshold in the acquired IQ coordinate system."""
+    threshold_mv = 1e3 * float(threshold)
+    angle = float(angle)
+    cosine = np.cos(angle)
+    sine = np.sin(angle)
+    i_limits = ax.get_xlim()
+    q_limits = ax.get_ylim()
+
+    if abs(sine) < 1e-12:
+        ax.axvline(threshold_mv / cosine, color=color, linestyle="--", lw=0.5, label=label)
+        return
+
+    i_values = np.asarray(i_limits)
+    q_values = (cosine * i_values - threshold_mv) / sine
+    ax.plot(i_values, q_values, color=color, linestyle="--", lw=0.5, label=label)
+    ax.set_xlim(i_limits)
+    ax.set_ylim(q_limits)
 
 
 def plot_historams(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
