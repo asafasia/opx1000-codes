@@ -12,6 +12,7 @@ from qualang_tools.results import progress_counter
 from qualibrate import QualibrationNode
 from quam_config import Quam
 from saver import CalibrationSaver, current_profile_name
+from utils.plotting_settings import plot_per_qubit
 from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.parameters import get_qubits, get_idle_times_in_clock_cycles
 from utils.simulation import simulate_and_plot
@@ -226,14 +227,15 @@ def analyse_data(node: QualibrationNode[Parameters, Quam]):
 @node.run_action(skip_if=node.parameters.simulate)
 def plot_data(node: QualibrationNode[Parameters, Quam]):
     """Plot the raw and fitted data in a specific figure whose shape is given by qubit.grid_location."""
-    fig = plot_raw_data_with_fit(
+    figures = plot_per_qubit(
+        plot_raw_data_with_fit,
         node.results["ds_raw"],
         node.namespace["qubits"],
         node.results["ds_fit"],
+        figure_name="raw_fit",
     )
     plt.show()
-    # Store the generated figures
-    node.results["figures"] = {"raw_fit": fig}
+    node.results["figures"] = figures
     if "calibration_run_directory" in node.namespace:
         figures_directory = CalibrationSaver().save_figures(
             node.namespace["calibration_run_directory"],

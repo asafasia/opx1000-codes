@@ -16,6 +16,7 @@ from utils.simulation import simulate_and_plot
 from calibration_utils.pi_train import Parameters, plot_pi_train, process_raw_dataset
 from quam_config import Quam, create_machine
 from saver import CalibrationSaver, current_profile_name
+from utils.plotting_settings import plot_per_qubit
 
 
 description = """
@@ -203,14 +204,16 @@ def analyse_data(node: QualibrationNode[Parameters, Quam]):
 # %% {Plot_data}
 @node.run_action(skip_if=node.parameters.simulate)
 def plot_data(node: QualibrationNode[Parameters, Quam]):
-    figure = plot_pi_train(
+    figures = plot_per_qubit(
+        plot_pi_train,
         node.results["ds_raw"],
         node.namespace["qubits"],
         node.parameters.use_state_discrimination,
         node.parameters.operation,
+        figure_name="pi_train",
     )
     plt.show()
-    node.results["figures"] = {"pi_train": figure}
+    node.results["figures"] = figures
     if "calibration_run_directory" in node.namespace:
         figures_directory = CalibrationSaver().save_figures(
             node.namespace["calibration_run_directory"],

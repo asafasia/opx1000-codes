@@ -14,6 +14,7 @@ from qualang_tools.units import unit
 from qualibrate import QualibrationNode
 from quam_config import Quam, create_machine
 from saver import CalibrationSaver, current_profile_name
+from utils.plotting_settings import plot_per_qubit
 from calibration_utils.readout_power_optimization import (
     Parameters,
     process_raw_dataset,
@@ -221,18 +222,33 @@ def analyse_data(node: QualibrationNode[Parameters, Quam]):
 @node.run_action(skip_if=node.parameters.simulate)
 def plot_data(node: QualibrationNode[Parameters, Quam]):
     """Plot the raw and fitted data in specific figures whose shape is given by qubit.grid_location."""
-    fig_raw_fit = plot_raw_data_with_fit(node.results["ds_raw"], node.namespace["qubits"], node.results["ds_fit"])
-    fig_iq = plot_iq_blobs(node.results["ds_raw"], node.namespace["qubits"], node.results["ds_iq_blobs"])
-    fig_confusion = plot_confusion_matrices(
-        node.results["ds_raw"], node.namespace["qubits"], node.results["ds_iq_blobs"]
+    figures = plot_per_qubit(
+        plot_raw_data_with_fit,
+        node.results["ds_raw"],
+        node.namespace["qubits"],
+        node.results["ds_fit"],
+        figure_name="amplitude",
+    )
+    figures.update(
+        plot_per_qubit(
+            plot_iq_blobs,
+            node.results["ds_raw"],
+            node.namespace["qubits"],
+            node.results["ds_iq_blobs"],
+            figure_name="iq_blobs",
+        )
+    )
+    figures.update(
+        plot_per_qubit(
+            plot_confusion_matrices,
+            node.results["ds_raw"],
+            node.namespace["qubits"],
+            node.results["ds_iq_blobs"],
+            figure_name="confusion_matrix",
+        )
     )
     plt.show()
-    # Store the generated figures
-    node.results["figures"] = {
-        "amplitude": fig_raw_fit,
-        "iq_blobs": fig_iq,
-        "confusion_matrix": fig_confusion,
-    }
+    node.results["figures"] = figures
     if "calibration_run_directory" in node.namespace:
         figures_directory = CalibrationSaver().save_figures(
             node.namespace["calibration_run_directory"],

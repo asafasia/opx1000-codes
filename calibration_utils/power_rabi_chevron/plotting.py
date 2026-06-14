@@ -5,7 +5,7 @@ from qualang_tools.units import unit
 from qualibration_libs.plotting import QubitGrid, grid_iter
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 
-from utils.plotting_settings import FIGURE_SIZE
+from utils.plotting_settings import FIGURE_SIZE, qubit_grid_locations
 
 
 u = unit(coerce_to_integer=True)
@@ -25,7 +25,7 @@ def plot_raw_data(
             f"but dataset contains {list(ds.data_vars)}"
         )
 
-    grid = QubitGrid(ds, [qubit.grid_location for qubit in qubits])
+    grid = QubitGrid(ds, qubit_grid_locations(qubits))
     for ax, qubit_ref in grid_iter(grid):
         selected = ds.sel(qubit=qubit_ref["qubit"]).assign_coords(
             full_freq_GHz=ds.sel(qubit=qubit_ref["qubit"]).full_freq / u.GHz,

@@ -23,6 +23,7 @@ from calibration_utils.power_rabi import (
     plot_raw_data_with_fit,
 )
 from saver import CalibrationSaver, current_profile_name
+from utils.plotting_settings import plot_per_qubit
 from updater import ProfileUpdater
 from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
@@ -68,12 +69,12 @@ node.machine.qmm.close_all_qms()
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow the user to locally set the node parameters for debugging purposes, or execution in the Python IDE."""
     # You can get type hinting in your IDE by typing node.parameters.
-    node.parameters.use_state_discrimination = True
+    node.parameters.use_state_discrimination = False
     node.parameters.num_shots = 500
     # node.parameters.qubits = ["q9"]
     # node.parameters.max_number_pulses_per_sweep = 100
     node.parameters.pi_repetitions = 4
-    node.parameters.operation = "x180_drag"
+    # node.parameters.operation = "x180_drag"
     # node.parameters.min_amp_factor = 0.8
     # node.parameters.max_amp_factor = 1.2
     # node.parameters.amp_factor_step = 0.01
@@ -146,7 +147,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                     with for_(*from_array(a, amps)):
                         # Qubit initialization
                         for i, qubit in multiplexed_qubits.items():
-                            pass
+                            # pass
                             qubit.reset('active', node.parameters.simulate)
                             # qubit.reset_qubit_thermal()
                             # qubit.wait(16000)  # Wait for the qubit to relax to the ground state before starting the sequence
@@ -281,17 +282,16 @@ def analyse_data(node: QualibrationNode[Parameters, Quam]):
 @node.run_action(skip_if=node.parameters.simulate)
 def plot_data(node: QualibrationNode[Parameters, Quam]):
     """Plot the raw and fitted data in specific figures whose shape is given by qubit.grid_location."""
-    fig_raw_fit = plot_raw_data_with_fit(
+    figures = plot_per_qubit(
+        plot_raw_data_with_fit,
         node.results["ds_raw"],
         node.namespace["qubits"],
         node.results["ds_fit"],
+        figure_name="amplitude",
         use_state_discrimination=node.parameters.use_state_discrimination,
     )
     plt.show()
-    # Store the generated figures
-    node.results["figures"] = {
-        "amplitude": fig_raw_fit,
-    }
+    node.results["figures"] = figures
     if "calibration_run_directory" in node.namespace:
         figures_directory = CalibrationSaver().save_figures(
             node.namespace["calibration_run_directory"],

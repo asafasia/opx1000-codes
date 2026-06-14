@@ -15,6 +15,7 @@ from qualibration_libs.parameters import get_qubits
 from calibration_utils.power_rabi_chevron import Parameters, plot_raw_data, process_raw_dataset
 from quam_config import Quam, create_machine
 from saver import CalibrationSaver, current_profile_name
+from utils.plotting_settings import plot_per_qubit
 from utils.simulation import simulate_and_plot
 
 
@@ -40,7 +41,8 @@ node = QualibrationNode[Parameters, Quam](
 @node.run_action(skip_if=node.modes.external)
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow local parameter overrides when running this file directly."""
-    pass
+    node.parameters.operation = 'saturation'
+
 
 
 def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> None:
@@ -114,11 +116,11 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                     with for_(*from_array(a, amps)):
                         for qubit in multiplexed_qubits.values():
                             qubit.xy.update_frequency(qubit.xy.intermediate_frequency)
-                            qubit.reset(
-                                node.parameters.reset_type,
-                                node.parameters.simulate,
-                                log_callable=node.log,
-                            )
+                            # qubit.reset(
+                            #     node.parameters.reset_type,
+                            #     node.parameters.simulate,
+                            #     log_callable=node.log,
+                            # )
                             qubit.xy.update_frequency(qubit.xy.intermediate_frequency + df)
                         align()
 
@@ -134,6 +136,8 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                                 qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
                                 save(I[i], I_st[i])
                                 save(Q[i], Q_st[i])
+                                qubit.wait(15000)  # 15 µs, to ensure the qubit is in |g> before the next shot, even if T1 is long.
+
                         align()
 
         with stream_processing():
@@ -208,12 +212,14 @@ def analyse_data(node: QualibrationNode[Parameters, Quam]):
 
 @node.run_action(skip_if=node.parameters.simulate)
 def plot_data(node: QualibrationNode[Parameters, Quam]):
-    figure = plot_raw_data(
+    figures = plot_per_qubit(
+        plot_raw_data,
         node.results["ds_raw"],
         node.namespace["qubits"],
+        figure_name="power_rabi_chevron",
         use_state_discrimination=node.parameters.use_state_discrimination,
     )
-    node.results["figures"] = {"power_rabi_chevron": figure}
+    node.results["figures"] = figures
     if "calibration_run_directory" in node.namespace:
         figures_directory = CalibrationSaver().save_figures(
             node.namespace["calibration_run_directory"],

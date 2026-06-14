@@ -106,9 +106,10 @@ python -m quam_config.wiring_lffem_mwfem --profile main --no-plot
 ```
 
 The wiring builder uses the profile's network settings, MW-FEM inventory,
-active qubits, exact XY ports, and shared resonator feedlines. Importing the
-module does not write configuration files; generation happens only when the
-module is run.
+all configured qubits, exact XY ports, and shared resonator feedlines.
+`active_qubits` controls which qubits calibrations select by default, without
+removing inactive qubits from the physical wiring. Importing the module does
+not write configuration files; generation happens only when the module is run.
 
 ## Recommended Workflow
 

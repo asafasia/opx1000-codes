@@ -7,7 +7,7 @@ from qualang_tools.units import unit
 from qualibration_libs.plotting import QubitGrid, grid_iter
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 
-from utils.plotting_settings import FIGURE_SIZE
+from utils.plotting_settings import FIGURE_SIZE, qubit_grid_locations
 
 u = unit(coerce_to_integer=True)
 
@@ -35,7 +35,7 @@ def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.D
     - The function creates a grid of subplots, one for each qubit.
     - Each subplot contains the raw data and the fitted curve.
     """
-    grid = QubitGrid(ds, [q.grid_location for q in qubits])
+    grid = QubitGrid(ds, qubit_grid_locations(qubits))
     for ax, qubit in grid_iter(grid):
         plot_individual_data_with_fit(ax, ds, qubit, fits.sel(qubit=qubit["qubit"]))
 

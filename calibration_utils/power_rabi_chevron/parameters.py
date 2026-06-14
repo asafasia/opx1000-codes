@@ -10,15 +10,15 @@ class NodeSpecificParameters(RunnableParameters):
 
     num_shots: int = 30
     """Number of averages."""
-    operation: Literal["x180", "x180_drag", "x180_cosine", "x90", "-x90", "y90", "-y90"] = "x180"
+    operation: Literal["saturation", "x180", "x180_drag", "x180_cosine", "x90", "-x90", "y90", "-y90"] = "x180"
     """Fixed-duration qubit operation whose amplitude is swept."""
     min_amp_factor: float = 0.0
     """Minimum operation-amplitude prefactor."""
-    max_amp_factor: float = 1.5
+    max_amp_factor: float = 2
     """Exclusive maximum operation-amplitude prefactor."""
     amp_factor_step: float = 0.03
     """Operation-amplitude prefactor step."""
-    frequency_span_in_mhz: float = 300
+    frequency_span_in_mhz: float = 850
     """Total qubit-frequency span in MHz."""
     frequency_step_in_mhz: float = 2
     """Qubit-frequency step in MHz."""

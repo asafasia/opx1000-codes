@@ -14,6 +14,7 @@ from qualang_tools.units import unit
 from qualibrate import QualibrationNode
 from quam_config import Quam, create_machine
 from saver import CalibrationSaver, current_profile_name
+from utils.plotting_settings import plot_per_qubit
 from updater import ProfileUpdater
 from calibration_utils.readout_frequency_optimization import (
     Parameters,
@@ -234,14 +235,24 @@ def analyse_data(node: QualibrationNode[Parameters, Quam]):
 @node.run_action(skip_if=node.parameters.simulate)
 def plot_data(node: QualibrationNode[Parameters, Quam]):
     """Plot the raw and fitted data in specific figures whose shape is given by qubit.grid_location."""
-    fig_distances = plot_distances_with_fit(node.results["ds_raw"], node.namespace["qubits"], node.results["ds_fit"])
-    fig_iq_abs = plot_IQ_abs_with_fit(node.results["ds_raw"], node.namespace["qubits"], node.results["ds_fit"])
+    figures = plot_per_qubit(
+        plot_distances_with_fit,
+        node.results["ds_raw"],
+        node.namespace["qubits"],
+        node.results["ds_fit"],
+        figure_name="distances",
+    )
+    figures.update(
+        plot_per_qubit(
+            plot_IQ_abs_with_fit,
+            node.results["ds_raw"],
+            node.namespace["qubits"],
+            node.results["ds_fit"],
+            figure_name="iq_abs",
+        )
+    )
     plt.show()
-    # Store the generated figures
-    node.results["figures"] = {
-        "distances": fig_distances,
-        "iq_abs": fig_iq_abs,
-    }
+    node.results["figures"] = figures
     if "calibration_run_directory" in node.namespace:
         figures_directory = CalibrationSaver().save_figures(
             node.namespace["calibration_run_directory"],

@@ -14,6 +14,7 @@ from qualang_tools.units import unit
 from qualibrate import QualibrationNode
 from quam_config import Quam
 from saver import CalibrationSaver, current_profile_name
+from utils.plotting_settings import plot_per_qubit
 from calibration_utils.rabi_chevron import (
     Parameters,
     process_raw_dataset,
@@ -259,17 +260,16 @@ def analyse_data(node: QualibrationNode[Parameters, Quam]):
 @node.run_action(skip_if=node.parameters.simulate)
 def plot_data(node: QualibrationNode[Parameters, Quam]):
     """Plot the raw and fitted data in specific figures whose shape is given by qubit.grid_location."""
-    fig_raw_fit = plot_raw_data_with_fit(
+    figures = plot_per_qubit(
+        plot_raw_data_with_fit,
         node.results["ds_raw"],
         node.namespace["qubits"],
         node.results["ds_fit"],
+        figure_name="amplitude",
         use_state_discrimination=node.parameters.use_state_discrimination,
     )
     plt.show()
-    # Store the generated figures
-    node.results["figures"] = {
-        "amplitude": fig_raw_fit,
-    }
+    node.results["figures"] = figures
     if "calibration_run_directory" in node.namespace:
         figures_directory = CalibrationSaver().save_figures(
             node.namespace["calibration_run_directory"],

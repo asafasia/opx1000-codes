@@ -15,6 +15,7 @@ MW_FEM_BAND_RANGES_HZ = {
     3: (6.5e9, 10.5e9),
 }
 MW_FEM_SHARED_LO_OUTPUT_PAIRS = ((2, 3), (4, 5), (6, 7), (8, 9), (10, 11))
+MW_FEM_MAX_IF_HZ = 500e6
 
 
 class ProfileError(ValueError):
@@ -171,13 +172,13 @@ def _validate_connectivity(connectivity: dict[str, Any], qubits_document: dict[s
             f"Qubit {qubit_name!r} resonator input and output LOs do not match",
         )
         _require(
-            abs(frequencies["qubit_f01"] - xy_output["lo_frequency_hz"]) <= 400e6,
-            f"Qubit {qubit_name!r} qubit IF exceeds 400 MHz: "
+            abs(frequencies["qubit_f01"] - xy_output["lo_frequency_hz"]) <= MW_FEM_MAX_IF_HZ,
+            f"Qubit {qubit_name!r} qubit IF exceeds {MW_FEM_MAX_IF_HZ / 1e6:g} MHz: "
             f"RF={frequencies['qubit_f01']} Hz, connectivity XY LO={xy_output['lo_frequency_hz']} Hz",
         )
         _require(
-            abs(frequencies["resonator"] - resonator_output["lo_frequency_hz"]) <= 400e6,
-            f"Qubit {qubit_name!r} resonator IF exceeds 400 MHz: "
+            abs(frequencies["resonator"] - resonator_output["lo_frequency_hz"]) <= MW_FEM_MAX_IF_HZ,
+            f"Qubit {qubit_name!r} resonator IF exceeds {MW_FEM_MAX_IF_HZ / 1e6:g} MHz: "
             f"RF={frequencies['resonator']} Hz, connectivity output LO={resonator_output['lo_frequency_hz']} Hz",
         )
 

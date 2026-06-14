@@ -109,7 +109,7 @@ def create_profile_connectivity(
 ) -> tuple[Connectivity, Instruments]:
     """Create allocated wirer connectivity from an already validated profile."""
     connectivity_profile = profile["connectivity"]
-    active_qubits = profile["manifest"]["active_qubits"]
+    qubit_names = list(profile["qubits"]["qubits"])
     connections = connectivity_profile["connections"]
 
     instruments = Instruments()
@@ -118,7 +118,7 @@ def create_profile_connectivity(
 
     connectivity = Connectivity()
     for (controller, fem, input_port, output_port), qubits in _resonator_lines(
-        connections, active_qubits
+        connections, qubit_names
     ).items():
         connectivity.add_resonator_line(
             qubits=qubits,
@@ -131,7 +131,7 @@ def create_profile_connectivity(
         )
 
     for (controller, fem, output_port), qubits in _xy_lines(
-        connections, active_qubits
+        connections, qubit_names
     ).items():
         constraints = mw_fem_spec(
             con=controller,

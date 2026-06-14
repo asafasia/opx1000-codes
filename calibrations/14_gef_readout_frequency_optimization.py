@@ -23,6 +23,7 @@ from qualibration_libs.runtime import simulate_and_plot
 from quam.components.pulses import SquareReadoutPulse
 from quam_config import Quam
 from saver import CalibrationSaver, current_profile_name
+from utils.plotting_settings import plot_per_qubit
 
 # %% {Description}
 description = """
@@ -299,16 +300,15 @@ def plot_data(node: QualibrationNode[Parameters, Quam]):
     Plot the raw and fitted data in specific figures whose shape is given by
     qubit.grid_location.
     """
-    fig = plot_distances_with_fit(
+    figures = plot_per_qubit(
+        plot_distances_with_fit,
         node.results["ds_raw"],
         node.namespace["qubits"],
         node.results["ds_fit"],
+        figure_name="fitted_distances",
     )
     plt.show()
-    # Store the generated figures
-    node.results["figures"] = {
-        "fitted_distances": fig,
-    }
+    node.results["figures"] = figures
     if "calibration_run_directory" in node.namespace:
         figures_directory = CalibrationSaver().save_figures(
             node.namespace["calibration_run_directory"], node.results["figures"]

@@ -26,7 +26,7 @@ from calibration_utils.iq_blobs import (
 )
 from qualibration_libs.parameters import get_qubits
 from qualibration_libs.data import XarrayDataFetcher
-from utils.plotting_settings import FIGURE_SIZE
+from utils.plotting_settings import FIGURE_SIZE, plot_per_qubit
 from utils.simulation import plot_waveform_report_safely
 
 # %% {Description}
@@ -55,7 +55,8 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     # node.parameters.simulate = True
     # node.parameters.samples = 1000
     # node.parameters.qubit_operation = 'x180_const'
-    node.parameters.qubit_operation = 'saturation'
+    node.parameters.qubit_operation = 'x180'
+    # node.parameters.simulate = True
 
 
 def make_state_program(
@@ -115,7 +116,7 @@ def make_state_program(
                     save(I[i], I_st[i])
                     save(Q[i], Q_st[i])
                     # qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
-                    qubit.resonator.wait(15000)  # 300 µs, to ensure the resonator is depleted before the next shot, even if the qubit is in |e> and T1 is long.
+                    qubit.resonator.wait(75000)  # 300 µs, to ensure the resonator is depleted before the next shot, even if the qubit is in |e> and T1 is long.
                 align()
 
         with stream_processing():
@@ -270,12 +271,14 @@ def analyse_data(node: QualibrationNode[Parameters, Quam]):
 @node.run_action(skip_if=node.parameters.simulate)
 def plot_data(node: QualibrationNode[Parameters, Quam]):
     """Plot the standard combined IQ-blobs dashboard."""
-    dashboard = plot_iq_blobs_dashboard(
+    figures = plot_per_qubit(
+        plot_iq_blobs_dashboard,
         node.results["ds_raw"],
         node.namespace["qubits"],
         node.results["ds_fit"],
+        figure_name="iq_blobs_separate_dashboard",
     )
-    node.results["figures"] = {"iq_blobs_separate_dashboard": dashboard}
+    node.results["figures"] = figures
     plt.show()
     if "calibration_run_directory" in node.namespace:
         figures_directory = CalibrationSaver().save_figures(

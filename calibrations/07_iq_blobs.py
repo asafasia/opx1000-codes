@@ -13,6 +13,7 @@ from qualang_tools.units import unit
 from qualibrate import QualibrationNode
 from quam_config import Quam, create_machine
 from saver import CalibrationSaver, current_profile_name
+from utils.plotting_settings import plot_per_qubit
 from updater import ProfileUpdater
 from calibration_utils.iq_blobs import (
     Parameters,
@@ -258,13 +259,15 @@ def plot_data(node: QualibrationNode[Parameters, Quam]):
     Plot the raw and fitted data in specific figures whose shape is given by
     qubit.grid_location.
     """
-    fig_dashboard = plot_iq_blobs_dashboard(
+    figures = plot_per_qubit(
+        plot_iq_blobs_dashboard,
         node.results["ds_raw"],
         node.namespace["qubits"],
         node.results["ds_fit"],
+        figure_name="iq_blobs_dashboard",
     )
     plt.show()
-    node.results["figures"] = {"iq_blobs_dashboard": fig_dashboard}
+    node.results["figures"] = figures
     if "calibration_run_directory" in node.namespace:
         figures_directory = CalibrationSaver().save_figures(
             node.namespace["calibration_run_directory"],

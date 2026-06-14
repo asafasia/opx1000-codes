@@ -8,7 +8,7 @@ from qualang_tools.units import unit
 from qualibration_libs.plotting import QubitGrid, grid_iter
 from qualibration_libs.analysis import lorentzian_dip
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
-from utils.plotting_settings import FIGURE_SIZE
+from utils.plotting_settings import FIGURE_SIZE, qubit_grid_locations
 
 u = unit(coerce_to_integer=True)
 
@@ -47,7 +47,7 @@ def plot_raw_phase(ds: xr.Dataset, qubits: List[AnyTransmon]) -> Figure:
     - The function creates a grid of subplots, one for each qubit.
     - Each subplot contains two x-axes: one for the full frequency in GHz and one for the detuning in MHz.
     """
-    grid = QubitGrid(ds, [q.grid_location for q in qubits])
+    grid = QubitGrid(ds, qubit_grid_locations(qubits))
     for ax1, qubit in grid_iter(grid):
         selected = ds.assign_coords(full_freq_GHz=ds.full_freq / u.GHz).loc[qubit]
         selected.ground_phase.plot(ax=ax1, x="full_freq_GHz", label="Ground")
@@ -82,7 +82,10 @@ def plot_raw_amplitude(ds: xr.Dataset, qubits: List[AnyTransmon]):
     - The function creates a grid of subplots, one for each qubit.
     - Each subplot contains the raw data and the fitted curve.
     """
-    locations = [tuple(int(value) for value in q.grid_location.split(",")) for q in qubits]
+    locations = [
+        tuple(int(value) for value in location.split(","))
+        for location in qubit_grid_locations(qubits)
+    ]
     rows = max(row for row, _ in locations) + 1
     columns = max(column for _, column in locations) + 1
     height_ratios = [3, 1] * rows
@@ -205,7 +208,7 @@ def plot_individual_amplitude_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str
 
 def plot_iq_response(ds: xr.Dataset, qubits: List[AnyTransmon]) -> Figure:
     """Plot ground and mixed-state resonator trajectories in the IQ plane."""
-    grid = QubitGrid(ds, [q.grid_location for q in qubits])
+    grid = QubitGrid(ds, qubit_grid_locations(qubits))
     for ax, qubit in grid_iter(grid):
         selected = ds.loc[qubit]
         ax.plot(selected.Ig / u.mV, selected.Qg / u.mV, ".-", label="Ground", markersize=3)

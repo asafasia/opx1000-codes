@@ -22,6 +22,7 @@ from calibration_utils.qubit_spectroscopy import (
     plot_raw_data_with_fit,
 )
 from saver import CalibrationSaver, current_profile_name
+from utils.plotting_settings import plot_per_qubit
 from updater import ProfileUpdater
 from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
@@ -67,7 +68,8 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow the user to locally set the node parameters for debugging purposes, or execution in the Python IDE."""
     # You can get type hinting in your IDE by typing node.parameters.
     node.parameters.use_state_discrimination = False
-    
+    node.parameters.num_shots = 300
+    # node.parameters.simulate = True
     pass
 
 
@@ -169,7 +171,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                             save(Q[i], Q_st[i])
                         # Return the qubit to the ground state before the next shot.
                         # qubit.reset_qubit_thermal()
-                        qubit.wait(15000)
+                        qubit.wait(20000)
                     align()
 
         with stream_processing():
@@ -281,20 +283,19 @@ def analyse_data(node: QualibrationNode[Parameters, Quam]):
 @node.run_action(skip_if=node.parameters.simulate)
 def plot_data(node: QualibrationNode[Parameters, Quam]):
     """Plot the raw and fitted data in specific figures whose shape is given by qubit.grid_location."""
-    fig_raw_fit = plot_raw_data_with_fit(
+    figures = plot_per_qubit(
+        plot_raw_data_with_fit,
         node.results["ds_raw"],
         node.namespace["qubits"],
         node.results["ds_fit"],
+        figure_name="amplitude",
         use_state_discrimination=node.parameters.use_state_discrimination,
         operation=node.parameters.operation,
         operation_amplitude_factor=node.parameters.operation_amplitude_factor,
         operation_len_in_ns=node.parameters.operation_len_in_ns,
     )
     plt.show()
-    # Store the generated figures
-    node.results["figures"] = {
-        "amplitude": fig_raw_fit,
-    }
+    node.results["figures"] = figures
     if "calibration_run_directory" in node.namespace:
         figures_directory = CalibrationSaver().save_figures(
             node.namespace["calibration_run_directory"],

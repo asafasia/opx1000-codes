@@ -14,6 +14,7 @@ from qualang_tools.units import unit
 from qualibrate import QualibrationNode
 from quam_config import Quam, create_machine
 from saver import CalibrationSaver, current_profile_name
+from utils.plotting_settings import plot_per_qubit
 from calibration_utils.resonator_spectroscopy_vs_amplitude import (
     Parameters,
     process_raw_dataset,
@@ -60,7 +61,7 @@ node = QualibrationNode[Parameters, Quam](
 
 def select_full_scale_power_dbm(power_in_dbm: float, max_amplitude: float) -> int:
     """Select the lowest QOP 3.2 MW-FEM full-scale power that supports the target power."""
-    allowed_full_scale_powers = np.arange(-11, 17, 3)
+    allowed_full_scale_powers = np.arange(-11, 1, 3)
     compatible_powers = [
         int(full_scale_power)
         for full_scale_power in allowed_full_scale_powers
@@ -255,12 +256,15 @@ def analyse_data(node: QualibrationNode[Parameters, Quam]):
 @node.run_action(skip_if=node.parameters.simulate)
 def plot_data(node: QualibrationNode[Parameters, Quam]):
     """Plot the raw and fitted data in specific figures whose shape is given by qubit.grid_location."""
-    fig_raw_fit = plot_raw_data_with_fit(node.results["ds_raw"], node.namespace["qubits"], node.results["ds_fit"])
+    figures = plot_per_qubit(
+        plot_raw_data_with_fit,
+        node.results["ds_raw"],
+        node.namespace["qubits"],
+        node.results["ds_fit"],
+        figure_name="amplitude",
+    )
     plt.show()
-    # Store the generated figures
-    node.results["figures"] = {
-        "amplitude": fig_raw_fit,
-    }
+    node.results["figures"] = figures
     if "calibration_run_directory" in node.namespace:
         figures_directory = CalibrationSaver().save_figures(
             node.namespace["calibration_run_directory"],

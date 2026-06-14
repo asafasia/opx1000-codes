@@ -4,7 +4,7 @@ from matplotlib.axes import Axes
 from qualibration_libs.analysis import decay_exp
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 from qualibration_libs.plotting import QubitGrid, grid_iter
-from utils.plotting_settings import FIGURE_SIZE
+from utils.plotting_settings import FIGURE_SIZE, qubit_grid_locations
 
 
 def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
@@ -27,7 +27,7 @@ def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.D
     matplotlib.figure.Figure
         The figure containing the plots.
     """
-    grid = QubitGrid(ds, [q.grid_location for q in qubits])
+    grid = QubitGrid(ds, qubit_grid_locations(qubits))
 
     for ax, qubit in grid_iter(grid):
         plot_individual_data_with_fit(ax, ds, qubit, fits.sel(qubit=qubit["qubit"]))

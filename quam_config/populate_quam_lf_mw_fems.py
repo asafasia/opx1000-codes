@@ -114,7 +114,7 @@ def apply_profile(machine: Quam, profile: dict[str, Any]) -> Quam:
     qubit_profiles = profile["qubits"]["qubits"]
     pulse_profiles = profile["pulses"]["pulses"]
 
-    for qubit_name in profile["manifest"]["active_qubits"]:
+    for qubit_name in qubit_profiles:
         if qubit_name not in machine.qubits:
             raise ProfileError(
                 f"Profile qubit {qubit_name!r} is missing from the generated QuAM. "

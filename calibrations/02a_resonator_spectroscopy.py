@@ -21,6 +21,7 @@ from calibration_utils.resonator_spectroscopy import (
     plot_raw_amplitude,
 )
 from saver import CalibrationSaver, current_profile_name
+from utils.plotting_settings import plot_per_qubit
 from updater import ProfileUpdater
 from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
@@ -132,10 +133,11 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                         rr.measure("readout", qua_vars=(Ig[i], Qg[i]))
                         # wait for the resonator to deplete
                         # rr.wait(rr.depletion_time * u.ns)
-                        rr.wait(15000)
 
                         save(Ig[i], Ig_st[i])
                         save(Qg[i], Qg_st[i])
+                        qubit.wait(25000)
+
                     align()
 
                 # Complete the driven-state resonator spectroscopy scan.
@@ -158,10 +160,11 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                             qubit.align()
                         rr.measure("readout", qua_vars=(Im[i], Qm[i]))
                         # rr.wait(rr.depletion_time * u.ns)
-                        rr.wait(15000)
                         save(Im[i], Im_st[i])
                         save(Qm[i], Qm_st[i])
-                        qubit.reset_qubit_thermal()
+                        # qubit.reset_qubit_thermal()
+                        qubit.wait(25000)
+
                     align()
 
         with stream_processing():
@@ -259,9 +262,14 @@ def analyse_data(node: QualibrationNode[Parameters, Quam]):
 @node.run_action(skip_if=node.parameters.simulate)
 def plot_data(node: QualibrationNode[Parameters, Quam]):
     """Plot mean resonator responses and shot-level IQ separation."""
-    fig_amplitude = plot_raw_amplitude(node.results["ds_raw"], node.namespace["qubits"])
+    figures = plot_per_qubit(
+        plot_raw_amplitude,
+        node.results["ds_raw"],
+        node.namespace["qubits"],
+        figure_name="amplitude",
+    )
     plt.show()
-    node.results["figures"] = {"amplitude": fig_amplitude}
+    node.results["figures"] = figures
     if "calibration_run_directory" in node.namespace:
         figures_directory = CalibrationSaver().save_figures(
             node.namespace["calibration_run_directory"],

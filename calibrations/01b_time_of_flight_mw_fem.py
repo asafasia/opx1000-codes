@@ -13,6 +13,7 @@ from qualang_tools.units import unit
 from qualibrate import QualibrationNode
 from quam_config import Quam, create_machine
 from saver import CalibrationSaver, current_profile_name
+from utils.plotting_settings import plot_per_qubit
 from calibration_utils.time_of_flight_mw import (
     Parameters,
     process_raw_dataset,
@@ -105,6 +106,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 for i, qubit in multiplexed_qubits.items():
                     # Reset the phase of the digital oscillator associated to the resonator element. Needed to average the cosine signal.
                     reset_if_phase(qubit.resonator.name)
+                    qubit.wait(17000)  # Wait for the time of flight before sending
                     # Measure the resonator (send a readout pulse and record the raw ADC trace)
                     qubit.resonator.measure("readout", stream=adc_st[i])
                     # Wait for the resonator to deplete
@@ -211,18 +213,24 @@ def analyse_data(node: QualibrationNode[Parameters, Quam]):
 @node.run_action(skip_if=node.parameters.simulate)
 def plot_data(node: QualibrationNode[Parameters, Quam]):
     """Plot the raw and fitted data in specific figures whose shape is given by qubit.grid_location."""
-    fig_single_run_fit = plot_single_run_with_fit(
-        node.results["ds_raw"], node.namespace["qubits"], node.results["ds_fit"]
+    figures = plot_per_qubit(
+        plot_single_run_with_fit,
+        node.results["ds_raw"],
+        node.namespace["qubits"],
+        node.results["ds_fit"],
+        figure_name="single_run",
     )
-    fig_averaged_run_fit = plot_averaged_run_with_fit(
-        node.results["ds_raw"], node.namespace["qubits"], node.results["ds_fit"]
+    figures.update(
+        plot_per_qubit(
+            plot_averaged_run_with_fit,
+            node.results["ds_raw"],
+            node.namespace["qubits"],
+            node.results["ds_fit"],
+            figure_name="averaged_run",
+        )
     )
     plt.show()
-    # Store the generated figures
-    node.results["figures"] = {
-        "single_run": fig_single_run_fit,
-        "averaged_run": fig_averaged_run_fit,
-    }
+    node.results["figures"] = figures
     if "calibration_run_directory" in node.namespace:
         figures_directory = CalibrationSaver().save_figures(
             node.namespace["calibration_run_directory"],

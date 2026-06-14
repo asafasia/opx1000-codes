@@ -18,7 +18,7 @@ class CalibrationSaverCoverageTests(unittest.TestCase):
                 "CalibrationSaver().save_xarray(",
             )
             if "def plot_data" in source:
-                required += ("CalibrationSaver().save_figures(",)
+                required += ("CalibrationSaver().save_figures(", "plot_per_qubit")
             absent = [item for item in required if item not in source]
             if absent:
                 missing.append(f"{path.name}: {', '.join(absent)}")

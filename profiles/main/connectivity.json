@@ -14,27 +14,51 @@
           "outputs": {
             "1": {
               "band": 3,
-              "lo_frequency_hz": 7400000000,
-              "full_scale_power_dbm": 1,
+              "lo_frequency_hz": 7125000000,
+              "full_scale_power_dbm": -10,
               "sampling_rate_hz": 1000000000
             },
             "2": {
               "band": 1,
               "lo_frequency_hz": 4200000000,
-              "full_scale_power_dbm": 1,
+              "full_scale_power_dbm": -10,
               "sampling_rate_hz": 1000000000
             },
             "3": {
               "band": 1,
               "lo_frequency_hz": 4200000000,
-              "full_scale_power_dbm": 1,
+              "full_scale_power_dbm": -10,
+              "sampling_rate_hz": 1000000000
+            },
+            "4": {
+              "band": 1,
+              "lo_frequency_hz": 4200000000,
+              "full_scale_power_dbm": -10,
+              "sampling_rate_hz": 1000000000
+            },
+            "5": {
+              "band": 1,
+              "lo_frequency_hz": 4200000000,
+              "full_scale_power_dbm": -10,
+              "sampling_rate_hz": 1000000000
+            },
+            "6": {
+              "band": 1,
+              "lo_frequency_hz": 4200000000,
+              "full_scale_power_dbm": -10,
+              "sampling_rate_hz": 1000000000
+            },
+            "7": {
+              "band": 1,
+              "lo_frequency_hz": 4200000000,
+              "full_scale_power_dbm": -10,
               "sampling_rate_hz": 1000000000
             }
           },
           "inputs": {
             "1": {
               "band": 3,
-              "lo_frequency_hz": 7400000000,
+              "lo_frequency_hz": 7125000000,
               "sampling_rate_hz": 1000000000
             }
           }
@@ -43,11 +67,113 @@
     }
   },
   "connections": {
-    "q7": {
+    "q1": {
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 2
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      }
+    },
+    "q2": {
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 2
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      }
+    },
+    "q3": {
       "xy_output": {
         "controller": "con1",
         "fem": 7,
         "port": 3
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      }
+    },
+    "q4": {
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 3
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      }
+    },
+    "q5": {
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 4
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      }
+    },
+    "q6": {
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 4
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      }
+    },
+    "q7": {
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 5
       },
       "resonator_output": {
         "controller": "con1",
@@ -64,7 +190,7 @@
       "xy_output": {
         "controller": "con1",
         "fem": 7,
-        "port": 3
+        "port": 5
       },
       "resonator_output": {
         "controller": "con1",
@@ -81,7 +207,7 @@
       "xy_output": {
         "controller": "con1",
         "fem": 7,
-        "port": 2
+        "port": 6
       },
       "resonator_output": {
         "controller": "con1",
@@ -98,7 +224,7 @@
       "xy_output": {
         "controller": "con1",
         "fem": 7,
-        "port": 2
+        "port": 6
       },
       "resonator_output": {
         "controller": "con1",

@@ -8,7 +8,7 @@ from matplotlib.figure import Figure
 from qualang_tools.units import unit
 from qualibration_libs.plotting import QubitGrid, grid_iter
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
-from utils.plotting_settings import FIGURE_SIZE
+from utils.plotting_settings import FIGURE_SIZE, qubit_grid_locations
 
 u = unit(coerce_to_integer=True)
 
@@ -81,7 +81,7 @@ def plot_iq_blobs(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
     - The function creates a grid of subplots, one for each qubit.
     - Each subplot contains the raw data and the fitted curve.
     """
-    grid = QubitGrid(ds, [q.grid_location for q in qubits])
+    grid = QubitGrid(ds, qubit_grid_locations(qubits))
     for ax, qubit in grid_iter(grid):
         plot_individual_iq_blobs(ax, ds, qubit, fits.sel(qubit=qubit["qubit"]))
     handles, labels = ax.get_legend_handles_labels()
@@ -198,7 +198,7 @@ def plot_historams(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
     - The function creates a grid of subplots, one for each qubit.
     - Each subplot contains the raw data and the fitted curve.
     """
-    grid = QubitGrid(ds, [q.grid_location for q in qubits])
+    grid = QubitGrid(ds, qubit_grid_locations(qubits))
     for ax, qubit in grid_iter(grid):
         plot_individual_histograms(ax, ds, qubit, fits.sel(qubit=qubit["qubit"]))
     handles, labels = ax.get_legend_handles_labels()
@@ -269,7 +269,7 @@ def plot_confusion_matrices(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.
     - The function creates a grid of subplots, one for each qubit.
     - Each subplot contains the raw data and the fitted curve.
     """
-    grid = QubitGrid(ds, [q.grid_location for q in qubits])
+    grid = QubitGrid(ds, qubit_grid_locations(qubits))
     for ax, qubit in grid_iter(grid):
         plot_individual_confusion_matrix(ax, ds, qubit, fits.sel(qubit=qubit["qubit"]))
 
