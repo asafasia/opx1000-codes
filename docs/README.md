@@ -7,6 +7,8 @@ here.
   reference data, and vendor-provided measurements.
 - [Calibration routine hierarchy](calibrations/README.md): general bring-up
   order, fine-tuning flow, and practical calibration notes.
+- [Current state notes](current_state/README.md): dated lab snapshots for
+  working calibration status, blockers, and next checks.
 - [Device profiles](../profiles/README.md): executable configuration used to
   create the QuAM machine, including `CreateMachine`, profile load/save
   behavior, and Profile Studio.

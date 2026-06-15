@@ -117,7 +117,7 @@ cm.profile.save()
 
 cm = CreateMachine(qubit="q3")  # profiles/single_qubit, q3 only
 machine = cm.machine
-cm.profile.save()
+cm.profile.save()               # saves the loaded full profile documents
 ```
 
 ## CreateMachine, Profile Loading, And Saving
@@ -152,6 +152,11 @@ cm = CreateMachine()
 machine = cm.machine
 profile = cm.profile
 ```
+
+`cm.profile` is the repository profile object. It is not a live reverse mapping
+from the QuAM object back into JSON. If code changes `machine` directly, those
+changes are not automatically written into `profile.documents`; the profile
+documents must be updated deliberately before calling `profile.save()`.
 
 The `CreateMachine` object forwards unknown attributes to the machine, so code
 that receives `cm` can often use it like the machine itself. Prefer
@@ -253,6 +258,11 @@ profile.load()
 profile.documents["manifest"]["active_qubits"] = ["q3"]
 profile.save()
 ```
+
+`Profile.save()` saves profile documents, not arbitrary changes made to a built
+QuAM machine. Calibration code that computes a new frequency, amplitude,
+threshold, or pulse value must write that value into the appropriate dictionary
+inside the profile documents before saving.
 
 `Profile.save()` refuses to save a selected single-qubit projection over the
 full `single_qubit` profile. To edit the full `single_qubit` profile, load it
