@@ -69,9 +69,9 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     # You can get type hinting in your IDE by typing node.parameters.
     node.parameters.use_state_discrimination = False
     node.parameters.num_shots = 1000
-    node.parameters.operation_amplitude_factor = 0.01
-    node.parameters.frequency_span_in_mhz = 30
-    node.parameters.frequency_step_in_mhz = 0.3
+    node.parameters.operation_amplitude_factor = 0.001
+    node.parameters.frequency_span_in_mhz = 3
+    node.parameters.frequency_step_in_mhz = 0.03
     # node.parameters.simulate = True
     pass
 
