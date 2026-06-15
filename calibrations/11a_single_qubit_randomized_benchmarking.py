@@ -229,8 +229,14 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                     with for_(n, 0, n < n_avg, n + 1):
                         # Initialize the qubits
                         for i, qubit in multiplexed_qubits.items():
-                            qubit.reset(node.parameters.reset_type, node.parameters.simulate)
-                            # qubit.reset(10000)
+                            if node.parameters.reset_type == "active":
+                                qubit.reset(
+                                    node.parameters.reset_type,
+                                    node.parameters.simulate,
+                                    # log_callable=node.log,
+                                )
+                            else:
+                                pass
                         # Align the two elements to play the sequence after qubit initialization
                         align()
 
@@ -254,6 +260,9 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                                 qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
                                 save(I[i], I_st[i])
                                 save(Q[i], Q_st[i])
+
+                            if node.parameters.reset_type == "thermal":
+                                qubit.reset_qubit_thermal()
                         align()
                     # Reset the last gate of the sequence back to the original Clifford gate
                     # (that was replaced by the recovery gate at the beginning)

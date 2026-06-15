@@ -93,9 +93,14 @@ def make_state_program(
             with for_(n, 0, n < n_runs, n + 1):
                 save(n, n_st)
                 for qubit in multiplexed_qubits.values():
-                    # qubit.resonator.wait(15000)  # 300 µs
-                    qubit.reset(node.parameters.reset_type, node.parameters.simulate)
-                    pass
+                    if node.parameters.reset_type == "active":
+                        qubit.reset(
+                            node.parameters.reset_type,
+                            node.parameters.simulate,
+                            # log_callable=node.log,
+                        )
+                    else:
+                        pass
                 align()
 
                 if state == "g":
@@ -124,6 +129,8 @@ def make_state_program(
                     qubit.resonator.measure(operation, qua_vars=(I[i], Q[i]))
                     save(I[i], I_st[i])
                     save(Q[i], Q_st[i])
+                    if node.parameters.reset_type == "thermal":
+                        qubit.reset_qubit_thermal()
                     # qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
                     # qubit.resonator.wait(75000)  # 300 µs, to ensure the resonator is depleted before the next shot, even if the qubit is in |e> and T1 is long.
                 align()

@@ -124,12 +124,15 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 with for_(*from_array(df, dfs)):
                     with for_(*from_array(a, amps)):
                         for qubit in multiplexed_qubits.values():
-                            qubit.xy.update_frequency(qubit.xy.intermediate_frequency)
-                            # qubit.reset(
-                            #     node.parameters.reset_type,
-                            #     node.parameters.simulate,
-                            #     log_callable=node.log,
-                            # )
+                            if node.parameters.reset_type == "active":
+                                qubit.xy.update_frequency(qubit.xy.intermediate_frequency)
+                                qubit.reset(
+                                    node.parameters.reset_type,
+                                    node.parameters.simulate,
+                                    # log_callable=node.log,
+                                )
+                            else:
+                                pass
                             qubit.xy.update_frequency(qubit.xy.intermediate_frequency + df)
                         align()
 
@@ -145,7 +148,9 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                                 qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
                                 save(I[i], I_st[i])
                                 save(Q[i], Q_st[i])
-                                qubit.wait(15000)  # 15 µs, to ensure the qubit is in |g> before the next shot, even if T1 is long.
+
+                            if node.parameters.reset_type == "thermal":
+                                qubit.reset_qubit_thermal()
 
                         align()
 

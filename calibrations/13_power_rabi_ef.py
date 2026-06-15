@@ -70,8 +70,6 @@ def custom_param(node: QualibrationNode[EfParameters, Quam]):
 def create_qua_program(node: QualibrationNode[EfParameters, Quam]):
     """Create the sweep axes and generate the QUA program from the pulse sequence and the node parameters."""
 
-    if node.parameters.reset_type == "active":
-        raise ValueError("'active' is not supported, use 'thermal' or 'active_gef' instead")
     # Class containing tools to help handle units and conversions.
     u = unit(coerce_to_integer=True)
     node.namespace["qubits"] = qubits = get_qubits(node)  # Get qubits to calibrate
@@ -125,11 +123,14 @@ def create_qua_program(node: QualibrationNode[EfParameters, Quam]):
                 with for_(*from_array(a, amps)):
                     # Qubit initialization
                     for i, qubit in multiplexed_qubits.items():  # Reset the qubit to ground state
-                        # qubit.reset(reset_type=node.parameters.reset_type, simulate=node.parameters.simulate)
-                        # # Wait twice the regular thermal time for proper |f> state reset
-                        # if node.parameters.reset_type == "thermal":
-                        #     qubit.wait(qubit.thermalization_time * u.ns)
-                        pass
+                        if node.parameters.reset_type == "active":
+                            qubit.reset(
+                                node.parameters.reset_type,
+                                node.parameters.simulate,
+                                # log_callable=node.log,
+                            )
+                        else:
+                            pass
 
 
                     align()
@@ -153,7 +154,9 @@ def create_qua_program(node: QualibrationNode[EfParameters, Quam]):
                             qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
                             save(I[i], I_st[i])
                             save(Q[i], Q_st[i])
-                            qubit.wait(10000)
+
+                        if node.parameters.reset_type == "thermal":
+                            qubit.reset_qubit_thermal()
 
                     align()
 

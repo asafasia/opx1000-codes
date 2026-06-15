@@ -133,8 +133,14 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                     with for_(*from_array(a, amps)):
                         # Qubit initialization
                         for i, qubit in multiplexed_qubits.items():
-                            qubit.reset(node.parameters.reset_type, node.parameters.simulate)
-                            # pass
+                            if node.parameters.reset_type == "active":
+                                qubit.reset(
+                                    node.parameters.reset_type,
+                                    node.parameters.simulate,
+                                    # log_callable=node.log,
+                                )
+                            else:
+                                pass
                         align()
                         # Qubit manipulation
                         for i, qubit in multiplexed_qubits.items():
@@ -177,7 +183,9 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                                 qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
                                 save(I[i], I_st[i])
                                 save(Q[i], Q_st[i])
-                            # qubit.wait(150000)
+
+                            if node.parameters.reset_type == "thermal":
+                                qubit.reset_qubit_thermal()
 
         with stream_processing():
             n_st.save("n")

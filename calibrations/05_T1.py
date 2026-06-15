@@ -97,11 +97,14 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 with for_each_(t, idle_times):
                     # Reset the qubits to the ground state
                     for i, qubit in multiplexed_qubits.items():
-                        qubit.reset(
-                            node.parameters.reset_type,
-                            node.parameters.simulate,
-                            log_callable=node.log,
-                        )
+                        if node.parameters.reset_type == "active":
+                            qubit.reset(
+                                node.parameters.reset_type,
+                                node.parameters.simulate,
+                                # log_callable=node.log,
+                            )
+                        else:
+                            pass
                         # qubit.wait(10000)
                     # Multiplexed sync: every qubit must finish reset (possibly different durations, e.g. active reset)
                     # before any manipulation starts; also keeps shared resources (e.g. TWPA sticky elements) coherent.
@@ -127,6 +130,9 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                             # save data
                             save(I[i], I_st[i])
                             save(Q[i], Q_st[i])
+
+                        if node.parameters.reset_type == "thermal":
+                            qubit.reset_qubit_thermal()
                     # End-of-segment barrier before the next sweep step (and before sticky/aux elements ramp down early).
                         # qubit.wait(10000)
 
