@@ -12,6 +12,7 @@ from qualang_tools.results import progress_counter
 from qualibrate import QualibrationNode
 from quam_config import Quam
 from calibration_io import CalibrationSaver, current_profile_name
+from profiles import ProfileUpdater
 from utils.plotting_settings import plot_per_qubit
 from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.parameters import get_qubits, get_idle_times_in_clock_cycles
@@ -260,6 +261,22 @@ def update_state(node: QualibrationNode[Parameters, Quam]):
                 continue
 
             q.T1 = float(node.results["ds_fit"].sel(qubit=q.name).tau.values) * 1e-9
+
+
+# %% {Propose_profile_update}
+@node.run_action(skip_if=node.parameters.simulate)
+def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
+    """Stage fitted T1 values in profile metrics."""
+    updates = {
+        f"metrics.json.qubits.{q.name}.coherence.t1_ns": float(
+            node.results["ds_fit"].sel(qubit=q.name).tau.values
+        )
+        for q in node.namespace["qubits"]
+        if node.outcomes[q.name] == "successful"
+    }
+    if updates:
+        proposal = ProfileUpdater().stage(node.name, updates, profile_name=current_profile_name())
+        ProfileUpdater().confirm_and_apply(proposal)
 
 
 # %% {Save_results}

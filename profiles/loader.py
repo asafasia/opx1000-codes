@@ -275,18 +275,41 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
             _require(target == expected_target, f"Qubit {name!r} operation {operation_name!r} must target {expected_target}")
 
 
+def _validate_metrics(metrics_document: dict[str, Any], qubits_document: dict[str, Any]) -> None:
+    metrics = metrics_document.get("qubits")
+    qubits = qubits_document.get("qubits")
+    _require(isinstance(metrics, dict), "metrics.json must define qubits")
+
+    for qubit_name in qubits:
+        _require(qubit_name in metrics, f"Qubit {qubit_name!r} has no metrics entry")
+        qubit_metrics = metrics[qubit_name]
+        _require(isinstance(qubit_metrics, dict), f"Metrics for {qubit_name!r} must be an object")
+        readout = qubit_metrics.get("readout", {})
+        fidelity = readout.get("fidelity_percent", {})
+        _require(isinstance(fidelity, dict), f"Metrics for {qubit_name!r} need readout.fidelity_percent")
+        for reset_name in ("active", "thermal"):
+            value = fidelity.get(reset_name)
+            _require(
+                value is None or isinstance(value, (int, float)),
+                f"Metrics for {qubit_name!r} readout.fidelity_percent.{reset_name} must be numeric or null",
+            )
+
+
 def validate_profile(profile: dict[str, Any]) -> None:
     """Validate a loaded profile, raising ProfileError on the first issue."""
     manifest = profile["manifest"]
     connectivity = profile["connectivity"]
     qubits = profile["qubits"]
     pulses = profile["pulses"]
+    metrics = profile.get("metrics")
 
     for name, document in profile.items():
         _validate_version(document, name)
 
     _validate_pulses(pulses)
     _validate_qubits(qubits, pulses)
+    if metrics is not None:
+        _validate_metrics(metrics, qubits)
     _validate_connectivity(connectivity, qubits)
 
     active_qubits = manifest.get("active_qubits")
@@ -305,6 +328,11 @@ def _load_profile_documents(name: str, root: Path = PROFILES_ROOT) -> dict[str, 
         "connectivity": _read_json(profile_directory / files.get("connectivity", "connectivity.json")),
         "qubits": _read_json(profile_directory / files.get("qubits", "qubits.json")),
         "pulses": _read_json(profile_directory / files.get("pulses", "pulses.json")),
+        **(
+            {"metrics": _read_json(profile_directory / files["metrics"])}
+            if "metrics" in files
+            else {}
+        ),
     }
 
 
@@ -383,6 +411,8 @@ def _select_qubit(profile: dict[str, Any], qubit: str) -> dict[str, Any]:
     }
     profile["qubits"]["qubits"] = {qubit: qubits[qubit]}
     profile["pulses"]["pulses"] = {qubit: profile["pulses"]["pulses"][qubit]}
+    if "metrics" in profile:
+        profile["metrics"]["qubits"] = {qubit: profile["metrics"]["qubits"][qubit]}
     profile["connectivity"] = _selected_hardware(profile["connectivity"], connection)
     profile["connectivity"]["connections"] = {qubit: connection}
     xy_output = _get_port(
@@ -453,6 +483,8 @@ class Profile:
             "qubits": self.directory / files.get("qubits", "qubits.json"),
             "pulses": self.directory / files.get("pulses", "pulses.json"),
         }
+        if "metrics" in profile:
+            paths["metrics"] = self.directory / files.get("metrics", "metrics.json")
         for key, path in paths.items():
             _write_json(path, profile[key])
         self.documents = deepcopy(profile)

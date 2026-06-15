@@ -24,6 +24,7 @@ from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 from calibration_io import CalibrationSaver, current_profile_name
+from profiles import ProfileUpdater
 from utils.plotting_settings import plot_per_qubit
 
 # %% {Node initialisation}
@@ -392,6 +393,22 @@ def update_state(node: QualibrationNode[Parameters, Quam]):
             if node.outcomes[q.name] == "failed":
                 continue
             q.gate_fidelity["averaged"] = float(1 - node.results["fit_results"][q.name]["error_per_gate"])
+
+
+# %% {Propose_profile_update}
+@node.run_action(skip_if=node.parameters.simulate)
+def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
+    """Stage fitted single-qubit average gate fidelity in profile metrics."""
+    updates = {
+        f"metrics.json.qubits.{q.name}.gates.single_qubit_average_fidelity": float(
+            1 - node.results["fit_results"][q.name]["error_per_gate"]
+        )
+        for q in node.namespace["qubits"]
+        if node.outcomes[q.name] == "successful"
+    }
+    if updates:
+        proposal = ProfileUpdater().stage(node.name, updates, profile_name=current_profile_name())
+        ProfileUpdater().confirm_and_apply(proposal)
 
 
 # %% {Save_results}

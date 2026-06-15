@@ -14,6 +14,7 @@ from qualang_tools.units import unit
 from qualibrate import QualibrationNode
 from quam_config import Quam, create_machine
 from calibration_io import CalibrationSaver, current_profile_name
+from profiles import ProfileUpdater
 from utils.plotting_settings import plot_per_qubit
 from calibration_utils.readout_power_optimization import (
     Parameters,
@@ -289,6 +290,25 @@ def update_state(node: QualibrationNode[Parameters, Quam]):
             operation.rus_exit_threshold = float(fit_results["rus_threshold"]) * operation.length / 2**12
             operation.amplitude = float(fit_results["optimal_amplitude"])
             q.resonator.confusion_matrix = fit_results["confusion_matrix"]
+
+
+# %% {Propose_profile_update}
+@node.run_action(skip_if=node.parameters.simulate)
+def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
+    """Stage best readout fidelity in profile metrics."""
+    if node.parameters.reset_type not in {"active", "thermal"}:
+        return
+
+    updates = {
+        f"metrics.json.qubits.{q.name}.readout.fidelity_percent.{node.parameters.reset_type}": float(
+            node.results["fit_results"][q.name]["readout_fidelity"]
+        )
+        for q in node.namespace["qubits"]
+        if node.outcomes[q.name] == "successful"
+    }
+    if updates:
+        proposal = ProfileUpdater().stage(node.name, updates, profile_name=current_profile_name())
+        ProfileUpdater().confirm_and_apply(proposal)
 
 
 # %% {Save_results}

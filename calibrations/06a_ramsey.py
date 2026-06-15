@@ -23,6 +23,7 @@ from qualibration_libs.parameters import get_qubits, get_idle_times_in_clock_cyc
 from qualibration_libs.runtime import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 from calibration_io import CalibrationSaver, current_profile_name
+from profiles import ProfileUpdater
 from utils.plotting_settings import plot_per_qubit
 
 # %% {Description}
@@ -271,6 +272,22 @@ def update_state(node: QualibrationNode[Parameters, Quam]):
                 q.f_01 -= float(node.results["fit_results"][q.name]["freq_offset"])
                 q.xy.RF_frequency -= float(node.results["fit_results"][q.name]["freq_offset"])
                 q.T2ramsey = float(node.results["fit_results"][q.name]["decay"])
+
+
+# %% {Propose_profile_update}
+@node.run_action(skip_if=node.parameters.simulate)
+def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
+    """Stage fitted Ramsey T2 values in profile metrics."""
+    updates = {
+        f"metrics.json.qubits.{q.name}.coherence.t2_ramsey_ns": float(
+            node.results["fit_results"][q.name]["decay"]
+        )
+        for q in node.namespace["qubits"]
+        if node.outcomes[q.name] == "successful"
+    }
+    if updates:
+        proposal = ProfileUpdater().stage(node.name, updates, profile_name=current_profile_name())
+        ProfileUpdater().confirm_and_apply(proposal)
 
 
 # %% {Save_results}

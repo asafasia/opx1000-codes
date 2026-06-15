@@ -329,6 +329,11 @@ def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
         return
 
     updates = {}
+    reset_metric_key = (
+        node.parameters.reset_type
+        if node.parameters.reset_type in {"active", "thermal"}
+        else None
+    )
     for q in node.namespace["qubits"]:
         fit_result = node.results["fit_results"][q.name]
         if not all(
@@ -344,6 +349,10 @@ def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
         updates[f"qubits.json.qubits.{q.name}.readout.rus_exit_threshold"] = float(
             operation.rus_exit_threshold
         )
+        if reset_metric_key is not None:
+            updates[
+                f"metrics.json.qubits.{q.name}.readout.fidelity_percent.{reset_metric_key}"
+            ] = float(fit_result["readout_fidelity"])
 
     if updates:
         failed_qubits = [q.name for q in node.namespace["qubits"] if node.outcomes[q.name] == "failed"]

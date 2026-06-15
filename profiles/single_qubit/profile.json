@@ -6,7 +6,8 @@
   "files": {
     "connectivity": "connectivity.json",
     "qubits": "qubits.json",
-    "pulses": "pulses.json"
+    "pulses": "pulses.json",
+    "metrics": "metrics.json"
   },
   "active_qubits": [
     "q10"
