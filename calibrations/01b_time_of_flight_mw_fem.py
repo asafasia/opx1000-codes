@@ -28,6 +28,7 @@ from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.core import tracked_updates
+from quam_builder.tools.power_tools import calculate_voltage_scaling_factor
 
 description = """
         TIME OF FLIGHT - MW FEM
@@ -58,6 +59,31 @@ node = QualibrationNode[Parameters, Quam](
 )
 
 
+# Create the machine directly from profiles/main without loading state.json.
+node.machine = create_machine(qubit='q2')
+
+node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
+
+node.machine.qmm.close_all_qms()
+
+
+
+def select_full_scale_power_dbm(power_in_dbm: float, max_amplitude: float = 1) -> int:
+    """Select the lowest valid QOP 3.2 MW-FEM full-scale power for a target power."""
+    allowed_full_scale_powers = np.arange(-11, 11, 3)
+    compatible_powers = [
+        int(full_scale_power)
+        for full_scale_power in allowed_full_scale_powers
+        if calculate_voltage_scaling_factor(full_scale_power, power_in_dbm) <= max_amplitude
+    ]
+    if not compatible_powers:
+        raise ValueError(
+            f"Cannot reach {power_in_dbm} dBm with max_amplitude={max_amplitude}. "
+            "Lower readout_amplitude_in_dBm or increase max_amplitude."
+        )
+    return compatible_powers[0]
+
+
 # Any parameters that should change for debugging purposes only should go in here
 # These parameters are ignored when run through the GUI or as part of a graph
 @node.run_action(skip_if=node.modes.external)
@@ -78,6 +104,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
     num_qubits = len(qubits)
 
     node.namespace["tracked_resonators"] = []
+    full_scale_power_dbm = select_full_scale_power_dbm(node.parameters.readout_amplitude_in_dBm)
     for q in qubits:
         resonator = q.resonator
         # make temporary updates before running the program and revert at the end.
@@ -85,7 +112,11 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
             if node.parameters.time_of_flight_in_ns is not None:
                 resonator.time_of_flight = node.parameters.time_of_flight_in_ns
             resonator.operations["readout"].length = node.parameters.readout_length_in_ns
-            resonator.set_output_power(node.parameters.readout_amplitude_in_dBm, operation="readout")
+            resonator.set_output_power(
+                power_in_dbm=node.parameters.readout_amplitude_in_dBm,
+                full_scale_power_dbm=full_scale_power_dbm,
+                operation="readout",
+            )
             node.namespace["tracked_resonators"].append(resonator)
 
     # Register the sweep axes to be added to the dataset when fetching data

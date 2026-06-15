@@ -5,7 +5,7 @@
       "x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.051887021538605325,
+        "amplitude": 0.05217055467727137,
         "length_ns": 40,
         "axis_angle_rad": 0
       },

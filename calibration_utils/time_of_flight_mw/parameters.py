@@ -9,7 +9,7 @@ class NodeSpecificParameters(RunnableParameters):
     """Number of averages to perform. Default is 100."""
     time_of_flight_in_ns: Optional[int] = 28
     """Time of flight in nanoseconds. Default is 28 ns."""
-    readout_amplitude_in_dBm: Optional[float] = 1
+    readout_amplitude_in_dBm: Optional[float] = 0
     """Readout amplitude in dBm. Default is -12 dBm."""
     readout_length_in_ns: Optional[int] = 2000
     """Readout length in nanoseconds. Default is 2000 ns."""
