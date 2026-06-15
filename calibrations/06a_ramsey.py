@@ -66,12 +66,12 @@ node.machine.qmm.close_all_qms()
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     # You can get type hinting in your IDE by typing node.parameters.
     # node.parameters.qubits = ["q1", "q2"]
-    node.parameters.num_shots = 1000
+    node.parameters.num_shots = 2000
     node.parameters.use_state_discrimination = True
     node.parameters.reset_type = "active"
-    node.parameters.max_wait_time_in_ns = 5e3
+    node.parameters.max_wait_time_in_ns = 15e3
     node.parameters.wait_time_num_points = 250
-    node.parameters.frequency_detuning_in_mhz = 3
+    node.parameters.frequency_detuning_in_mhz = 2
 
     pass
 

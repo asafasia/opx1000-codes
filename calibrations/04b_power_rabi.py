@@ -58,7 +58,7 @@ node = QualibrationNode[Parameters, Quam](
     machine=create_machine(),
 )
 
-node.machine = create_machine(qubit='q1')
+node.machine = create_machine(qubit='q9')
 
 node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
 

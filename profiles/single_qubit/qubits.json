@@ -311,10 +311,10 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0.0005556585807178292,
-        "rus_exit_threshold": 0.0005556585807178292,
+        "threshold": 0.0006101443505523559,
+        "rus_exit_threshold": 0.0006101443505523559,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 1.5718300659872761
+        "integration_weights_angle_rad": 1.6332429039792893
       },
       "operations": {
         "x180": "x180_const",

@@ -228,12 +228,10 @@ def add_fit_text(ax, fit):
     detuning_correction_mhz = _signed_detuning_correction_mhz(fit)
 
     t2_us = np.nan
-    decay_rate_per_us = np.nan
     if fit_decays.size:
         mean_decay_per_ns = float(np.nanmean(fit_decays))
         if np.isfinite(mean_decay_per_ns) and mean_decay_per_ns > 0:
             t2_us = 1 / mean_decay_per_ns / 1e3
-            decay_rate_per_us = mean_decay_per_ns * 1e3
 
     ax.text(
         0.02,
@@ -242,8 +240,7 @@ def add_fit_text(ax, fit):
             [
                 f"Cos fit freq: {_format_detuning_values(fit_frequencies, 'MHz')}",
                 f"Fit detuning correction: {detuning_correction_mhz:.3f} MHz",
-                f"T2*: {t2_us:.2f} us",
-                f"Decay rate: {decay_rate_per_us:.4f} 1/us",
+                f"Decay time T2*: {t2_us:.2f} us",
             ]
         ),
         transform=ax.transAxes,
