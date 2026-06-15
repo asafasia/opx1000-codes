@@ -58,8 +58,11 @@ node = QualibrationNode[Parameters, Quam](
 )
 
 
+node.machine = create_machine(qubit='q9')
+
 node.machine.connect()
 node.machine.qmm.close_all_qms()
+
 
 # Any parameters that should change for debugging purposes only should go in here
 # These parameters are ignored when run through the GUI or as part of a graph
@@ -69,8 +72,8 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     Allow the user to locally set the node parameters for debugging purposes, or
     execution in the Python IDE.
     """
-    node.parameters.reset_type = "active"
-    node.parameters.qubit_operation = "saturation"
+    # node.parameters.reset_type = "active"
+    node.parameters.qubit_operation = "x180"
 
     # You can get type hinting in your IDE by typing node.parameters.
     # node.parameters.qubits = ["q10"]

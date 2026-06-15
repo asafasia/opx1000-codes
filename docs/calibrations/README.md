@@ -54,6 +54,67 @@ After the resonance is visible, reduce the spectroscopy amplitude and narrow the
 frequency span. This gives better spectral resolution and a more accurate qubit
 frequency.
 
+#### Broad-To-Narrow Qubit Spectroscopy Workflow
+
+Use `calibrations/03a_qubit_spectroscopy.py` as a search tool first, then as a
+fine calibration. The first goal is not a perfect linewidth; it is to see a
+real resonance somewhere in the scan.
+
+The main parameters to change are:
+
+- `frequency_span_in_mhz`: total scan width around the current profile qubit
+  frequency.
+- `frequency_step_in_mhz`: spacing between scan points.
+- `operation_amplitude_factor`: linear multiplier on the configured
+  spectroscopy operation amplitude.
+- `operation_len_in_ns`: optional pulse length override. Leave it as `None`
+  unless you deliberately want to change the saturation-pulse duration.
+- `num_shots`: averaging. Increase this when the resonance is visible but noisy.
+
+For an unknown or poorly trusted qubit frequency, start broad and strong:
+
+- Set `frequency_span_in_mhz` to a broad range, typically `100` to `500`.
+- Use a large `operation_amplitude_factor`, often around `1.0`.
+- Use a coarse `frequency_step_in_mhz`, for example `1` to `5`, so the scan
+  finishes quickly.
+- Keep `operation_len_in_ns = None` at first, so the script uses the configured
+  spectroscopy pulse length.
+
+This high-power scan intentionally power-broadens the qubit. The peak can be
+wide and the fitted FWHM can be ugly; that is acceptable at this stage. What
+matters is that the peak position is physically reasonable and repeatable.
+
+Once the resonance is found, move toward a cleaner spectrum gradually. Reduce
+the spectroscopy power linearly, not in one jump. For example:
+
+| Pass | `frequency_span_in_mhz` | `frequency_step_in_mhz` | `operation_amplitude_factor` | Purpose |
+| --- | ---: | ---: | ---: | --- |
+| 1 | `500` | `2` to `5` | `1.0` | Find a missing resonance. |
+| 2 | `200` | `1` to `2` | `0.7` | Confirm the peak near the new center. |
+| 3 | `100` | `0.5` to `1` | `0.4` | Reduce power broadening. |
+| 4 | `50` | `0.25` to `0.5` | `0.2` | Improve frequency precision. |
+| 5 | `10` to `20` | `0.05` to `0.25` | `0.05` to `0.1` | Final low-power check. |
+
+The exact numbers depend on the qubit and the readout signal, but the shape of
+the workflow should stay the same: large span and high power to find the
+feature, then smaller span and lower power to measure it accurately.
+
+After each pass:
+
+1. Check that the peak is not sitting on the edge of the scan.
+2. If the peak is near the edge, recenter the profile qubit frequency or expand
+   the span and repeat.
+3. If the peak is centered and repeatable, update the qubit frequency from the
+   fitted result.
+4. Lower `operation_amplitude_factor` by a linear step and reduce
+   `frequency_span_in_mhz`.
+5. Reduce `frequency_step_in_mhz` only after the scan is already centered.
+
+Do not trust a final frequency from the first high-power broad scan alone. High
+power is useful because it makes the resonance easy to find, but it can shift or
+broaden the apparent peak. Use the lower-power passes to decide the value that
+should be kept in the profile.
+
 Relevant script:
 
 - `calibrations/03a_qubit_spectroscopy.py`
@@ -99,6 +160,92 @@ Typical fine-tuning examples:
   parameters are reliable.
 - Run DRAG and randomized benchmarking after the basic single-qubit gates are
   already working.
+
+## Active Reset
+
+Active reset is a fast way to start each shot with the qubit in the ground
+state without waiting for many T1 times. A thermal reset waits long enough for
+the qubit to relax naturally. Active reset measures the qubit first and then
+uses feedback: if the measurement says the qubit is excited, the program applies
+an `x180` pulse to bring it back to ground.
+
+In this repository, the active-reset decision is based on the rotated readout
+quadrature and the threshold stored in the selected profile. Conceptually, the
+logic is:
+
+```python
+measure_readout()
+if measured_I > readout_threshold:
+    play_x180()
+```
+
+This means active reset depends on both readout and control. It should be used
+only after these pieces are already reasonable:
+
+- Resonator frequency and readout pulse are calibrated.
+- IQ blobs give a usable ground/excited separation.
+- The readout threshold and integration-weight angle in the profile are valid.
+- The `x180` pulse amplitude and frequency are good enough to flip the qubit.
+- The readout delay and resonator depletion time are not obviously wrong.
+
+The main advantage is speed. Once active reset is trustworthy, calibration
+experiments can run many shots without inserting a long thermalization wait at
+the end of every shot. This is especially useful for Rabi, T1, Ramsey, IQ blobs,
+readout optimization, DRAG, and randomized benchmarking.
+
+The main risk is feedback based on bad information. If the threshold is wrong,
+the integration weights are poorly rotated, or the `x180` pulse is not
+calibrated, active reset can prepare the wrong state and make later calibration
+results look confusing. When in doubt, use thermal reset until the readout and
+pi pulse are trusted.
+
+### How To Use Active Reset In Calibrations
+
+Many calibration scripts expose `node.parameters.reset_type`. Use:
+
+```python
+node.parameters.reset_type = "active"
+```
+
+to use active reset, or:
+
+```python
+node.parameters.reset_type = "thermal"
+```
+
+to use passive thermalization. Set this in the script's `custom_param` section
+for local debugging, or through the Qualibrate parameter UI when running from
+the GUI.
+
+The calibration programs call:
+
+```python
+qubit.reset(
+    node.parameters.reset_type,
+    node.parameters.simulate,
+    # log_callable=node.log,
+)
+```
+
+at the beginning of the shot or sweep point. With `reset_type = "thermal"`, this
+performs the configured thermal wait. With `reset_type = "active"`, it performs
+the measurement-based reset sequence provided by the QuAM qubit object.
+
+Use this practical sequence:
+
+1. Start with `reset_type = "thermal"` during early bring-up.
+2. Calibrate resonator spectroscopy, qubit spectroscopy, Rabi, and IQ blobs.
+3. Check that the IQ-blob threshold and integration-weight angle are sensible.
+4. Run the standalone active-reset validator:
+   `Projects/dynamic_circuit_active_reset/active_reset.py`.
+5. If the before/after plots show that excited population is reduced reliably,
+   switch routine calibrations to `reset_type = "active"`.
+6. If later data becomes inconsistent, repeat IQ blobs and the active-reset
+   validator before trusting downstream calibrations.
+
+Do not treat active reset as a replacement for IQ-blob calibration. Active reset
+uses the threshold and rotation from IQ blobs; it does not discover them by
+itself.
 
 ## Practical Rule
 

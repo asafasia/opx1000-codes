@@ -7,7 +7,6 @@ import xarray as xr
 from qualibrate import QualibrationNode
 from qualibration_libs.data import add_amplitude_and_phase, convert_IQ_to_V
 from qualibration_libs.analysis import peaks_dips
-from quam_config.instrument_limits import instrument_limits
 
 
 def _spectroscopy_center_frequency(qubit, node_name: str) -> float:
@@ -123,7 +122,6 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
 
 def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
     """Add metadata to the dataset and fit results."""
-    limits = [instrument_limits(q.xy) for q in node.namespace["qubits"]]
     # Add metadata to fit results
     fit.attrs = {"long_name": "frequency", "units": "Hz"}
     # Get the fitted resonator frequency
@@ -160,12 +158,14 @@ def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
     factor_x180 = np.pi / (fit.width * x180_length)
     fit = fit.assign({"x180_amplitude": factor_x180 * used_amp})
 
-    # Assess whether the fit was successful or not
-    freq_success = np.abs(res_freq) < node.parameters.frequency_span_in_mhz * 1e6 + full_freq
-    fwhm_success = np.abs(fwhm) < node.parameters.frequency_span_in_mhz * 1e6 + full_freq
-    saturation_amp_success = np.abs(fit.saturation_amplitude) < limits[0].max_wf_amplitude
-    # x180amp_success = np.abs(fit.x180_amplitude.data) < limits[0].max_x180_wf_amplitude
-    success_criteria = freq_success & fwhm_success & saturation_amp_success
+    # Assess whether the fit was successful or not. Keep this permissive:
+    # spectroscopy should fail only when no usable resonance was fitted, not
+    # because the derived pulse-amplitude suggestion is aggressive.
+    half_span_hz = 0.5 * node.parameters.frequency_span_in_mhz * 1e6
+    edge_margin_hz = max(node.parameters.frequency_step_in_mhz * 1e6, 0.02 * half_span_hz)
+    freq_success = np.isfinite(rel_freq) & (np.abs(rel_freq) <= half_span_hz + edge_margin_hz)
+    fwhm_success = np.isfinite(fwhm) & (fwhm > 0)
+    success_criteria = freq_success & fwhm_success
     fit = fit.assign({"success": success_criteria})
 
     fit_results = {
