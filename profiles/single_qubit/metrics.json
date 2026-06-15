@@ -4,7 +4,7 @@
     "q1": {
       "coherence": {
         "t1_ns": null,
-        "t2_ramsey_ns": null,
+        "t2_ramsey_ns": 1.3639357524205208e-06,
         "t2_echo_ns": null
       },
       "gates": {

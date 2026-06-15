@@ -11,7 +11,7 @@ from qualang_tools.results import progress_counter
 from qualang_tools.units import unit
 
 from qualibrate import QualibrationNode
-from quam_config import Quam
+from quam_config import Quam, create_machine
 from calibration_utils.ramsey import (
     Parameters,
     process_raw_dataset,
@@ -52,6 +52,13 @@ node = QualibrationNode[Parameters, Quam](
     name="06a_ramsey", description=description, parameters=Parameters(), machine=Quam.load()
 )
 
+node.machine = create_machine(qubit='q9')
+
+node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
+
+node.machine.qmm.close_all_qms()
+
+
 
 # Any parameters that should change for debugging purposes only should go in here
 # These parameters are ignored when run through the GUI or as part of a graph
@@ -59,8 +66,12 @@ node = QualibrationNode[Parameters, Quam](
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     # You can get type hinting in your IDE by typing node.parameters.
     # node.parameters.qubits = ["q1", "q2"]
+    node.parameters.num_shots = 1000
     node.parameters.use_state_discrimination = True
     node.parameters.reset_type = "active"
+    node.parameters.max_wait_time_in_ns = 5e3
+    node.parameters.wait_time_num_points = 250
+    node.parameters.frequency_detuning_in_mhz = 3
 
     pass
 
