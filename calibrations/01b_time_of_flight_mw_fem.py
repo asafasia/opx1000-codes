@@ -2,8 +2,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
+from pathlib import Path
 from dataclasses import asdict
 
+from qm import generate_qua_script
 from qm.qua import *
 
 from qualang_tools.multi_user import qm_session
@@ -75,7 +77,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
     node.namespace["qubits"] = qubits = get_qubits(node)
     num_qubits = len(qubits)
 
-    node.namespace["tracked_resonators"] = [] = []
+    node.namespace["tracked_resonators"] = []
     for q in qubits:
         resonator = q.resonator
         # make temporary updates before running the program and revert at the end.
@@ -126,6 +128,14 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 # Will save only last run:
                 stream.real().save(f"adc_single_runI{i + 1}")
                 stream.image().save(f"adc_single_runQ{i + 1}")
+
+    debug_directory = Path(__file__).resolve().parents[1] / "debug"
+    debug_directory.mkdir(exist_ok=True)
+    debug_file = debug_directory / Path(__file__).name
+    config = node.machine.generate_config()
+    with debug_file.open("w") as source_file:
+        print(generate_qua_script(node.namespace["qua_program"], config), file=source_file)
+    node.log(f"Serialized QUA debug script saved to {debug_file}")
 
 
 # %% {Simulate}

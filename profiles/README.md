@@ -120,6 +120,160 @@ machine = cm.machine
 cm.profile.save()
 ```
 
+## CreateMachine, Profile Loading, And Saving
+
+`CreateMachine` is the normal Python entry point for building an in-memory QuAM
+machine from the repository profiles. It does not read root-level `state.json`
+or `wiring.json`; instead, it loads JSON from `profiles/`, validates it, builds
+the wiring, creates a fresh QuAM object, and applies the profile values.
+
+The short helper:
+
+```python
+from quam_config import create_machine
+
+machine = create_machine()
+```
+
+is equivalent to:
+
+```python
+from quam_config import CreateMachine
+
+cm = CreateMachine()
+machine = cm.machine
+```
+
+Use `CreateMachine` directly when you also need access to the profile object
+that was used to build the machine:
+
+```python
+cm = CreateMachine()
+machine = cm.machine
+profile = cm.profile
+```
+
+The `CreateMachine` object forwards unknown attributes to the machine, so code
+that receives `cm` can often use it like the machine itself. Prefer
+`cm.machine` when the distinction matters.
+
+### Profile Selection Rules
+
+By default, `CreateMachine()` uses `profiles/main`:
+
+```python
+cm = CreateMachine()
+```
+
+An explicit profile can be selected by name:
+
+```python
+cm = CreateMachine("main")
+cm = CreateMachine(profile_name="main")
+cm = CreateMachine(mode="main")
+```
+
+Single-qubit work uses the independent `profiles/single_qubit` profile. Passing
+only a qubit name selects that profile automatically:
+
+```python
+cm = CreateMachine(qubit="q3")
+```
+
+This builds a machine containing only the selected qubit, its resonator, its
+drive line, and the controller/FEM ports needed by that qubit. It does not copy
+values from `profiles/main`.
+
+If a qubit is provided together with an explicit profile, that profile must
+support single-qubit selection:
+
+```python
+cm = CreateMachine("single_qubit", qubit="q3")
+```
+
+Selecting a qubit from `main` is rejected because `main` is treated as the
+full-chip profile.
+
+### Profile.load()
+
+`Profile.load()` reads the four JSON documents from the profile directory:
+
+- `profile.json`
+- `connectivity.json`
+- `qubits.json`
+- `pulses.json`
+
+It validates the schema version, pulse definitions, qubit parameters,
+connectivity, active-qubit list, MW-FEM bands, LO ranges, and operation
+references. If validation fails, it raises `ProfileError`.
+
+Example:
+
+```python
+from profiles import Profile
+
+profile = Profile("main")
+documents = profile.load()
+```
+
+The loaded documents are normal Python dictionaries. `profile.documents` keeps
+a deep copy of the full loaded profile.
+
+For `single_qubit`, loading with a qubit selection returns a projected profile
+containing only that qubit:
+
+```python
+profile = Profile("single_qubit", qubit="q3")
+documents = profile.load()
+```
+
+That selected projection is useful for building a one-qubit machine, but it is
+not a full profile directory.
+
+### Profile.save()
+
+`Profile.save()` writes validated profile dictionaries back to the JSON files
+inside the profile directory. It writes through temporary files and replaces the
+targets, so a save should not leave partially written JSON files.
+
+Save the currently loaded profile:
+
+```python
+profile = Profile("main")
+documents = profile.load()
+documents["qubits"]["qubits"]["q3"]["frequencies_hz"]["qubit_f01"] = 4.5e9
+profile.save(documents)
+```
+
+Or save `profile.documents` after it has been loaded and modified:
+
+```python
+profile = Profile("main")
+profile.load()
+profile.documents["manifest"]["active_qubits"] = ["q3"]
+profile.save()
+```
+
+`Profile.save()` refuses to save a selected single-qubit projection over the
+full `single_qubit` profile. To edit the full `single_qubit` profile, load it
+without selecting a qubit, modify the full documents, and then save.
+
+### QuAM Machine Save
+
+Profile saving is different from QuAM machine saving.
+
+`create_machine_from_profile(..., save=True)` calls `machine.save()` after the
+QuAM object is built. That writes generated QuAM artifacts such as `state.json`
+and `wiring.json`.
+
+`CreateMachine` intentionally calls `create_machine_from_profile(...,
+save=False)`. This keeps those generated artifacts out of the repository root
+during normal calibration startup. The calibration node still saves its own
+run-specific snapshot with the experiment results.
+
+Use profile JSON as the durable source of truth. Treat generated QuAM files as
+outputs, not as the hand-edited calibration input.
+
 Validate or build a selected single-qubit profile:
 
 ```powershell
@@ -157,3 +311,20 @@ for experiments or cooldowns, validate it, and promote it to `main` only after
 testing. For larger systems, the next useful addition is JSON Schema files and
 applying the profile's calibrated qubit and pulse values to the generated QuAM
 state.
+
+When several users are calibrating, profile edits should be isolated by git
+branch until the intended values are reviewed. Frequencies, amplitudes,
+thresholds, pulse definitions, and readout weights are shared calibration state;
+editing them directly on the same branch can overwrite another user's working
+calibration. Treat each branch as one coherent profile workspace, then merge or
+promote values deliberately.
+
+For easier manual edits, use Profile Studio:
+
+```powershell
+python profile_studio/server.py
+```
+
+Then open <http://127.0.0.1:8766>. The HTML editor exposes the profile files as
+Profile, Qubits, Pulses, and Connectivity tabs and saves changes back to the
+selected profile JSON.
