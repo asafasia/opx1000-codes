@@ -148,14 +148,11 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                     # Ground state iq blobs for all qubits
                     # Qubit initialization
                     for i, qubit in multiplexed_qubits.items():
-                        if node.parameters.reset_type == "active":
-                            qubit.reset(
-                                node.parameters.reset_type,
-                                node.parameters.simulate,
-                                # log_callable=node.log,
-                            )
-                        else:
-                            pass
+                        qubit.reset(
+                            node.parameters.reset_type,
+                            node.parameters.simulate,
+                            # log_callable=node.log,
+                        )
                     align()
                     # Qubit readout
                     for i, qubit in multiplexed_qubits.items():
@@ -164,21 +161,16 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                         # save data
                         save(I_g[i], I_g_st[i])
                         save(Q_g[i], Q_g_st[i])
-                        if node.parameters.reset_type == "thermal":
-                            qubit.reset_qubit_thermal()
                     align()
 
                     # Excited state iq blobs for all qubits
                     # Qubit initialization
                     for i, qubit in multiplexed_qubits.items():
-                        if node.parameters.reset_type == "active":
-                            qubit.reset(
-                                node.parameters.reset_type,
-                                node.parameters.simulate,
-                                # log_callable=node.log,
-                            )
-                        else:
-                            pass
+                        qubit.reset(
+                            node.parameters.reset_type,
+                            node.parameters.simulate,
+                            # log_callable=node.log,
+                        )
                     align()
 
                     # Qubit readout
@@ -190,20 +182,15 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                         # save data
                         save(I_e[i], I_e_st[i])
                         save(Q_e[i], Q_e_st[i])
-                        if node.parameters.reset_type == "thermal":
-                            qubit.reset_qubit_thermal()
 
                     # Second excited state iq blobs for all qubits
                     # Qubit initialization
                     for i, qubit in multiplexed_qubits.items():
-                        if node.parameters.reset_type == "active":
-                            qubit.reset(
-                                node.parameters.reset_type,
-                                node.parameters.simulate,
-                                # log_callable=node.log,
-                            )
-                        else:
-                            pass
+                        qubit.reset(
+                            node.parameters.reset_type,
+                            node.parameters.simulate,
+                            # log_callable=node.log,
+                        )
                     align()
 
                     # Qubit readout
@@ -218,8 +205,6 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                         # save data
                         save(I_f[i], I_f_st[i])
                         save(Q_f[i], Q_f_st[i])
-                        if node.parameters.reset_type == "thermal":
-                            qubit.reset_qubit_thermal()
                         
         with stream_processing():
             n_st.save("n")

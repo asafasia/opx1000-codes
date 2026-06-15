@@ -110,14 +110,11 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 save(n, n_st)
                 with for_(*from_array(pulse_count, pulse_counts)):
                     for _, qubit in multiplexed_qubits.items():
-                        if node.parameters.reset_type == 'active':
-                            qubit.reset(
-                                node.parameters.reset_type,
-                                node.parameters.simulate,
-                                # log_callable=node.log,
-                            )
-                        else:
-                            pass
+                        qubit.reset(
+                            node.parameters.reset_type,
+                            node.parameters.simulate,
+                            # log_callable=node.log,
+                        )
                         # qubit.wait(10000)  # Wait for reset to complete
                     align()
 
@@ -136,8 +133,6 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                             save(I[i], I_st[i])
                             save(Q[i], Q_st[i])
 
-                        if node.parameters.reset_type == 'thermal':
-                            qubit.reset_qubit_thermal()  # Wait for qubit to relax back to ground
                     align()
 
         with stream_processing():

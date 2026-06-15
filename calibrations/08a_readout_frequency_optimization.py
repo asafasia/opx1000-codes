@@ -110,14 +110,11 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                     for i, qubit in multiplexed_qubits.items():
                         # Update the resonator frequencies & reset the qubits
                         update_frequency(qubit.resonator.name, df + qubit.resonator.intermediate_frequency)
-                        if node.parameters.reset_type == "active":
-                            qubit.reset(
-                                node.parameters.reset_type,
-                                node.parameters.simulate,
-                                # log_callable=node.log,
-                            )
-                        else:
-                            pass
+                        qubit.reset(
+                            node.parameters.reset_type,
+                            node.parameters.simulate,
+                            # log_callable=node.log,
+                        )
 
                     align()
 
@@ -128,20 +125,15 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                         # save data to their respective streams
                         save(I_g[i], I_g_st[i])
                         save(Q_g[i], Q_g_st[i])
-                        if node.parameters.reset_type == "thermal":
-                            qubit.reset_qubit_thermal()
                     align()
 
                     # Qubit initialization
                     for i, qubit in multiplexed_qubits.items():
-                        if node.parameters.reset_type == "active":
-                            qubit.reset(
-                                node.parameters.reset_type,
-                                node.parameters.simulate,
-                                # log_callable=node.log,
-                            )
-                        else:
-                            pass
+                        qubit.reset(
+                            node.parameters.reset_type,
+                            node.parameters.simulate,
+                            # log_callable=node.log,
+                        )
                     align()
                     # Qubit readout - |e> state
                     for i, qubit in multiplexed_qubits.items():
@@ -154,8 +146,6 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                         # save data to their respective streams
                         save(I_e[i], I_e_st[i])
                         save(Q_e[i], Q_e_st[i])
-                        if node.parameters.reset_type == "thermal":
-                            qubit.reset_qubit_thermal()
 
         with stream_processing():
             n_st.save("n")

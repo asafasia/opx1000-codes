@@ -123,14 +123,11 @@ def create_qua_program(node: QualibrationNode[EfParameters, Quam]):
                 with for_(*from_array(a, amps)):
                     # Qubit initialization
                     for i, qubit in multiplexed_qubits.items():  # Reset the qubit to ground state
-                        if node.parameters.reset_type == "active":
-                            qubit.reset(
-                                node.parameters.reset_type,
-                                node.parameters.simulate,
-                                # log_callable=node.log,
-                            )
-                        else:
-                            pass
+                        qubit.reset(
+                            node.parameters.reset_type,
+                            node.parameters.simulate,
+                            # log_callable=node.log,
+                        )
 
 
                     align()
@@ -155,8 +152,6 @@ def create_qua_program(node: QualibrationNode[EfParameters, Quam]):
                             save(I[i], I_st[i])
                             save(Q[i], Q_st[i])
 
-                        if node.parameters.reset_type == "thermal":
-                            qubit.reset_qubit_thermal()
 
                     align()
 

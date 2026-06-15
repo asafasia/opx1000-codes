@@ -124,15 +124,12 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 with for_(*from_array(df, dfs)):
                     with for_(*from_array(a, amps)):
                         for qubit in multiplexed_qubits.values():
-                            if node.parameters.reset_type == "active":
-                                qubit.xy.update_frequency(qubit.xy.intermediate_frequency)
-                                qubit.reset(
-                                    node.parameters.reset_type,
-                                    node.parameters.simulate,
-                                    # log_callable=node.log,
-                                )
-                            else:
-                                pass
+                            qubit.xy.update_frequency(qubit.xy.intermediate_frequency)
+                            qubit.reset(
+                                node.parameters.reset_type,
+                                node.parameters.simulate,
+                                # log_callable=node.log,
+                            )
                             qubit.xy.update_frequency(qubit.xy.intermediate_frequency + df)
                         align()
 
@@ -149,8 +146,6 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                                 save(I[i], I_st[i])
                                 save(Q[i], Q_st[i])
 
-                            if node.parameters.reset_type == "thermal":
-                                qubit.reset_qubit_thermal()
 
                         align()
 
