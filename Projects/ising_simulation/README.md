@@ -19,13 +19,13 @@ but a temperature sweep makes the change easy to see.
 From the repository root:
 
 ```bash
-python3 -m ising_simulation.run_sweep
+python3 -m Projects.ising_simulation.run_sweep
 ```
 
 Direct execution also works from any directory:
 
 ```bash
-python3 /path/to/opx1000-codes/ising_simulation/run_sweep.py
+python3 /path/to/opx1000-codes/Projects/ising_simulation/run_sweep.py
 ```
 
 The default sweep concentrates samples around the critical region and writes:
@@ -41,13 +41,13 @@ and is intentionally moderate. For a quick experiment, reduce
 physics, increase the lattice size and sweep counts.
 
 ```bash
-python3 -m pip install -r ising_simulation/requirements.txt
+python3 -m pip install -r Projects/ising_simulation/requirements.txt
 ```
 
 Run the small correctness checks with:
 
 ```bash
-python3 -m ising_simulation.test_model
+python3 tests/test_ising_simulation_model.py
 ```
 
 ## Interesting Observables

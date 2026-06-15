@@ -18,7 +18,7 @@ if str(REPOSITORY_ROOT) not in sys.path:
 
 from qm.qua import *
 
-from ising_machine.model import (
+from Projects.ising_machine.model import (
     IsingProblem,
     IsingRun,
     SPIN_DOWN_AMPLITUDE,

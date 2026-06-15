@@ -332,7 +332,7 @@ promote values deliberately.
 For easier manual edits, use Profile Studio:
 
 ```powershell
-python profile_studio/server.py
+python apps/profile_studio/server.py
 ```
 
 Then open <http://127.0.0.1:8766>. The HTML editor exposes the profile files as

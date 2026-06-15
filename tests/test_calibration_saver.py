@@ -8,7 +8,7 @@ import numpy as np
 from matplotlib.figure import Figure
 
 from profiles import Profile, clear_active_profile, set_active_profile
-from saver import CalibrationSaver
+from calibration_io import CalibrationSaver
 from utils.plotting_settings import CALIBRATION_TIMESTAMP_GID, add_calibration_timestamp
 
 

@@ -15,18 +15,21 @@ under `data/` and is intentionally not tracked by git.
 calibrations/          Qualibrate calibration and characterization scripts
 calibration_utils/     Per-calibration parameters, analysis, and plotting code
 profiles/              Versioned JSON device profiles and validation helpers
+profiles/profile_updater.py
+                       Profile update staging/apply helper
 quam_config/           QuAM machine construction from profiles
 docs/                  Hardware and repository documentation
-visualiser/            Read-only local dashboard for saved experiment data
-profile_studio/        Local structured editor for profile JSON files
-ising_machine/         QUA-based classical/pseudo-spin Ising experiments
-ising_simulation/      Pure-Python 2D Ising Monte Carlo simulation
-dynamic_circuit_active_reset/
+apps/visualiser/       Read-only local dashboard for saved experiment data
+apps/profile_studio/   Local structured editor for profile JSON files
+calibration_io/        Calibration result persistence helpers
+Projects/ising_machine/
+                       QUA-based classical/pseudo-spin Ising experiments
+Projects/ising_simulation/
+                       Pure-Python 2D Ising Monte Carlo simulation
+Projects/dynamic_circuit_active_reset/
                        Separate active-reset experiment
 tests/                 Unit tests for profiles, calibration analysis, and QUA logic
 utils/                 Shared simulation, plotting, and readout helpers
-updater/               Profile update helpers
-saver/                 Calibration result persistence helpers
 ```
 
 More focused documentation is available in:
@@ -34,11 +37,11 @@ More focused documentation is available in:
 - `docs/README.md`
 - `docs/hardware/README.md`
 - `profiles/README.md`
-- `visualiser/README.md`
-- `profile_studio/README.md`
-- `ising_machine/README.md`
-- `ising_simulation/README.md`
-- `dynamic_circuit_active_reset/README.md`
+- `apps/visualiser/README.md`
+- `apps/profile_studio/README.md`
+- `Projects/ising_machine/README.md`
+- `Projects/ising_simulation/README.md`
+- `Projects/dynamic_circuit_active_reset/README.md`
 
 ## Environment
 
@@ -51,10 +54,10 @@ $env:PYTHONPATH = (Get-Location).Path
 ```
 
 For the standalone Ising simulation only, the minimal dependencies are listed
-in `ising_simulation/requirements.txt`:
+in `Projects/ising_simulation/requirements.txt`:
 
 ```powershell
-python -m pip install -r ising_simulation/requirements.txt
+python -m pip install -r Projects/ising_simulation/requirements.txt
 ```
 
 ## Device Profiles
@@ -123,7 +126,7 @@ module under `calibration_utils/`, and save outputs under `data/`.
 Start the read-only experiment browser:
 
 ```powershell
-python visualiser/server.py
+python apps/visualiser/server.py
 ```
 
 Open <http://127.0.0.1:8765>.
@@ -131,7 +134,7 @@ Open <http://127.0.0.1:8765>.
 Start the profile editor:
 
 ```powershell
-python profile_studio/server.py
+python apps/profile_studio/server.py
 ```
 
 Open <http://127.0.0.1:8766>.

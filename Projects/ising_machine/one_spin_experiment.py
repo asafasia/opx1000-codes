@@ -16,7 +16,7 @@ if str(REPOSITORY_ROOT) not in sys.path:
 from qm import SimulationConfig
 from qm.qua import *
 
-from ising_machine.utils import (
+from Projects.ising_machine.utils import (
     assign_spin_from_signal,
     calculate_flip_energy,
     calculate_single_spin_energy,

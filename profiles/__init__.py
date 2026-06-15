@@ -10,10 +10,12 @@ from .loader import (
     set_active_profile,
     validate_profile,
 )
+from .profile_updater import ProfileUpdater
 
 __all__ = [
     "Profile",
     "ProfileError",
+    "ProfileUpdater",
     "clear_active_profile",
     "current_profile",
     "current_profile_name",

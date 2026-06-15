@@ -19,7 +19,7 @@ import numpy as np
 
 
 APP_ROOT = Path(__file__).resolve().parent
-PROJECT_ROOT = APP_ROOT.parent
+PROJECT_ROOT = APP_ROOT.parent.parent
 DATA_ROOT = PROJECT_ROOT / "data"
 CALIBRATION_CODE_ROOT = PROJECT_ROOT / "calibrations"
 CALIBRATION_RUN_ROOT = DATA_ROOT / "calibrations"

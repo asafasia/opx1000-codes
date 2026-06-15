@@ -20,7 +20,7 @@ if str(REPOSITORY_ROOT) not in sys.path:
 
 from qm.qua import *
 
-from ising_machine.model import SPIN_DOWN_AMPLITUDE, SPIN_UP_AMPLITUDE
+from Projects.ising_machine.model import SPIN_DOWN_AMPLITUDE, SPIN_UP_AMPLITUDE
 
 
 DEFAULT_ROWS = 110

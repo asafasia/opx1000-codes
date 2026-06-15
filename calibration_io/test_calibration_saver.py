@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from saver import CalibrationSaver
+from calibration_io import CalibrationSaver
 
 
 class FakeDataArray:

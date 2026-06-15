@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from ising_machine.pseudo_spin_2d_experiment import GridIsingProblem
+from Projects.ising_machine.pseudo_spin_2d_experiment import GridIsingProblem
 
 
 def test_periodic_neighbors() -> None:

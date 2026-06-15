@@ -15,7 +15,7 @@ from typing import Any
 
 
 APP_ROOT = Path(__file__).resolve().parent
-PROJECT_ROOT = APP_ROOT.parent
+PROJECT_ROOT = APP_ROOT.parent.parent
 PROFILES_ROOT = PROJECT_ROOT / "profiles"
 EDITABLE_FILES = {
     "profile": "profile.json",
@@ -173,7 +173,7 @@ class ProfileStudioHandler(SimpleHTTPRequestHandler):
             self.send_json({"error": f"Could not save profile: {exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def serve_logo(self, name: str) -> None:
-        path = PROJECT_ROOT / "visualiser" / "static" / name
+        path = PROJECT_ROOT / "apps" / "visualiser" / "static" / name
         if not path.is_file():
             raise FileNotFoundError(f"Shared logo {name} was not found.")
         body = path.read_bytes()

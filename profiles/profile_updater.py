@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
-from profiles import Profile, current_profile_name
+from .loader import Profile, current_profile_name
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent

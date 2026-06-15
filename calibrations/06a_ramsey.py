@@ -22,7 +22,7 @@ from calibration_utils.ramsey import (
 from qualibration_libs.parameters import get_qubits, get_idle_times_in_clock_cycles
 from qualibration_libs.runtime import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
-from saver import CalibrationSaver, current_profile_name
+from calibration_io import CalibrationSaver, current_profile_name
 from utils.plotting_settings import plot_per_qubit
 
 # %% {Description}

@@ -24,7 +24,7 @@ from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.parameters import get_qubits
 from qualibration_libs.runtime import simulate_and_plot
 from quam_config import Quam
-from saver import CalibrationSaver, current_profile_name
+from calibration_io import CalibrationSaver, current_profile_name
 from utils.plotting_settings import plot_per_qubit
 
 # %% {Description}

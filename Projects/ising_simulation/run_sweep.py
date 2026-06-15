@@ -9,9 +9,9 @@ import numpy as np
 if __package__:
     from .sweep import save_csv, save_plot, temperature_sweep
 else:
-    # Support direct execution: python ising_simulation/run_sweep.py
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from ising_simulation.sweep import save_csv, save_plot, temperature_sweep
+    # Support direct execution: python Projects/ising_simulation/run_sweep.py
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from Projects.ising_simulation.sweep import save_csv, save_plot, temperature_sweep
 
 
 def main() -> None:
@@ -34,7 +34,7 @@ def main() -> None:
     )
     t2 = time.time()
     print(f"Completed temperature sweep in {t2 - t1:.2f} seconds.")
-    output_dir = Path(__file__).resolve().parents[1] / "data" / "ising_simulation"
+    output_dir = Path(__file__).resolve().parents[2] / "data" / "ising_simulation"
     save_csv(rows, output_dir / "temperature_sweep.csv")
     save_plot(rows, output_dir / "temperature_sweep.png")
     print(f"Saved results to {output_dir}")

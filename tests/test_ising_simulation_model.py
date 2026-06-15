@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from ising_simulation.model import IsingModel
-from ising_simulation.observables import summarize_samples
+from Projects.ising_simulation.model import IsingModel
+from Projects.ising_simulation.observables import summarize_samples
 
 
 def test_ordered_lattice_energy() -> None:

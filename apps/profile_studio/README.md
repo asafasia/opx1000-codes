@@ -7,7 +7,7 @@ tabs: Profile, Qubits, Pulses, and Connectivity.
 Run from the project root:
 
 ```powershell
-python profile_studio/server.py
+python apps/profile_studio/server.py
 ```
 
 Then open <http://127.0.0.1:8766>.

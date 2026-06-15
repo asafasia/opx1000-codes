@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from profiles import Profile, clear_active_profile, set_active_profile
-from updater import ProfileUpdater
+from profiles import ProfileUpdater
 
 
 class ProfileUpdaterTests(unittest.TestCase):

@@ -13,7 +13,7 @@ class ReadoutFrequencyUpdaterTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
     def test_successful_frequency_is_staged_through_profile_updater(self):
-        self.assertIn("from updater import ProfileUpdater", self.source)
+        self.assertIn("from profiles import ProfileUpdater", self.source)
         self.assertIn(
             'f"qubits.json.qubits.{q.name}.frequencies_hz.resonator"',
             self.source,

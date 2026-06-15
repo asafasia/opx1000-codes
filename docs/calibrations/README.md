@@ -172,7 +172,7 @@ when changing parameters by hand is awkward or error-prone.
 Run it from the repository root:
 
 ```powershell
-python profile_studio/server.py
+python apps/profile_studio/server.py
 ```
 
 Then open <http://127.0.0.1:8766>.

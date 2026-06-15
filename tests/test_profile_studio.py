@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from profile_studio.server import list_profiles, read_section, write_section
+from apps.profile_studio.server import list_profiles, read_section, write_section
 
 
 class ProfileStudioTests(unittest.TestCase):
@@ -26,7 +26,7 @@ class ProfileStudioTests(unittest.TestCase):
                         encoding="utf-8",
                     )
 
-            with patch("profile_studio.server.PROFILES_ROOT", root):
+            with patch("apps.profile_studio.server.PROFILES_ROOT", root):
                 section = read_section("single_qubit", "qubits")
                 write_section(
                     "single_qubit",
