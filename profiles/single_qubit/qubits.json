@@ -23,10 +23,10 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": -0.0002473168413364847,
-        "rus_exit_threshold": -0.0002473168413364847,
+        "threshold": -0.00024567774237371315,
+        "rus_exit_threshold": -0.00024567774237371315,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": -2.004659452244334
+        "integration_weights_angle_rad": -1.9973659034767697
       },
       "operations": {
         "x180": "x180_const",

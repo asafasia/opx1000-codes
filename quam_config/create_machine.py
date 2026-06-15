@@ -1,5 +1,6 @@
 """Select a profile and build strategy for an in-memory QuAM machine."""
 
+import pprint
 import sys
 from pathlib import Path
 
@@ -87,6 +88,8 @@ def create_machine(
 
 
 if __name__ == "__main__":
-    machine = create_machine()
-    print(machine)
+    machine = create_machine(qubit="q2")
+    config = machine.generate_config()
 
+    from pprint import pprint
+    pprint(config)

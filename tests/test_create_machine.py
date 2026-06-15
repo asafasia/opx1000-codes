@@ -6,6 +6,7 @@ from profiles import Profile, ProfileError, clear_active_profile, current_profil
 from profiles.loader import _read_json
 from quam_config import CreateMachine, create_machine
 from quam_config.create_machine_from_profile import create_machine_from_profile
+from quam_config.my_quam import apply_temporary_mw_fem_lo_mode_bugfix
 
 
 class SingleQubitProfileTests(unittest.TestCase):
@@ -163,6 +164,29 @@ class CreateMachineTests(unittest.TestCase):
             self.assertIs(create_machine(profile), expected)
 
             build.assert_called_once_with(profile, save=False)
+
+    def test_temporary_mw_fem_lo_mode_bugfix_patches_generated_config(self):
+        config = {
+            "controllers": {
+                "con1": {
+                    "fems": {
+                        7: {
+                            "type": "MW",
+                            "analog_inputs": {
+                                1: {"band": 2, "downconverter_frequency": 5e9},
+                                2: {"band": 2, "downconverter_frequency": 5.1e9},
+                            },
+                        }
+                    }
+                }
+            }
+        }
+
+        apply_temporary_mw_fem_lo_mode_bugfix(config)
+
+        inputs = config["controllers"]["con1"]["fems"][7]["analog_inputs"]
+        self.assertEqual(inputs[1]["lo_mode"], "always_on")
+        self.assertEqual(inputs[2]["lo_mode"], "always_on")
 
 
 if __name__ == "__main__":

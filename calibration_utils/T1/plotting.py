@@ -51,13 +51,18 @@ def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str
         fitted = None
 
     if hasattr(fit, "state"):
-        ds.sel(qubit=qubit["qubit"]).state.plot(ax=ax)
+        ds.sel(qubit=qubit["qubit"]).state.plot(ax=ax, marker=".", linestyle="-", markersize=5)
         if fitted is not None:
             ax.plot(ds.idle_time, fitted, "r--")
         ax.set_ylabel("State")
     elif hasattr(fit, "I"):
         quadrature = str(fit.selected_quadrature.values) if "selected_quadrature" in fit else "I"
-        (ds.sel(qubit=qubit["qubit"])[quadrature] * 1e3).plot(ax=ax)
+        (ds.sel(qubit=qubit["qubit"])[quadrature] * 1e3).plot(
+            ax=ax,
+            marker=".",
+            linestyle="-",
+            markersize=5,
+        )
         if fitted is not None:
             ax.plot(ds.idle_time, fitted * 1e3, "r--")
         ax.set_ylabel(f"Trans. amp. {quadrature} [mV]")

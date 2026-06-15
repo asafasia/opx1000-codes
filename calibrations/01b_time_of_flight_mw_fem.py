@@ -139,7 +139,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 for i, qubit in multiplexed_qubits.items():
                     # Reset the phase of the digital oscillator associated to the resonator element. Needed to average the cosine signal.
                     reset_if_phase(qubit.resonator.name)
-                    qubit.wait(17000)  # Wait for the time of flight before sending
+                    qubit.wait(27000)  # Wait for the time of flight before sending
                     # Measure the resonator (send a readout pulse and record the raw ADC trace)
                     qubit.resonator.measure("readout", stream=adc_st[i])
                     # Wait for the resonator to deplete

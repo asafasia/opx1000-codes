@@ -1,6 +1,6 @@
 
-# Single QUA script generated at 2026-06-15 13:04:36.950636
-# QUA library version: 1.2.6
+# Single QUA script generated at 2026-06-15 14:16:35.401095
+# QUA library version: 1.3.0a1
 
 
 from qm import CompilerOptionArguments
@@ -11,13 +11,13 @@ with program() as prog:
     v2 = declare(fixed, )
     v3 = declare(fixed, )
     with for_(v1,0,(v1<100),(v1+1)):
-        r1 = declare_stream()
+        r1 = declare_output_stream()
         save(v1, r1)
-        reset_if_phase("q2.resonator")
-        wait(17000, "q2.xy", "q2.resonator")
-        atr_r2 = declare_stream(adc_trace=True)
-        measure("readout", "q2.resonator", dual_demod.full("iw1", "iw2", v2), dual_demod.full("iw3", "iw1", v3), adc_stream=atr_r2)
-        wait(2500, "q2.resonator")
+        reset_if_phase('q2.resonator')
+        wait(27000, 'q2.xy', 'q2.resonator')
+        atr_r2 = declare_output_stream(adc_trace=True)
+        measure('readout', 'q2.resonator', dual_demod.full("iw1", "iw2", v2), dual_demod.full("iw3", "iw1", v3), adc_stream=atr_r2)
+        wait(2500, 'q2.resonator')
         align()
     with stream_processing():
         r1.save("n")
@@ -56,6 +56,7 @@ config = {
                             "downconverter_frequency": 6800000000,
                             "sampling_rate": 1000000000,
                             "shareable": False,
+                            "lo_mode": "always_on",
                         },
                     },
                 },
@@ -363,6 +364,7 @@ loaded_config = {
                             "gain_db": 0,
                             "sampling_rate": 1000000000.0,
                             "downconverter_frequency": 6800000000.0,
+                            "lo_mode": "always_on",
                         },
                     },
                 },
@@ -371,43 +373,11 @@ loaded_config = {
     },
     "oscillators": {},
     "elements": {
-        "q2.xy": {
-            "digitalInputs": {},
-            "digitalOutputs": {},
-            "outputs": {},
-            "operations": {
-                "x180": "q2.xy.x180.pulse",
-                "EF_x180": "q2.xy.EF_x180.pulse",
-                "x180_drag": "q2.xy.x180_drag.pulse",
-                "x180_cosine": "q2.xy.x180_cosine.pulse",
-                "saturation": "q2.xy.saturation.pulse",
-                "y180": "q2.xy.y180.pulse",
-                "x90": "q2.xy.x90.pulse",
-                "-x90": "q2.xy.-x90.pulse",
-                "y90": "q2.xy.y90.pulse",
-                "-y90": "q2.xy.-y90.pulse",
-            },
-            "hold_offset": {
-                "duration": 0,
-            },
-            "sticky": {
-                "analog": False,
-                "digital": False,
-                "duration": 4,
-            },
-            "MWInput": {
-                "port": ('con1', 7, 2),
-                "upconverter": 1,
-            },
-            "intermediate_frequency": -7900000.0,
-        },
         "q2.resonator": {
             "digitalInputs": {},
             "digitalOutputs": {},
             "outputs": {},
-            "operations": {
-                "readout": "q2.resonator.readout.pulse",
-            },
+            "operations": {'readout': 'q2.resonator.readout.pulse'},
             "hold_offset": {
                 "duration": 0,
             },
@@ -427,158 +397,118 @@ loaded_config = {
             "time_of_flight": 28,
             "intermediate_frequency": -20000000.0,
         },
+        "q2.xy": {
+            "digitalInputs": {},
+            "digitalOutputs": {},
+            "outputs": {},
+            "operations": {'x180_cosine': 'q2.xy.x180_cosine.pulse', 'y180': 'q2.xy.y180.pulse', 'EF_x180': 'q2.xy.EF_x180.pulse', '-y90': 'q2.xy.-y90.pulse', 'x180_drag': 'q2.xy.x180_drag.pulse', 'x180': 'q2.xy.x180.pulse', '-x90': 'q2.xy.-x90.pulse', 'saturation': 'q2.xy.saturation.pulse', 'x90': 'q2.xy.x90.pulse', 'y90': 'q2.xy.y90.pulse'},
+            "hold_offset": {
+                "duration": 0,
+            },
+            "sticky": {
+                "analog": False,
+                "digital": False,
+                "duration": 4,
+            },
+            "MWInput": {
+                "port": ('con1', 7, 2),
+                "upconverter": 1,
+            },
+            "intermediate_frequency": -7900000.0,
+        },
     },
     "pulses": {
-        "const_pulse": {
-            "length": 1000,
-            "waveforms": {
-                "I": "const_wf",
-                "Q": "zero_wf",
-            },
-            "integration_weights": {},
-            "operation": "control",
-        },
-        "q2.xy.x180.pulse": {
-            "length": 40,
-            "waveforms": {
-                "I": "q2.xy.x180.wf.I",
-                "Q": "q2.xy.x180.wf.Q",
-            },
-            "integration_weights": {},
-            "operation": "control",
-        },
-        "q2.xy.EF_x180.pulse": {
-            "length": 40,
-            "waveforms": {
-                "I": "q2.xy.EF_x180.wf.I",
-                "Q": "q2.xy.EF_x180.wf.Q",
-            },
-            "integration_weights": {},
-            "operation": "control",
-        },
-        "q2.xy.x180_drag.pulse": {
-            "length": 40,
-            "waveforms": {
-                "I": "q2.xy.x180_drag.wf.I",
-                "Q": "q2.xy.x180_drag.wf.Q",
-            },
-            "integration_weights": {},
-            "operation": "control",
-        },
-        "q2.xy.x180_cosine.pulse": {
-            "length": 40,
-            "waveforms": {
-                "I": "q2.xy.x180_cosine.wf.I",
-                "Q": "q2.xy.x180_cosine.wf.Q",
-            },
-            "integration_weights": {},
-            "operation": "control",
-        },
-        "q2.xy.saturation.pulse": {
-            "length": 50000,
-            "waveforms": {
-                "I": "q2.xy.saturation.wf.I",
-                "Q": "q2.xy.saturation.wf.Q",
-            },
-            "integration_weights": {},
-            "operation": "control",
-        },
-        "q2.xy.y180.pulse": {
-            "length": 40,
-            "waveforms": {
-                "I": "q2.xy.y180.wf.I",
-                "Q": "q2.xy.y180.wf.Q",
-            },
-            "integration_weights": {},
-            "operation": "control",
-        },
         "q2.xy.x90.pulse": {
             "length": 40,
-            "waveforms": {
-                "I": "q2.xy.x90.wf.I",
-                "Q": "q2.xy.x90.wf.Q",
-            },
-            "integration_weights": {},
-            "operation": "control",
-        },
-        "q2.xy.-x90.pulse": {
-            "length": 40,
-            "waveforms": {
-                "I": "q2.xy.-x90.wf.I",
-                "Q": "q2.xy.-x90.wf.Q",
-            },
-            "integration_weights": {},
-            "operation": "control",
-        },
-        "q2.xy.y90.pulse": {
-            "length": 40,
-            "waveforms": {
-                "I": "q2.xy.y90.wf.I",
-                "Q": "q2.xy.y90.wf.Q",
-            },
+            "waveforms": {'I': 'q2.xy.x90.wf.I', 'Q': 'q2.xy.x90.wf.Q'},
             "integration_weights": {},
             "operation": "control",
         },
         "q2.xy.-y90.pulse": {
             "length": 40,
-            "waveforms": {
-                "I": "q2.xy.-y90.wf.I",
-                "Q": "q2.xy.-y90.wf.Q",
-            },
+            "waveforms": {'I': 'q2.xy.-y90.wf.I', 'Q': 'q2.xy.-y90.wf.Q'},
+            "integration_weights": {},
+            "operation": "control",
+        },
+        "q2.xy.-x90.pulse": {
+            "length": 40,
+            "waveforms": {'I': 'q2.xy.-x90.wf.I', 'Q': 'q2.xy.-x90.wf.Q'},
             "integration_weights": {},
             "operation": "control",
         },
         "q2.resonator.readout.pulse": {
             "length": 2000,
-            "waveforms": {
-                "I": "q2.resonator.readout.wf.I",
-                "Q": "q2.resonator.readout.wf.Q",
-            },
-            "integration_weights": {
-                "iw1": "q2.resonator.readout.iw1",
-                "iw2": "q2.resonator.readout.iw2",
-                "iw3": "q2.resonator.readout.iw3",
-            },
+            "waveforms": {'I': 'q2.resonator.readout.wf.I', 'Q': 'q2.resonator.readout.wf.Q'},
+            "integration_weights": {'iw1': 'q2.resonator.readout.iw1', 'iw2': 'q2.resonator.readout.iw2', 'iw3': 'q2.resonator.readout.iw3'},
             "operation": "measurement",
-            "digital_marker": "ON",
+        },
+        "q2.xy.saturation.pulse": {
+            "length": 50000,
+            "waveforms": {'I': 'q2.xy.saturation.wf.I', 'Q': 'q2.xy.saturation.wf.Q'},
+            "integration_weights": {},
+            "operation": "control",
+        },
+        "q2.xy.x180.pulse": {
+            "length": 40,
+            "waveforms": {'I': 'q2.xy.x180.wf.I', 'Q': 'q2.xy.x180.wf.Q'},
+            "integration_weights": {},
+            "operation": "control",
+        },
+        "q2.xy.y180.pulse": {
+            "length": 40,
+            "waveforms": {'I': 'q2.xy.y180.wf.I', 'Q': 'q2.xy.y180.wf.Q'},
+            "integration_weights": {},
+            "operation": "control",
+        },
+        "q2.xy.x180_cosine.pulse": {
+            "length": 40,
+            "waveforms": {'I': 'q2.xy.x180_cosine.wf.I', 'Q': 'q2.xy.x180_cosine.wf.Q'},
+            "integration_weights": {},
+            "operation": "control",
+        },
+        "q2.xy.x180_drag.pulse": {
+            "length": 40,
+            "waveforms": {'I': 'q2.xy.x180_drag.wf.I', 'Q': 'q2.xy.x180_drag.wf.Q'},
+            "integration_weights": {},
+            "operation": "control",
+        },
+        "q2.xy.y90.pulse": {
+            "length": 40,
+            "waveforms": {'I': 'q2.xy.y90.wf.I', 'Q': 'q2.xy.y90.wf.Q'},
+            "integration_weights": {},
+            "operation": "control",
+        },
+        "const_pulse": {
+            "length": 1000,
+            "waveforms": {'I': 'const_wf', 'Q': 'zero_wf'},
+            "integration_weights": {},
+            "operation": "control",
+        },
+        "q2.xy.EF_x180.pulse": {
+            "length": 40,
+            "waveforms": {'I': 'q2.xy.EF_x180.wf.I', 'Q': 'q2.xy.EF_x180.wf.Q'},
+            "integration_weights": {},
+            "operation": "control",
         },
     },
     "waveforms": {
-        "zero_wf": {
-            "type": "constant",
-            "sample": 0.0,
-        },
-        "const_wf": {
-            "type": "constant",
-            "sample": 0.1,
-        },
-        "q2.xy.x180.wf.I": {
-            "type": "constant",
-            "sample": 0.041823681167301265,
-        },
-        "q2.xy.x180.wf.Q": {
-            "type": "constant",
-            "sample": 0.0,
-        },
-        "q2.xy.EF_x180.wf.I": {
-            "type": "constant",
-            "sample": 0.1,
-        },
-        "q2.xy.EF_x180.wf.Q": {
-            "type": "constant",
-            "sample": 0.0,
-        },
-        "q2.xy.x180_drag.wf.I": {
-            "type": "arbitrary",
-            "samples": [0.0, 1.5742741744950548e-06, 6.2861453557718335e-06, 1.94976841962637e-05, 5.4187210979377e-05, 0.00013944512952471135, 0.0003354778364293978, 0.0007568769320621657, 0.001603080115171227, 0.003188788523851882, 0.005958041063834781, 0.010457209316536318, 0.017241471577011457, 0.02670449271027051, 0.03885512193887259, 0.053108908291170695, 0.06819338430667099, 0.08225706542750265, 0.09320955842358894] + [0.09922110301366054] * 2 + [0.09320955842358894, 0.08225706542750265, 0.06819338430667099, 0.053108908291170695, 0.03885512193887259, 0.02670449271027051, 0.017241471577011457, 0.010457209316536318, 0.005958041063834781, 0.003188788523851882, 0.001603080115171227, 0.0007568769320621657, 0.0003354778364293978, 0.00013944512952471135, 5.4187210979377e-05, 1.94976841962637e-05, 6.2861453557718335e-06, 1.5742741744950548e-06, 0.0],
-            "is_overridable": False,
-            "max_allowed_error": 0.0001,
-        },
         "q2.xy.x180_drag.wf.Q": {
             "type": "arbitrary",
             "samples": [0.0] * 40,
             "is_overridable": False,
             "max_allowed_error": 0.0001,
+        },
+        "q2.xy.saturation.wf.Q": {
+            "type": "constant",
+            "sample": 0.0,
+        },
+        "q2.xy.y180.wf.Q": {
+            "type": "constant",
+            "sample": 0.041823681167301265,
+        },
+        "q2.xy.-y90.wf.I": {
+            "type": "constant",
+            "sample": -1.2804809317523733e-18,
         },
         "q2.xy.x180_cosine.wf.I": {
             "type": "arbitrary",
@@ -592,21 +522,17 @@ loaded_config = {
             "is_overridable": False,
             "max_allowed_error": 0.0001,
         },
-        "q2.xy.saturation.wf.I": {
+        "const_wf": {
             "type": "constant",
             "sample": 0.1,
         },
-        "q2.xy.saturation.wf.Q": {
+        "q2.xy.EF_x180.wf.Q": {
             "type": "constant",
             "sample": 0.0,
         },
         "q2.xy.y180.wf.I": {
             "type": "constant",
             "sample": 2.5609618635047466e-18,
-        },
-        "q2.xy.y180.wf.Q": {
-            "type": "constant",
-            "sample": 0.041823681167301265,
         },
         "q2.xy.x90.wf.I": {
             "type": "constant",
@@ -616,37 +542,59 @@ loaded_config = {
             "type": "constant",
             "sample": 0.0,
         },
+        "q2.xy.x180.wf.I": {
+            "type": "constant",
+            "sample": 0.041823681167301265,
+        },
         "q2.xy.-x90.wf.I": {
             "type": "constant",
             "sample": -0.020911840583650632,
+        },
+        "zero_wf": {
+            "type": "constant",
+            "sample": 0.0,
+        },
+        "q2.xy.saturation.wf.I": {
+            "type": "constant",
+            "sample": 0.1,
+        },
+        "q2.xy.x180_drag.wf.I": {
+            "type": "arbitrary",
+            "samples": [0.0, 1.5742741744950548e-06, 6.2861453557718335e-06, 1.94976841962637e-05, 5.4187210979377e-05, 0.00013944512952471135, 0.0003354778364293978, 0.0007568769320621657, 0.001603080115171227, 0.003188788523851882, 0.005958041063834781, 0.010457209316536318, 0.017241471577011457, 0.02670449271027051, 0.03885512193887259, 0.053108908291170695, 0.06819338430667099, 0.08225706542750265, 0.09320955842358894] + [0.09922110301366054] * 2 + [0.09320955842358894, 0.08225706542750265, 0.06819338430667099, 0.053108908291170695, 0.03885512193887259, 0.02670449271027051, 0.017241471577011457, 0.010457209316536318, 0.005958041063834781, 0.003188788523851882, 0.001603080115171227, 0.0007568769320621657, 0.0003354778364293978, 0.00013944512952471135, 5.4187210979377e-05, 1.94976841962637e-05, 6.2861453557718335e-06, 1.5742741744950548e-06, 0.0],
+            "is_overridable": False,
+            "max_allowed_error": 0.0001,
+        },
+        "q2.xy.x180.wf.Q": {
+            "type": "constant",
+            "sample": 0.0,
+        },
+        "q2.xy.EF_x180.wf.I": {
+            "type": "constant",
+            "sample": 0.1,
         },
         "q2.xy.-x90.wf.Q": {
             "type": "constant",
             "sample": 0.0,
         },
-        "q2.xy.y90.wf.I": {
-            "type": "constant",
-            "sample": 1.2804809317523733e-18,
-        },
         "q2.xy.y90.wf.Q": {
             "type": "constant",
             "sample": 0.020911840583650632,
-        },
-        "q2.xy.-y90.wf.I": {
-            "type": "constant",
-            "sample": -1.2804809317523733e-18,
         },
         "q2.xy.-y90.wf.Q": {
             "type": "constant",
             "sample": -0.020911840583650632,
         },
-        "q2.resonator.readout.wf.I": {
+        "q2.xy.y90.wf.I": {
             "type": "constant",
-            "sample": 0.8912509381337456,
+            "sample": 1.2804809317523733e-18,
         },
         "q2.resonator.readout.wf.Q": {
             "type": "constant",
             "sample": 0.0,
+        },
+        "q2.resonator.readout.wf.I": {
+            "type": "constant",
+            "sample": 0.8912509381337456,
         },
     },
     "digital_waveforms": {
@@ -655,17 +603,17 @@ loaded_config = {
         },
     },
     "integration_weights": {
-        "q2.resonator.readout.iw1": {
-            "cosine": [(0.32042550274971876, 3000)],
-            "sine": [(-0.9472737181974331, 3000)],
+        "q2.resonator.readout.iw3": {
+            "cosine": [(-0.9472737181974331, 3000)],
+            "sine": [(-0.32042550274971876, 3000)],
         },
         "q2.resonator.readout.iw2": {
             "cosine": [(0.9472737181974331, 3000)],
             "sine": [(0.32042550274971876, 3000)],
         },
-        "q2.resonator.readout.iw3": {
-            "cosine": [(-0.9472737181974331, 3000)],
-            "sine": [(-0.32042550274971876, 3000)],
+        "q2.resonator.readout.iw1": {
+            "cosine": [(0.32042550274971876, 3000)],
+            "sine": [(-0.9472737181974331, 3000)],
         },
     },
     "mixers": {},

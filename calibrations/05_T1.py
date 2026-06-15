@@ -13,6 +13,7 @@ from qualibrate import QualibrationNode
 from quam_config import Quam
 from calibration_io import CalibrationSaver, current_profile_name
 from profiles import ProfileUpdater
+from quam_config.create_machine import create_machine
 from utils.plotting_settings import plot_per_qubit
 from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.parameters import get_qubits, get_idle_times_in_clock_cycles
@@ -50,6 +51,13 @@ node = QualibrationNode[Parameters, Quam](
     machine=Quam.load(),
 )
 
+node.machine = create_machine(qubit='q1')
+
+node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
+
+node.machine.qmm.close_all_qms()
+
+
 
 # Any parameters that should change for debugging purposes only should go in here
 # These parameters are ignored when run through the GUI or as part of a graph
@@ -57,8 +65,11 @@ node = QualibrationNode[Parameters, Quam](
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     # You can get type hinting in your IDE by typing node.parameters.
     # node.parameters.qubits = ["q1", "q2"]
-    node.parameters.use_state_discrimination = False
+    node.parameters.use_state_discrimination = True
     node.parameters.reset_type = "active"
+    node.parameters.max_wait_time_in_ns = 250e3
+    node.parameters.wait_time_num_points = 150
+    node.parameters.log_or_linear_sweep = "log"
 
 
 

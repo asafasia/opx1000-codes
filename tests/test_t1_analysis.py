@@ -81,6 +81,8 @@ class T1AnalysisTests(unittest.TestCase):
         plot_individual_data_with_fit(ax, ds, {"qubit": "q1"}, ds.sel(qubit="q1"))
 
         self.assertEqual(ax.get_ylabel(), "Trans. amp. Q [mV]")
+        self.assertEqual(ax.lines[0].get_marker(), ".")
+        self.assertEqual(ax.lines[0].get_linestyle(), "-")
         plt.close(fig)
 
 
