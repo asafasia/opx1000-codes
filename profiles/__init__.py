@@ -1,6 +1,7 @@
 """Versioned hardware and calibration profiles."""
 
 from .loader import (
+    MAX_PROFILE_PULSE_AMPLITUDE,
     Profile,
     ProfileError,
     clear_active_profile,
@@ -13,6 +14,7 @@ from .loader import (
 from .profile_updater import ProfileUpdater
 
 __all__ = [
+    "MAX_PROFILE_PULSE_AMPLITUDE",
     "Profile",
     "ProfileError",
     "ProfileUpdater",

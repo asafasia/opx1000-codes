@@ -11,6 +11,7 @@ PROFILES_ROOT = Path(__file__).resolve().parent
 SUPPORTED_SCHEMA_VERSION = 1
 PULSE_TYPES = {"constant", "drag", "cosine", "saturation"}
 STATE_1_RULES = {"above_threshold", "below_threshold"}
+MAX_PROFILE_PULSE_AMPLITUDE = 0.5
 MW_FEM_BAND_RANGES_HZ = {
     1: (50e6, 5.5e9),
     2: (4.5e9, 7.5e9),
@@ -91,6 +92,11 @@ def _validate_pulse(name: str, pulse: Any) -> None:
     _require(target in {"qubit", "resonator"}, f"Pulse {name!r} has invalid target {target!r}")
     _require(isinstance(pulse.get("amplitude"), (int, float)), f"Pulse {name!r} needs amplitude")
     _require(pulse["amplitude"] != 0, f"Pulse {name!r} amplitude cannot be zero")
+    _require(
+        abs(pulse["amplitude"]) <= MAX_PROFILE_PULSE_AMPLITUDE,
+        f"Pulse {name!r} amplitude is too high: {pulse['amplitude']!r}. "
+        f"Maximum allowed absolute amplitude is {MAX_PROFILE_PULSE_AMPLITUDE}.",
+    )
     _require(isinstance(pulse.get("length_ns"), int) and pulse["length_ns"] > 0, f"Pulse {name!r} needs positive integer length_ns")
     _require(target != "resonator" or pulse_type == "constant", f"Readout pulse {name!r} must use type 'constant'")
 

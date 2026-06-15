@@ -17,7 +17,7 @@ from quam.components.pulses import (
     SquareReadoutPulse,
 )
 
-from profiles import ProfileError, load_profile
+from profiles import MAX_PROFILE_PULSE_AMPLITUDE, ProfileError, load_profile
 from quam_config import Quam
 from quam_config.derived_gates import add_derived_single_qubit_gates
 
@@ -65,6 +65,13 @@ def _create_pulse(
     qubit: Any,
     readout: dict[str, Any],
 ):
+    if abs(pulse["amplitude"]) > MAX_PROFILE_PULSE_AMPLITUDE:
+        raise ProfileError(
+            f"Pulse {pulse_name!r} amplitude is too high for machine build: "
+            f"{pulse['amplitude']!r}. Maximum allowed absolute amplitude is "
+            f"{MAX_PROFILE_PULSE_AMPLITUDE}."
+        )
+
     common = {
         "length": pulse["length_ns"],
         "amplitude": pulse["amplitude"],

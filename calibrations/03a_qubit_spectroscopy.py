@@ -77,7 +77,7 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
 
 
 # Create the machine directly from profiles/main without loading state.json.
-node.machine = create_machine(qubit='q3')
+node.machine = create_machine(qubit='q2')
 
 node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
 

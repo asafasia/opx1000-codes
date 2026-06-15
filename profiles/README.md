@@ -44,6 +44,13 @@ operation names can be calibrated independently. Supported pulse types are:
 - `cosine`: cosine-shaped qubit-control envelope.
 - `saturation`: long constant qubit drive.
 
+Profile pulse amplitudes are limited to an absolute value of `0.5` for all
+pulse types. Values above this limit are rejected during profile validation with
+a `ProfileError` before the QuAM machine is built. This protects the machine
+builder from applying unsafe profile values. If a calibration proposes a larger
+amplitude, review the profile, full-scale power, and calibration result before
+changing the limit.
+
 Readout pulses define piecewise-constant integration kernels as
 `integration_weights: [[weight, length_ns], ...]`. The segment lengths must
 span the full readout pulse. The per-qubit

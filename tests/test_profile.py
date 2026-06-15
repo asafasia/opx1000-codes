@@ -166,6 +166,29 @@ class ProfileTests(unittest.TestCase):
             with self.assertRaisesRegex(ProfileError, "selected single-qubit projection"):
                 profile.save(selected)
 
+    def test_profile_accepts_pulse_amplitude_at_limit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_profile(root)
+            pulses_path = root / "main" / "pulses.json"
+            pulses = json.loads(pulses_path.read_text())
+            pulses["pulses"]["q1"]["x180_const"]["amplitude"] = 0.5
+            pulses_path.write_text(json.dumps(pulses) + "\n", encoding="utf-8")
+
+            Profile("main", root=root).load()
+
+    def test_profile_rejects_pulse_amplitude_above_limit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_profile(root)
+            pulses_path = root / "main" / "pulses.json"
+            pulses = json.loads(pulses_path.read_text())
+            pulses["pulses"]["q1"]["x180_const"]["amplitude"] = 0.51
+            pulses_path.write_text(json.dumps(pulses) + "\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ProfileError, "amplitude is too high"):
+                Profile("main", root=root).load()
+
 
 if __name__ == "__main__":
     unittest.main()
