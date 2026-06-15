@@ -1,0 +1,12 @@
+{
+  "name": "overnight_drift",
+  "repetitions": 12,
+  "interval_seconds": 300,
+  "continue_on_error": false,
+  "save_full_results": false,
+  "experiments": [
+    "calibrations/03a_qubit_spectroscopy.py",
+    "calibrations/05_T1.py",
+    "calibrations/06a_ramsey.py"
+  ]
+}

@@ -151,6 +151,18 @@ class CreateMachineTests(unittest.TestCase):
         self.assertEqual(current_profile_name(), "single_qubit")
         build.assert_called_once_with(profile, save=False)
 
+    @patch.dict("os.environ", {"QUAM_PROFILE": "single_qubit", "QUAM_QUBIT": "q5"})
+    @patch("quam_config.create_machine_from_profile.create_machine_from_profile")
+    def test_environment_can_override_script_qubit_selection(self, build):
+        expected = object()
+        build.return_value = expected
+
+        self.assertIs(create_machine(qubit="q1"), expected)
+
+        profile = build.call_args.args[0]
+        self.assertEqual(profile.name, "single_qubit")
+        self.assertEqual(profile.qubit, "q5")
+
     def test_main_mode_rejects_qubit_selection(self):
         with self.assertRaisesRegex(ProfileError, "does not support"):
             create_machine(mode="main", qubit="q3")

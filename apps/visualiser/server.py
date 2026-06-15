@@ -24,6 +24,7 @@ DATA_ROOT = PROJECT_ROOT / "data"
 CALIBRATION_CODE_ROOT = PROJECT_ROOT / "calibrations"
 CALIBRATION_RUN_ROOT = DATA_ROOT / "calibrations"
 CALIBRATION_UPDATE_ROOT = DATA_ROOT / "calibration_updates"
+PARAMETER_SCAN_ROOT = DATA_ROOT / "parameter_scans"
 
 DATE_RE = re.compile(r"(?P<year>20\d{2})[-_]?(?P<month>\d{2})[-_]?(?P<day>\d{2})")
 TIME_RE = re.compile(r"^\d{2}-\d{2}-\d{2}(?:-\d{6})?$")
@@ -105,6 +106,24 @@ def experiment_summary(path: Path, kind: str, experiment_type: str) -> dict[str,
     }
 
 
+def parameter_scan_experiments(date: str) -> tuple[list[dict[str, Any]], list[str]]:
+    results: list[dict[str, Any]] = []
+    errors: list[str] = []
+    date_root = PARAMETER_SCAN_ROOT / date
+    scan_names, error = safe_iterdir(date_root)
+    if error and date_root.exists():
+        errors.append(f"Could not read parameter scan date directory: {error}")
+    for scan_name in sorted((p for p in scan_names if p.is_dir()), key=lambda p: p.name):
+        runs, error = safe_iterdir(scan_name)
+        if error:
+            errors.append(f"{relative(scan_name)}: {error}")
+            continue
+        for run in runs:
+            if run.is_dir() and not run.name.startswith("."):
+                results.append(experiment_summary(run, "parameter_scan", scan_name.name))
+    return results, errors
+
+
 def calibration_experiments(date: str) -> tuple[list[dict[str, Any]], list[str]]:
     results: list[dict[str, Any]] = []
     errors: list[str] = []
@@ -129,7 +148,7 @@ def general_experiments(date: str) -> tuple[list[dict[str, Any]], list[str]]:
     roots, error = safe_iterdir(DATA_ROOT)
     if error:
         return [], [f"Could not read data directory: {error}"]
-    ignored = {"calibrations", "calibration_updates"}
+    ignored = {"calibrations", "calibration_updates", "parameter_scans"}
     for category in (p for p in roots if p.is_dir() and p.name not in ignored):
         children, child_error = safe_iterdir(category)
         if child_error:
@@ -147,12 +166,12 @@ def general_experiments(date: str) -> tuple[list[dict[str, Any]], list[str]]:
 
 def available_dates() -> list[str]:
     dates: set[str] = set()
-    for root in (CALIBRATION_RUN_ROOT, CALIBRATION_UPDATE_ROOT):
+    for root in (CALIBRATION_RUN_ROOT, CALIBRATION_UPDATE_ROOT, PARAMETER_SCAN_ROOT):
         children, _ = safe_iterdir(root)
         dates.update(filter(None, (iso_date_from_text(child.name) for child in children)))
     roots, _ = safe_iterdir(DATA_ROOT)
     for category in roots:
-        if not category.is_dir() or category.name in {"calibrations", "calibration_updates"}:
+        if not category.is_dir() or category.name in {"calibrations", "calibration_updates", "parameter_scans"}:
             continue
         children, _ = safe_iterdir(category)
         candidates = [category, *children]
@@ -302,7 +321,13 @@ def experiment_detail(raw_path: str) -> dict[str, Any]:
     return {
         "summary": experiment_summary(
             path,
-            "calibration" if CALIBRATION_RUN_ROOT.resolve() in path.resolve().parents else "general",
+            (
+                "calibration"
+                if CALIBRATION_RUN_ROOT.resolve() in path.resolve().parents
+                else "parameter_scan"
+                if PARAMETER_SCAN_ROOT.resolve() in path.resolve().parents
+                else "general"
+            ),
             experiment_type,
         ),
         "metadata": metadata,
@@ -312,6 +337,52 @@ def experiment_detail(raw_path: str) -> dict[str, Any]:
         "artifacts": artifacts,
         "calibrations": matching_calibration_assets(path, experiment_type, date),
         "errors": errors,
+    }
+
+
+def parameter_scan_data(raw_path: str) -> dict[str, Any]:
+    path = resolve_project_path(raw_path)
+    summary_path = path / "summary.csv"
+    if not summary_path.is_file():
+        raise FileNotFoundError("This run does not contain a parameter scan summary.csv.")
+
+    def row_cycle(row: Mapping[str, str]) -> int:
+        try:
+            return int(row.get("cycle") or 0)
+        except ValueError:
+            return 0
+
+    series: dict[tuple[str, str, str], dict[str, Any]] = {}
+    with summary_path.open("r", encoding="utf-8", newline="") as file:
+        for row in csv.DictReader(file):
+            if row.get("status") != "ok" or not row.get("parameter"):
+                continue
+            try:
+                value = float(row.get("value", ""))
+            except ValueError:
+                continue
+            key = (row.get("experiment_name", ""), row.get("qubit", ""), row.get("parameter", ""))
+            record = series.setdefault(
+                key,
+                {
+                    "experiment_name": key[0],
+                    "qubit": key[1],
+                    "parameter": key[2],
+                    "unit": row.get("unit", ""),
+                    "points": [],
+                },
+            )
+            record["points"].append(
+                {
+                    "timestamp": row.get("timestamp", ""),
+                    "cycle": row_cycle(row),
+                    "value": value,
+                    "success": row.get("success", ""),
+                }
+            )
+    return {
+        "path": relative(path),
+        "series": sorted(series.values(), key=lambda item: (item["experiment_name"], item["qubit"], item["parameter"])),
     }
 
 
@@ -459,19 +530,28 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             if parsed.path == "/api/experiments":
                 date = query.get("date", [""])[0]
                 calibrations, calibration_errors = calibration_experiments(date)
+                parameter_scans, parameter_scan_errors = parameter_scan_experiments(date)
                 general, general_errors = general_experiments(date)
                 experiments = sorted(
-                    [*calibrations, *general],
+                    [*calibrations, *parameter_scans, *general],
                     key=lambda item: (item["time"], item["type"], item["path"]),
                     reverse=True,
                 )
-                self.send_json({"experiments": experiments, "errors": calibration_errors + general_errors})
+                self.send_json(
+                    {
+                        "experiments": experiments,
+                        "errors": calibration_errors + parameter_scan_errors + general_errors,
+                    }
+                )
                 return
             if parsed.path == "/api/experiment":
                 self.send_json(experiment_detail(query.get("path", [""])[0]))
                 return
             if parsed.path == "/api/npz-plot":
                 self.send_json(npz_plot_data(query.get("path", [""])[0]))
+                return
+            if parsed.path == "/api/parameter-scan":
+                self.send_json(parameter_scan_data(query.get("path", [""])[0]))
                 return
             if parsed.path == "/api/file":
                 self.serve_project_file(query.get("path", [""])[0])

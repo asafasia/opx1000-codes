@@ -1,4 +1,4 @@
-const state = { experiments: [], filtered: [], selected: null, detail: null, calibrationType: null, qubit: "all", tab: "figures", figureIndex: 0, plotData: null, plotResult: 0, plotHeatmap: 0, plotSlice: null };
+const state = { experiments: [], filtered: [], selected: null, detail: null, calibrationType: null, qubit: "all", tab: "figures", figureIndex: 0, plotData: null, plotResult: 0, plotHeatmap: 0, plotSlice: null, trendData: null, trendSeries: 0 };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[c]));
 const formatBytes = n => n == null ? "unavailable" : n < 1024 ? `${n} B` : n < 1048576 ? `${(n/1024).toFixed(1)} KB` : `${(n/1048576).toFixed(1)} MB`;
@@ -134,6 +134,8 @@ async function selectExperiment(id) {
   state.plotResult = 0;
   state.plotHeatmap = 0;
   state.plotSlice = null;
+  state.trendData = null;
+  state.trendSeries = 0;
   applyFilters();
   $("emptyState").classList.add("hidden"); $("detailView").classList.remove("hidden");
   $("tabContent").innerHTML = `<div class="empty-state"><p>Loading experiment files...</p></div>`;
@@ -170,10 +172,20 @@ async function renderTab() {
       return;
     }
   }
-  const renderers = { overview: renderOverview, figures: renderFigures, interactive: renderInteractivePlot, data: renderData, calibrations: renderCalibrations };
+  if (state.tab === "trends" && !state.trendData) {
+    $("tabContent").innerHTML = `<div class="empty-state"><p>Loading parameter trends...</p></div>`;
+    try {
+      state.trendData = await api(`/api/parameter-scan?path=${encodeURIComponent(state.selected.id)}`);
+    } catch (error) {
+      $("tabContent").innerHTML = `<div class="error-panel">${escapeHtml(error.message)}</div>`;
+      return;
+    }
+  }
+  const renderers = { overview: renderOverview, figures: renderFigures, interactive: renderInteractivePlot, trends: renderParameterTrends, data: renderData, calibrations: renderCalibrations };
   $("tabContent").innerHTML = renderers[state.tab]();
   bindFigures();
   if (state.tab === "interactive") bindInteractivePlot();
+  if (state.tab === "trends") bindParameterTrends();
 }
 
 const section = (title, count, body) => `<div class="section-title"><h3>${title}</h3><span>${count}</span></div>${body}`;
@@ -229,6 +241,23 @@ function renderInteractivePlot() {
   ${plotArea}
   <div id="plotLegend" class="plot-legend"></div></div>`;
 }
+function renderParameterTrends() {
+  const series = state.trendData?.series || [];
+  if (!series.length) return `<div class="error-panel">No successful parameter values were found in this scan summary.</div>`;
+  const index = Math.min(state.trendSeries, series.length - 1);
+  const selected = series[index];
+  const options = series.map((item, itemIndex) => {
+    const label = `${item.experiment_name} | ${item.qubit || "run"} | ${item.parameter}`;
+    return `<option value="${itemIndex}" ${itemIndex === index ? "selected" : ""}>${escapeHtml(label)}</option>`;
+  }).join("");
+  return `<div class="fit-tab-panel"><div class="plot-toolbar">
+    <label><span class="section-label">Parameter</span><select id="trendSeriesSelect">${options}</select></label>
+    <div class="plot-meta"><span>${selected.points.length} point${selected.points.length === 1 ? "" : "s"}</span><span>${escapeHtml(selected.unit || "unitless")}</span></div>
+    <button id="resetTrend" class="plot-button">Reset view</button>
+  </div>
+  <div class="interactive-plot-wrap"><canvas id="trendPlot"></canvas></div>
+  <div id="trendLegend" class="plot-legend"></div></div>`;
+}
 function renderData() {
   const d = state.detail;
   const tables = d.tables.map(item => card(item, item.error ? `<pre class="text-view">${escapeHtml(item.error)}</pre>` : `<div class="table-wrap"><table>${item.value.rows.map(row => `<tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</table></div>`)).join("");
@@ -263,6 +292,41 @@ function bindInteractivePlot() {
   } else return;
   $("plotResultSelect").onchange = event => { state.plotResult = Number(event.target.value); renderTab(); };
   $("resetPlot").onclick = () => plot.reset();
+}
+
+function bindParameterTrends() {
+  const series = state.trendData.series[state.trendSeries];
+  const plot = createTrendPlot($("trendPlot"), series, $("trendLegend"));
+  $("trendSeriesSelect").onchange = event => { state.trendSeries = Number(event.target.value); renderTab(); };
+  $("resetTrend").onclick = () => plot.reset();
+}
+
+function createTrendPlot(canvas, series, legend) {
+  const context = canvas.getContext("2d");
+  const points = series.points.map((point, index) => ({ x: index + 1, y: point.value, label: point.timestamp, success: point.success }));
+  const validY = points.map(point => point.y).filter(value => Number.isFinite(value));
+  const full = { x0: 1, x1: Math.max(points.length, 2), y0: Math.min(...validY), y1: Math.max(...validY) };
+  if (full.y0 === full.y1) { full.y0 -= 1; full.y1 += 1; }
+  let view = {...full};
+  const pad = {l:72,r:20,t:18,b:48};
+  legend.innerHTML = `<span><i style="background:#176b87"></i>${escapeHtml(series.experiment_name)} / ${escapeHtml(series.qubit || "run")} / ${escapeHtml(series.parameter)}</span>`;
+  function resize() {
+    const rect = canvas.getBoundingClientRect(), ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(rect.width * ratio); canvas.height = Math.round(rect.height * ratio);
+    context.setTransform(ratio, 0, 0, ratio, 0, 0); draw();
+  }
+  const sx = (x,w) => pad.l + (x-view.x0)/(view.x1-view.x0)*(w-pad.l-pad.r);
+  const sy = (y,h) => h-pad.b - (y-view.y0)/(view.y1-view.y0)*(h-pad.t-pad.b);
+  function draw() {
+    const w=canvas.clientWidth,h=canvas.clientHeight; context.clearRect(0,0,w,h); context.strokeStyle="#dfe3e6"; context.fillStyle="#68747d"; context.font="10px system-ui";
+    for(let i=0;i<=5;i++){const x=pad.l+i*(w-pad.l-pad.r)/5,y=pad.t+i*(h-pad.t-pad.b)/5;context.beginPath();context.moveTo(x,pad.t);context.lineTo(x,h-pad.b);context.moveTo(pad.l,y);context.lineTo(w-pad.r,y);context.stroke();context.fillText((view.x0+i*(view.x1-view.x0)/5).toFixed(1),x-12,h-24);context.fillText((view.y1-i*(view.y1-view.y0)/5).toPrecision(4),8,y+3);}
+    context.strokeStyle="#176b87"; context.lineWidth=1.6; context.beginPath(); points.forEach((point,index)=>{const x=sx(point.x,w),y=sy(point.y,h);index?context.lineTo(x,y):context.moveTo(x,y);}); context.stroke();
+    points.forEach(point=>{context.fillStyle=String(point.success)==="false"?"#a43a42":"#176b87";context.beginPath();context.arc(sx(point.x,w),sy(point.y,h),3,0,Math.PI*2);context.fill();});
+    context.fillStyle="#68747d"; context.fillText("cycle point",w/2,h-7); context.save();context.translate(12,h/2);context.rotate(-Math.PI/2);context.fillText(`${series.parameter}${series.unit ? " [" + series.unit + "]" : ""}`,0,0);context.restore();
+  }
+  canvas.onwheel=e=>{e.preventDefault();const rect=canvas.getBoundingClientRect(),mx=view.x0+(e.clientX-rect.left-pad.l)/(rect.width-pad.l-pad.r)*(view.x1-view.x0),my=view.y1-(e.clientY-rect.top-pad.t)/(rect.height-pad.t-pad.b)*(view.y1-view.y0),factor=e.deltaY>0?1.18:.84;view={x0:mx+(view.x0-mx)*factor,x1:mx+(view.x1-mx)*factor,y0:my+(view.y0-my)*factor,y1:my+(view.y1-my)*factor};draw();};
+  const observer=new ResizeObserver(resize);observer.observe(canvas);resize();
+  return {reset(){view={...full};draw();}};
 }
 
 function createHeatmapPlot(heatCanvas, sliceCanvas, heatmap) {

@@ -1,5 +1,6 @@
 """Select a profile and build strategy for an in-memory QuAM machine."""
 
+import os
 import pprint
 import sys
 from pathlib import Path
@@ -32,15 +33,22 @@ class CreateMachine:
         mode: str | None = None,
         profile_name: str | None = None,
     ) -> None:
+        env_profile = os.environ.get("QUAM_PROFILE")
+        env_qubit = os.environ.get("QUAM_QUBIT")
         explicit_profile = (
             profile_name is not None
             or mode is not None
             or profile is not DEFAULT_PROFILE
         )
+        if env_profile and not explicit_profile:
+            profile = env_profile
+            explicit_profile = True
         if profile_name is not None:
             profile = profile_name
         if mode is not None:
             profile = mode
+        if env_qubit:
+            qubit = env_qubit
 
         selected_profile = profile if isinstance(profile, Profile) else Profile(str(profile))
         if (

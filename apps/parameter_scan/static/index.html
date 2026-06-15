@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Parameter Scan Control</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">OPX1000 LIVE DRIFT WATCH</p>
+      <h1>Parameter Scan Control</h1>
+    </div>
+    <div class="status">
+      <label class="theme-control" title="Theme">
+        <span>Theme</span>
+        <select id="themeSelect">
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+          <option value="system">System</option>
+        </select>
+      </label>
+      <span id="statusDot" class="dot"></span>
+      <strong id="statusText">Idle</strong>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel controls">
+      <section>
+        <label class="label" for="scanName">Scan Name</label>
+        <input id="scanName" value="live_drift_scan">
+      </section>
+      <section class="grid2">
+        <label><span class="label">Cycles</span><input id="repetitions" type="number" min="0" value="12"></label>
+        <label><span class="label">Delay [s]</span><input id="intervalSeconds" type="number" min="0" value="300"></label>
+      </section>
+      <section>
+        <label class="label" for="qubitSelect">Single-Qubit Profile</label>
+        <select id="qubitSelect"><option>Loading qubits...</option></select>
+      </section>
+      <section class="switches">
+        <label><input id="continueOnError" type="checkbox"> Continue after errors</label>
+        <label><input id="saveFullResults" type="checkbox"> Save full raw results</label>
+      </section>
+      <section>
+        <div class="section-head"><span class="label">Experiments</span><span id="experimentCount">0</span></div>
+        <div id="experimentList" class="experiment-list"></div>
+      </section>
+      <section class="actions">
+        <button id="runButton" class="primary">Run</button>
+        <button id="stopButton">Stop</button>
+      </section>
+      <section>
+        <span class="label">Run Directory</span>
+        <p id="runPath" class="mono">No active run</p>
+      </section>
+    </aside>
+
+    <section class="workspace">
+      <div class="stats-row">
+        <article><span>Records</span><strong id="recordCount">0</strong></article>
+        <article><span>Series</span><strong id="seriesCount">0</strong></article>
+        <article><span>Verdict</span><strong id="bestVerdict">Idle</strong></article>
+        <article><span>Last Update</span><strong id="lastUpdate">--</strong></article>
+      </div>
+
+      <section class="panel plot-panel">
+        <div class="plot-toolbar">
+          <label><span class="label">Live Parameter</span><select id="seriesSelect"></select></label>
+          <div id="plotMeta" class="plot-meta"></div>
+        </div>
+        <canvas id="trendPlot"></canvas>
+      </section>
+
+      <section class="split">
+        <div class="panel">
+          <div class="section-head"><h2>Latest Fit Parameters</h2><span id="latestCount">0</span></div>
+          <div id="latestGrid" class="latest-grid"></div>
+        </div>
+        <div class="panel">
+          <div class="section-head"><h2>Analysis</h2><span>live</span></div>
+          <div id="analysisPanel" class="analysis-panel"></div>
+        </div>
+      </section>
+
+      <section class="panel terminal-panel">
+        <div class="section-head"><h2>Terminal Output</h2><span id="terminalState">idle</span></div>
+        <pre id="terminalOutput" class="terminal-output">Press Run to start a scan.</pre>
+      </section>
+
+      <section id="errorPanel" class="error-panel hidden"></section>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

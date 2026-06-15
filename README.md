@@ -121,6 +121,34 @@ Most scripts are Qualibrate nodes. They build a machine from the selected
 profile, run or simulate a QUA program, analyze the result with the matching
 module under `calibration_utils/`, and save outputs under `data/`.
 
+## Overnight Parameter Scans
+
+Use the parameter scan runner for long unattended drift checks. It runs existing
+calibration scripts in loops, extracts only fitted values such as T1, Ramsey T2,
+frequency offsets, qubit frequency, and linewidth, and writes compact summaries
+under `data/parameter_scans/`.
+
+```powershell
+$env:PYTHONPATH = (Get-Location).Path
+python -m parameter_scans --config parameter_scans/example_scan.json
+```
+
+Run selected experiments without a config file:
+
+```powershell
+python -m parameter_scans --name weekend_drift --repetitions 48 --interval-seconds 600 `
+  --experiment calibrations/03a_qubit_spectroscopy.py `
+  --experiment calibrations/05_T1.py `
+  --experiment calibrations/06a_ramsey.py
+```
+
+By default the runner stops on the first script error, records the traceback in
+`events.jsonl`, and keeps the partial `summary.csv`/`summary.json` already
+written. Create a `STOP` file inside the active scan run directory to request a
+clean stop after the current experiment. Long scans suppress full raw
+calibration saves by default; pass `--save-full-results` only when you want the
+usual per-experiment raw data and figures as well.
+
 ## Local Tools
 
 Start the read-only experiment browser:
@@ -130,6 +158,16 @@ python apps/visualiser/server.py
 ```
 
 Open <http://127.0.0.1:8765>.
+
+Start the live parameter-scan control app:
+
+```powershell
+python apps/parameter_scan/server.py
+```
+
+Open <http://127.0.0.1:8770>. The app lets you choose calibration scripts,
+start/stop a long scan, and watch fitted parameters, variance, drift per hour,
+and stability flags update while the run is still active.
 
 Start the profile editor:
 
