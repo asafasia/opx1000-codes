@@ -88,8 +88,36 @@ class TestRbPopulation(unittest.TestCase):
             fit, results = fit_raw_data(ds, node)
 
         self.assertIn("population", fit)
+        self.assertIn("success", fit)
         self.assertTrue(np.isnan(fit.fit_data).all())
         self.assertFalse(results["q1"].success)
+
+    def test_successful_fit_metadata_is_returned_for_plotting(self):
+        state = np.array([[[0.3, 0.2], [0.5, 0.4], [0.7, 0.6]]])
+        ds = xr.Dataset(
+            {"state": (("qubit", "depths", "nb_of_sequences"), state)},
+            coords={"qubit": ["q1"], "depths": [1, 2, 3], "nb_of_sequences": [0, 1]},
+        )
+        node = SimpleNamespace(
+            parameters=SimpleNamespace(use_state_discrimination=True),
+            outcomes={},
+        )
+
+        fake_fit = xr.DataArray(
+            [[0.5, 0.3, -0.1]],
+            dims=("qubit", "fit_vals"),
+            coords={"qubit": ["q1"], "fit_vals": ["a", "offset", "decay"]},
+        )
+        with patch(
+            "calibration_utils.single_qubit_randomized_benchmarking.analysis.fit_decay_exp",
+            return_value=fake_fit,
+        ):
+            fit, results = fit_raw_data(ds, node)
+
+        self.assertIn("success", fit)
+        self.assertIn("error_per_gate", fit)
+        self.assertTrue(bool(fit.sel(qubit="q1").success))
+        self.assertTrue(results["q1"].success)
 
 
 if __name__ == "__main__":

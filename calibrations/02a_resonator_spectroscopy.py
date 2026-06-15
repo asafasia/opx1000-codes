@@ -223,7 +223,7 @@ def execute_qua_program(node: QualibrationNode[Parameters, Quam]):
 
 
 # %% {Load_historical_data}
-@node.run_action(skip_if=node.parameters.load_data_id is None)
+@node.run_action(skip_if=node.parameters.load_i data_id is None)
 def load_data(node: QualibrationNode[Parameters, Quam]):
     """Load a previously acquired dataset."""
     load_data_id = node.parameters.load_data_id

@@ -76,7 +76,8 @@ class Parameters(
         else:
             # Linear scale using delta_clifford
             depths = np.arange(0, self.max_circuit_depth + 1, self.delta_clifford, dtype=int)
-            depths[0] = 1  # Ensure we start with depth 1
+            depths[0] = 1  # Ensure we start with depth 1.
+            depths = np.unique(depths)
             if depths[-1] != self.max_circuit_depth:
                 depths = np.append(depths, self.max_circuit_depth)
         return depths

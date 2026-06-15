@@ -12,7 +12,7 @@ from qualang_tools.units import unit
 from qualang_tools.bakery.randomized_benchmark_c1 import c1_table
 
 from qualibrate import QualibrationNode
-from quam_config import Quam
+from quam_config import Quam, create_machine
 from calibration_utils.single_qubit_randomized_benchmarking import (
     Parameters,
     process_raw_dataset,
@@ -73,8 +73,20 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     # node.parameters.qubits = ["q1", "q2"]
     node.parameters.use_state_discrimination = True    
     node.parameters.reset_type = "active"
-
+    node.parameters.max_circuit_depth =1024
+    node.parameters.delta_clifford = 20
+    node.parameters.num_random_sequences = 30
+    node.parameters.num_shots = 100
+    node.parameters.log_scale = False
     pass
+
+
+node.machine = create_machine(qubit='q9')
+
+node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
+
+node.machine.qmm.close_all_qms()
+
 
 
 # %% {Create_QUA_program}
