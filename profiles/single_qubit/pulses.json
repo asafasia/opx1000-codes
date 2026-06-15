@@ -429,7 +429,7 @@
       "x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.040222433882733145,
+        "amplitude": 0.04004480858565991,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
