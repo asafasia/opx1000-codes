@@ -36,6 +36,14 @@ node = QualibrationNode[Parameters, Quam](
 )
 
 
+
+node.machine = create_machine(qubit='q1')
+
+node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
+
+node.machine.qmm.close_all_qms()
+
+
 @node.run_action(skip_if=node.modes.external)
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow local debugging parameter overrides."""
@@ -43,8 +51,8 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     # node.parameters.simulate = False
     node.parameters.operation = "x90"
     # node.parameters.max_number_of_pulses = 20
-    node.parameters.reset_type = 'reset'
-    node.parameters.max_number_of_pulses = 35
+    node.parameters.reset_type = 'active'
+    node.parameters.max_number_of_pulses = 50
     pass
 
 
@@ -102,12 +110,12 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 save(n, n_st)
                 with for_(*from_array(pulse_count, pulse_counts)):
                     for _, qubit in multiplexed_qubits.items():
-                        # qubit.reset(
-                        #     node.parameters.reset_type,
-                        #     node.parameters.simulate,
-                        #     log_callable=node.log,
-                        # )
-                        qubit.wait(10000)  # Wait for reset to complete
+                        qubit.reset(
+                            node.parameters.reset_type,
+                            node.parameters.simulate,
+                            # log_callable=node.log,
+                        )
+                        # qubit.wait(10000)  # Wait for reset to complete
                     align()
 
                     for _, qubit in multiplexed_qubits.items():

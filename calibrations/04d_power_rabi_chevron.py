@@ -37,6 +37,12 @@ node = QualibrationNode[Parameters, Quam](
     machine=create_machine(),
 )
 
+node.machine = create_machine(qubit='q3')
+
+node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
+
+node.machine.qmm.close_all_qms()
+
 
 @node.run_action(skip_if=node.modes.external)
 def custom_param(node: QualibrationNode[Parameters, Quam]):
@@ -44,7 +50,7 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     node.parameters.operation = 'saturation'
     node.parameters.max_amp_factor = 1
     node.parameters.frequency_span_in_mhz = 200
-    node.parameters.frequency_step_in_mhz = 2
+    node.parameters.frequency_step_in_mhz = 1
 
 
 

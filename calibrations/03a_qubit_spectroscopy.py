@@ -68,16 +68,16 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow the user to locally set the node parameters for debugging purposes, or execution in the Python IDE."""
     # You can get type hinting in your IDE by typing node.parameters.
     node.parameters.use_state_discrimination = False
-    node.parameters.num_shots = 1300
-    node.parameters.operation_amplitude_factor = 0.1
-    node.parameters.frequency_span_in_mhz = 400
+    node.parameters.num_shots = 1000
+    node.parameters.operation_amplitude_factor = 0.3
+    node.parameters.frequency_span_in_mhz = 300
     node.parameters.frequency_step_in_mhz = 3
     # node.parameters.simulate = True
     pass
 
 
 # Create the machine directly from profiles/main without loading state.json.
-node.machine = create_machine()
+node.machine = create_machine(qubit='q3')
 
 node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
 

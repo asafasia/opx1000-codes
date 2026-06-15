@@ -15,3 +15,7 @@ Then open <http://127.0.0.1:8766>.
 Profile Studio edits only the four known JSON files inside an existing,
 complete profile directory. Saves are atomic, must contain valid JSON, and are
 rejected when the file changed on disk after it was loaded.
+
+Both `main` and `single_qubit` are complete profiles and appear in the Profile
+selector. Changes are written only to the selected profile; editing
+`single_qubit` never modifies or reads values from `main`.

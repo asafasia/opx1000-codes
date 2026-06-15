@@ -45,17 +45,17 @@ node = QualibrationNode[Parameters, Quam](
     parameters=Parameters(),
 )
 
-node.machine = create_machine()
+node.machine = create_machine(qubit='q1')
 
 @node.run_action(skip_if=node.modes.external)
 def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow local debugging parameter overrides."""
-    # node.parameters.reset_type = "active"
+    node.parameters.reset_type = "active"
     # node.parameters.qubits = ["q9"]
     # node.parameters.simulate = True
-    node.parameters.num_shots = 5000
-    # node.parameters.qubit_operation = 'x180_const'
-    node.parameters.qubit_operation = 'saturation'
+    node.parameters.num_shots = 25000
+    # node.parameters.qubit_operation = 'saturation'
+    node.parameters.qubit_operation = 'x180'
     # node.parameters.simulate = True
 
 
@@ -94,29 +94,38 @@ def make_state_program(
                 save(n, n_st)
                 for qubit in multiplexed_qubits.values():
                     # qubit.resonator.wait(15000)  # 300 µs
-                    # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
+                    qubit.reset(node.parameters.reset_type, node.parameters.simulate)
                     pass
                 align()
 
-                if state == "e":
+                if state == "g":
+                    # For the ground state, we can start acquiring immediately.
+                    # align()  # Ensure all qubits start acquisition at the same time.
+                    pass
+
+                elif state == "e":
                 
                     qubit.xy.play(
                         qua_qubit_operation,
                         amplitude_scale=node.parameters.qubit_amplitude_factor,
                     )
                     # Synchronize XY and resonator timelines before the explicit delay.
-                    # align()
-                    # for qubit in multiplexed_qubits.values():
-                    #     qubit.resonator.wait(node.parameters.xy_to_readout_delay_in_ns * u.ns)
-                    #     # qubit.reset_qubit_thermal()
                     align()
+                    for qubit in multiplexed_qubits.values():
+                        # qubit.resonator.wait(node.parameters.xy_to_readout_delay_in_ns * u.ns)
+                        # qubit.reset_qubit_thermal()
+                        pass
+                    align()
+
+                else:
+                    raise ValueError("state must be 'g' or 'e'")
 
                 for i, qubit in multiplexed_qubits.items():
                     qubit.resonator.measure(operation, qua_vars=(I[i], Q[i]))
                     save(I[i], I_st[i])
                     save(Q[i], Q_st[i])
                     # qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
-                    qubit.resonator.wait(75000)  # 300 µs, to ensure the resonator is depleted before the next shot, even if the qubit is in |e> and T1 is long.
+                    # qubit.resonator.wait(75000)  # 300 µs, to ensure the resonator is depleted before the next shot, even if the qubit is in |e> and T1 is long.
                 align()
 
         with stream_processing():

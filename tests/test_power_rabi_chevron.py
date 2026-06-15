@@ -72,6 +72,36 @@ class PowerRabiChevronTests(unittest.TestCase):
         self.assertEqual(figure.axes[0].get_ylabel(), "Pulse amplitude [mV]")
         self.assertEqual(figure.axes[0].get_xlabel(), "RF frequency [GHz]")
 
+    def test_iq_plot_shows_i_and_q_quadratures(self):
+        ds = xr.Dataset(
+            {
+                "I": (
+                    ("qubit", "detuning", "amp_prefactor"),
+                    np.zeros((1, 2, 2)),
+                ),
+                "Q": (
+                    ("qubit", "detuning", "amp_prefactor"),
+                    np.ones((1, 2, 2)),
+                ),
+            },
+            coords={
+                "qubit": ["q7"],
+                "detuning": [-1e6, 1e6],
+                "amp_prefactor": [0.5, 1.0],
+                "full_freq": (("qubit", "detuning"), [[4.099e9, 4.101e9]]),
+                "full_amp": (("qubit", "amp_prefactor"), [[0.05, 0.1]]),
+            },
+        )
+        qubit = SimpleNamespace(name="q7", grid_location="0,0")
+
+        figure = plot_raw_data(ds, [qubit], use_state_discrimination=False)
+
+        data_axes = [axis for axis in figure.axes if axis.get_xlabel() == "RF frequency [GHz]"]
+        self.assertEqual(len(data_axes), 2)
+        self.assertIn("I [mV]", data_axes[0].get_title())
+        self.assertIn("Q [mV]", data_axes[1].get_title())
+        self.assertEqual(data_axes[0].get_ylabel(), "Pulse amplitude [mV]")
+
     @staticmethod
     def _make_dataset():
         return xr.Dataset(

@@ -14,7 +14,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from profiles import load_profile
+from profiles import Profile, load_profile
 from quam_config import Quam
 from quam_config.populate_quam_lf_mw_fems import apply_profile
 from quam_config.wiring_lffem_mwfem import create_profile_connectivity
@@ -43,11 +43,16 @@ def _build_directory(save: bool):
 
 
 def create_machine_from_profile(
-    profile_name: str = DEFAULT_PROFILE,
+    profile_name: str | Profile = DEFAULT_PROFILE,
     save: bool = True,
+    *,
+    qubit: str | None = None,
 ) -> Quam:
     """Build wiring, create the base QuAM, and apply all profile parameters."""
-    profile = load_profile(profile_name)
+    if isinstance(profile_name, Profile):
+        profile = profile_name.for_qubit(qubit).load() if qubit is not None else profile_name.load()
+    else:
+        profile = load_profile(profile_name, qubit=qubit)
     network = profile["connectivity"]["network"]
     connectivity, _ = create_profile_connectivity(profile)
 
@@ -80,17 +85,19 @@ def main() -> Quam:
         action="store_true",
         help="Create and validate the machine without writing state.json/wiring.json.",
     )
+    parser.add_argument("--qubit", help="Qubit selection for a single-qubit profile")
     args = parser.parse_args()
 
-    machine = create_machine_from_profile(args.profile, save=not args.no_save)
+    machine = create_machine_from_profile(
+        args.profile,
+        save=not args.no_save,
+        qubit=args.qubit,
+    )
     machine.generate_config()
     pprint(
         f"Created machine from profile {args.profile!r}: "
         f"{len(machine.active_qubit_names)} active qubit(s)."
     )
-
-
-    pprint(machine.qubits["q9"])
     return machine
 
 

@@ -1,0 +1,332 @@
+{
+  "schema_version": 1,
+  "network": {
+    "host": "192.168.88.253",
+    "port": null,
+    "cluster_name": "katz_cluster"
+  },
+  "controllers": {
+    "con1": {
+      "type": "opx1000",
+      "fems": {
+        "7": {
+          "type": "mw_fem",
+          "outputs": {
+            "1": {
+              "band": 3,
+              "lo_frequency_hz": 7125000000,
+              "full_scale_power_dbm": -10,
+              "sampling_rate_hz": 1000000000
+            },
+            "2": {
+              "band": 1,
+              "lo_frequency_hz": 4200000000,
+              "full_scale_power_dbm": -10,
+              "sampling_rate_hz": 1000000000
+            },
+            "3": {
+              "band": 1,
+              "lo_frequency_hz": 4200000000,
+              "full_scale_power_dbm": -10,
+              "sampling_rate_hz": 1000000000
+            },
+            "4": {
+              "band": 1,
+              "lo_frequency_hz": 4200000000,
+              "full_scale_power_dbm": -10,
+              "sampling_rate_hz": 1000000000
+            },
+            "5": {
+              "band": 1,
+              "lo_frequency_hz": 4200000000,
+              "full_scale_power_dbm": -10,
+              "sampling_rate_hz": 1000000000
+            },
+            "6": {
+              "band": 1,
+              "lo_frequency_hz": 4200000000,
+              "full_scale_power_dbm": -10,
+              "sampling_rate_hz": 1000000000
+            },
+            "7": {
+              "band": 1,
+              "lo_frequency_hz": 4200000000,
+              "full_scale_power_dbm": -10,
+              "sampling_rate_hz": 1000000000
+            },
+            "8": {
+              "band": 3,
+              "lo_frequency_hz": 7725000000,
+              "full_scale_power_dbm": -10,
+              "sampling_rate_hz": 1000000000
+            }
+          },
+          "inputs": {
+            "1": {
+              "band": 3,
+              "sampling_rate_hz": 1000000000
+            },
+            "2": {
+              "band": 3,
+              "sampling_rate_hz": 1000000000
+            }
+          }
+        }
+      }
+    }
+  },
+  "connections": {
+    "q1": {
+      "lo_frequencies_hz": {
+        "xy_output": 4300000000,
+        "resonator_output": 6700000000
+      },
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 2
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      }
+    },
+    "q2": {
+      "lo_frequencies_hz": {
+        "xy_output": 4100000000,
+        "resonator_output": 6800000000
+      },
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 2
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      }
+    },
+    "q3": {
+      "lo_frequencies_hz": {
+        "xy_output": 4000000000,
+        "resonator_output": 6900000000
+      },
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 3
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      }
+    },
+    "q4": {
+      "lo_frequencies_hz": {
+        "xy_output": 4400000000,
+        "resonator_output": 7000000000
+      },
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 3
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      }
+    },
+    "q5": {
+      "lo_frequencies_hz": {
+        "xy_output": 3900000000,
+        "resonator_output": 7100000000
+      },
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 4
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      }
+    },
+    "q6": {
+      "lo_frequencies_hz": {
+        "xy_output": 4000000000,
+        "resonator_output": 7200000000
+      },
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 4
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      }
+    },
+    "q7": {
+      "lo_frequencies_hz": {
+        "xy_output": 4100000000,
+        "resonator_output": 7300000000
+      },
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 5
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      }
+    },
+    "q8": {
+      "lo_frequencies_hz": {
+        "xy_output": 4100000000,
+        "resonator_output": 7400000000
+      },
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 5
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      }
+    },
+    "q9": {
+      "lo_frequencies_hz": {
+        "xy_output": 4400000000,
+        "resonator_output": 7500000000
+      },
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 6
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      }
+    },
+    "q10": {
+      "lo_frequencies_hz": {
+        "xy_output": 4400000000,
+        "resonator_output": 7600000000
+      },
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 6
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 1
+      }
+    },
+    "q11": {
+      "lo_frequencies_hz": {
+        "xy_output": 4300000000,
+        "resonator_output": 7700000000
+      },
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 7
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 8
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 2
+      }
+    },
+    "q12": {
+      "lo_frequencies_hz": {
+        "xy_output": 4300000000,
+        "resonator_output": 7800000000
+      },
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 7
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 8
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 2
+      }
+    }
+  }
+}

@@ -1,8 +1,10 @@
 """Load and validate versioned experiment profiles."""
 
 import json
+import os
+from copy import deepcopy
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 
 PROFILES_ROOT = Path(__file__).resolve().parent
@@ -16,6 +18,7 @@ MW_FEM_BAND_RANGES_HZ = {
 }
 MW_FEM_SHARED_LO_OUTPUT_PAIRS = ((2, 3), (4, 5), (6, 7), (8, 9), (10, 11))
 MW_FEM_MAX_IF_HZ = 500e6
+_active_profile: "Profile | None" = None
 
 
 class ProfileError(ValueError):
@@ -34,6 +37,28 @@ def _read_json(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ProfileError(f"Profile file must contain a JSON object: {path}")
     return data
+
+
+def _write_json(path: Path, data: Mapping[str, Any]) -> None:
+    rendered = json.dumps(data, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
+    json.loads(rendered)
+    temporary_path = path.with_suffix(f"{path.suffix}.tmp")
+    with temporary_path.open("w", encoding="utf-8", newline="\n") as file:
+        file.write(rendered)
+    temporary_path.replace(path)
+
+
+def _profile_directory(root: Path, name: str) -> Path:
+    if not name or name in {".", ".."} or "/" in name or "\\" in name:
+        raise ProfileError(f"Invalid profile name: {name!r}")
+    directory = (root / name).resolve()
+    try:
+        directory.relative_to(root.resolve())
+    except ValueError as exc:
+        raise ProfileError(f"Profile {name!r} is outside profiles/.") from exc
+    if not directory.is_dir():
+        raise ProfileError(f"Profile directory does not exist: {directory}")
+    return directory
 
 
 def _require(condition: bool, message: str) -> None:
@@ -264,21 +289,200 @@ def validate_profile(profile: dict[str, Any]) -> None:
         _require(qubit_name in qubits["qubits"], f"Active qubit {qubit_name!r} is undefined")
 
 
-def load_profile(name: str = "main") -> dict[str, Any]:
-    """Load and validate a named profile from the profiles directory."""
-    profile_directory = PROFILES_ROOT / name
+def _load_profile_documents(name: str, root: Path = PROFILES_ROOT) -> dict[str, Any]:
+    profile_directory = _profile_directory(root, name)
     manifest = _read_json(profile_directory / "profile.json")
     _validate_version(manifest, "manifest")
     files = manifest.get("files", {})
-
-    profile = {
+    return {
         "manifest": manifest,
         "connectivity": _read_json(profile_directory / files.get("connectivity", "connectivity.json")),
         "qubits": _read_json(profile_directory / files.get("qubits", "qubits.json")),
         "pulses": _read_json(profile_directory / files.get("pulses", "pulses.json")),
     }
+
+
+def _selected_hardware(
+    connectivity: dict[str, Any], connection: dict[str, Any]
+) -> dict[str, Any]:
+    """Keep only the controller, FEM, and ports used by one qubit."""
+    selected = deepcopy(connectivity)
+    selected["connections"] = {}
+    selected_controllers: dict[str, Any] = {}
+
+    for direction, reference_name in (
+        ("outputs", "xy_output"),
+        ("outputs", "resonator_output"),
+        ("inputs", "resonator_input"),
+    ):
+        try:
+            reference = connection[reference_name]
+            controller_name = reference["controller"]
+            fem_name = str(reference["fem"])
+            port_name = str(reference["port"])
+            source_controller = connectivity["controllers"][controller_name]
+            source_fem = source_controller["fems"][fem_name]
+            source_port = source_fem[direction][port_name]
+        except KeyError as exc:
+            raise ProfileError(
+                f"Selected qubit has incomplete {reference_name} hardware configuration"
+            ) from exc
+
+        controller = selected_controllers.setdefault(
+            controller_name,
+            {"type": source_controller["type"], "fems": {}},
+        )
+        fem = controller["fems"].setdefault(
+            fem_name,
+            {"type": source_fem["type"], "outputs": {}, "inputs": {}},
+        )
+        fem[direction][port_name] = deepcopy(source_port)
+
+    selected["controllers"] = selected_controllers
+    return selected
+
+
+def _select_qubit(profile: dict[str, Any], qubit: str) -> dict[str, Any]:
+    """Return an independently loaded profile containing only one qubit."""
+    profile = deepcopy(profile)
+    qubits = profile["qubits"]["qubits"]
+    _require(
+        qubit in qubits,
+        f"Qubit {qubit!r} does not exist in profile {profile['manifest']['name']!r}",
+    )
+    _require(
+        qubit in profile["pulses"]["pulses"],
+        f"Qubit {qubit!r} has no pulse definitions in profile {profile['manifest']['name']!r}",
+    )
+    _require(
+        qubit in profile["connectivity"]["connections"],
+        f"Qubit {qubit!r} has no connectivity entry in profile {profile['manifest']['name']!r}",
+    )
+    connection = profile["connectivity"]["connections"][qubit]
+    lo_frequencies = connection.get("lo_frequencies_hz")
+    _require(
+        isinstance(lo_frequencies, dict),
+        f"Qubit {qubit!r} has no lo_frequencies_hz in profile {profile['manifest']['name']!r}",
+    )
+    for name in ("xy_output", "resonator_output"):
+        _require(
+            isinstance(lo_frequencies.get(name), (int, float))
+            and lo_frequencies[name] > 0,
+            f"Qubit {qubit!r} needs positive lo_frequencies_hz.{name}",
+        )
+    profile["manifest"] = {
+        **profile["manifest"],
+        "active_qubits": [qubit],
+        "selected_qubit": qubit,
+    }
+    profile["qubits"]["qubits"] = {qubit: qubits[qubit]}
+    profile["pulses"]["pulses"] = {qubit: profile["pulses"]["pulses"][qubit]}
+    profile["connectivity"] = _selected_hardware(profile["connectivity"], connection)
+    profile["connectivity"]["connections"] = {qubit: connection}
+    xy_output = _get_port(
+        profile["connectivity"], connection["xy_output"], "outputs", f"{qubit}.xy_output"
+    )
+    resonator_output = _get_port(
+        profile["connectivity"],
+        connection["resonator_output"],
+        "outputs",
+        f"{qubit}.resonator_output",
+    )
+    xy_output["lo_frequency_hz"] = lo_frequencies["xy_output"]
+    resonator_output["lo_frequency_hz"] = lo_frequencies["resonator_output"]
     validate_profile(profile)
     return profile
+
+
+class Profile:
+    """Repository-backed device profile with explicit load/save behavior."""
+
+    def __init__(
+        self,
+        name: str = "main",
+        *,
+        qubit: str | None = None,
+        root: Path | str = PROFILES_ROOT,
+    ) -> None:
+        self.name = name
+        self.qubit = qubit
+        self.root = Path(root)
+        self.documents: dict[str, Any] | None = None
+
+    @property
+    def directory(self) -> Path:
+        return _profile_directory(self.root, self.name)
+
+    def for_qubit(self, qubit: str) -> "Profile":
+        return Profile(self.name, qubit=qubit, root=self.root)
+
+    def load(self, *, qubit: str | None = None) -> dict[str, Any]:
+        selected_qubit = self.qubit if qubit is None else qubit
+        profile = _load_profile_documents(self.name, self.root)
+        validate_profile(profile)
+        self.documents = deepcopy(profile)
+
+        if selected_qubit is None:
+            return profile
+        if profile["manifest"].get("build_mode") != "single_qubit":
+            raise ProfileError(
+                f"Profile {self.name!r} does not support selecting a single qubit"
+            )
+        return _select_qubit(profile, selected_qubit)
+
+    def save(self, documents: dict[str, Any] | None = None) -> None:
+        profile = deepcopy(documents if documents is not None else self.documents)
+        if profile is None:
+            profile = _load_profile_documents(self.name, self.root)
+        if profile["manifest"].get("selected_qubit") is not None:
+            raise ProfileError(
+                "Refusing to save a selected single-qubit projection over the full profile"
+            )
+        validate_profile(profile)
+
+        files = profile["manifest"].get("files", {})
+        paths = {
+            "manifest": self.directory / "profile.json",
+            "connectivity": self.directory / files.get("connectivity", "connectivity.json"),
+            "qubits": self.directory / files.get("qubits", "qubits.json"),
+            "pulses": self.directory / files.get("pulses", "pulses.json"),
+        }
+        for key, path in paths.items():
+            _write_json(path, profile[key])
+        self.documents = deepcopy(profile)
+
+    def __str__(self) -> str:
+        return self.name
+
+    def __repr__(self) -> str:
+        suffix = f", qubit={self.qubit!r}" if self.qubit is not None else ""
+        return f"Profile({self.name!r}{suffix})"
+
+
+def set_active_profile(profile: Profile | str) -> Profile:
+    global _active_profile
+    _active_profile = profile if isinstance(profile, Profile) else Profile(str(profile))
+    return _active_profile
+
+
+def clear_active_profile() -> None:
+    global _active_profile
+    _active_profile = None
+
+
+def current_profile() -> Profile:
+    if _active_profile is not None:
+        return _active_profile
+    return Profile(os.environ.get("QUAM_PROFILE", "main"))
+
+
+def current_profile_name() -> str:
+    return current_profile().name
+
+
+def load_profile(name: str = "main", *, qubit: str | None = None) -> dict[str, Any]:
+    """Load and validate a named profile from the profiles directory."""
+    return Profile(name, qubit=qubit).load()
 
 
 

@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 from matplotlib.figure import Figure
 
+from profiles import Profile, clear_active_profile, set_active_profile
 from saver import CalibrationSaver
 from utils.plotting_settings import CALIBRATION_TIMESTAMP_GID, add_calibration_timestamp
 
@@ -23,6 +24,9 @@ class FakeDataset:
 
 
 class CalibrationSaverTests(unittest.TestCase):
+    def tearDown(self):
+        clear_active_profile()
+
     def test_save_creates_dated_run_with_arrays_and_profile_snapshot(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -68,6 +72,48 @@ class CalibrationSaverTests(unittest.TestCase):
                 np.load(run_directory / "sweep.npz", allow_pickle=False)["qubit"],
                 ["q1", "q2"],
             )
+
+    def test_save_defaults_to_active_profile(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            profile = root / "profiles" / "single_qubit"
+            profile.mkdir(parents=True)
+            (profile / "profile.json").write_text(
+                '{"name": "single_qubit"}\n',
+                encoding="utf-8",
+            )
+            set_active_profile(Profile("single_qubit", qubit="q3", root=root / "profiles"))
+            saver = CalibrationSaver(root / "data" / "calibrations", root / "profiles")
+
+            run_directory = saver.save("iq_blobs", [1], [2])
+
+            metadata = json.loads((run_directory / "metadata.json").read_text())
+            self.assertEqual(metadata["profile_name"], "single_qubit")
+            self.assertEqual(
+                (run_directory / "profile" / "profile.json").read_text(encoding="utf-8"),
+                '{"name": "single_qubit"}\n',
+            )
+
+    def test_save_accepts_profile_object(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            profile = root / "profiles" / "single_qubit"
+            profile.mkdir(parents=True)
+            (profile / "profile.json").write_text(
+                '{"name": "single_qubit"}\n',
+                encoding="utf-8",
+            )
+            saver = CalibrationSaver(root / "data" / "calibrations", root / "profiles")
+
+            run_directory = saver.save(
+                "iq_blobs",
+                [1],
+                [2],
+                profile_name=Profile("single_qubit", qubit="q3", root=root / "profiles"),
+            )
+
+            metadata = json.loads((run_directory / "metadata.json").read_text())
+            self.assertEqual(metadata["profile_name"], "single_qubit")
 
     def test_save_rejects_path_traversal_in_names(self):
         with tempfile.TemporaryDirectory() as directory:

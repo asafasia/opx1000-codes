@@ -8,10 +8,11 @@ from profiles import ProfileError, load_profile
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("name", nargs="?", default="main", help="Profile folder name")
+    parser.add_argument("--qubit", help="Qubit selection for a single-qubit profile")
     args = parser.parse_args()
 
     try:
-        profile = load_profile(args.name)
+        profile = load_profile(args.name, qubit=args.qubit)
     except ProfileError as exc:
         print(f"Profile {args.name!r} is invalid: {exc}")
         return 1

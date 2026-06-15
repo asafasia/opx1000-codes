@@ -14,6 +14,11 @@ profiles/
     connectivity.json Hardware, network, ports, line connections, and LOs
     qubits.json        Qubit, resonator, coherence, and readout parameters
     pulses.json        Reusable pulse definitions
+  single_qubit/
+    profile.json       Independent single-qubit profile manifest
+    connectivity.json Independent hardware, port, and LO configuration
+    qubits.json        Independent qubit and readout parameters
+    pulses.json        Independent control and readout pulse definitions
 ```
 
 All physical values include their unit in the field name, such as
@@ -86,6 +91,40 @@ from quam_config import create_machine
 
 machine = create_machine()          # profiles/main
 machine = create_machine("testing") # profiles/testing
+machine = create_machine(qubit="q3") # profiles/single_qubit, q3 only
+```
+
+`create_machine(qubit="q3")` builds a machine containing only `q3`, its
+resonator, its drive line, and the controller/FEM ports those objects use. The
+single-qubit machine uses only the independent files under
+`profiles/single_qubit`. The selected qubit is isolated before wiring is built.
+Nothing is copied or inferred from `main` at load time, so its LOs,
+frequencies, pulses, amplitudes, and readout parameters can be calibrated
+independently.
+
+Per-qubit drive and readout LOs are stored under each connection's
+`lo_frequencies_hz` in `profiles/single_qubit/connectivity.json`. They override
+the selected physical output ports only after one qubit has been selected.
+
+The factory class is also available directly:
+
+```python
+from quam_config import CreateMachine
+
+cm = CreateMachine()            # profiles/main
+machine = cm.machine
+cm.profile.save()
+
+cm = CreateMachine(qubit="q3")  # profiles/single_qubit, q3 only
+machine = cm.machine
+cm.profile.save()
+```
+
+Validate or build a selected single-qubit profile:
+
+```powershell
+python -m profiles.validate_profile single_qubit --qubit q3
+python -m quam_config.create_machine_from_profile --profile single_qubit --qubit q3 --no-save
 ```
 
 Qualibrate still stores an explicit machine snapshot with each saved run, but

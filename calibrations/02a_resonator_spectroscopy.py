@@ -47,12 +47,19 @@ State update:
     - The readout frequency: qubit.resonator.f_01 & qubit.resonator.RF_frequency
 """
 
+
 # Be sure to include [Parameters, Quam] so the node has proper type hinting
 node = QualibrationNode[Parameters, Quam](
     name="02a_resonator_spectroscopy",  # Name should be unique
     description=description,  # Describe what the node is doing, which is also reflected in the QUAlibrate GUI
     parameters=Parameters(),  # Node parameters defined under quam_experiment/experiments/node_name
 )
+
+node.machine = create_machine(qubit='q7')
+
+node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
+
+node.machine.qmm.close_all_qms()
 
 
 # Any parameters that should change for debugging purposes only should go in here
@@ -69,11 +76,6 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     pass
 
 
-node.machine = create_machine()
-
-node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
-
-node.machine.qmm.close_all_qms()
     
 
 # %% {Create_QUA_program}

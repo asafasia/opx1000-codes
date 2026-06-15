@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "name": "single_qubit",
+  "description": "Independent calibration profile for single-qubit experiments.",
+  "build_mode": "single_qubit",
+  "files": {
+    "connectivity": "connectivity.json",
+    "qubits": "qubits.json",
+    "pulses": "pulses.json"
+  },
+  "active_qubits": [
+    "q10"
+  ]
+}

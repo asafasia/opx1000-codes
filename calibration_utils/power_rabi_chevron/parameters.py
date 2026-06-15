@@ -8,7 +8,7 @@ from qualibration_libs.parameters import CommonNodeParameters, QubitsExperimentN
 class NodeSpecificParameters(RunnableParameters):
     """Frequency-versus-amplitude Rabi-chevron parameters."""
 
-    num_shots: int = 30
+    num_shots: int = 100
     """Number of averages."""
     operation: Literal["saturation", "x180", "x180_drag", "x180_cosine", "x90", "-x90", "y90", "-y90"] = "x180"
     """Fixed-duration qubit operation whose amplitude is swept."""

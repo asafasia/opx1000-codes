@@ -1,7 +1,6 @@
 """Save raw calibration results with a snapshot of the device profile."""
 
 import json
-import os
 import re
 import shutil
 import tempfile
@@ -11,6 +10,7 @@ from typing import Any, Mapping
 
 import numpy as np
 
+from profiles import Profile, current_profile_name
 from utils.plotting_settings import add_calibration_timestamp
 
 
@@ -18,11 +18,6 @@ REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT_ROOT = REPOSITORY_ROOT / "data" / "calibrations"
 DEFAULT_PROFILES_ROOT = REPOSITORY_ROOT / "profiles"
 _VALID_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
-
-
-def current_profile_name() -> str:
-    """Return the profile selected for calibration experiments."""
-    return os.environ.get("QUAM_PROFILE", "main")
 
 
 def _validate_name(name: str, label: str) -> str:
@@ -35,6 +30,10 @@ def _validate_array_name(name: str) -> str:
     if not name or "/" in name or "\\" in name:
         raise ValueError("array name must be non-empty and cannot contain path separators")
     return name
+
+
+def _profile_name(profile: str | Profile | None) -> str:
+    return profile.name if isinstance(profile, Profile) else profile or current_profile_name()
 
 
 def _as_arrays(values: Mapping[str, Any] | Any, default_name: str) -> dict[str, np.ndarray]:
@@ -79,12 +78,12 @@ class CalibrationSaver:
         experiment_name: str,
         sweep: Mapping[str, Any] | Any,
         results: Mapping[str, Any] | Any,
-        profile_name: str | None = None,
+        profile_name: str | Profile | None = None,
         now: datetime | None = None,
     ) -> Path:
         """Save arrays and return the newly created run directory."""
         experiment_name = _validate_name(experiment_name, "experiment_name")
-        profile_name = _validate_name(profile_name or current_profile_name(), "profile_name")
+        profile_name = _validate_name(_profile_name(profile_name), "profile_name")
         profile_source = self.profiles_root / profile_name
         if not profile_source.is_dir():
             raise FileNotFoundError(f"Profile directory does not exist: {profile_source}")
@@ -125,7 +124,7 @@ class CalibrationSaver:
         self,
         experiment_name: str,
         dataset: Any,
-        profile_name: str | None = None,
+        profile_name: str | Profile | None = None,
         now: datetime | None = None,
     ) -> Path:
         """Save all xarray coordinates as sweeps and data variables as results."""

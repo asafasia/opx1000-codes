@@ -7,7 +7,7 @@
         4
       ],
       "frequencies_hz": {
-        "qubit_f01": 4266400000.0,
+        "qubit_f01": 4267000000.0,
         "qubit_f12": null,
         "resonator": 6668800000.0,
         "resonator_bare": null
@@ -23,10 +23,10 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": -0.0002758320845562632,
-        "rus_exit_threshold": -0.0002758320845562632,
+        "threshold": -0.0002473168413364847,
+        "rus_exit_threshold": -0.0002473168413364847,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": -2.026039039513255
+        "integration_weights_angle_rad": -2.004659452244334
       },
       "operations": {
         "x180": "x180_const",
@@ -43,7 +43,7 @@
         4
       ],
       "frequencies_hz": {
-        "qubit_f01": 4092300000.0,
+        "qubit_f01": 4092100000.0,
         "qubit_f12": null,
         "resonator": 6780000000.0,
         "resonator_bare": null
@@ -59,10 +59,10 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 7.857309861670391e-05,
-        "rus_exit_threshold": 7.857309861670391e-05,
+        "threshold": 0.00012442630709138603,
+        "rus_exit_threshold": 0.00012442630709138603,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": -1.6219637027914287
+        "integration_weights_angle_rad": 1.2446176869112695
       },
       "operations": {
         "x180": "x180_const",
@@ -81,7 +81,7 @@
       "frequencies_hz": {
         "qubit_f01": 3972800000.0,
         "qubit_f12": null,
-        "resonator": 6875600000.0,
+        "resonator": 6872600000.0,
         "resonator_bare": null
       },
       "transmon": {
@@ -295,7 +295,7 @@
         0
       ],
       "frequencies_hz": {
-        "qubit_f01": 4349400000.0,
+        "qubit_f01": 4350600000.0,
         "qubit_f12": 4241600000.0,
         "resonator": 7471500000.0,
         "resonator_bare": null
