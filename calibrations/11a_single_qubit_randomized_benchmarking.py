@@ -74,10 +74,12 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     node.parameters.use_state_discrimination = True    
     node.parameters.reset_type = "active"
     node.parameters.max_circuit_depth =1024
-    node.parameters.delta_clifford = 20
+    node.parameters.delta_clifford = 2
     node.parameters.num_random_sequences = 30
     node.parameters.num_shots = 100
-    node.parameters.log_scale = False
+    node.parameters.log_scale = True
+    # node.parameters.operation = "x180_drag"
+    node.parameters.use_strict_timing = True
     pass
 
 
