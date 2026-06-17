@@ -38,9 +38,9 @@ from qualibration_libs.core import tracked_updates
 from quam_builder.tools.power_tools import calculate_voltage_scaling_factor
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 description = """
         TIME OF FLIGHT - MW FEM
@@ -321,8 +321,11 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
+    options = CalibrationOptions()
+
     calibration = TimeOfFlightMwFem(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
     )
     calibration.run()

@@ -38,9 +38,9 @@ from utils.plotting_settings import FIGURE_SIZE, plot_per_qubit
 from utils.simulation import plot_waveform_report_safely
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 description = """
         IQ BLOBS - SEPARATE ACQUISITIONS
@@ -395,8 +395,11 @@ if __name__ == "__main__":
     parameters.num_shots = 25000
     parameters.qubit_operation = 'x180'
 
+    options = CalibrationOptions()
+
     calibration = IqBlobsSeparate(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
     )
     calibration.run()

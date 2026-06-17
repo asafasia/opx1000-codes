@@ -53,6 +53,22 @@ Useful inherited helpers include `get_qubits()`, `execute_qua_program()`,
 `simulate_qua_program()`, `save_raw_results()`, `save_arrays()`,
 `save_figures()`, `save_qua_debug_script()`, and `propose_profile_update()`.
 
+Runtime behavior can be controlled with `CalibrationOptions`:
+
+```python
+from calibrations_v2 import CalibrationOptions
+
+options = CalibrationOptions(
+    save_raw_data=False,
+    save_figures=False,
+    plot_data=False,
+    update_state=False,
+    propose_profile_update=False,
+)
+```
+
+Pass `options=options` into any v2 calibration constructor.
+
 `PowerRabi` is the first concrete v2 calibration:
 
 ```python

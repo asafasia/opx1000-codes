@@ -26,9 +26,9 @@ from calibration_io import CalibrationSaver, current_profile_name
 from utils.plotting_settings import plot_per_qubit
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 description = """
         PI TRAIN
@@ -247,8 +247,11 @@ if __name__ == "__main__":
     parameters.reset_type = 'active'
     parameters.max_number_of_pulses = 150
 
+    options = CalibrationOptions()
+
     calibration = PiTrain(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
     )
     calibration.run()

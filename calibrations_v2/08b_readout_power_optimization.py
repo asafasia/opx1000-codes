@@ -36,9 +36,9 @@ from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 description = """
         READOUT POWER OPTIMIZATION
@@ -323,8 +323,11 @@ class ReadoutPowerOptimization(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
+    options = CalibrationOptions()
+
     calibration = ReadoutPowerOptimization(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
     )
     calibration.run()

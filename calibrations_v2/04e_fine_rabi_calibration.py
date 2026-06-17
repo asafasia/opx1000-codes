@@ -35,9 +35,9 @@ from profiles import ProfileUpdater, load_profile
 from utils.plotting_settings import plot_per_qubit
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 description = """
         FINE RABI CALIBRATION
@@ -337,8 +337,11 @@ if __name__ == "__main__":
     parameters.rotation_type = "PI"
     parameters.reset_type = "active"
 
+    options = CalibrationOptions()
+
     calibration = FineRabiCalibration(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
     )
     calibration.run()

@@ -38,9 +38,9 @@ from utils.simulation import simulate_and_plot
 from quam_config import create_machine
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 description = """
         DRAG PULSE CALIBRATION (GOOGLE METHOD)
@@ -362,8 +362,11 @@ if __name__ == "__main__":
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
 
+    options = CalibrationOptions()
+
     calibration = DragCalibration180Minus180(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
     )
     calibration.run()

@@ -34,9 +34,9 @@ from profiles import ProfileUpdater
 from utils.plotting_settings import plot_per_qubit
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 description = """
         RAMSEY WITH VIRTUAL Z ROTATIONS
@@ -318,8 +318,11 @@ if __name__ == "__main__":
     parameters.wait_time_num_points = 250
     parameters.frequency_detuning_in_mhz = 2
 
+    options = CalibrationOptions()
+
     calibration = Ramsey(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
     )
     calibration.run()

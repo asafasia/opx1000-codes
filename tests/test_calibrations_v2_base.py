@@ -7,7 +7,7 @@ import numpy as np
 import xarray as xr
 
 from calibration_io import CalibrationSaver
-from calibrations_v2 import BaseCalibration
+from calibrations_v2 import BaseCalibration, CalibrationOptions
 from profiles import Profile, clear_active_profile, set_active_profile
 
 
@@ -25,6 +25,12 @@ class FakeCalibration(BaseCalibration[SimpleNamespace, object]):
     def analyse_data(self):
         self.results["analysed"] = True
         self.outcomes = {"q1": "successful"}
+
+    def plot_data(self):
+        self.results["plotted"] = True
+
+    def update_state(self):
+        self.results["updated"] = True
 
 
 class CalibrationsV2BaseTests(unittest.TestCase):
@@ -55,6 +61,38 @@ class CalibrationsV2BaseTests(unittest.TestCase):
             self.assertEqual(status.outcomes, {"q1": "successful"})
             self.assertTrue(calibration.results["analysed"])
             self.assertTrue((calibration.namespace["calibration_run_directory"] / "results.npz").is_file())
+
+    def test_options_can_skip_saving_plotting_and_updates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            profile = root / "profiles" / "main"
+            profile.mkdir(parents=True)
+            (profile / "profile.json").write_text("{}\n", encoding="utf-8")
+            set_active_profile(Profile("main", root=root / "profiles"))
+
+            calibration = FakeCalibration(
+                name="fake_calibration",
+                parameters=SimpleNamespace(simulate=False, load_data_id=None, num_shots=3),
+                machine=object(),
+                saver=CalibrationSaver(root / "data" / "calibrations", root / "profiles"),
+                profile_name="main",
+                logger=lambda message: None,
+                options=CalibrationOptions(
+                    save_raw_data=False,
+                    save_figures=False,
+                    plot_data=False,
+                    update_state=False,
+                    propose_profile_update=False,
+                ),
+            )
+
+            status = calibration.run()
+
+            self.assertFalse(status.raw_data_saved)
+            self.assertNotIn("calibration_run_directory", calibration.namespace)
+            self.assertTrue(calibration.results["analysed"])
+            self.assertNotIn("plotted", calibration.results)
+            self.assertNotIn("updated", calibration.results)
 
     def test_load_saved_run_reconstructs_dataset(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -10,7 +10,7 @@ class RbDepthTests(unittest.TestCase):
     def test_calibration_uses_for_each_for_arbitrary_depths(self):
         source = (
             Path(__file__).parent.parent
-            / "calibrations"
+            / "calibrations_v2"
             / "11a_single_qubit_randomized_benchmarking.py"
         ).read_text(encoding="utf-8")
 

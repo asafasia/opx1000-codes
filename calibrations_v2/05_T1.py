@@ -34,9 +34,9 @@ from calibration_utils.T1 import (
 )
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 description = """
         T1 MEASUREMENT
@@ -305,8 +305,11 @@ if __name__ == "__main__":
     parameters.wait_time_num_points = 150
     parameters.log_or_linear_sweep = "log"
 
+    options = CalibrationOptions()
+
     calibration = T1(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
     )
     calibration.run()

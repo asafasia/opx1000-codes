@@ -36,9 +36,9 @@ from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.core import tracked_updates
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 description = """
         RESONATOR SPECTROSCOPY VERSUS READOUT POWER
@@ -323,8 +323,11 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
+    options = CalibrationOptions()
+
     calibration = ResonatorSpectroscopyVsPower(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
     )
     calibration.run()

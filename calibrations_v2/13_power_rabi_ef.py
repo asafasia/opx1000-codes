@@ -47,6 +47,7 @@ if __name__ == "__main__":
 
     power_rabi = PowerRabiEf(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
         auto_connect=True,
     )

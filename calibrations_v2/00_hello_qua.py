@@ -25,9 +25,9 @@ from qualibration_libs.data import XarrayDataFetcher
 from qualibrate import NodeParameters
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 description = """
         Basic script to play with the QUA program and test the QOP connectivity.
@@ -160,8 +160,11 @@ class HelloQua(BaseCalibration[NodeParameters, Quam]):
 if __name__ == "__main__":
     parameters = NodeParameters()
 
+    options = CalibrationOptions()
+
     calibration = HelloQua(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
     )
     calibration.run()

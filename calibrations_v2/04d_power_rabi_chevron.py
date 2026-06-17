@@ -27,9 +27,9 @@ from utils.plotting_settings import plot_per_qubit
 from utils.simulation import simulate_and_plot
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 description = """
         POWER RABI CHEVRON - FREQUENCY VS AMPLITUDE
@@ -259,8 +259,11 @@ if __name__ == "__main__":
     parameters.frequency_span_in_mhz = 200
     parameters.frequency_step_in_mhz = 1
 
+    options = CalibrationOptions()
+
     calibration = PowerRabiChevron(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
     )
     calibration.run()

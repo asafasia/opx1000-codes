@@ -45,6 +45,19 @@ class CalibrationStatus:
     outcomes: Mapping[str, str] = field(default_factory=dict)
 
 
+@dataclass
+class CalibrationOptions:
+    """Runtime switches for the shared calibration lifecycle."""
+
+    save_raw_data: bool = True
+    save_figures: bool = True
+    analyse_data: bool = True
+    plot_data: bool = True
+    update_state: bool = True
+    propose_profile_update: bool = True
+    apply_profile_update: bool = True
+
+
 class BaseCalibration(ABC, Generic[P, M]):
     """Abstract base class for new calibration experiments.
 
@@ -72,6 +85,7 @@ class BaseCalibration(ABC, Generic[P, M]):
         profile_updater: ProfileUpdater | None = None,
         machine_factory: Callable[..., M] | None = None,
         logger: Callable[[str], None] | None = None,
+        options: CalibrationOptions | None = None,
     ) -> None:
         self.name = name
         self.description = description
@@ -81,6 +95,7 @@ class BaseCalibration(ABC, Generic[P, M]):
         self.machine = machine if machine is not None else self.create_machine(machine_factory)
         self.saver = saver or CalibrationSaver()
         self.profile_updater = profile_updater or ProfileUpdater()
+        self.options = options or CalibrationOptions()
         self.namespace: dict[str, Any] = {}
         self.results: dict[str, Any] = {}
         self.outcomes: dict[str, str] = {}
@@ -162,15 +177,21 @@ class BaseCalibration(ABC, Generic[P, M]):
                     self.simulate_qua_program()
                 elif self.should_execute():
                     self.execute_qua_program()
-                    self.save_raw_results()
-                    raw_data_saved = True
+                    if self.options.save_raw_data:
+                        self.save_raw_results()
+                        raw_data_saved = True
 
             if not self.simulate_requested:
-                self.analyse_data()
-                self.plot_data()
-                figures_saved = self.save_figures()
-                profile_update_proposed = self.propose_profile_update()
-                self.update_state()
+                if self.options.analyse_data:
+                    self.analyse_data()
+                if self.options.plot_data:
+                    self.plot_data()
+                if self.options.save_figures:
+                    figures_saved = self.save_figures()
+                if self.options.propose_profile_update:
+                    profile_update_proposed = self._propose_profile_update_from_options()
+                if self.options.update_state:
+                    self.update_state()
         finally:
             self.cleanup()
 
@@ -381,6 +402,21 @@ class BaseCalibration(ABC, Generic[P, M]):
         if apply:
             self.profile_updater.confirm_and_apply(proposal)
         return True
+
+    def _propose_profile_update_from_options(self) -> bool:
+        """Call subclass profile-update hooks while respecting base options."""
+        signature = inspect.signature(self.propose_profile_update)
+        if "apply" in signature.parameters:
+            return bool(
+                self.propose_profile_update(apply=self.options.apply_profile_update)
+            )
+        if not self.options.apply_profile_update:
+            self.log(
+                "Profile update skipped because this calibration overrides "
+                "propose_profile_update() without an apply option."
+            )
+            return False
+        return bool(self.propose_profile_update())
 
     @contextmanager
     def record_state_updates(self) -> Iterable[None]:

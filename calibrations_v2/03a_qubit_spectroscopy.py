@@ -35,9 +35,9 @@ from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 description = """
         QUBIT SPECTROSCOPY
@@ -331,8 +331,11 @@ if __name__ == "__main__":
     parameters.frequency_span_in_mhz = 3
     parameters.frequency_step_in_mhz = 0.03
 
+    options = CalibrationOptions()
+
     calibration = QubitSpectroscopy(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
     )
     calibration.run()

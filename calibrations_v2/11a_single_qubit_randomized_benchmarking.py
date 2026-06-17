@@ -13,7 +13,9 @@ if __package__ in {None, ""}:
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-from dataclasses import asdict
+from copy import copy
+from dataclasses import asdict, is_dataclass, replace
+from math import pi
 from qm.qua import *
 from qualang_tools.multi_user import qm_session
 from qualang_tools.results import progress_counter
@@ -35,9 +37,72 @@ from profiles import ProfileUpdater
 from utils.plotting_settings import plot_per_qubit
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
+
+
+RB_BASE_OPERATIONS = {
+    "square": "x180",
+    "drag": "x180_drag",
+    "cos": "x180_cosine",
+    "cosine": "x180_cosine",
+}
+
+RB_GATE_SPECS = {
+    "x180": (1.0, 0.0),
+    "y180": (1.0, pi / 2),
+    "x90": (0.5, 0.0),
+    "-x90": (-0.5, 0.0),
+    "y90": (0.5, pi / 2),
+    "-y90": (-0.5, pi / 2),
+}
+
+
+def _copy_gate_from_base(base_operation, amplitude_factor: float, axis_angle: float):
+    if not hasattr(base_operation, "amplitude"):
+        raise TypeError(
+            f"{type(base_operation).__name__} cannot be used for RB gates because "
+            "it has no amplitude field."
+        )
+    if hasattr(base_operation, "to_dict"):
+        kwargs = base_operation.to_dict()
+        kwargs.pop("__class__", None)
+        gate = type(base_operation)(**kwargs)
+    elif is_dataclass(base_operation):
+        gate = replace(base_operation)
+    else:
+        gate = copy(base_operation)
+
+    gate.amplitude = base_operation.amplitude * amplitude_factor
+    if hasattr(gate, "axis_angle"):
+        gate.axis_angle = axis_angle
+    return gate
+
+
+def install_rb_gate_family(qubits, gate_family: str) -> None:
+    """Bind RB logical gate names to the selected pulse family on this machine."""
+    if gate_family not in RB_BASE_OPERATIONS:
+        allowed = ", ".join(sorted(RB_BASE_OPERATIONS))
+        raise ValueError(
+            f"Unknown RB gate family {gate_family!r}. Expected one of: {allowed}."
+        )
+
+    base_operation_name = RB_BASE_OPERATIONS[gate_family]
+    for qubit in qubits:
+        if base_operation_name not in qubit.xy.operations:
+            raise ValueError(
+                f"{qubit.name} has no operation {base_operation_name!r}; "
+                f"cannot run RB with gate_family={gate_family!r}."
+            )
+        base_operation = qubit.xy.operations[base_operation_name]
+        for gate_name, (amplitude_factor, axis_angle) in RB_GATE_SPECS.items():
+            qubit.xy.operations[gate_name] = _copy_gate_from_base(
+                base_operation,
+                amplitude_factor,
+                axis_angle,
+            )
+
 
 description = """
         SINGLE QUBIT RANDOMIZED BENCHMARKING
@@ -68,8 +133,6 @@ State update:
 """
 
 
-
-
 # Any parameters that should change for debugging purposes only should go in here
 # These parameters are ignored when run through the GUI or as part of a graph
 # %% {Create_QUA_program}
@@ -82,6 +145,7 @@ State update:
 # %% {Update_state}
 # %% {Propose_profile_update}
 # %% {Save_results}
+
 
 class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
     """v2 class migration for ``calibrations/11a_single_qubit_randomized_benchmarking.py``."""
@@ -99,6 +163,7 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
             machine=machine,
             **kwargs,
         )
+
     def create_qua_program(self):
         node = self
         """Create the sweep axes and generate the QUA program from the pulse sequence and the node parameters."""
@@ -106,8 +171,12 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
         u = unit(coerce_to_integer=True)
         # Get the active qubits from the node and organize them by batches
         node.namespace["qubits"] = qubits = get_qubits(node)
+        install_rb_gate_family(qubits, node.parameters.gate_family)
+        node.namespace["rb_gate_family"] = node.parameters.gate_family
         num_qubits = len(qubits)
-        num_of_sequences = node.parameters.num_random_sequences  # Number of random sequences
+        num_of_sequences = (
+            node.parameters.num_random_sequences
+        )  # Number of random sequences
         # Number of averaging loops for each random sequence
         n_avg = node.parameters.num_shots
         max_circuit_depth = node.parameters.max_circuit_depth
@@ -215,8 +284,12 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
         # Register the sweep axes to be added to the dataset when fetching data
         node.namespace["sweep_axes"] = {
             "qubit": xr.DataArray(qubits.get_names()),
-            "nb_of_sequences": xr.DataArray(np.arange(num_of_sequences), attrs={"long_name": "Number of sequences"}),
-            "depths": xr.DataArray(depths, attrs={"long_name": "Number of Clifford gates"}),
+            "nb_of_sequences": xr.DataArray(
+                np.arange(num_of_sequences), attrs={"long_name": "Number of sequences"}
+            ),
+            "depths": xr.DataArray(
+                depths, attrs={"long_name": "Number of Clifford gates"}
+            ),
         }
         with program() as node.namespace["qua_program"]:
             I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
@@ -276,7 +349,9 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
                                     qubit.readout_state(state[i])
                                     save(state[i], state_st[i])
                                 else:
-                                    qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
+                                    qubit.resonator.measure(
+                                        "readout", qua_vars=(I[i], Q[i])
+                                    )
                                     save(I[i], I_st[i])
                                     save(Q[i], Q_st[i])
 
@@ -289,19 +364,19 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
                 m_st.save("n")
                 for i in range(num_qubits):
                     if node.parameters.use_state_discrimination:
-                        state_st[i].buffer(n_avg).map(FUNCTIONS.average()).buffer(num_depths).buffer(num_of_sequences).save(
-                            f"state{i + 1}"
-                        )
+                        state_st[i].buffer(n_avg).map(FUNCTIONS.average()).buffer(
+                            num_depths
+                        ).buffer(num_of_sequences).save(f"state{i + 1}")
                     else:
-                        I_st[i].buffer(n_avg).map(FUNCTIONS.average()).buffer(num_depths).buffer(num_of_sequences).save(
-                            f"I{i + 1}"
-                        )
-                        Q_st[i].buffer(n_avg).map(FUNCTIONS.average()).buffer(num_depths).buffer(num_of_sequences).save(
-                            f"Q{i + 1}"
-                        )
-
+                        I_st[i].buffer(n_avg).map(FUNCTIONS.average()).buffer(
+                            num_depths
+                        ).buffer(num_of_sequences).save(f"I{i + 1}")
+                        Q_st[i].buffer(n_avg).map(FUNCTIONS.average()).buffer(
+                            num_depths
+                        ).buffer(num_of_sequences).save(f"Q{i + 1}")
 
         return node.namespace.get("qua_program")
+
     def simulate_qua_program(self):
         node = self
         """Connect to the QOP and simulate the QUA program"""
@@ -310,10 +385,15 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
         # Get the config from the machine
         config = node.machine.generate_config()
         # Simulate the QUA program, generate the waveform report and plot the simulated samples
-        samples, fig, wf_report = simulate_and_plot(qmm, config, node.namespace["qua_program"], node.parameters)
+        samples, fig, wf_report = simulate_and_plot(
+            qmm, config, node.namespace["qua_program"], node.parameters
+        )
         # Store the figure, waveform report and simulated samples
-        node.results["simulation"] = {"figure": fig, "wf_report": wf_report, "samples": samples}
-
+        node.results["simulation"] = {
+            "figure": fig,
+            "wf_report": wf_report,
+            "samples": samples,
+        }
 
     def execute_qua_program(self):
         node = self
@@ -339,7 +419,6 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
         # Register the raw dataset
         node.results["ds_raw"] = dataset
 
-
     def save_raw_results(self):
         node = self
         """Save the acquired vectors and a snapshot of the selected profile."""
@@ -348,7 +427,6 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
         )
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")
-
 
     def load_data(self):
         node = self
@@ -359,7 +437,6 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
         node.namespace["qubits"] = get_qubits(node)
-
 
     def analyse_data(self):
         node = self
@@ -374,7 +451,6 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
             qubit_name: ("successful" if fit_result["success"] else "failed")
             for qubit_name, fit_result in node.results["fit_results"].items()
         }
-
 
     def plot_data(self):
         node = self
@@ -394,7 +470,6 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
             )
             node.log(f"Calibration figures saved to {figures_directory}")
 
-
     def update_state(self):
         node = self
         """Update the relevant parameters if the qubit data analysis was successful."""
@@ -402,8 +477,9 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
             for q in node.namespace["qubits"]:
                 if node.outcomes[q.name] == "failed":
                     continue
-                q.gate_fidelity["averaged"] = float(1 - node.results["fit_results"][q.name]["error_per_gate"])
-
+                q.gate_fidelity["averaged"] = float(
+                    1 - node.results["fit_results"][q.name]["error_per_gate"]
+                )
 
     def propose_profile_update(self):
         node = self
@@ -416,10 +492,10 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
             if node.outcomes[q.name] == "successful"
         }
         if updates:
-            proposal = ProfileUpdater().stage(node.name, updates, profile_name=current_profile_name())
+            proposal = ProfileUpdater().stage(
+                node.name, updates, profile_name=current_profile_name()
+            )
             ProfileUpdater().confirm_and_apply(proposal)
-
-
 
 
 if __name__ == "__main__":
@@ -427,15 +503,19 @@ if __name__ == "__main__":
 
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
-    parameters.max_circuit_depth =1024
+    parameters.gate_family = "drag"
+    parameters.max_circuit_depth = int(2**9)
     parameters.delta_clifford = 2
     parameters.num_random_sequences = 30
     parameters.num_shots = 100
-    parameters.log_scale = True
+    parameters.log_scale = False
     parameters.use_strict_timing = True
+
+    options = CalibrationOptions()
 
     calibration = SingleQubitRandomizedBenchmarking(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
     )
     calibration.run()

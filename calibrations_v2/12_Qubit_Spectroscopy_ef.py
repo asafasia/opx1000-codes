@@ -35,9 +35,9 @@ from utils.plotting_settings import plot_per_qubit
 from profiles import ProfileUpdater
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 description = """
         QUBIT SPECTROSCOPY E TO F
@@ -337,8 +337,11 @@ if __name__ == "__main__":
     parameters.frequency_step_in_mhz = 0.5
     parameters.operation_amplitude_factor = 0.03
 
+    options = CalibrationOptions()
+
     calibration = QubitSpectroscopyEf(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
     )
     calibration.run()

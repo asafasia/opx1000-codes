@@ -1,8 +1,11 @@
-from typing import Optional
+from typing import Literal, Optional
 import numpy as np
 from qualibrate import NodeParameters
 from qualibrate.core.parameters import RunnableParameters
 from qualibration_libs.parameters import QubitsExperimentNodeParameters, CommonNodeParameters
+
+
+RBGateFamily = Literal["square", "drag", "cos", "cosine"]
 
 
 class NodeSpecificParameters(RunnableParameters):
@@ -10,6 +13,8 @@ class NodeSpecificParameters(RunnableParameters):
     """Perform qubit state discrimination. Default is True."""
     use_strict_timing: bool = False
     """Use strict timing in the QUA program. Default is False."""
+    gate_family: RBGateFamily = "square"
+    """Pulse family used for the RB Clifford primitives: square, drag, cos, or cosine."""
     num_random_sequences: int = 30
     """Number of random RB sequences. Default is 300."""
     num_shots: int = 10

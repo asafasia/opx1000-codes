@@ -15,9 +15,9 @@ from quam_config import Quam
 from quam_config import create_machine
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 description = """
         CLOSE ALL OTHER QMs.
@@ -60,8 +60,11 @@ class EndWork(BaseCalibration[NodeParameters, Quam]):
 if __name__ == "__main__":
     parameters = NodeParameters()
 
+    options = CalibrationOptions()
+
     calibration = EndWork(
         parameters=parameters,
+        options=options,
         machine=create_machine(),
     )
     calibration.run()

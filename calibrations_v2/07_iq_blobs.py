@@ -35,9 +35,9 @@ from qualibration_libs.data import XarrayDataFetcher
 from quam.components.pulses import SquareReadoutPulse
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 description = """
         IQ BLOBS
@@ -466,14 +466,18 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
-    parameters.qubit_operation = "x180"
-    parameters.states = ["g", "e", "f"]
-
+    parameters.qubit_operation = "x180_const"
+    parameters.states = ["g", "e"]
     parameters.reset_type = "active"
     parameters.num_shots = 1000
 
+    options = CalibrationOptions()
+
     calibration = IqBlobs(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
     )
     calibration.run()
+
+    analysis = 

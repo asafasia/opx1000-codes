@@ -32,9 +32,9 @@ from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 DESCRIPTION = """
         POWER RABI
@@ -317,6 +317,7 @@ if __name__ == "__main__":
 
     power_rabi = PowerRabi(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
         auto_connect=True,
     )

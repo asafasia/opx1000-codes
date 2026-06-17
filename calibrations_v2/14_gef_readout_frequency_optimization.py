@@ -36,9 +36,9 @@ from utils.plotting_settings import plot_per_qubit
 from quam_config import create_machine
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration
+    from calibrations_v2.base import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration
+    from .base import BaseCalibration, CalibrationOptions
 
 description = """
         G-E-F READOUT FREQUENCY OPTIMIZATION
@@ -364,8 +364,11 @@ class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
+    options = CalibrationOptions()
+
     calibration = GefReadoutFrequencyOptimization(
         parameters=parameters,
+        options=options,
         machine=create_machine(qubit="q9"),
     )
     calibration.run()
