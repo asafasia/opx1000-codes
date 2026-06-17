@@ -11,7 +11,7 @@ PROFILES_ROOT = Path(__file__).resolve().parent
 SUPPORTED_SCHEMA_VERSION = 1
 PULSE_TYPES = {"constant", "drag", "cosine", "saturation"}
 STATE_1_RULES = {"above_threshold", "below_threshold"}
-MAX_PROFILE_PULSE_AMPLITUDE = 0.5
+MAX_PROFILE_PULSE_AMPLITUDE = 0.7
 MW_FEM_BAND_RANGES_HZ = {
     1: (50e6, 5.5e9),
     2: (4.5e9, 7.5e9),

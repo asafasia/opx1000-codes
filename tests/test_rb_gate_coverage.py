@@ -74,6 +74,27 @@ class RBGateCoverageTests(unittest.TestCase):
 
         self.assertAlmostEqual(qubit.xy.operations["x90"].amplitude, 0.1)
 
+    def test_rb_identity_wait_respects_qua_minimum_wait(self):
+        rb_module = import_module("calibrations_v2.11a_single_qubit_randomized_benchmarking")
+
+        @dataclass
+        class Pulse:
+            length: int
+
+        self.assertEqual(rb_module.rb_identity_wait_cycles(Pulse(length=8)), 4)
+        self.assertEqual(rb_module.rb_identity_wait_cycles(Pulse(length=12)), 4)
+        self.assertEqual(rb_module.rb_identity_wait_cycles(Pulse(length=40)), 10)
+
+    def test_rb_sequence_uses_minimum_safe_identity_wait_helper(self):
+        source = (
+            Path(__file__).parent.parent
+            / "calibrations_v2"
+            / "11a_single_qubit_randomized_benchmarking.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("rb_identity_wait_cycles(qubit.xy.operations[\"x180\"])", source)
+        self.assertNotIn('qubit.xy.wait(qubit.xy.operations["x180"].length // 4)', source)
+
     def test_workflow_defaults_rb_to_drag_family(self):
         source = (
             Path(__file__).parent.parent / "workflows" / "drag_workflow.py"

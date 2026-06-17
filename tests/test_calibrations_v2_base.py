@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 import numpy as np
 import xarray as xr
@@ -31,6 +32,17 @@ class FakeCalibration(BaseCalibration[SimpleNamespace, object]):
 
     def update_state(self):
         self.results["updated"] = True
+
+
+class FakeMachine:
+    def __init__(self):
+        self.qmm = Mock()
+
+    def connect(self):
+        return self.qmm
+
+    def generate_config(self):
+        return {"config": "fake"}
 
 
 class CalibrationsV2BaseTests(unittest.TestCase):
@@ -93,6 +105,53 @@ class CalibrationsV2BaseTests(unittest.TestCase):
             self.assertTrue(calibration.results["analysed"])
             self.assertNotIn("plotted", calibration.results)
             self.assertNotIn("updated", calibration.results)
+
+    def test_simulation_shows_figure_when_plotting_is_enabled(self):
+        calibration = FakeCalibration(
+            name="fake_calibration",
+            parameters=SimpleNamespace(
+                simulate=True,
+                load_data_id=None,
+                simulation_duration_ns=1000,
+                timeout=100,
+                use_waveform_report=False,
+            ),
+            machine=FakeMachine(),
+            logger=lambda message: None,
+        )
+
+        with patch(
+            "utils.simulation.simulate_and_plot",
+            return_value=("samples", "figure", "report"),
+        ), patch("calibrations_v2.base.plt.show") as show:
+            status = calibration.run()
+
+        self.assertEqual(status.mode, "simulate")
+        self.assertEqual(calibration.results["simulation"]["figure"], "figure")
+        show.assert_called_once_with()
+
+    def test_simulation_respects_plotting_option(self):
+        calibration = FakeCalibration(
+            name="fake_calibration",
+            parameters=SimpleNamespace(
+                simulate=True,
+                load_data_id=None,
+                simulation_duration_ns=1000,
+                timeout=100,
+                use_waveform_report=False,
+            ),
+            machine=FakeMachine(),
+            logger=lambda message: None,
+            options=CalibrationOptions(plot_data=False),
+        )
+
+        with patch(
+            "utils.simulation.simulate_and_plot",
+            return_value=("samples", "figure", "report"),
+        ), patch("calibrations_v2.base.plt.show") as show:
+            calibration.run()
+
+        show.assert_not_called()
 
     def test_load_saved_run_reconstructs_dataset(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -104,6 +104,11 @@ def install_rb_gate_family(qubits, gate_family: str) -> None:
             )
 
 
+def rb_identity_wait_cycles(x180_operation) -> int:
+    """Return a QUA-valid wait duration for the RB identity Clifford."""
+    return max(4, x180_operation.length // 4)
+
+
 description = """
         SINGLE QUBIT RANDOMIZED BENCHMARKING
 The program consists in playing random sequences of Clifford gates and measuring the
@@ -212,7 +217,9 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
             with for_(i, 0, i <= depth, i + 1):
                 with switch_(sequence_list[i], unsafe=True):
                     with case_(0):
-                        qubit.xy.wait(qubit.xy.operations["x180"].length // 4)
+                        qubit.xy.wait(
+                            rb_identity_wait_cycles(qubit.xy.operations["x180"])
+                        )
                     with case_(1):  # x180
                         qubit.xy.play("x180")
                     with case_(2):  # y180
@@ -394,6 +401,8 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
             "wf_report": wf_report,
             "samples": samples,
         }
+        if node.options.plot_data:
+            plt.show()
 
     def execute_qua_program(self):
         node = self
@@ -510,6 +519,7 @@ if __name__ == "__main__":
     parameters.num_shots = 100
     parameters.log_scale = False
     parameters.use_strict_timing = True
+    parameters.simulate = False
 
     options = CalibrationOptions()
 

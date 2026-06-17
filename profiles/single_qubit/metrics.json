@@ -136,7 +136,7 @@
         "t2_echo_ns": null
       },
       "gates": {
-        "single_qubit_average_fidelity": null
+        "single_qubit_average_fidelity": 0.9960650864799918
       },
       "readout": {
         "fidelity_percent": {

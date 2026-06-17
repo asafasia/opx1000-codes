@@ -172,7 +172,7 @@ class ProfileTests(unittest.TestCase):
             self._write_profile(root)
             pulses_path = root / "main" / "pulses.json"
             pulses = json.loads(pulses_path.read_text())
-            pulses["pulses"]["q1"]["x180_const"]["amplitude"] = 0.5
+            pulses["pulses"]["q1"]["x180_const"]["amplitude"] = 0.7
             pulses_path.write_text(json.dumps(pulses) + "\n", encoding="utf-8")
 
             Profile("main", root=root).load()
@@ -183,7 +183,7 @@ class ProfileTests(unittest.TestCase):
             self._write_profile(root)
             pulses_path = root / "main" / "pulses.json"
             pulses = json.loads(pulses_path.read_text())
-            pulses["pulses"]["q1"]["x180_const"]["amplitude"] = 0.51
+            pulses["pulses"]["q1"]["x180_const"]["amplitude"] = 0.71
             pulses_path.write_text(json.dumps(pulses) + "\n", encoding="utf-8")
 
             with self.assertRaisesRegex(ProfileError, "amplitude is too high"):

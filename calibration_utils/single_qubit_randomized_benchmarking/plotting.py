@@ -99,7 +99,10 @@ def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str
             fit.fit_data.sel(fit_vals="decay"),
         )
         ax.plot(fit.depths, fitted, "r--", label="fit")
-        fit_text = f"1Q RB fidelity = {100*(1 - float(fit.error_per_gate.values)):.3f}%"
+        fit_text = f"1Q RB fidelity = {100 * float(fit.fidelity.values):.3f}"
+        if "fidelity_std" in fit and not np.isnan(float(fit.fidelity_std.values)):
+            fit_text += f" +/- {100 * float(fit.fidelity_std.values):.3f}"
+        fit_text += "%"
     else:
         fit_text = "RB decay fit failed"
     ax.text(0.15, 0.9, fit_text, transform=ax.transAxes)

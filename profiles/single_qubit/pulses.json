@@ -443,10 +443,10 @@
       "x180_drag": {
         "target": "qubit",
         "type": "drag",
-        "amplitude": 0.1,
+        "amplitude": 0.15930927828742436,
         "length_ns": 40,
         "sigma_ns": 4,
-        "beta": 1.0800000000000018,
+        "beta": 1.8000000000000025,
         "detuning_hz": 0,
         "axis_angle_rad": 0
       },

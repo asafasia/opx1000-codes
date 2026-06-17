@@ -25,7 +25,6 @@ from profiles.loader import _select_qubit
 from quam_config import Quam
 from quam_config.create_machine_from_profile import create_machine_from_profile
 
-
 PowerRabi = importlib.import_module("calibrations_v2.04b_power_rabi").PowerRabi
 DragCalibration180Minus180 = importlib.import_module(
     "calibrations_v2.10b_drag_calibration_180_minus_180"
@@ -44,6 +43,8 @@ class DragWorkflowParameters:
     profile_documents: dict[str, Any] | None = None
     connect_before_run: bool = True
     close_existing_qms: bool = True
+    gate_length_ns: int | None = None
+    gate_length_operations: tuple[str, ...] = ("x180", "x180_drag", "x180_cosine")
     run_rabi: bool = True
     run_drag: bool = True
     run_rb: bool = True
@@ -83,6 +84,8 @@ class DragWorkflow:
         self.results: dict[str, Any] = {}
         self.profile_updates: dict[str, dict[str, Any]] = {}
         self.calibration_options = self.parameters.options
+        self.calibrations: dict[str, Any] = {}
+        self._apply_requested_gate_length()
 
     def _load_profile_documents(self) -> dict[str, Any]:
         if self.parameters.profile_documents is not None:
@@ -128,10 +131,62 @@ class DragWorkflow:
             )
             print(f"\n=== Running {name}: {calibration.name} ===")
             self.results[name] = calibration.run()
+            self.calibrations[name] = calibration
             updates = self._updates_from_calibration(name, calibration)
             self.profile_updates[name] = updates
             self._apply_profile_updates(updates)
         return self.results
+
+    def _apply_requested_gate_length(self) -> None:
+        if self.parameters.gate_length_ns is None:
+            return
+        length_ns = int(self.parameters.gate_length_ns)
+        if length_ns <= 0:
+            raise ValueError("gate_length_ns must be a positive integer.")
+        if length_ns % 4 != 0:
+            raise ValueError(
+                f"gate_length_ns={length_ns} is invalid. QOP pulse lengths must be "
+                "multiples of 4 ns. Use a value such as "
+                f"{length_ns + (-length_ns % 4)} ns."
+            )
+
+        updates = {}
+        for operation in self.parameters.gate_length_operations:
+            path = self._pulse_update_path(operation, "length_ns", required=False)
+            if path is not None:
+                updates[path] = length_ns
+        self._apply_profile_updates(updates)
+        self.profile_updates["gate_length"] = updates
+
+    def _pulse_update_path(
+        self,
+        operation: str,
+        field: str,
+        *,
+        required: bool = True,
+    ) -> str | None:
+        qubit_profiles = self.profile_documents["qubits"]["qubits"]
+        pulse_profiles = self.profile_documents["pulses"]["pulses"]
+        qubit_profile = qubit_profiles[self.parameters.qubit]
+        pulse_name = qubit_profile["operations"].get(operation)
+        pulse_profile = (
+            pulse_profiles[self.parameters.qubit].get(pulse_name)
+            if pulse_name
+            else None
+        )
+        if pulse_profile is None:
+            if required:
+                raise ValueError(
+                    f"{self.parameters.qubit} operation {operation!r} has no profile pulse."
+                )
+            return None
+        if field not in pulse_profile:
+            if required:
+                raise ValueError(
+                    f"{self.parameters.qubit} pulse {pulse_name!r} has no {field!r} field."
+                )
+            return None
+        return f"pulses.json.pulses.{self.parameters.qubit}.{pulse_name}.{field}"
 
     def _updates_from_calibration(self, name: str, calibration: Any) -> dict[str, Any]:
         if name == "rabi":
@@ -145,7 +200,11 @@ class DragWorkflow:
     def _power_rabi_updates(self, calibration: Any) -> dict[str, Any]:
         updates = {}
         parameters = calibration.parameters
-        operation = "EF_x180" if getattr(parameters, "transition", "ge") == "ef" else parameters.operation
+        operation = (
+            "EF_x180"
+            if getattr(parameters, "transition", "ge") == "ef"
+            else parameters.operation
+        )
         qubit_profiles = self.profile_documents["qubits"]["qubits"]
         for q in calibration.namespace.get("qubits", []):
             if calibration.outcomes.get(q.name) != "successful":
@@ -170,7 +229,9 @@ class DragWorkflow:
             if calibration.outcomes.get(q.name) != "successful":
                 continue
             pulse_name = qubit_profiles[q.name]["operations"].get(operation)
-            pulse_profile = pulse_profiles[q.name].get(pulse_name) if pulse_name else None
+            pulse_profile = (
+                pulse_profiles[q.name].get(pulse_name) if pulse_name else None
+            )
             if pulse_profile is None or pulse_profile.get("type") != "drag":
                 calibration.log(
                     f"In-memory update skipped: operation {operation!r} does not map "
@@ -221,7 +282,9 @@ class InMemoryProfile(Profile):
         return documents
 
     def save(self, documents: dict[str, Any] | None = None) -> None:
-        self.documents = deepcopy(documents if documents is not None else self.documents)
+        self.documents = deepcopy(
+            documents if documents is not None else self.documents
+        )
         validate_profile(self.documents)
 
 
@@ -245,10 +308,12 @@ def default_parameters() -> DragWorkflowParameters:
     parameters.rabi.use_state_discrimination = True
     parameters.rabi.num_shots = 500
     parameters.rabi.transition = "ge"
+    parameters.rabi.operation = "x180_drag"
     parameters.rabi.pi_repetitions = 4
 
     parameters.drag.use_state_discrimination = True
     parameters.drag.reset_type = "active"
+    parameters.drag.num_shots = 100
 
     parameters.rb.use_state_discrimination = True
     parameters.rb.reset_type = "active"

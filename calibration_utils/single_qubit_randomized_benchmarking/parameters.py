@@ -27,6 +27,10 @@ class NodeSpecificParameters(RunnableParameters):
     """If True, use log scale depths: 1,2,4,8,16,32... up to max_circuit_depth. Default is True."""
     seed: Optional[int] = None
     """Seed for the random number generator. Default is None."""
+    fidelity_bootstrap_samples: int = 100
+    """Bootstrap samples used to estimate the RB fidelity standard deviation. Set to 0 to disable."""
+    fidelity_bootstrap_seed: Optional[int] = None
+    """Seed for RB fidelity uncertainty bootstrap. Default is None."""
 
 
 class Parameters(

@@ -21,7 +21,11 @@ class TestRbPopulation(unittest.TestCase):
             coords={"qubit": ["q1"], "depths": [1, 2, 3], "nb_of_sequences": [0, 1]},
         )
         node = SimpleNamespace(
-            parameters=SimpleNamespace(use_state_discrimination=True),
+            parameters=SimpleNamespace(
+                use_state_discrimination=True,
+                fidelity_bootstrap_samples=3,
+                fidelity_bootstrap_seed=123,
+            ),
             outcomes={},
         )
 
@@ -53,6 +57,8 @@ class TestRbPopulation(unittest.TestCase):
                 "averaged_data": ("depths", population.mean(axis=1)),
                 "fit_data": ("fit_vals", [0.5, 0.4, -0.1]),
                 "error_per_gate": xr.DataArray(0.01),
+                "fidelity": xr.DataArray(0.99),
+                "fidelity_std": xr.DataArray(0.002),
             },
             coords={
                 "depths": [1, 2, 3],
@@ -116,8 +122,13 @@ class TestRbPopulation(unittest.TestCase):
 
         self.assertIn("success", fit)
         self.assertIn("error_per_gate", fit)
+        self.assertIn("fidelity", fit)
+        self.assertIn("fidelity_std", fit)
+        self.assertIn("error_per_gate_std", fit)
         self.assertTrue(bool(fit.sel(qubit="q1").success))
         self.assertTrue(results["q1"].success)
+        self.assertAlmostEqual(results["q1"].fidelity, 1 - results["q1"].error_per_gate)
+        self.assertAlmostEqual(results["q1"].fidelity_std, 0.0)
 
 
 if __name__ == "__main__":

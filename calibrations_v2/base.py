@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Generic, Iterable, Mapping, TypeVar
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 from calibration_io import CalibrationSaver
 from profiles import ProfileUpdater, current_profile_name
@@ -231,6 +232,8 @@ class BaseCalibration(ABC, Generic[P, M]):
             "wf_report": wf_report,
             "samples": samples,
         }
+        if self.options.plot_data:
+            plt.show()
 
     def execute_qua_program(self) -> None:
         """Execute the QUA program and fetch xarray data into ``ds_raw``."""

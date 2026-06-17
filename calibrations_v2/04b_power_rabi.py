@@ -310,10 +310,13 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
 
     parameters = Parameters()
-    parameters.reset_type = "thermal"
+    parameters.reset_type = "active"
     parameters.num_shots = 500
     parameters.transition = "ge"
     parameters.pi_repetitions = 4
+    parameters.operation = "x180_drag"
+
+    options = CalibrationOptions()
 
     power_rabi = PowerRabi(
         parameters=parameters,
