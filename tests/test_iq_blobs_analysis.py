@@ -49,6 +49,40 @@ class IQBlobsAnalysisTests(unittest.TestCase):
         self.assertTrue(results["q1"].success)
         self.assertEqual(results["q1"].rus_threshold, results["q1"].ge_threshold)
 
+    def test_three_state_clouds_add_centers_and_confusion_matrix(self):
+        rng = np.random.default_rng(9)
+        runs = 1000
+        ds = xr.Dataset(
+            {
+                "Ig": (("qubit", "n_runs"), rng.normal(-6e-5, 2e-6, (1, runs))),
+                "Qg": (("qubit", "n_runs"), rng.normal(0, 2e-6, (1, runs))),
+                "Ie": (("qubit", "n_runs"), rng.normal(0, 2e-6, (1, runs))),
+                "Qe": (("qubit", "n_runs"), rng.normal(0, 2e-6, (1, runs))),
+                "If": (("qubit", "n_runs"), rng.normal(6e-5, 2e-6, (1, runs))),
+                "Qf": (("qubit", "n_runs"), rng.normal(0, 2e-6, (1, runs))),
+            },
+            coords={"qubit": ["q1"], "n_runs": np.arange(runs)},
+        )
+
+        fit, results = fit_raw_data(ds, self.make_node())
+
+        self.assertEqual(results["q1"].state_labels, ["g", "e", "f"])
+        self.assertEqual(np.asarray(results["q1"].center_matrix).shape, (3, 2))
+        self.assertEqual(np.asarray(results["q1"].confusion_matrix).shape, (3, 3))
+        self.assertEqual(results["q1"].threshold_pairs, ["ge", "ef", "gf"])
+        self.assertEqual(np.asarray(results["q1"].threshold_line_midpoints).shape, (3, 2))
+        self.assertEqual(np.asarray(results["q1"].threshold_line_normals).shape, (3, 2))
+        centers = np.asarray(results["q1"].center_matrix)
+        midpoints = np.asarray(results["q1"].threshold_line_midpoints)
+        np.testing.assert_allclose(midpoints[0], 0.5 * (centers[0] + centers[1]))
+        np.testing.assert_allclose(midpoints[1], 0.5 * (centers[1] + centers[2]))
+        np.testing.assert_allclose(midpoints[2], 0.5 * (centers[0] + centers[2]))
+        np.testing.assert_allclose(
+            fit.state_confusion_matrix.sel(qubit="q1").values,
+            np.eye(3),
+            atol=0.02,
+        )
+
     def test_kde_regions_enclose_95_percent_of_each_blob(self):
         rng = np.random.default_rng(7)
         runs = 500

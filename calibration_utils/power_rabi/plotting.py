@@ -12,6 +12,11 @@ from utils.plotting_settings import FIGURE_SIZE
 
 u = unit(coerce_to_integer=True)
 
+TRANSITION_COLORS = {
+    "ge": "tab:blue",
+    "ef": "tab:orange",
+}
+
 
 def ideal_state_response(amp_prefactor, number_of_pulses: int, operation: str):
     """Return the ideal excited-state population for repeated rotations."""
@@ -24,6 +29,11 @@ def expected_cycles_to_unit_prefactor(number_of_pulses: int, operation: str) -> 
     return number_of_pulses / (
         2 if operation.endswith("x180") or operation.startswith("x180_") else 4
     )
+
+
+def transition_from_operation(operation: str) -> str:
+    """Return the transition represented by a Rabi operation name."""
+    return "ef" if operation.startswith("EF_") else "ge"
 
 
 def plot_raw_data_with_fit(
@@ -107,6 +117,10 @@ def plot_individual_data_with_fit_1D(ax: Axes, ds: xr.Dataset, variable: str, fi
     """
 
     if "nb_of_pulses" not in ds or len(ds.nb_of_pulses.data) == 1:
+        operation = str(fit.operation.values) if fit is not None and "operation" in fit else "x180"
+        transition = transition_from_operation(operation)
+        transition_color = TRANSITION_COLORS[transition]
+        transition_label = transition.upper()
         if fit is not None:
             fit_variable = f"fit_{variable}" if f"fit_{variable}" in fit else "fit"
             channel_fit = fit[fit_variable]
@@ -125,14 +139,19 @@ def plot_individual_data_with_fit_1D(ax: Axes, ds: xr.Dataset, variable: str, fi
             selected = selected.isel(nb_of_pulses=0, drop=True)
         selected = selected.assign_coords(amp_mV=selected.full_amp * 1e3)
         scale = 1 if variable == "state" else 1e3
-        (selected[variable] * scale).plot(ax=ax, x="amp_mV")
+        (selected[variable] * scale).plot(
+            ax=ax,
+            x="amp_mV",
+            marker="o",
+            color=transition_color,
+            label=f"{transition_label} measured",
+        )
         if variable == "state":
             number_of_pulses = (
                 int(np.asarray(ds.nb_of_pulses.values).flat[0])
                 if "nb_of_pulses" in ds.coords
                 else 1
             )
-            operation = str(fit.operation.values) if "operation" in fit else "x180"
             ideal_state = ideal_state_response(
                 selected.amp_prefactor,
                 number_of_pulses,
@@ -158,8 +177,14 @@ def plot_individual_data_with_fit_1D(ax: Axes, ds: xr.Dataset, variable: str, fi
                 label += f" ($R^2$={score:.3f})"
             if selected:
                 label += " - selected"
-            ax.plot(fit.full_amp * 1e3, scale * fitted_data, "r--", label=label)
-            ax.legend()
+            ax.plot(
+                fit.full_amp * 1e3,
+                scale * fitted_data,
+                linestyle="--",
+                color=transition_color,
+                label=f"{transition_label} {label}",
+            )
+        ax.legend()
         ax.set_ylabel("Qubit state" if variable == "state" else f"{variable} [mV]")
         ax.set_xlabel("Pulse amplitude [mV]")
         ax.grid(alpha=0.25)
@@ -191,10 +216,12 @@ def plot_individual_data_with_fit_2D(ax: Axes, ds: xr.Dataset, variable: str, fi
     ax.set_ylabel("Number of pulses")
     ax.set_xlabel("Pulse amplitude [mV]")
     if bool(fit.success.values):
+        operation = str(fit.operation.values) if "operation" in fit else "x180"
+        transition = transition_from_operation(operation)
         ax.axvline(
             x=float(fit.opt_amp.values) * 1e3,
-            color="g",
+            color=TRANSITION_COLORS[transition],
             linestyle="-",
-            label="Optimal amplitude",
+            label=f"{transition.upper()} optimal amplitude",
         )
         ax.legend()

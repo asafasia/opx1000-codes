@@ -6,9 +6,15 @@ from qualibrate.core.parameters import RunnableParameters
 from qualibration_libs.parameters import CommonNodeParameters, QubitsExperimentNodeParameters
 
 
-class BasePowerRabiParameters(RunnableParameters):
-    """Parameters shared by both 04b (GE power Rabi) and 12b (EF power Rabi) nodes."""
+Transition = Literal["ge", "ef"]
+GeOperation = Literal["x180", "x180_drag", "x180_cosine", "x90", "-x90", "y90", "-y90"]
 
+
+class BasePowerRabiParameters(RunnableParameters):
+    """Parameters shared by GE and EF power Rabi."""
+
+    transition: Transition = "ge"
+    """Transition to calibrate. GE uses the selected operation; EF always uses EF_x180."""
     num_shots: int = 300
     """Number of averages to perform. Default is 300    ."""
     min_amp_factor: float = 0.0
@@ -20,10 +26,10 @@ class BasePowerRabiParameters(RunnableParameters):
 
 
 class NodeSpecificParameters(BasePowerRabiParameters):
-    """04b-specific parameters (GE power Rabi with optional error amplification)."""
+    """Power Rabi parameters. Error amplification applies only to the GE transition."""
 
-    operation: Literal["x180", "x180_drag", "x180_cosine", "x90", "-x90", "y90", "-y90"] = "x180"
-    """Type of operation to perform. Default is "x180"."""
+    operation: GeOperation = "x180"
+    """GE operation to calibrate. Ignored when transition="ef"."""
     pi_repetitions: int = 3
     """Number of times to repeat each pulse-count point. Default is 3."""
     max_number_pulses_per_sweep: int = 1
@@ -32,29 +38,21 @@ class NodeSpecificParameters(BasePowerRabiParameters):
     """Flag to update the x90 pulse amplitude after calibrating x180. Default is True."""
 
 
-class EfNodeSpecificParameters(BasePowerRabiParameters):
-    """12b EF-specific parameters (no operation choice / error amplification knobs)."""
-
-    # Potential future EF-specific fields can be added here
-    pass
-
-
 class Parameters(
     NodeParameters,
     CommonNodeParameters,
     NodeSpecificParameters,
     QubitsExperimentNodeParameters,
 ):
-    """Parameter set for 04b_power_rabi."""
+    """Parameter set for combined GE/EF power Rabi."""
 
 
 class EfParameters(
-    NodeParameters,
-    CommonNodeParameters,
-    EfNodeSpecificParameters,
-    QubitsExperimentNodeParameters,
+    Parameters,
 ):
-    """Parameter set for 12b_power_rabi_ef (EF transition)."""
+    """Backward-compatible EF parameter class."""
+
+    transition: Transition = "ef"
 
 
 @runtime_checkable
@@ -69,14 +67,17 @@ class HasErrorAmplification(Protocol):
 def get_number_of_pulses(node_parameter: BasePowerRabiParameters):
     """Return array of number of pulses for error amplification.
 
-    For EF node (12b) the default behaviour is a single pulse sweep (equivalent to max_number_pulses_per_sweep = 1).
+    For EF, pi_repetitions controls how many EF_x180 pulses are applied after
+    preparing |e>.
     """
-    # If the parameter object lacks error amplification attributes, default to single pulse.
     if not isinstance(node_parameter, HasErrorAmplification):
         return np.array([1], dtype=int)
 
     if node_parameter.pi_repetitions < 1:
         raise ValueError("pi_repetitions must be a positive integer.")
+
+    if getattr(node_parameter, "transition", "ge") == "ef":
+        return np.array([node_parameter.pi_repetitions], dtype=int)
 
     if node_parameter.max_number_pulses_per_sweep > 1:
         if node_parameter.operation.endswith("x180") or node_parameter.operation.startswith("x180_"):

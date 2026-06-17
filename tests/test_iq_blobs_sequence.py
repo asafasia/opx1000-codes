@@ -9,13 +9,11 @@ class IQBlobsSequenceTests(unittest.TestCase):
             "with stream_processing()", 1
         )[0]
 
-        self.assertIn(
-            "align()\n"
-            "                for qubit in multiplexed_qubits.values():\n"
-            "                    qubit.resonator.wait(node.parameters.xy_to_readout_delay_in_ns * u.ns)\n"
-            "                for i, qubit in multiplexed_qubits.items():",
-            prepared_block,
-        )
+        delay_position = prepared_block.index("node.parameters.xy_to_readout_delay_in_ns * u.ns")
+        measure_position = prepared_block.index("qubit.resonator.measure")
+        self.assertIn("align()", prepared_block[:delay_position])
+        self.assertIn("for qubit in multiplexed_qubits.values():", prepared_block[:delay_position])
+        self.assertLess(delay_position, measure_position)
         self.assertNotIn("qubit.align()", prepared_block)
 
     def test_explicit_delay_is_after_xy_alignment_and_before_readout(self):
@@ -36,7 +34,11 @@ class IQBlobsSequenceTests(unittest.TestCase):
             "with stream_processing()", 1
         )[0]
 
-        self.assertEqual(acquisition_block.count("with for_(n, 0, n < n_runs, n + 1):"), 2)
+        f_loop_marker = '\n            if "f" in states:\n                with for_(n, 0, n < n_runs, n + 1):'
+        ge_block = acquisition_block.split(f_loop_marker, 1)[0]
+        self.assertEqual(ge_block.count("with for_(n, 0, n < n_runs, n + 1):"), 2)
+        self.assertIn(f_loop_marker, acquisition_block)
+        self.assertEqual(acquisition_block.count("with for_(n, 0, n < n_runs, n + 1):"), 3)
         self.assertIn("qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)", acquisition_block)
 
     def test_successful_fit_updates_profile_angle_and_threshold(self):

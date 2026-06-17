@@ -24,10 +24,20 @@ def analyze_fine_rabi(ds: xr.Dataset, node: QualibrationNode) -> tuple[xr.Datase
     if repetition_counts.size < 4:
         raise ValueError("Fine-Rabi Fourier analysis requires at least four repetition points.")
     spacing = float(np.mean(np.diff(repetition_counts)))
-    frequencies = np.fft.rfftfreq(repetition_counts.size, d=spacing)
+    fourier_oversampling = int(node.parameters.fourier_oversampling)
+    if fourier_oversampling < 1:
+        raise ValueError("fourier_oversampling must be at least 1.")
+    fft_points = fourier_oversampling * repetition_counts.size
+    frequencies = np.fft.rfftfreq(fft_points, d=spacing)
 
     centered = data - data.mean(dim="repetition_group_count")
-    fourier_amplitude = np.abs(np.fft.rfft(centered.values, axis=data.get_axis_num("repetition_group_count")))
+    fourier_amplitude = np.abs(
+        np.fft.rfft(
+            centered.values,
+            n=fft_points,
+            axis=data.get_axis_num("repetition_group_count"),
+        )
+    )
     fourier_amplitude = np.moveaxis(
         fourier_amplitude,
         data.get_axis_num("repetition_group_count"),

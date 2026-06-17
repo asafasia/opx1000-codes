@@ -12,6 +12,11 @@ from scipy.ndimage import gaussian_filter
 
 KDE_GRID_SIZE = 80
 KDE_PROBABILITY = 0.95
+STATE_SPECS = (
+    ("g", "Ig", "Qg", "ground", "Ground"),
+    ("e", "Ie", "Qe", "prepared", "Prepared"),
+    ("f", "If", "Qf", "f", "F"),
+)
 
 
 def _kde_density_region(i_values, q_values, probability=KDE_PROBABILITY, grid_size=KDE_GRID_SIZE):
@@ -59,24 +64,23 @@ def _empty_kde_region():
 
 
 def _add_kde_regions(ds_fit: xr.Dataset, qubits) -> xr.Dataset:
-    """Add ground/prepared 95% KDE regions in the acquired IQ coordinates."""
+    """Add 95% KDE regions in the acquired IQ coordinates."""
+    state_specs = [spec for spec in STATE_SPECS if spec[1] in ds_fit and spec[2] in ds_fit]
     results = []
     for qubit in qubits:
         selected = ds_fit.sel(qubit=qubit.name)
-        ground = _kde_density_region(selected.Ig, selected.Qg)
-        prepared = _kde_density_region(selected.Ie, selected.Qe)
-        if ground is None:
-            ground = _empty_kde_region()
-        if prepared is None:
-            prepared = _empty_kde_region()
-        results.append((ground, prepared))
+        qubit_results = []
+        for _, i_name, q_name, _, _ in state_specs:
+            region = _kde_density_region(selected[i_name], selected[q_name])
+            qubit_results.append(region if region is not None else _empty_kde_region())
+        results.append(qubit_results)
 
     coords = {
         "qubit": ds_fit.qubit.data,
         "kde_y": np.arange(KDE_GRID_SIZE),
         "kde_x": np.arange(KDE_GRID_SIZE),
     }
-    for state_index, state_name in enumerate(("ground", "prepared")):
+    for state_index, (_, _, _, state_name, _) in enumerate(state_specs):
         ds_fit[f"{state_name}_kde_I"] = xr.DataArray(
             np.stack([result[state_index][0] for result in results]), dims=("qubit", "kde_y", "kde_x"), coords=coords
         )
@@ -106,6 +110,11 @@ class FitParameters:
     center_separation: float
     separation_to_width: float
     confusion_matrix: list
+    state_labels: list
+    center_matrix: list | None
+    threshold_pairs: list
+    threshold_line_midpoints: list | None
+    threshold_line_normals: list | None
     success: bool
 
 
@@ -183,7 +192,10 @@ def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
         dask="parallelized",  # This allows for parallel processing
         output_dtypes=[float],  # Specify the output data type
     )
-    ds = convert_IQ_to_V(ds, node.namespace["qubits"], IQ_list=["Ig", "Qg", "Ie", "Qe"])
+    iq_list = ["Ig", "Qg", "Ie", "Qe"]
+    if "If" in ds and "Qf" in ds:
+        iq_list.extend(["If", "Qf"])
+    ds = convert_IQ_to_V(ds, node.namespace["qubits"], IQ_list=iq_list)
     return ds
 
 
@@ -218,6 +230,9 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     ds_fit = ds_fit.assign({"Qg_rot": ds_fit.Ig * S + ds_fit.Qg * C})
     ds_fit = ds_fit.assign({"Ie_rot": ds_fit.Ie * C - ds_fit.Qe * S})
     ds_fit = ds_fit.assign({"Qe_rot": ds_fit.Ie * S + ds_fit.Qe * C})
+    if "If" in ds_fit and "Qf" in ds_fit:
+        ds_fit = ds_fit.assign({"If_rot": ds_fit.If * C - ds_fit.Qf * S})
+        ds_fit = ds_fit.assign({"Qf_rot": ds_fit.If * S + ds_fit.Qf * C})
     ds_fit = _add_kde_regions(ds_fit, node.namespace["qubits"])
 
     threshold = []
@@ -250,6 +265,7 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     pooled_width = np.sqrt((ground_width**2 + prepared_width**2) / 2)
     ds_fit = ds_fit.assign({"center_separation": center_separation})
     ds_fit = ds_fit.assign({"separation_to_width": center_separation / pooled_width})
+    ds_fit = _add_state_centers_and_confusion(ds_fit)
 
     # Extract the relevant fitted parameters
     fit_data, fit_results = _extract_relevant_fit_parameters(ds_fit, node)
@@ -289,6 +305,81 @@ def _optimal_threshold(ground, prepared):
     return float(0.5 * (unique_values[best_index - 1] + unique_values[best_index]))
 
 
+def _add_state_centers_and_confusion(fit: xr.Dataset) -> xr.Dataset:
+    """Add per-state IQ centers, nearest-center confusion matrices, and pairwise thresholds."""
+    state_specs = [spec for spec in STATE_SPECS if spec[1] in fit and spec[2] in fit]
+    state_labels = [spec[0] for spec in state_specs]
+    threshold_pairs = _threshold_pairs_for_states(state_labels)
+    centers_by_qubit = []
+    confusion_by_qubit = []
+    threshold_midpoints_by_qubit = []
+    threshold_normals_by_qubit = []
+
+    for q in fit.qubit.values:
+        selected = fit.sel(qubit=q)
+        centers = np.asarray(
+            [
+                [float(selected[i_name].mean()), float(selected[q_name].mean())]
+                for _, i_name, q_name, _, _ in state_specs
+            ]
+        )
+        confusion = np.zeros((len(state_specs), len(state_specs)))
+        for prepared_index, (_, i_name, q_name, _, _) in enumerate(state_specs):
+            points = np.column_stack((selected[i_name].values, selected[q_name].values))
+            distances = np.linalg.norm(points[:, None, :] - centers[None, :, :], axis=2)
+            measured = np.argmin(distances, axis=1)
+            for measured_index in range(len(state_specs)):
+                confusion[prepared_index, measured_index] = float(np.mean(measured == measured_index))
+        centers_by_qubit.append(centers)
+        confusion_by_qubit.append(confusion)
+        midpoints = []
+        normals = []
+        for left_state, right_state in threshold_pairs:
+            left_center = centers[state_labels.index(left_state)]
+            right_center = centers[state_labels.index(right_state)]
+            midpoints.append(0.5 * (left_center + right_center))
+            normals.append(right_center - left_center)
+        threshold_midpoints_by_qubit.append(np.asarray(midpoints))
+        threshold_normals_by_qubit.append(np.asarray(normals))
+
+    fit = fit.assign(
+        {
+            "state_center_matrix": xr.DataArray(
+                np.stack(centers_by_qubit),
+                dims=("qubit", "state", "IQ"),
+                coords={"qubit": fit.qubit.data, "state": state_labels, "IQ": ["I", "Q"]},
+            ),
+            "state_confusion_matrix": xr.DataArray(
+                np.stack(confusion_by_qubit),
+                dims=("qubit", "prepared_state", "measured_state"),
+                coords={
+                    "qubit": fit.qubit.data,
+                    "prepared_state": state_labels,
+                    "measured_state": state_labels,
+                },
+            ),
+            "threshold_line_midpoint": xr.DataArray(
+                np.stack(threshold_midpoints_by_qubit),
+                dims=("qubit", "threshold", "IQ"),
+                coords={"qubit": fit.qubit.data, "threshold": threshold_pairs, "IQ": ["I", "Q"]},
+            ),
+            "threshold_line_normal": xr.DataArray(
+                np.stack(threshold_normals_by_qubit),
+                dims=("qubit", "threshold", "IQ"),
+                coords={"qubit": fit.qubit.data, "threshold": threshold_pairs, "IQ": ["I", "Q"]},
+            ),
+        }
+    )
+    return fit
+
+
+def _threshold_pairs_for_states(state_labels):
+    """Return stable discriminator-pair names for acquired states."""
+    if state_labels == ["g", "e", "f"]:
+        return ["ge", "ef", "gf"]
+    return [f"{state_labels[i]}{state_labels[j]}" for i in range(len(state_labels)) for j in range(i + 1, len(state_labels))]
+
+
 def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
     """Add metadata to the dataset and fit results."""
 
@@ -310,10 +401,12 @@ def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
             readout_fidelity=float(fit.sel(qubit=q).readout_fidelity),
             center_separation=float(fit.sel(qubit=q).center_separation),
             separation_to_width=float(fit.sel(qubit=q).separation_to_width),
-            confusion_matrix=[
-                [float(fit.sel(qubit=q).gg), float(fit.sel(qubit=q).ge)],
-                [float(fit.sel(qubit=q).eg), float(fit.sel(qubit=q).ee)],
-            ],
+            confusion_matrix=fit.sel(qubit=q).state_confusion_matrix.values.tolist(),
+            state_labels=list(fit.state.values),
+            center_matrix=fit.sel(qubit=q).state_center_matrix.values.tolist(),
+            threshold_pairs=list(fit.threshold.values),
+            threshold_line_midpoints=fit.sel(qubit=q).threshold_line_midpoint.values.tolist(),
+            threshold_line_normals=fit.sel(qubit=q).threshold_line_normal.values.tolist(),
             success=fit.sel(qubit=q).success.values.__bool__(),
         )
         for q in fit.qubit.values

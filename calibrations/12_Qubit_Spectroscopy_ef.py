@@ -20,7 +20,7 @@ from qualibrate import QualibrationNode
 from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.parameters import get_qubits
 from qualibration_libs.runtime import simulate_and_plot
-from quam_config import Quam
+from quam_config import Quam, create_machine
 from calibration_io import CalibrationSaver, current_profile_name
 from utils.plotting_settings import plot_per_qubit
 from profiles import ProfileUpdater
@@ -57,6 +57,13 @@ node = QualibrationNode[Parameters, Quam](
 )
 
 
+node.machine = create_machine(qubit="q9")
+
+node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
+
+node.machine.qmm.close_all_qms()
+
+
 # Any parameters that should change for debugging purposes only should go in here
 # These parameters are ignored when run through the GUI or as part of a graph
 @node.run_action(skip_if=node.modes.external)
@@ -64,6 +71,10 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow the user to locally set the node parameters for debugging purposes, or execution in the Python IDE."""
     # You can get type hinting in your IDE by typing node.parameters.
     # node.parameters.qubits = ["q1", "q2"]
+    node.parameters.num_shots = 1000
+    node.parameters.frequency_span_in_mhz = 100
+    node.parameters.frequency_step_in_mhz = 0.5
+    node.parameters.operation_amplitude_factor = 0.03
     pass
 
 
@@ -91,7 +102,9 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
     # Register the sweep axes to be added to the dataset when fetching data
     node.namespace["sweep_axes"] = {
         "qubit": xr.DataArray(qubits.get_names()),
-        "detuning": xr.DataArray(dfs, attrs={"long_name": "readout frequency", "units": "Hz"}),
+        "detuning": xr.DataArray(
+            dfs, attrs={"long_name": "readout frequency", "units": "Hz"}
+        ),
     }
 
     with program() as node.namespace["qua_program"]:
@@ -110,14 +123,20 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 with for_(*from_array(df, dfs)):
                     for i, qubit in multiplexed_qubits.items():
                         # Get the duration of the operation from the node parameters or the state
-                        duration = operation_len if operation_len is not None else qubit.xy.operations[operation].length
+                        duration = (
+                            operation_len
+                            if operation_len is not None
+                            else qubit.xy.operations[operation].length
+                        )
                         # Wait for the qubit to thermalize (longer for proper |f> state thermalization)
                         # Reset the qubit frequency
                         qubit.xy.update_frequency(qubit.xy.intermediate_frequency)
                         # Drive the qubit to the excited state
                         qubit.xy.play("x180")
                         # Update the qubit frequency to scan around the expected f_01
-                        qubit.xy.update_frequency(df - qubit.anharmonicity + qubit.xy.intermediate_frequency)
+                        qubit.xy.update_frequency(
+                            df - qubit.anharmonicity + qubit.xy.intermediate_frequency
+                        )
                         # Play the saturation pulse
                         qubit.xy.play(
                             operation,
@@ -148,7 +167,9 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
 
 # %% {Simulate}
-@node.run_action(skip_if=node.parameters.load_data_id is not None or not node.parameters.simulate)
+@node.run_action(
+    skip_if=node.parameters.load_data_id is not None or not node.parameters.simulate
+)
 def simulate_qua_program(node: QualibrationNode[Parameters, Quam]):
     """Connect to the QOP and simulate the QUA program"""
     # Connect to the QOP
@@ -156,13 +177,21 @@ def simulate_qua_program(node: QualibrationNode[Parameters, Quam]):
     # Get the config from the machine
     config = node.machine.generate_config()
     # Simulate the QUA program, generate the waveform report and plot the simulated samples
-    samples, fig, wf_report = simulate_and_plot(qmm, config, node.namespace["qua_program"], node.parameters)
+    samples, fig, wf_report = simulate_and_plot(
+        qmm, config, node.namespace["qua_program"], node.parameters
+    )
     # Store the figure, waveform report and simulated samples
-    node.results["simulation"] = {"figure": fig, "wf_report": wf_report, "samples": samples}
+    node.results["simulation"] = {
+        "figure": fig,
+        "wf_report": wf_report,
+        "samples": samples,
+    }
 
 
 # %% {Execute}
-@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
+@node.run_action(
+    skip_if=node.parameters.load_data_id is not None or node.parameters.simulate
+)
 def execute_qua_program(node: QualibrationNode[Parameters, Quam]):
     """Connect to the QOP, execute the QUA program and fetch the raw data and store it in a xarray dataset called "ds_raw"."""
     # Connect to the QOP
@@ -188,7 +217,9 @@ def execute_qua_program(node: QualibrationNode[Parameters, Quam]):
 
 
 # %% {Save_raw_results}
-@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
+@node.run_action(
+    skip_if=node.parameters.load_data_id is not None or node.parameters.simulate
+)
 def save_raw_results(node: QualibrationNode[Parameters, Quam]):
     """Save the acquired vectors and a snapshot of the selected profile."""
     output_directory = CalibrationSaver().save_xarray(
@@ -258,7 +289,9 @@ def update_state(node: QualibrationNode[Parameters, Quam]):
         for q in node.namespace["qubits"]:
             if node.outcomes[q.name] == "failed":
                 continue
-            fitted_ef_frequency = float(node.results["fit_results"][q.name]["frequency"])
+            fitted_ef_frequency = float(
+                node.results["fit_results"][q.name]["frequency"]
+            )
             q.f_12 = fitted_ef_frequency
             q.anharmonicity = float(q.f_01) - fitted_ef_frequency
 
@@ -272,7 +305,9 @@ def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
         if node.outcomes[q.name] != "successful":
             continue
         fitted_ef_frequency = float(node.results["fit_results"][q.name]["frequency"])
-        updates[f"qubits.json.qubits.{q.name}.frequencies_hz.qubit_f12"] = fitted_ef_frequency
+        updates[f"qubits.json.qubits.{q.name}.frequencies_hz.qubit_f12"] = (
+            fitted_ef_frequency
+        )
         updates[f"qubits.json.qubits.{q.name}.transmon.anharmonicity_hz"] = (
             float(q.f_01) - fitted_ef_frequency
         )

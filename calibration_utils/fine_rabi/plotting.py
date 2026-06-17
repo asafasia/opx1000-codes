@@ -3,9 +3,11 @@ from typing import List
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
+from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 
+from calibration_utils.fine_rabi.parameters import operation_for_rotation
 from utils.plotting_settings import FIGURE_SIZE
 
 
@@ -19,19 +21,24 @@ def plot_fine_rabi(
     """Plot fine Rabi amplitude scan and repetition-axis Fourier map."""
     data_name = _select_data_name(ds, use_state_discrimination)
     data_label = "Measured state" if data_name == "state" else "I [V]"
+    operation = operation_for_rotation(rotation_type)
 
     figure, axes = plt.subplots(
-        len(qubits),
-        2,
-        figsize=(FIGURE_SIZE[0] * 2, FIGURE_SIZE[1] * max(1, len(qubits))),
+        len(qubits) * 2,
+        1,
+        figsize=(FIGURE_SIZE[0], FIGURE_SIZE[1] * max(1, len(qubits))),
+        sharex=True,
         squeeze=False,
     )
     for row, qubit in enumerate(qubits):
         selected = ds.sel(qubit=qubit.name)
         selected_fit = fits.sel(qubit=qubit.name) if fits is not None else None
         data = selected[data_name]
-        _plot_scan(axes[row, 0], data, data_label, qubit.name)
-        _plot_fourier(axes[row, 1], data, qubit.name, selected_fit)
+        operation_amplitude = _operation_amplitude(qubit, operation)
+        scan_ax = axes[2 * row, 0]
+        fourier_ax = axes[2 * row + 1, 0]
+        _plot_scan(scan_ax, data, data_label, qubit.name, selected_fit, operation_amplitude)
+        _plot_fourier(fourier_ax, data, qubit.name, selected_fit, operation_amplitude)
 
     figure.suptitle(f"Fine Rabi calibration: {rotation_type}")
     figure.tight_layout()
@@ -48,7 +55,21 @@ def _select_data_name(ds: xr.Dataset, use_state_discrimination: bool) -> str:
     return "I"
 
 
-def _plot_scan(ax, data: xr.DataArray, data_label: str, qubit_name: str) -> None:
+def _operation_amplitude(qubit: AnyTransmon, operation: str) -> float | None:
+    try:
+        return float(qubit.xy.operations[operation].amplitude)
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return None
+
+
+def _plot_scan(
+    ax: Axes,
+    data: xr.DataArray,
+    data_label: str,
+    qubit_name: str,
+    fit: xr.Dataset | None,
+    operation_amplitude: float | None,
+) -> None:
     plotted = data.plot(
         ax=ax,
         x="amp_prefactor",
@@ -60,9 +81,18 @@ def _plot_scan(ax, data: xr.DataArray, data_label: str, qubit_name: str) -> None
     ax.set_title(f"{qubit_name}: Fine Rabi scan")
     ax.set_xlabel("Pulse amplitude factor")
     ax.set_ylabel("Repetition group count")
+    _plot_amplitude_markers(ax, fit)
+    _add_real_amplitude_axis(ax, operation_amplitude)
+    ax.legend(loc="upper right", fontsize=8)
 
 
-def _plot_fourier(ax, data: xr.DataArray, qubit_name: str, fit: xr.Dataset | None) -> None:
+def _plot_fourier(
+    ax: Axes,
+    data: xr.DataArray,
+    qubit_name: str,
+    fit: xr.Dataset | None,
+    operation_amplitude: float | None,
+) -> None:
     fft_data = _fourier_data_from_fit_or_raw(data, fit)
     plotted = fft_data.plot(
         ax=ax,
@@ -70,11 +100,14 @@ def _plot_fourier(ax, data: xr.DataArray, qubit_name: str, fit: xr.Dataset | Non
         y="fourier_frequency",
         add_colorbar=True,
         robust=True,
+        cmap="magma",
     )
     plotted.colorbar.set_label("Fourier amplitude")
     ax.set_title(f"{qubit_name}: Fourier analysis")
     ax.set_xlabel("Pulse amplitude factor")
     ax.set_ylabel("Frequency [cycles/group]")
+    _plot_amplitude_markers(ax, fit)
+    _add_real_amplitude_axis(ax, operation_amplitude)
     if fit is not None and "ridge_frequency" in fit:
         _plot_fourier_fit_overlay(ax, fit)
 
@@ -97,6 +130,39 @@ def _fourier_data_from_fit_or_raw(data: xr.DataArray, fit: xr.Dataset | None) ->
             "amp_prefactor": data.amp_prefactor.values,
         },
     )
+
+
+def _plot_amplitude_markers(ax: Axes, fit: xr.Dataset | None) -> None:
+    ax.axvline(
+        1.0,
+        color="tab:red",
+        linestyle="--",
+        linewidth=1.6,
+        label="Current amplitude",
+    )
+    if fit is not None and "optimal_amp_prefactor" in fit:
+        optimum = float(fit.optimal_amp_prefactor)
+        if np.isfinite(optimum):
+            ax.axvline(
+                optimum,
+                color="tab:green",
+                linestyle="-",
+                linewidth=1.6,
+                label="Optimized amplitude",
+            )
+
+
+def _add_real_amplitude_axis(ax: Axes, operation_amplitude: float | None) -> None:
+    if operation_amplitude is None or not np.isfinite(operation_amplitude) or operation_amplitude == 0:
+        return
+    secondary = ax.secondary_xaxis(
+        "top",
+        functions=(
+            lambda prefactor: prefactor * operation_amplitude * 1e3,
+            lambda amplitude_mv: amplitude_mv / (operation_amplitude * 1e3),
+        ),
+    )
+    secondary.set_xlabel("Pulse amplitude [mV]")
 
 
 def _plot_fourier_fit_overlay(ax, fit: xr.Dataset) -> None:
@@ -125,26 +191,26 @@ def _plot_fourier_fit_overlay(ax, fit: xr.Dataset) -> None:
         zorder=3,
     )
     line_x = np.linspace(float(amp_prefactors.min()), float(amp_prefactors.max()), 200)
-    for branch, color in (("left", "white"), ("right", "tab:red")):
+    for branch, linestyle in (("left", "-"), ("right", "--")):
         slope = float(fit.branch_line_coefficients.sel(branch=branch, line_parameter="slope"))
         intercept = float(fit.branch_line_coefficients.sel(branch=branch, line_parameter="intercept"))
         ax.plot(
             line_x,
             slope * line_x + intercept,
-            color=color,
+            color="tab:blue",
+            linestyle=linestyle,
             linewidth=2,
             label=f"{branch.capitalize()} linear fit",
             zorder=4,
         )
     optimum = float(fit.optimal_amp_prefactor)
     optimum_frequency = float(fit.optimal_frequency)
-    ax.axvline(optimum, color="black", linestyle="--", linewidth=1.5, label="Optimum")
     ax.scatter(
         [optimum],
         [optimum_frequency],
         marker="x",
         s=70,
-        color="black",
+        color="tab:green",
         linewidth=2,
         zorder=5,
     )

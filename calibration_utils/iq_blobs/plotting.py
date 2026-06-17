@@ -12,6 +12,16 @@ from utils.plotting_settings import FIGURE_SIZE, qubit_grid_locations
 
 u = unit(coerce_to_integer=True)
 
+STATE_PLOT_SPECS = (
+    ("g", "Ig", "Qg", "Ig_rot", "ground", "Ground", "tab:blue", "navy", 0.8),
+    ("e", "Ie", "Qe", "Ie_rot", "prepared", "Prepared", "tab:orange", "darkred", 0.5),
+    ("f", "If", "Qf", "If_rot", "f", "F", "tab:green", "darkgreen", 0.5),
+)
+
+
+def _available_state_specs(ds: xr.Dataset):
+    return [spec for spec in STATE_PLOT_SPECS if spec[1] in ds and spec[2] in ds]
+
 
 def plot_iq_blobs_dashboard(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset) -> Figure:
     """Plot acquired IQ clouds, rotated-I histograms, and confusion matrices."""
@@ -116,23 +126,11 @@ def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fi
     """
 
     raw = ds.sel(qubit=qubit["qubit"])
-    ax.plot(1e3 * raw.Ig, 1e3 * raw.Qg, ".", alpha=0.8, label="Ground", markersize=2)
-    ax.plot(
-        1e3 * raw.Ie,
-        1e3 * raw.Qe,
-        ".",
-        alpha=0.5,
-        label="Prepared",
-        markersize=2,
-    )
-    g_center = (float(raw.Ig.mean()) * 1e3, float(raw.Qg.mean()) * 1e3)
-    e_center = (float(raw.Ie.mean()) * 1e3, float(raw.Qe.mean()) * 1e3)
-    ax.plot(*g_center, "ko", markersize=6, label="Ground center")
-    ax.plot(*e_center, "ro", markersize=6, label="Prepared center")
-    for state_name, color, label in (
-        ("ground", "navy", "Ground 95% KDE"),
-        ("prepared", "darkred", "Prepared 95% KDE"),
-    ):
+    for _, i_name, q_name, _, _, label, color, _, alpha in _available_state_specs(raw):
+        ax.plot(1e3 * raw[i_name], 1e3 * raw[q_name], ".", alpha=alpha, label=label, markersize=2, color=color)
+        center = (float(raw[i_name].mean()) * 1e3, float(raw[q_name].mean()) * 1e3)
+        ax.plot(*center, "o", color=color, markeredgecolor="black", markersize=6, label=f"{label} center")
+    for _, _, _, _, state_name, label, _, contour_color, _ in _available_state_specs(raw):
         level_name = f"{state_name}_kde_95_level"
         if level_name not in fit or not np.isfinite(float(fit[level_name].values)):
             continue
@@ -141,14 +139,17 @@ def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fi
             1e3 * fit[f"{state_name}_kde_Q"].values,
             fit[f"{state_name}_kde_density"].values,
             levels=[float(fit[level_name].values)],
-            colors=[color],
+            colors=[contour_color],
             linewidths=1.5,
         )
-        ax.plot([], [], color=color, linewidth=1.5, label=label)
+        ax.plot([], [], color=contour_color, linewidth=1.5, label=f"{label} 95% KDE")
 
     ax.axis("equal")
-    _plot_raw_threshold(ax, fit.rus_threshold, fit.iw_angle, color="k", label="RUS Threshold")
-    _plot_raw_threshold(ax, fit.ge_threshold, fit.iw_angle, color="r", label="Threshold")
+    if "If" in raw and "Qf" in raw:
+        _plot_pairwise_threshold_lines(ax, fit)
+    else:
+        _plot_raw_threshold(ax, fit.rus_threshold, fit.iw_angle, color="k", label="RUS Threshold")
+        _plot_raw_threshold(ax, fit.ge_threshold, fit.iw_angle, color="r", label="Threshold")
     ax.set_xlabel("I [mV]")
     ax.set_ylabel("Q [mV]")
     ax.set_title(f"{qubit['qubit']}\nFitted rotation={np.degrees(float(fit.iw_angle)):.1f} deg")
@@ -170,6 +171,38 @@ def _plot_raw_threshold(ax: Axes, threshold, angle, color: str, label: str):
         i_values = np.asarray(i_limits)
         q_values = (cosine * i_values - threshold_mv) / sine
         ax.plot(i_values, q_values, color=color, linestyle="--", lw=0.5, label=label)
+    ax.set_xlim(i_limits)
+    ax.set_ylim(q_limits)
+
+
+def _plot_pairwise_threshold_lines(ax: Axes, fit: xr.Dataset):
+    """Draw pairwise center-bisector discriminator lines in acquired IQ coordinates."""
+    if "threshold_line_midpoint" not in fit or "threshold_line_normal" not in fit:
+        return
+    i_limits = np.asarray(ax.get_xlim(), dtype=float)
+    q_limits = np.asarray(ax.get_ylim(), dtype=float)
+    span = max(np.ptp(i_limits), np.ptp(q_limits))
+    if not np.isfinite(span) or span == 0:
+        return
+
+    colors = {"ge": "r", "ef": "purple", "gf": "k"}
+    for pair in fit.threshold.values:
+        pair_name = str(pair)
+        midpoint = 1e3 * np.asarray(fit.threshold_line_midpoint.sel(threshold=pair).values, dtype=float)
+        normal = np.asarray(fit.threshold_line_normal.sel(threshold=pair).values, dtype=float)
+        norm = np.linalg.norm(normal)
+        if not np.isfinite(norm) or norm == 0:
+            continue
+        direction = np.asarray([-normal[1], normal[0]], dtype=float) / norm
+        points = np.vstack((midpoint - span * direction, midpoint + span * direction))
+        ax.plot(
+            points[:, 0],
+            points[:, 1],
+            color=colors.get(pair_name, "0.25"),
+            linestyle="--",
+            lw=0.8,
+            label=f"{pair_name.upper()} threshold",
+        )
     ax.set_xlim(i_limits)
     ax.set_ylim(q_limits)
 
@@ -229,8 +262,9 @@ def plot_individual_histograms(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], 
     - If the fit dataset is provided, the fitted curve is plotted along with the raw data.
     """
 
-    ax.hist(1e3 * fit.Ig_rot, bins=100, alpha=0.5, label="Ground")
-    ax.hist(1e3 * fit.Ie_rot, bins=100, alpha=0.5, label="Prepared")
+    for _, _, _, rot_name, _, label, color, _, alpha in STATE_PLOT_SPECS:
+        if rot_name in fit:
+            ax.hist(1e3 * fit[rot_name], bins=100, alpha=alpha, label=label, color=color)
     i_limits = ax.get_xlim()
     ax.axvline(
         1e3 * fit.rus_threshold,
@@ -300,16 +334,22 @@ def plot_individual_confusion_matrix(ax: Axes, ds: xr.Dataset, qubit: dict[str, 
     - If the fit dataset is provided, the fitted curve is plotted along with the raw data.
     """
 
-    confusion = np.array([[float(fit.gg), float(fit.ge)], [float(fit.eg), float(fit.ee)]])
+    if "state_confusion_matrix" in fit:
+        confusion = np.asarray(fit.state_confusion_matrix.values, dtype=float)
+        state_labels = [str(value) for value in fit.prepared_state.values]
+    else:
+        confusion = np.array([[float(fit.gg), float(fit.ge)], [float(fit.eg), float(fit.ee)]])
+        state_labels = ["g", "e"]
     ax.imshow(confusion, vmin=0, vmax=1, cmap="Blues")
-    ax.set_xticks([0, 1])
-    ax.set_yticks([0, 1])
-    ax.set_xticklabels(labels=["|g>", "|e>"])
-    ax.set_yticklabels(labels=["|g>", "|e>"])
+    ticks = np.arange(len(state_labels))
+    ax.set_xticks(ticks)
+    ax.set_yticks(ticks)
+    ax.set_xticklabels(labels=[f"|{state}>" for state in state_labels])
+    ax.set_yticklabels(labels=[f"|{state}>" for state in state_labels])
     ax.set_ylabel("Prepared")
     ax.set_xlabel("Measured")
-    for prepared in range(2):
-        for measured in range(2):
+    for prepared in range(len(state_labels)):
+        for measured in range(len(state_labels)):
             value = confusion[prepared, measured]
             ax.text(
                 measured,

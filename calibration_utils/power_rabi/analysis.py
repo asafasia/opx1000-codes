@@ -23,6 +23,10 @@ class FitParameters:
     r_squared_Q: float
 
 
+def _active_operation(parameters) -> str:
+    return "EF_x180" if getattr(parameters, "transition", "ge") == "ef" else parameters.operation
+
+
 def _target_amplitude_prefactor(frequency, number_of_pulses: int, operation: str):
     """Convert a Rabi oscillation frequency into the selected operation amplitude."""
     # fit_oscillation uses cos(2*pi*f*x + phi), so 1/f is a full 2*pi rotation.
@@ -109,15 +113,13 @@ def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
     if not node.parameters.use_state_discrimination:
         ds = convert_IQ_to_V(ds, node.namespace["qubits"])
 
-    if node.name == "13_power_rabi_ef":
-        full_amp = np.array([ds.amp_prefactor * q.xy.operations["EF_x180"].amplitude for q in node.namespace["qubits"]])
-    else:
-        full_amp = np.array(
-            [ds.amp_prefactor * q.xy.operations[node.parameters.operation].amplitude for q in node.namespace["qubits"]]
-        )
+    operation = _active_operation(node.parameters)
+    full_amp = np.array(
+        [ds.amp_prefactor * q.xy.operations[operation].amplitude for q in node.namespace["qubits"]]
+    )
     ds = ds.assign_coords(full_amp=(["qubit", "amp_prefactor"], full_amp))
     ds.full_amp.attrs = {"long_name": "pulse amplitude", "units": "V"}
-    if node.name == "13_power_rabi_ef" and hasattr(ds, "I"):
+    if getattr(node.parameters, "transition", "ge") == "ef" and hasattr(ds, "I"):
         ds = add_amplitude_and_phase(ds, "amp_prefactor", subtract_slope_flag=True)
     return ds
 
@@ -138,7 +140,7 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     xr.Dataset
         Dataset containing the fit results.
     """
-    operation = getattr(node.parameters, "operation", "EF_x180" if node.name == "13_power_rabi_ef" else "x180")
+    operation = _active_operation(node.parameters)
     is_1d_scan = "nb_of_pulses" not in ds.dims or ds.sizes["nb_of_pulses"] == 1
     if is_1d_scan:
         ds_fit = ds.isel(nb_of_pulses=0, drop=True) if "nb_of_pulses" in ds.dims else ds
@@ -189,7 +191,7 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
 
 def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
     """Add metadata to the dataset and fit results."""
-    operation = getattr(node.parameters, "operation", "EF_x180" if node.name == "13_power_rabi_ef" else "x180")
+    operation = _active_operation(node.parameters)
     fit = fit.assign({"operation": operation})
     is_1d_scan = "nb_of_pulses" not in fit.dims or fit.sizes["nb_of_pulses"] == 1
     if is_1d_scan:
@@ -207,16 +209,10 @@ def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
             "long_name": f"factor to get an {operation} pulse",
             "units": "",
         }
-        if node.name == "13_power_rabi_ef":
-            current_amps = xr.DataArray(
-                [q.xy.operations["EF_x180"].amplitude for q in node.namespace["qubits"]],
-                coords=dict(qubit=fit.qubit.data),
-            )
-        else:
-            current_amps = xr.DataArray(
-                [q.xy.operations[node.parameters.operation].amplitude for q in node.namespace["qubits"]],
-                coords=dict(qubit=fit.qubit.data),
-            )
+        current_amps = xr.DataArray(
+            [q.xy.operations[operation].amplitude for q in node.namespace["qubits"]],
+            coords=dict(qubit=fit.qubit.data),
+        )
         opt_amp = factor * current_amps
         fit = fit.assign({"opt_amp": opt_amp})
         fit.opt_amp.attrs = {"long_name": "x180 pulse amplitude", "units": "V"}

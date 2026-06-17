@@ -13,6 +13,7 @@ from calibration_utils.power_rabi.plotting import (
     expected_cycles_to_unit_prefactor,
     ideal_state_response,
     plot_raw_data_with_fit,
+    transition_from_operation,
 )
 from calibration_utils.rabi_chevron.plotting import plot_individual_data_with
 from calibration_utils.rabi_chevron.plotting import plot_raw_data_with_fit as plot_rabi_chevron
@@ -94,6 +95,25 @@ class RabiStateDiscriminationTests(unittest.TestCase):
 
         np.testing.assert_allclose(figure.axes[0].lines[1].get_ydata(), expected, atol=1e-12)
 
+    def test_power_rabi_colors_ge_and_ef_points_differently(self):
+        ge_figure = plot_raw_data_with_fit(
+            *self._make_power_rabi_1d_plot_inputs("x180"),
+            use_state_discrimination=True,
+        )
+        ef_figure = plot_raw_data_with_fit(
+            *self._make_power_rabi_1d_plot_inputs("EF_x180"),
+            use_state_discrimination=True,
+        )
+
+        self.assertEqual(transition_from_operation("x180"), "ge")
+        self.assertEqual(transition_from_operation("EF_x180"), "ef")
+        self.assertEqual(ge_figure.axes[0].lines[0].get_color(), "tab:blue")
+        self.assertEqual(ef_figure.axes[0].lines[0].get_color(), "tab:orange")
+        self.assertIn("GE measured", ge_figure.axes[0].lines[0].get_label())
+        self.assertIn("EF measured", ef_figure.axes[0].lines[0].get_label())
+        plt.close(ge_figure)
+        plt.close(ef_figure)
+
     def test_four_x180_gates_make_two_full_cycles_from_prefactor_zero_to_one(self):
         amp_prefactor = np.linspace(0, 1, 1001)
         ideal = ideal_state_response(amp_prefactor, 4, "x180")
@@ -162,6 +182,29 @@ class RabiStateDiscriminationTests(unittest.TestCase):
             },
             coords=coords,
         ).assign_coords(full_freq=(("qubit", "detuning"), [[4.349e9, 4.35e9, 4.351e9]]))
+
+    @staticmethod
+    def _make_power_rabi_1d_plot_inputs(operation):
+        amp_prefactor = np.linspace(0.8, 1.2, 5)
+        state = np.sin(np.pi * amp_prefactor / 2) ** 2
+        ds = xr.Dataset(
+            {
+                "state": (("qubit", "nb_of_pulses", "amp_prefactor"), state[None, None, :]),
+            },
+            coords={
+                "qubit": ["q9"],
+                "nb_of_pulses": [1],
+                "amp_prefactor": amp_prefactor,
+            },
+        ).assign_coords(full_amp=(("qubit", "amp_prefactor"), [0.1 * amp_prefactor]))
+        fits = ds.assign(
+            fit=(
+                ("qubit", "fit_vals"),
+                [[0.5, 1.0, 0.0, 0.5]],
+            ),
+            operation=operation,
+        ).assign_coords(fit_vals=["a", "f", "phi", "offset"])
+        return ds, [SimpleNamespace(name="q9")], fits
 
 
 if __name__ == "__main__":

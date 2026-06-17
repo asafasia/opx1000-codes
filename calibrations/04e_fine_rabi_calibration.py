@@ -28,7 +28,6 @@ from quam_config import Quam, create_machine
 from profiles import ProfileUpdater, load_profile
 from utils.plotting_settings import plot_per_qubit
 
-
 description = """
         FINE RABI CALIBRATION
 Sweep drive amplitude while repeatedly applying complete gate groups that
@@ -54,21 +53,21 @@ node = QualibrationNode[Parameters, Quam](
 )
 
 
-node.machine = create_machine(qubit='q9')
+node.machine = create_machine(qubit="q2")
 
 node.machine.connect()  # Connect to the machine to fetch the qubits information and populate the node namespace if needed
 
 node.machine.qmm.close_all_qms()
 
 
-
-
 @node.run_action(skip_if=node.modes.external)
-def custom_param(node: QualibrationNode[Parameters, Quam]): 
+def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow local debugging parameter overrides."""
     node.parameters.use_state_discrimination = True
-    node.parameters.rotation_type = "PI_HALF"
+    node.parameters.rotation_type = "PI"
     node.parameters.reset_type = "active"
+    # node.parameters.amp_factor_spacing = "center_dense"
+
     # node.parameters.max_repetition_groups = 40
     # node.parameters.min_amp_factor = 0.8
     # node.parameters.max_amp_factor = 1.2
@@ -136,7 +135,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
             with for_(n, 0, n < node.parameters.num_shots, n + 1):
                 save(n, n_st)
                 with for_(*from_array(group_count, repetition_groups)):
-                    with for_(*from_array(a, amps)):
+                    with for_each_(a, amps.tolist()):
                         for _, qubit in multiplexed_qubits.items():
                             qubit.reset(
                                 node.parameters.reset_type,
@@ -146,8 +145,18 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                         align()
 
                         for _, qubit in multiplexed_qubits.items():
-                            with for_(group_index, 0, group_index < group_count, group_index + 1):
-                                with for_(pulse_index, 0, pulse_index < pulses_per_group, pulse_index + 1):
+                            with for_(
+                                group_index,
+                                0,
+                                group_index < group_count,
+                                group_index + 1,
+                            ):
+                                with for_(
+                                    pulse_index,
+                                    0,
+                                    pulse_index < pulses_per_group,
+                                    pulse_index + 1,
+                                ):
                                     qubit.xy.play(operation, amplitude_scale=a)
                         align()
 
@@ -156,7 +165,9 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                                 qubit.readout_state(state[i])
                                 save(state[i], state_st[i])
                             else:
-                                qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
+                                qubit.resonator.measure(
+                                    "readout", qua_vars=(I[i], Q[i])
+                                )
                                 save(I[i], I_st[i])
                                 save(Q[i], Q_st[i])
                         align()
@@ -165,14 +176,22 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
             n_st.save("n")
             for i in range(num_qubits):
                 if node.parameters.use_state_discrimination:
-                    state_st[i].buffer(len(amps)).buffer(len(repetition_groups)).average().save(f"state{i + 1}")
+                    state_st[i].buffer(len(amps)).buffer(
+                        len(repetition_groups)
+                    ).average().save(f"state{i + 1}")
                 else:
-                    I_st[i].buffer(len(amps)).buffer(len(repetition_groups)).average().save(f"I{i + 1}")
-                    Q_st[i].buffer(len(amps)).buffer(len(repetition_groups)).average().save(f"Q{i + 1}")
+                    I_st[i].buffer(len(amps)).buffer(
+                        len(repetition_groups)
+                    ).average().save(f"I{i + 1}")
+                    Q_st[i].buffer(len(amps)).buffer(
+                        len(repetition_groups)
+                    ).average().save(f"Q{i + 1}")
 
 
 # %% {Simulate}
-@node.run_action(skip_if=node.parameters.load_data_id is not None or not node.parameters.simulate)
+@node.run_action(
+    skip_if=node.parameters.load_data_id is not None or not node.parameters.simulate
+)
 def simulate_qua_program(node: QualibrationNode[Parameters, Quam]):
     qmm = node.machine.connect()
     config = node.machine.generate_config()
@@ -188,7 +207,9 @@ def simulate_qua_program(node: QualibrationNode[Parameters, Quam]):
 
 
 # %% {Execute}
-@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
+@node.run_action(
+    skip_if=node.parameters.load_data_id is not None or node.parameters.simulate
+)
 def execute_qua_program(node: QualibrationNode[Parameters, Quam]):
     qmm = node.machine.connect()
     config = node.machine.generate_config()
@@ -216,7 +237,9 @@ def load_data(node: QualibrationNode[Parameters, Quam]):
 
 
 # %% {Save_raw_results}
-@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
+@node.run_action(
+    skip_if=node.parameters.load_data_id is not None or node.parameters.simulate
+)
 def save_raw_results(node: QualibrationNode[Parameters, Quam]):
     output_directory = CalibrationSaver().save_xarray(
         node.name,
@@ -230,9 +253,13 @@ def save_raw_results(node: QualibrationNode[Parameters, Quam]):
 # %% {Analyse_data}
 @node.run_action(skip_if=node.parameters.simulate)
 def analyse_data(node: QualibrationNode[Parameters, Quam]):
-    validate_readout_dataset(node.results["ds_raw"], node.parameters.use_state_discrimination)
+    validate_readout_dataset(
+        node.results["ds_raw"], node.parameters.use_state_discrimination
+    )
     node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
-    node.results["ds_fit"], fit_results = analyze_fine_rabi(node.results["ds_raw"], node)
+    node.results["ds_fit"], fit_results = analyze_fine_rabi(
+        node.results["ds_raw"], node
+    )
     node.results["fit_results"] = fit_results
     log_analysis_results(fit_results, log_callable=node.log)
     node.outcomes = {qubit.name: "successful" for qubit in node.namespace["qubits"]}
@@ -273,7 +300,9 @@ def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
     for q in node.namespace["qubits"]:
         result = node.results.get("fit_results", {}).get(q.name)
         if not result:
-            node.log(f"Profile update skipped for {q.name}: no Fine Rabi optimum was found.")
+            node.log(
+                f"Profile update skipped for {q.name}: no Fine Rabi optimum was found."
+            )
             continue
 
         opt_amp_factor = float(result["optimal_amp_prefactor"])
@@ -286,12 +315,16 @@ def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
 
         qubit_profile = qubit_profiles[q.name]
         if "x180" not in qubit_profile["operations"]:
-            node.log(f"Profile update skipped for {q.name}: profile has no x180 operation.")
+            node.log(
+                f"Profile update skipped for {q.name}: profile has no x180 operation."
+            )
             continue
 
         pulse_name = qubit_profile["operations"]["x180"]
         current_amplitude = float(pulse_profiles[q.name][pulse_name]["amplitude"])
-        updates[f"pulses.json.pulses.{q.name}.{pulse_name}.amplitude"] = current_amplitude * opt_amp_factor
+        updates[f"pulses.json.pulses.{q.name}.{pulse_name}.amplitude"] = (
+            current_amplitude * opt_amp_factor
+        )
 
     if updates:
         proposal = ProfileUpdater().stage(node.name, updates, profile_name=profile_name)

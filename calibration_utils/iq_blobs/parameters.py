@@ -7,8 +7,10 @@ from qualibration_libs.parameters import QubitsExperimentNodeParameters, CommonN
 class NodeSpecificParameters(RunnableParameters):
     num_shots: int = 20000
     """Number of runs to perform. Default is 2000."""
-    operation: Literal["readout", "readout_QND"] = "readout"
+    operation: Literal["readout", "readout_QND", "readout_GEF"] = "readout"
     """Type of operation to perform. Default is "readout"."""
+    states: list[Literal["g", "e", "f"]] = ["g", "e"]
+    """Prepared states to acquire. Supported values are ["g", "e"] and ["g", "e", "f"]."""
     qubit_operation: Literal["saturation", "x180_const"] = "x180_const"
     """Qubit operation used to prepare the second IQ blob."""
     qubit_amplitude_factor: float = 1

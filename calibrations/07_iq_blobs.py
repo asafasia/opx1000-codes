@@ -25,6 +25,7 @@ from calibration_utils.iq_blobs import (
 from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
+from quam.components.pulses import SquareReadoutPulse
 
 # %% {Description}
 description = """
@@ -58,7 +59,7 @@ node = QualibrationNode[Parameters, Quam](
 )
 
 
-node.machine = create_machine(qubit='q9')
+node.machine = create_machine(qubit="q9")
 
 node.machine.connect()
 node.machine.qmm.close_all_qms()
@@ -72,8 +73,9 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     Allow the user to locally set the node parameters for debugging purposes, or
     execution in the Python IDE.
     """
-    node.parameters.reset_type = "active"
+    # node.parameters.reset_type = "active"
     node.parameters.qubit_operation = "x180"
+    node.parameters.states = ["g", "e", "f"]
 
     # You can get type hinting in your IDE by typing node.parameters.
     # node.parameters.qubits = ["q10"]
@@ -95,8 +97,13 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
     n_runs = node.parameters.num_shots  # Number of runs
     operation = node.parameters.operation
+    states = list(node.parameters.states)
     selected_qubit_operation = node.parameters.qubit_operation
-    qua_qubit_operation = "x180" if selected_qubit_operation == "x180_const" else selected_qubit_operation
+    qua_qubit_operation = (
+        "x180" if selected_qubit_operation == "x180_const" else selected_qubit_operation
+    )
+    if states not in (["g", "e"], ["g", "e", "f"]):
+        raise ValueError('states must be either ["g", "e"] or ["g", "e", "f"].')
     if node.parameters.pi_repetitions < 1:
         raise ValueError("pi_repetitions must be a positive integer.")
     if node.parameters.xy_to_readout_delay_in_ns < 0:
@@ -106,18 +113,51 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
             raise ValueError(
                 f"{qubit.name} does not define qubit operation {qua_qubit_operation!r}."
             )
+        if "f" in states and "EF_x180" not in qubit.xy.operations:
+            raise ValueError(f"{qubit.name} does not define qubit operation 'EF_x180'.")
+        if (
+            operation == "readout_GEF"
+            and "readout_GEF" not in qubit.resonator.operations
+        ):
+            readout_op = qubit.resonator.operations["readout"]
+            new_length = int(round(readout_op.length * 1.5 / 4) * 4)  # multiple of 4 ns
+            qubit.resonator.operations["readout_GEF"] = SquareReadoutPulse(
+                length=new_length,
+                amplitude=readout_op.amplitude,
+                digital_marker=readout_op.digital_marker,
+                axis_angle=readout_op.axis_angle,
+                threshold=None,
+                rus_exit_threshold=None,
+                integration_weights=[[1.0, new_length]],
+                integration_weights_angle=readout_op.integration_weights_angle,
+            )
     # Register the sweep axes to be added to the dataset when fetching data
     node.namespace["sweep_axes"] = {
         "qubit": xr.DataArray(qubits.get_names()),
-        "n_runs": xr.DataArray(np.linspace(1, n_runs, n_runs), attrs={"long_name": "number of shots"}),
+        "n_runs": xr.DataArray(
+            np.linspace(1, n_runs, n_runs), attrs={"long_name": "number of shots"}
+        ),
     }
 
     with program() as node.namespace["qua_program"]:
         I_g, I_g_st, Q_g, Q_g_st, n, n_st = node.machine.declare_qua_variables()
         I_e, I_e_st, Q_e, Q_e_st, _, _ = node.machine.declare_qua_variables()
+        if "f" in states:
+            I_f, I_f_st, Q_f, Q_f_st, _, _ = node.machine.declare_qua_variables()
 
         for multiplexed_qubits in qubits.batch():
             # Acquire the ground and prepared clouds in independent shot loops.
+            if "f" in states:
+                for qubit in multiplexed_qubits.values():
+                    shift = (
+                        qubit.resonator.GEF_frequency_shift
+                        if qubit.resonator.GEF_frequency_shift is not None
+                        else 0
+                    )
+                    qubit.resonator.update_frequency(
+                        qubit.resonator.intermediate_frequency + shift
+                    )
+
             with for_(n, 0, n < n_runs, n + 1):
                 save(n, n_st)
                 for qubit in multiplexed_qubits.values():
@@ -158,13 +198,45 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 # Synchronize XY and resonator timelines, then delay readout explicitly.
                 align()
                 for qubit in multiplexed_qubits.values():
-                    qubit.resonator.wait(node.parameters.xy_to_readout_delay_in_ns * u.ns)
+                    qubit.resonator.wait(
+                        node.parameters.xy_to_readout_delay_in_ns * u.ns
+                    )
                 for i, qubit in multiplexed_qubits.items():
                     qubit.resonator.measure(operation, qua_vars=(I_e[i], Q_e[i]))
                     save(I_e[i], I_e_st[i])
                     save(Q_e[i], Q_e_st[i])
                     qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
                 align()
+
+            if "f" in states:
+                with for_(n, 0, n < n_runs, n + 1):
+                    for qubit in multiplexed_qubits.values():
+                        qubit.reset(
+                            node.parameters.reset_type,
+                            node.parameters.simulate,
+                            # log_callable=node.log,
+                        )
+                    align()
+
+                    for qubit in multiplexed_qubits.values():
+                        qubit.xy.play("x180")
+                        update_frequency(
+                            qubit.xy.name,
+                            qubit.xy.intermediate_frequency - qubit.anharmonicity,
+                        )
+                        qubit.xy.play("EF_x180")
+                        update_frequency(qubit.xy.name, qubit.xy.intermediate_frequency)
+                    align()
+                    for qubit in multiplexed_qubits.values():
+                        qubit.resonator.wait(
+                            node.parameters.xy_to_readout_delay_in_ns * u.ns
+                        )
+                    for i, qubit in multiplexed_qubits.items():
+                        qubit.resonator.measure(operation, qua_vars=(I_f[i], Q_f[i]))
+                        save(I_f[i], I_f_st[i])
+                        save(Q_f[i], Q_f_st[i])
+                        qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
+                    align()
 
         with stream_processing():
             n_st.save("n")
@@ -173,10 +245,15 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                 Q_g_st[i].buffer(n_runs).save(f"Qg{i + 1}")
                 I_e_st[i].buffer(n_runs).save(f"Ie{i + 1}")
                 Q_e_st[i].buffer(n_runs).save(f"Qe{i + 1}")
+                if "f" in states:
+                    I_f_st[i].buffer(n_runs).save(f"If{i + 1}")
+                    Q_f_st[i].buffer(n_runs).save(f"Qf{i + 1}")
 
 
 # %% {Simulate}
-@node.run_action(skip_if=node.parameters.load_data_id is not None or not node.parameters.simulate)
+@node.run_action(
+    skip_if=node.parameters.load_data_id is not None or not node.parameters.simulate
+)
 def simulate_qua_program(node: QualibrationNode[Parameters, Quam]):
     """Connect to the QOP and simulate the QUA program"""
     # Connect to the QOP
@@ -184,13 +261,21 @@ def simulate_qua_program(node: QualibrationNode[Parameters, Quam]):
     # Get the config from the machine
     config = node.machine.generate_config()
     # Simulate the QUA program, generate the waveform report and plot the simulated samples
-    samples, fig, wf_report = simulate_and_plot(qmm, config, node.namespace["qua_program"], node.parameters)
+    samples, fig, wf_report = simulate_and_plot(
+        qmm, config, node.namespace["qua_program"], node.parameters
+    )
     # Store the figure, waveform report and simulated samples
-    node.results["simulation"] = {"figure": fig, "wf_report": wf_report, "samples": samples}
+    node.results["simulation"] = {
+        "figure": fig,
+        "wf_report": wf_report,
+        "samples": samples,
+    }
 
 
 # %% {Execute}
-@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
+@node.run_action(
+    skip_if=node.parameters.load_data_id is not None or node.parameters.simulate
+)
 def execute_qua_program(node: QualibrationNode[Parameters, Quam]):
     """
     Connect to the QOP, execute the QUA program and fetch the raw data and store it in a xarray dataset called "ds_raw".
@@ -219,7 +304,9 @@ def execute_qua_program(node: QualibrationNode[Parameters, Quam]):
 
 
 # %% {Save_raw_results}
-@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
+@node.run_action(
+    skip_if=node.parameters.load_data_id is not None or node.parameters.simulate
+)
 def save_raw_results(node: QualibrationNode[Parameters, Quam]):
     """Save the acquired vectors and a snapshot of the selected profile."""
     output_directory = CalibrationSaver().save_xarray(
@@ -296,16 +383,24 @@ def update_state(node: QualibrationNode[Parameters, Quam]):
                 np.isfinite(fit_result[name])
                 for name in ("iw_angle", "ge_threshold", "rus_threshold")
             ):
-                node.log(f"Skipping {q.name} update because a fitted readout parameter is not finite.")
+                node.log(
+                    f"Skipping {q.name} update because a fitted readout parameter is not finite."
+                )
                 continue
 
             if node.outcomes[q.name] == "failed":
-                node.log(f"{q.name} failed IQ-blob quality checks; its fitted parameters can still be reviewed.")
+                node.log(
+                    f"{q.name} failed IQ-blob quality checks; its fitted parameters can still be reviewed."
+                )
             operation = q.resonator.operations[node.parameters.operation]
             operation.integration_weights_angle -= float(fit_result["iw_angle"])
             # Convert the thresholds back to demod units
-            operation.threshold = float(fit_result["ge_threshold"]) * operation.length / 2**12
-            operation.rus_exit_threshold = float(fit_result["rus_threshold"]) * operation.length / 2**12
+            operation.threshold = (
+                float(fit_result["ge_threshold"]) * operation.length / 2**12
+            )
+            operation.rus_exit_threshold = (
+                float(fit_result["rus_threshold"]) * operation.length / 2**12
+            )
             if node.parameters.operation == "readout":
                 q.resonator.confusion_matrix = fit_result["confusion_matrix"]
 
@@ -335,10 +430,12 @@ def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
         ):
             continue
         operation = q.resonator.operations["readout"]
-        updates[f"qubits.json.qubits.{q.name}.readout.integration_weights_angle_rad"] = float(
-            operation.integration_weights_angle
+        updates[
+            f"qubits.json.qubits.{q.name}.readout.integration_weights_angle_rad"
+        ] = float(operation.integration_weights_angle)
+        updates[f"qubits.json.qubits.{q.name}.readout.threshold"] = float(
+            operation.threshold
         )
-        updates[f"qubits.json.qubits.{q.name}.readout.threshold"] = float(operation.threshold)
         updates[f"qubits.json.qubits.{q.name}.readout.rus_exit_threshold"] = float(
             operation.rus_exit_threshold
         )
@@ -348,13 +445,19 @@ def propose_profile_update(node: QualibrationNode[Parameters, Quam]):
             ] = float(fit_result["readout_fidelity"])
 
     if updates:
-        failed_qubits = [q.name for q in node.namespace["qubits"] if node.outcomes[q.name] == "failed"]
+        failed_qubits = [
+            q.name
+            for q in node.namespace["qubits"]
+            if node.outcomes[q.name] == "failed"
+        ]
         if failed_qubits:
             node.log(
                 "WARNING: proposing fitted parameters despite failed IQ-blob quality checks for "
                 + ", ".join(failed_qubits)
             )
-        proposal = ProfileUpdater().stage(node.name, updates, profile_name=current_profile_name())
+        proposal = ProfileUpdater().stage(
+            node.name, updates, profile_name=current_profile_name()
+        )
         ProfileUpdater().confirm_and_apply(proposal)
 
 

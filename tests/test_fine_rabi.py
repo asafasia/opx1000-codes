@@ -36,7 +36,8 @@ class FineRabiTests(unittest.TestCase):
 
     def test_sequence_sweeps_amplitude_and_repetition_groups(self):
         self.assertIn("with for_(*from_array(group_count, repetition_groups)):", self.source)
-        self.assertIn("with for_(*from_array(a, amps)):", self.source)
+        self.assertIn("with for_each_(a, amps.tolist()):", self.source)
+        self.assertNotIn("from_array(a, amps)", self.source)
         self.assertIn("group_index < group_count", self.source)
         self.assertIn("pulse_index < pulses_per_group", self.source)
         self.assertIn("qubit.xy.play(operation, amplitude_scale=a)", self.source)
@@ -60,6 +61,29 @@ class FineRabiTests(unittest.TestCase):
         params = Parameters(min_amp_factor=0.8, max_amp_factor=0.82, amp_factor_step=0.01)
 
         np.testing.assert_allclose(params.get_amp_factors(), [0.8, 0.81, 0.82])
+        self.assertEqual(params.fourier_oversampling, 8)
+
+    def test_parameters_can_cluster_amplitude_points_around_current_amp(self):
+        uniform = Parameters(min_amp_factor=0.8, max_amp_factor=1.2, amp_factor_step=0.01)
+        dense = Parameters(
+            min_amp_factor=0.8,
+            max_amp_factor=1.2,
+            amp_factor_step=0.01,
+            amp_factor_spacing="center_dense",
+            amp_factor_density_power=2.0,
+        )
+
+        uniform_amps = uniform.get_amp_factors()
+        dense_amps = dense.get_amp_factors()
+
+        self.assertEqual(len(dense_amps), len(uniform_amps))
+        self.assertAlmostEqual(dense_amps[0], 0.8)
+        self.assertAlmostEqual(dense_amps[-1], 1.2)
+        self.assertIn(1.0, dense_amps)
+        self.assertGreater(
+            np.count_nonzero(np.abs(dense_amps - 1.0) <= 0.05),
+            np.count_nonzero(np.abs(uniform_amps - 1.0) <= 0.05),
+        )
 
     def test_state_processing_keeps_measured_state(self):
         ds = xr.Dataset(
@@ -70,7 +94,12 @@ class FineRabiTests(unittest.TestCase):
                 "amp_prefactor": [0.9, 1.0],
             },
         )
-        node = SimpleNamespace(parameters=SimpleNamespace(use_state_discrimination=True))
+        node = SimpleNamespace(
+            parameters=SimpleNamespace(
+                use_state_discrimination=True,
+                fourier_oversampling=8,
+            )
+        )
 
         processed = process_raw_dataset(ds, node)
 
@@ -95,7 +124,12 @@ class FineRabiTests(unittest.TestCase):
                 "amp_prefactor": amp_prefactors,
             },
         )
-        node = SimpleNamespace(parameters=SimpleNamespace(use_state_discrimination=True))
+        node = SimpleNamespace(
+            parameters=SimpleNamespace(
+                use_state_discrimination=True,
+                fourier_oversampling=8,
+            )
+        )
         fit, _ = analyze_fine_rabi(ds, node)
 
         figure = plot_fine_rabi(ds, [SimpleNamespace(name="q1")], True, "PI", fits=fit)
@@ -107,6 +141,16 @@ class FineRabiTests(unittest.TestCase):
         self.assertEqual(data_axes[1].get_title(), "q1: Fourier analysis")
         self.assertEqual(data_axes[1].get_ylabel(), "Frequency [cycles/group]")
         self.assertTrue(any("opt amp" in text.get_text() for text in data_axes[1].texts))
+        fourier_lines = {
+            line.get_label(): line
+            for line in data_axes[1].lines
+            if not line.get_label().startswith("_")
+        }
+        self.assertEqual(fourier_lines["Current amplitude"].get_color(), "tab:red")
+        self.assertEqual(fourier_lines["Current amplitude"].get_linestyle(), "--")
+        self.assertEqual(fourier_lines["Optimized amplitude"].get_color(), "tab:green")
+        self.assertEqual(fourier_lines["Left linear fit"].get_color(), "tab:blue")
+        self.assertEqual(fourier_lines["Right linear fit"].get_color(), "tab:blue")
         plt.close(figure)
 
     def test_branch_fit_intersection_finds_optimum(self):
@@ -140,13 +184,38 @@ class FineRabiTests(unittest.TestCase):
                 "amp_prefactor": amp_prefactors,
             },
         )
-        node = SimpleNamespace(parameters=SimpleNamespace(use_state_discrimination=True))
+        node = SimpleNamespace(
+            parameters=SimpleNamespace(
+                use_state_discrimination=True,
+                fourier_oversampling=8,
+            )
+        )
 
         fit, results = analyze_fine_rabi(ds, node)
 
         self.assertIn("fourier_amplitude", fit)
         self.assertIn("branch_line_coefficients", fit)
+        self.assertEqual(fit.fourier_frequency.size, np.fft.rfftfreq(8 * repetition_counts.size).size)
         self.assertAlmostEqual(results["q1"]["optimal_amp_prefactor"], 1.0, places=2)
+
+    def test_fourier_oversampling_must_be_positive(self):
+        ds = xr.Dataset(
+            {"state": (("qubit", "repetition_group_count", "amp_prefactor"), np.ones((1, 4, 3)))},
+            coords={
+                "qubit": ["q1"],
+                "repetition_group_count": [0, 1, 2, 3],
+                "amp_prefactor": [0.9, 1.0, 1.1],
+            },
+        )
+        node = SimpleNamespace(
+            parameters=SimpleNamespace(
+                use_state_discrimination=True,
+                fourier_oversampling=0,
+            )
+        )
+
+        with self.assertRaisesRegex(ValueError, "fourier_oversampling"):
+            analyze_fine_rabi(ds, node)
 
 
 def _make_v_ridge_state(repetition_counts, amp_prefactors, optimum, slope):
