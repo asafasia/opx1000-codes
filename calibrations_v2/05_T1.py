@@ -1,10 +1,312 @@
-"""v2 placeholder for 05_T1."""
+"""Class-based v2 migration for 05_T1."""
 
-from .pending import PendingCalibration
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+if __package__ in {None, ""}:
+    repository_root = Path(__file__).resolve().parent.parent
+    if str(repository_root) not in sys.path:
+        sys.path.insert(0, str(repository_root))
+
+import matplotlib.pyplot as plt
+from dataclasses import asdict
+import xarray as xr
+from qm.qua import *
+from qualang_tools.multi_user import qm_session
+from qualang_tools.units import unit
+from qualang_tools.results import progress_counter
+from quam_config import Quam
+from calibration_io import CalibrationSaver, current_profile_name
+from profiles import ProfileUpdater
+from quam_config.create_machine import create_machine
+from utils.plotting_settings import plot_per_qubit
+from qualibration_libs.data import XarrayDataFetcher
+from qualibration_libs.parameters import get_qubits, get_idle_times_in_clock_cycles
+from utils.simulation import simulate_and_plot
+from calibration_utils.T1 import (
+    Parameters,
+    process_raw_dataset,
+    fit_raw_data,
+    log_fitted_results,
+    plot_raw_data_with_fit,
+)
+
+if __package__ in {None, ""}:
+    from calibrations_v2.base import BaseCalibration
+else:
+    from .base import BaseCalibration
+
+description = """
+        T1 MEASUREMENT
+The sequence consists in putting the qubit in the excited stated by playing the x180 pulse and measuring the resonator
+after a varying time. The qubit T1 is extracted by fitting the exponential decay of the measured quadratures/state.
+
+Prerequisites:
+    - Having calibrated the mixer or the Octave (nodes 01a or 01b).
+    - Having calibrated the readout parameters (nodes 02a, 02b and/or 02c).
+    - Having calibrated the qubit x180 pulse parameters (nodes 03a_qubit_spectroscopy.py and 04b_power_rabi.py).
+    - (optional) Having optimized the readout parameters (nodes 08a, 08b and 08c).
+    - Having specified the desired flux point if relevant (qubit.z.flux_point).
+
+State update:
+    - The T1 relaxation time: qubit.T1
+"""
+
+# Be sure to include [Parameters, Quam] so the node has proper type hinting
 
 
-class T1(PendingCalibration):
-    legacy_file = "05_T1.py"
 
-    def __init__(self, **kwargs):
-        super().__init__(name="05_T1", **kwargs)
+
+
+
+# Any parameters that should change for debugging purposes only should go in here
+# These parameters are ignored when run through the GUI or as part of a graph
+# %% {Create_QUA_program}
+# %% {Simulate}
+# %% {Execute}
+# %% {Save_raw_results}
+# %% {Load_historical_data}
+# %% {Analyse_data}
+# %% {Plot_data}
+# %% {Update_state}
+# %% {Propose_profile_update}
+# %% {Save_results}
+
+class T1(BaseCalibration[Parameters, Quam]):
+    """v2 class migration for ``calibrations/05_T1.py``."""
+
+    def __init__(
+        self,
+        parameters: Parameters,
+        machine: Quam | None = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(
+            name="05_T1",
+            description=description,
+            parameters=parameters,
+            machine=machine,
+            **kwargs,
+        )
+    def create_qua_program(self):
+        node = self
+        """Create the sweep axes and generate the QUA program from the pulse sequence and the node parameters."""
+        # Class containing tools to help handle units and conversions.
+        u = unit(coerce_to_integer=True)
+        # Get the active qubits from the node and organize them by batches
+        node.namespace["qubits"] = qubits = get_qubits(node)
+        num_qubits = len(node.namespace["qubits"])
+        # Extract the sweep parameters and axes from the node parameters
+        n_avg = node.parameters.num_shots
+        idle_times = get_idle_times_in_clock_cycles(node.parameters)
+        # Register the sweep axes to be added to the dataset when fetching data
+        node.namespace["sweep_axes"] = {
+            "qubit": xr.DataArray(qubits.get_names()),
+            "idle_time": xr.DataArray(4 * idle_times, attrs={"long_name": "idle time", "units": "ns"}),
+        }
+
+        # The QUA program stored in the node namespace to be transfer to the simulation and execution run_actions
+        with program() as node.namespace["qua_program"]:
+            I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
+            t = declare(int)
+            if node.parameters.use_state_discrimination:
+                state = [declare(int) for _ in range(num_qubits)]
+                state_st = [declare_stream() for _ in range(num_qubits)]
+
+            for multiplexed_qubits in qubits.batch():
+                # Initialize the QPU in terms of flux points (flux tunable transmons and/or tunable couplers)
+                for qubit in multiplexed_qubits.values():
+                    node.machine.initialize_qpu(target=qubit)
+
+                with for_(n, 0, n < n_avg, n + 1):
+                    save(n, n_st)
+                    with for_each_(t, idle_times):
+                        # Reset the qubits to the ground state
+                        for i, qubit in multiplexed_qubits.items():
+                            qubit.reset(
+                                node.parameters.reset_type,
+                                node.parameters.simulate,
+                                # log_callable=node.log,
+                            )
+                            # qubit.wait(10000)
+                        # Multiplexed sync: every qubit must finish reset (possibly different durations, e.g. active reset)
+                        # before any manipulation starts; also keeps shared resources (e.g. TWPA sticky elements) coherent.
+                        align()
+
+                        # The qubit manipulation sequence
+                        for i, qubit in multiplexed_qubits.items():
+                            # Per-qubit timing: π pulse completes before the shared idle wait begins on this qubit.
+                            qubit.align()
+                            qubit.xy.play("x180")
+                            qubit.align()
+                            qubit.resonator.wait(t)
+                        # No readout until all qubits have finished manipulation + wait for this idle_time step.
+                        align()
+
+                        # Measure the state of the resonators
+                        for i, qubit in multiplexed_qubits.items():
+                            if node.parameters.use_state_discrimination:
+                                qubit.readout_state(state[i])
+                                save(state[i], state_st[i])
+                            else:
+                                qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
+                                # save data
+                                save(I[i], I_st[i])
+                                save(Q[i], Q_st[i])
+
+                        # End-of-segment barrier before the next sweep step (and before sticky/aux elements ramp down early).
+                            # qubit.wait(10000)
+
+                        align()
+
+            with stream_processing():
+                n_st.save("n")
+                for i in range(num_qubits):
+                    if node.parameters.use_state_discrimination:
+                        state_st[i].buffer(len(idle_times)).average().save(f"state{i + 1}")
+                    else:
+                        I_st[i].buffer(len(idle_times)).average().save(f"I{i + 1}")
+                        Q_st[i].buffer(len(idle_times)).average().save(f"Q{i + 1}")
+
+
+        return node.namespace.get("qua_program")
+    def simulate_qua_program(self):
+        node = self
+        """Connect to the QOP and simulate the QUA program"""
+        # Connect to the QOP
+        qmm = node.machine.connect()
+        # Get the config from the machine
+        config = node.machine.generate_config()
+        # Simulate the QUA program, generate the waveform report and plot the simulated samples
+        samples, fig, wf_report = simulate_and_plot(qmm, config, node.namespace["qua_program"], node.parameters)
+        # Store the figure, waveform report and simulated samples
+        node.results["simulation"] = {"figure": fig, "wf_report": wf_report.to_dict()}
+
+
+    def execute_qua_program(self):
+        node = self
+        """Connect to the QOP, execute the QUA program and fetch the raw data and store it in a xarray dataset."""
+        # Connect to the QOP
+        qmm = node.machine.connect()
+        # Get the config from the machine
+        config = node.machine.generate_config()
+        # Execute the QUA program only if the quantum machine is available (this is to avoid interrupting running jobs).
+        with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
+            # The job is stored in the node namespace to be reused in the fetching_data run_action
+            node.namespace["job"] = job = qm.execute(node.namespace["qua_program"])
+            # Display the progress bar
+            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
+            for dataset in data_fetcher:
+                progress_counter(
+                    data_fetcher.get("n", 0),
+                    node.parameters.num_shots,
+                    start_time=data_fetcher.t_start,
+                )
+            # Display the execution report to expose possible runtime errors
+            node.log(job.execution_report())
+        # Register the raw dataset
+        node.results["ds_raw"] = dataset
+
+
+    def save_raw_results(self):
+        node = self
+        """Save the acquired vectors and a snapshot of the selected profile."""
+        output_directory = CalibrationSaver().save_xarray(
+            node.name,
+            node.results["ds_raw"],
+            profile_name=current_profile_name(),
+        )
+        node.namespace["calibration_run_directory"] = output_directory
+        node.log(f"Raw calibration results saved to {output_directory}")
+
+
+    def load_data(self):
+        node = self
+        """Load a previously acquired dataset."""
+        load_data_id = node.parameters.load_data_id
+        # Load the specified dataset
+        node.load_from_id(node.parameters.load_data_id)
+        node.parameters.load_data_id = load_data_id
+        # Get the active qubits from the loaded node parameters
+        node.namespace["qubits"] = get_qubits(node)
+
+
+    def analyse_data(self):
+        node = self
+        """Analysis the raw data and store the fitted data in another xarray dataset and the fitted results in the fit_results class."""
+        node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
+        node.results["ds_fit"], fit_results = fit_raw_data(node.results["ds_raw"], node)
+        node.results["fit_results"] = {k: asdict(v) for k, v in fit_results.items()}
+
+        # Log the relevant information extracted from the data analysis
+        log_fitted_results(node.results["ds_fit"], log_callable=node.log)
+        node.outcomes = {
+            qubit_name: ("successful" if fit_result["success"] else "failed")
+            for qubit_name, fit_result in node.results["fit_results"].items()
+        }
+
+
+    def plot_data(self):
+        node = self
+        """Plot the raw and fitted data in a specific figure whose shape is given by qubit.grid_location."""
+        figures = plot_per_qubit(
+            plot_raw_data_with_fit,
+            node.results["ds_raw"],
+            node.namespace["qubits"],
+            node.results["ds_fit"],
+            figure_name="raw_fit",
+        )
+        plt.show()
+        node.results["figures"] = figures
+        if "calibration_run_directory" in node.namespace:
+            figures_directory = CalibrationSaver().save_figures(
+                node.namespace["calibration_run_directory"],
+                node.results["figures"],
+            )
+            node.log(f"Calibration figures saved to {figures_directory}")
+
+
+    def update_state(self):
+        node = self
+        """Update the relevant parameters if the qubit data analysis was successful."""
+        with node.record_state_updates():
+            for q in node.namespace["qubits"]:
+                if node.outcomes[q.name] == "failed":
+                    continue
+
+                q.T1 = float(node.results["ds_fit"].sel(qubit=q.name).tau.values) * 1e-9
+
+
+    def propose_profile_update(self):
+        node = self
+        """Stage fitted T1 values in profile metrics."""
+        updates = {
+            f"metrics.json.qubits.{q.name}.coherence.t1_ns": float(
+                node.results["ds_fit"].sel(qubit=q.name).tau.values
+            )
+            for q in node.namespace["qubits"]
+            if node.outcomes[q.name] == "successful"
+        }
+        if updates:
+            proposal = ProfileUpdater().stage(node.name, updates, profile_name=current_profile_name())
+            ProfileUpdater().confirm_and_apply(proposal)
+
+
+
+
+if __name__ == "__main__":
+    parameters = Parameters()
+
+    parameters.use_state_discrimination = True
+    parameters.reset_type = "active"
+    parameters.max_wait_time_in_ns = 250e3
+    parameters.wait_time_num_points = 150
+    parameters.log_or_linear_sweep = "log"
+
+    calibration = T1(
+        parameters=parameters,
+        machine=create_machine(qubit="q9"),
+    )
+    calibration.run()

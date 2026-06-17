@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
+import inspect
 from pathlib import Path
 from typing import Any, Callable, Generic, Iterable, Mapping, TypeVar
 
@@ -143,7 +144,6 @@ class BaseCalibration(ABC, Generic[P, M]):
 
     def run(self) -> CalibrationStatus:
         """Run the standard calibration lifecycle."""
-        self.custom_parameters()
         loaded = False
         raw_data_saved = False
         figures_saved = False
@@ -151,7 +151,10 @@ class BaseCalibration(ABC, Generic[P, M]):
 
         try:
             if self.should_load_data():
-                self.load_data(self.load_data_id)
+                if len(inspect.signature(self.load_data).parameters) == 0:
+                    self.load_data()
+                else:
+                    self.load_data(self.load_data_id)
                 loaded = True
             else:
                 self.namespace["qua_program"] = self.create_qua_program()
@@ -181,9 +184,6 @@ class BaseCalibration(ABC, Generic[P, M]):
             profile_update_proposed=profile_update_proposed,
             outcomes=dict(self.outcomes),
         )
-
-    def custom_parameters(self) -> None:
-        """Optional local parameter tweaks before the run starts."""
 
     @abstractmethod
     def create_qua_program(self) -> Any:
@@ -310,6 +310,10 @@ class BaseCalibration(ABC, Generic[P, M]):
         """Load a run saved by :class:`CalibrationSaver` into ``results['ds_raw']``."""
         self.results["ds_raw"] = self.load_saved_run(run_directory)
         self.get_qubits()
+
+    def load_from_id(self, run_directory: str | Path) -> None:
+        """Compatibility shim for legacy node-style data loading."""
+        self.results["ds_raw"] = self.load_saved_run(run_directory)
 
     def load_saved_run(self, run_directory: str | Path) -> Any:
         """Reconstruct an xarray dataset from ``sweep.npz`` and ``results.npz``."""
