@@ -257,7 +257,8 @@ class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
         node = self
         """Save the acquired vectors and a snapshot of the selected profile."""
         output_directory = CalibrationSaver().save_xarray(
-            node.name, node.results["ds_raw"], profile_name=current_profile_name()
+            node.name, node.results["ds_raw"], profile_name=current_profile_name(),
+            parameters=node.parameters,
         )
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")

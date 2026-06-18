@@ -62,6 +62,39 @@ def _array_metadata(arrays: Mapping[str, np.ndarray]) -> dict[str, dict[str, Any
     }
 
 
+def _to_jsonable(value: Any) -> Any:
+    """Convert calibration parameters to JSON-safe built-in types."""
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, Mapping):
+        return {str(key): _to_jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_to_jsonable(item) for item in value]
+    if hasattr(value, "model_dump"):
+        return _to_jsonable(value.model_dump())
+    if hasattr(value, "dict"):
+        return _to_jsonable(value.dict())
+    if hasattr(value, "__dict__"):
+        return {
+            str(key): _to_jsonable(item)
+            for key, item in vars(value).items()
+            if not str(key).startswith("_")
+        }
+    return str(value)
+
+
+def _parameter_metadata(parameters: Any | None) -> dict[str, Any] | None:
+    if parameters is None:
+        return None
+    return _to_jsonable(parameters)
+
+
 class CalibrationSaver:
     """Save calibration arrays under a date, experiment name, and run time."""
 
@@ -79,6 +112,7 @@ class CalibrationSaver:
         sweep: Mapping[str, Any] | Any,
         results: Mapping[str, Any] | Any,
         profile_name: str | Profile | None = None,
+        parameters: Any | None = None,
         now: datetime | None = None,
     ) -> Path:
         """Save arrays and return the newly created run directory."""
@@ -101,6 +135,11 @@ class CalibrationSaver:
             np.savez_compressed(temporary_directory / "sweep.npz", **sweep_arrays)
             np.savez_compressed(temporary_directory / "results.npz", **result_arrays)
             shutil.copytree(profile_source, temporary_directory / "profile")
+            serialized_parameters = _parameter_metadata(parameters)
+            if serialized_parameters is not None:
+                with (temporary_directory / "parameters.json").open("w", encoding="utf-8") as file:
+                    json.dump(serialized_parameters, file, indent=2)
+                    file.write("\n")
 
             metadata = {
                 "experiment_name": experiment_name,
@@ -108,6 +147,7 @@ class CalibrationSaver:
                 "timestamp": timestamp.isoformat(),
                 "sweep": _array_metadata(sweep_arrays),
                 "results": _array_metadata(result_arrays),
+                "parameters": "parameters.json" if serialized_parameters is not None else None,
             }
             with (temporary_directory / "metadata.json").open("w", encoding="utf-8") as file:
                 json.dump(metadata, file, indent=2)
@@ -125,12 +165,20 @@ class CalibrationSaver:
         experiment_name: str,
         dataset: Any,
         profile_name: str | Profile | None = None,
+        parameters: Any | None = None,
         now: datetime | None = None,
     ) -> Path:
         """Save all xarray coordinates as sweeps and data variables as results."""
         sweep = {name: coordinate.values for name, coordinate in dataset.coords.items()}
         results = {name: variable.values for name, variable in dataset.data_vars.items()}
-        return self.save(experiment_name, sweep, results, profile_name=profile_name, now=now)
+        return self.save(
+            experiment_name,
+            sweep,
+            results,
+            profile_name=profile_name,
+            parameters=parameters,
+            now=now,
+        )
 
     def save_figures(self, run_directory: Path | str, figures: Mapping[str, Any]) -> Path:
         """Save named Matplotlib figures into an existing calibration run."""

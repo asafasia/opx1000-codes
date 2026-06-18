@@ -247,6 +247,7 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
             node.name,
             node.results["ds_raw"],
             profile_name=current_profile_name(),
+            parameters=node.parameters,
         )
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")

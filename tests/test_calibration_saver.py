@@ -58,6 +58,30 @@ class CalibrationSaverTests(unittest.TestCase):
             self.assertEqual(metadata["profile_name"], "main")
             self.assertEqual(metadata["results"]["Q"]["shape"], [3])
 
+    def test_save_writes_parameters_with_arrays_and_profile_snapshot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            profile = root / "profiles" / "main"
+            profile.mkdir(parents=True)
+            (profile / "profile.json").write_text('{"name": "main"}\n', encoding="utf-8")
+            saver = CalibrationSaver(root / "data" / "calibrations", root / "profiles")
+
+            run_directory = saver.save(
+                "iq_blobs",
+                sweep={"shot": [0, 1]},
+                results={"I": [0.1, 0.2]},
+                profile_name="main",
+                parameters={"num_shots": np.int64(2), "reset_type": "active"},
+            )
+
+            self.assertTrue((run_directory / "sweep.npz").is_file())
+            self.assertTrue((run_directory / "results.npz").is_file())
+            self.assertTrue((run_directory / "profile" / "profile.json").is_file())
+            saved_parameters = json.loads((run_directory / "parameters.json").read_text(encoding="utf-8"))
+            self.assertEqual(saved_parameters, {"num_shots": 2, "reset_type": "active"})
+            metadata = json.loads((run_directory / "metadata.json").read_text(encoding="utf-8"))
+            self.assertEqual(metadata["parameters"], "parameters.json")
+
     def test_save_xarray_handles_object_typed_string_coordinates(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

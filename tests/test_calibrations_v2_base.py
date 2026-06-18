@@ -73,6 +73,9 @@ class CalibrationsV2BaseTests(unittest.TestCase):
             self.assertEqual(status.outcomes, {"q1": "successful"})
             self.assertTrue(calibration.results["analysed"])
             self.assertTrue((calibration.namespace["calibration_run_directory"] / "results.npz").is_file())
+            parameters = calibration.namespace["calibration_run_directory"] / "parameters.json"
+            self.assertTrue(parameters.is_file())
+            self.assertIn('"num_shots": 3', parameters.read_text(encoding="utf-8"))
 
     def test_options_can_skip_saving_plotting_and_updates(self):
         with tempfile.TemporaryDirectory() as directory:

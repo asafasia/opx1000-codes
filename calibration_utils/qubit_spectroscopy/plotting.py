@@ -5,7 +5,11 @@ from matplotlib.figure import Figure
 
 from qualang_tools.units import unit
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
-from utils.plotting_settings import FIGURE_SIZE, add_calibration_timestamp
+from utils.plotting_settings import (
+    FIGURE_SIZE,
+    CalibrationPlot,
+    add_calibration_parameter_box,
+)
 
 u = unit(coerce_to_integer=True)
 
@@ -175,28 +179,16 @@ def plot_raw_data_with_fit(
         if use_state_discrimination
         else "Qubit spectroscopy: I and Q quadratures"
     )
-    parameters = fig.text(
-        0.01,
-        0.01,
-        "\n".join(
-            _spectroscopy_parameter_lines(
-                qubits,
-                fits,
-                operation,
-                operation_amplitude_factor,
-                operation_len_in_ns,
-                transition,
-            )
-        ),
-        ha="left",
-        va="bottom",
-        fontsize=8,
-        family="monospace",
-        bbox={"boxstyle": "round", "facecolor": "white", "edgecolor": "0.7", "alpha": 0.9},
+    parameter_lines = _spectroscopy_parameter_lines(
+        qubits,
+        fits,
+        operation,
+        operation_amplitude_factor,
+        operation_len_in_ns,
+        transition,
     )
-    parameters.set_gid("spectroscopy_parameters")
-    add_calibration_timestamp(fig)
-    parameter_rows = len(qubits) + 2
-    bottom_margin = min(0.25, 0.055 + 0.018 * parameter_rows)
-    fig.tight_layout(rect=(0, bottom_margin, 1, 0.95))
+    add_calibration_parameter_box(fig, parameter_lines, gid="spectroscopy_parameters")
+    calibration_plot = CalibrationPlot(fig)
+    calibration_plot.add_timestamp()
+    calibration_plot.tight_layout_for_parameters(len(parameter_lines))
     return fig

@@ -25,6 +25,34 @@ class CalibrationSaverCoverageTests(unittest.TestCase):
 
         self.assertEqual(missing, [])
 
+    def test_all_v2_xarray_saves_include_experiment_parameters(self):
+        calibrations = Path(__file__).parent.parent / "calibrations_v2"
+        missing = []
+        for path in calibrations.glob("*.py"):
+            source = path.read_text()
+            search_from = 0
+            while True:
+                start = source.find("save_xarray(", search_from)
+                if start == -1:
+                    break
+                depth = 0
+                end = start
+                for index, character in enumerate(source[start:], start=start):
+                    if character == "(":
+                        depth += 1
+                    elif character == ")":
+                        depth -= 1
+                        if depth == 0:
+                            end = index + 1
+                            break
+                call = source[start:end]
+                if "parameters=" not in call:
+                    line_number = source[:start].count("\n") + 1
+                    missing.append(f"{path.name}:{line_number}")
+                search_from = end
+
+        self.assertEqual(missing, [])
+
 
 if __name__ == "__main__":
     unittest.main()

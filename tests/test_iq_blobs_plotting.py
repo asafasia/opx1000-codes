@@ -67,6 +67,61 @@ class IQBlobsPlottingTests(unittest.TestCase):
         self.assertLessEqual(fig.axes[2].get_position().x0, fig.axes[0].get_position().x0)
         self.assertGreaterEqual(fig.axes[2].get_position().x1, fig.axes[1].get_position().x1)
 
+    def test_dashboard_title_includes_run_metadata(self):
+        runs = np.arange(2)
+        raw = xr.Dataset(
+            {
+                "Ig": (("qubit", "n_runs"), [[-4e-3, -4e-3]]),
+                "Qg": (("qubit", "n_runs"), [[2e-3, 2e-3]]),
+                "Ie": (("qubit", "n_runs"), [[6e-3, 6e-3]]),
+                "Qe": (("qubit", "n_runs"), [[-2e-3, -2e-3]]),
+            },
+            coords={"qubit": ["q1"], "n_runs": runs},
+        )
+        fit = xr.Dataset(
+            {
+                "Ig_rot": (("qubit", "n_runs"), [[-2e-3, -2e-3]]),
+                "Ie_rot": (("qubit", "n_runs"), [[3e-3, 3e-3]]),
+                "rus_threshold": ("qubit", [-2e-3]),
+                "ge_threshold": ("qubit", [0.5e-3]),
+                "gg": ("qubit", [0.9]),
+                "ge": ("qubit", [0.1]),
+                "eg": ("qubit", [0.2]),
+                "ee": ("qubit", [0.8]),
+                "success": ("qubit", [True]),
+                "separation_to_width": ("qubit", [3.0]),
+                "readout_fidelity": ("qubit", [85.0]),
+                "iw_angle": ("qubit", [0.0]),
+            },
+            coords={"qubit": ["q1"], "n_runs": runs},
+        )
+        readout = SimpleNamespace(length=1200, amplitude=0.045)
+        qubit = SimpleNamespace(
+            name="q1",
+            resonator=SimpleNamespace(operations={"readout": readout}),
+        )
+
+        fig = plot_iq_blobs_dashboard(
+            raw,
+            [qubit],
+            fit,
+            run_metadata={
+                "operation": "readout",
+                "reset_type": "active",
+                "num_shots": 25000,
+                "pi_repetitions": 3,
+            },
+        )
+
+        parameter_text = next(text for text in fig.texts if text.get_gid() == "iq_blobs_parameters")
+        self.assertEqual(fig._suptitle.get_text(), "IQ blobs calibration")
+        self.assertIn("Parameters", parameter_text.get_text())
+        self.assertIn("readout length=1200 ns", parameter_text.get_text())
+        self.assertIn("readout amp=0.045 V", parameter_text.get_text())
+        self.assertIn("active reset=True", parameter_text.get_text())
+        self.assertIn("num reps=25000", parameter_text.get_text())
+        self.assertIn("pi reps=3", parameter_text.get_text())
+
     def test_dashboard_draws_kde_contours(self):
         axis = np.linspace(-2e-3, 2e-3, 20)
         i_grid, q_grid = np.meshgrid(axis, axis)

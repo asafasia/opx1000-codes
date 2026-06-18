@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, List
 import matplotlib.pyplot as plt
 import xarray as xr
 import numpy as np
@@ -8,7 +8,13 @@ from matplotlib.figure import Figure
 from qualang_tools.units import unit
 from qualibration_libs.plotting import QubitGrid, grid_iter
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
-from utils.plotting_settings import FIGURE_SIZE, qubit_grid_locations
+from utils.plotting_settings import (
+    FIGURE_SIZE,
+    CalibrationPlot,
+    add_calibration_parameter_box,
+    format_readout_parameter_lines,
+    qubit_grid_locations,
+)
 
 u = unit(coerce_to_integer=True)
 
@@ -23,7 +29,12 @@ def _available_state_specs(ds: xr.Dataset):
     return [spec for spec in STATE_PLOT_SPECS if spec[1] in ds and spec[2] in ds]
 
 
-def plot_iq_blobs_dashboard(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset) -> Figure:
+def plot_iq_blobs_dashboard(
+    ds: xr.Dataset,
+    qubits: List[AnyTransmon],
+    fits: xr.Dataset,
+    run_metadata: dict[str, Any] | None = None,
+) -> Figure:
     """Plot acquired IQ clouds, rotated-I histograms, and confusion matrices."""
     fig = plt.figure(figsize=FIGURE_SIZE)
     outer_grid = fig.add_gridspec(
@@ -64,8 +75,43 @@ def plot_iq_blobs_dashboard(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.
         )
 
     fig.suptitle("IQ blobs calibration")
-    fig.subplots_adjust(top=0.93)
+    metadata_lines = _format_iq_blobs_run_metadata(qubits, run_metadata)
+    if metadata_lines:
+        add_calibration_parameter_box(fig, metadata_lines, gid="iq_blobs_parameters")
+        calibration_plot = CalibrationPlot(fig)
+        calibration_plot.add_timestamp()
+        calibration_plot.tight_layout_for_parameters(len(metadata_lines), top=0.93)
+    else:
+        fig.subplots_adjust(top=0.93)
     return fig
+
+
+def _format_iq_blobs_run_metadata(
+    qubits: List[AnyTransmon],
+    run_metadata: dict[str, Any] | None,
+) -> list[str]:
+    """Return compact run-parameter lines for the dashboard parameter box."""
+    if not run_metadata:
+        return []
+
+    operation_name = run_metadata.get("operation", "readout")
+    readout_summaries = format_readout_parameter_lines(qubits, operation=operation_name)
+
+    reset_type = run_metadata.get("reset_type")
+    parameter_summaries = []
+    parameter_summaries.append(f"operation={operation_name}")
+    if reset_type is not None:
+        parameter_summaries.append(f"active reset={reset_type == 'active'}")
+    if run_metadata.get("num_shots") is not None:
+        parameter_summaries.append(f"num reps={run_metadata['num_shots']}")
+    if run_metadata.get("pi_repetitions") is not None:
+        parameter_summaries.append(f"pi reps={run_metadata['pi_repetitions']}")
+    if run_metadata.get("states") is not None:
+        parameter_summaries.append(f"states={','.join(str(state) for state in run_metadata['states'])}")
+    if run_metadata.get("qubit_operation") is not None:
+        parameter_summaries.append(f"prep operation={run_metadata['qubit_operation']}")
+
+    return ["Parameters", *readout_summaries, " | ".join(parameter_summaries)]
 
 
 def plot_iq_blobs(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):

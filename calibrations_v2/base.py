@@ -275,6 +275,7 @@ class BaseCalibration(ABC, Generic[P, M]):
             self.name,
             self.results["ds_raw"],
             profile_name=self.active_profile_name(),
+            parameters=self.parameters,
             now=now,
         )
         self.namespace["calibration_run_directory"] = run_directory
@@ -294,6 +295,7 @@ class BaseCalibration(ABC, Generic[P, M]):
             sweep,
             results,
             profile_name=self.active_profile_name(),
+            parameters=self.parameters,
             now=now,
         )
         self.namespace["calibration_run_directory"] = run_directory

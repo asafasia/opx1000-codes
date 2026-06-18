@@ -166,7 +166,14 @@ function bindFields() {
     state.selectedPulse = button.dataset.pulseTab;
     render();
   });
-  document.querySelectorAll("[data-path]").forEach(input => input.onchange = () => {
+  document.querySelectorAll("[data-path]").forEach(input => {
+    const handler = () => updateField(input);
+    if (input.dataset.type === "boolean") input.onchange = handler;
+    else input.oninput = handler;
+  });
+}
+
+function updateField(input) {
     const path = JSON.parse(input.dataset.path);
     let value;
     if (input.dataset.type === "boolean") value = input.checked;
@@ -174,13 +181,11 @@ function bindFields() {
       value = Number(input.value);
       if (!Number.isFinite(value)) {
         showMessage(`"${path.at(-1)}" must be a valid number.`);
-        render();
         return;
       }
     } else value = input.value;
     setAtPath(currentDocument().data, path, value);
     markDirty();
-  });
 }
 
 function setAtPath(root, path, value) {

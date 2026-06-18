@@ -1,10 +1,12 @@
 import unittest
+import json
+import tempfile
 from types import SimpleNamespace
 
 import numpy as np
 import xarray as xr
 
-from calibration_utils.iq_blobs.analysis import fit_raw_data
+from calibration_utils.iq_blobs.analysis import fit_raw_data, save_fit_results
 
 
 class IQBlobsAnalysisTests(unittest.TestCase):
@@ -48,6 +50,41 @@ class IQBlobsAnalysisTests(unittest.TestCase):
 
         self.assertTrue(results["q1"].success)
         self.assertEqual(results["q1"].rus_threshold, results["q1"].ge_threshold)
+
+    def test_fit_results_include_threshold_fidelity_matrix_and_average(self):
+        ds = xr.Dataset(
+            {
+                "Ig": (("qubit", "n_runs"), [[-3.0, -2.0, 0.2, 2.5]]),
+                "Qg": (("qubit", "n_runs"), [[0.0, 0.0, 0.0, 0.0]]),
+                "Ie": (("qubit", "n_runs"), [[-0.1, 0.4, 2.0, 3.0]]),
+                "Qe": (("qubit", "n_runs"), [[0.0, 0.0, 0.0, 0.0]]),
+            },
+            coords={"qubit": ["q1"], "n_runs": np.arange(4)},
+        )
+
+        fit, results = fit_raw_data(ds, self.make_node())
+
+        expected_matrix = np.asarray([[0.5, 0.5], [0.0, 1.0]])
+        np.testing.assert_allclose(fit.fidelity_matrix.sel(qubit="q1").values, expected_matrix)
+        np.testing.assert_allclose(results["q1"].fidelity_matrix, expected_matrix)
+        self.assertAlmostEqual(results["q1"].average_fidelity, 75.0)
+        self.assertAlmostEqual(results["q1"].readout_fidelity, results["q1"].average_fidelity)
+
+    def test_save_fit_results_writes_average_and_matrix(self):
+        fit_results = {
+            "q1": {
+                "average_fidelity": 75.0,
+                "readout_fidelity": 75.0,
+                "fidelity_matrix": [[0.5, 0.5], [0.0, 1.0]],
+            }
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            output_path = save_fit_results(directory, fit_results)
+            saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(saved["q1"]["average_fidelity"], 75.0)
+        self.assertEqual(saved["q1"]["fidelity_matrix"], [[0.5, 0.5], [0.0, 1.0]])
 
     def test_three_state_clouds_add_centers_and_confusion_matrix(self):
         rng = np.random.default_rng(9)

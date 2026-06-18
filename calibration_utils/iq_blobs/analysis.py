@@ -1,5 +1,7 @@
 import logging
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Tuple, Dict
 import numpy as np
 import xarray as xr
@@ -107,6 +109,8 @@ class FitParameters:
     ge_threshold: float
     rus_threshold: float
     readout_fidelity: float
+    average_fidelity: float
+    fidelity_matrix: list
     center_separation: float
     separation_to_width: float
     confusion_matrix: list
@@ -144,6 +148,15 @@ def log_fitted_results(fit_results: Dict, log_callable=None):
         else:
             s_qubit += " FAIL!\n"
         log_callable(s_qubit + s)
+
+
+def save_fit_results(run_directory, fit_results: Dict, filename: str = "fit_results.json") -> Path:
+    """Save IQ-blobs fit results, including average fidelity and fidelity matrix."""
+    output_path = Path(run_directory) / filename
+    with output_path.open("w", encoding="utf-8") as file:
+        json.dump(fit_results, file, indent=2)
+        file.write("\n")
+    return output_path
 
 
 def log_blob_diagnostics(ds: xr.Dataset, log_callable=None):
@@ -255,6 +268,26 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     ds_fit = ds_fit.assign({"ee": xr.DataArray(ee, coords=dict(qubit=ds_fit.qubit.data))})
     ds_fit = ds_fit.assign(
         {"readout_fidelity": xr.DataArray(100 * (ds_fit.gg + ds_fit.ee) / 2, coords=dict(qubit=ds_fit.qubit.data))}
+    )
+    ds_fit = ds_fit.assign({"average_fidelity": ds_fit.readout_fidelity.copy()})
+    fidelity_matrices = np.stack(
+        [
+            np.asarray([[gg_value, ge_value], [eg_value, ee_value]], dtype=float)
+            for gg_value, ge_value, eg_value, ee_value in zip(gg, ge, eg, ee)
+        ]
+    )
+    ds_fit = ds_fit.assign(
+        {
+            "fidelity_matrix": xr.DataArray(
+                fidelity_matrices,
+                dims=("qubit", "fidelity_prepared_state", "fidelity_measured_state"),
+                coords={
+                    "qubit": ds_fit.qubit.data,
+                    "fidelity_prepared_state": ["g", "e"],
+                    "fidelity_measured_state": ["g", "e"],
+                },
+            )
+        }
     )
     center_separation = np.hypot(
         ds_fit.Ie.mean(dim="n_runs") - ds_fit.Ig.mean(dim="n_runs"),
@@ -399,6 +432,8 @@ def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
             ge_threshold=float(fit.sel(qubit=q).ge_threshold),
             rus_threshold=float(fit.sel(qubit=q).rus_threshold),
             readout_fidelity=float(fit.sel(qubit=q).readout_fidelity),
+            average_fidelity=float(fit.sel(qubit=q).average_fidelity),
+            fidelity_matrix=fit.sel(qubit=q).fidelity_matrix.values.tolist(),
             center_separation=float(fit.sel(qubit=q).center_separation),
             separation_to_width=float(fit.sel(qubit=q).separation_to_width),
             confusion_matrix=fit.sel(qubit=q).state_confusion_matrix.values.tolist(),

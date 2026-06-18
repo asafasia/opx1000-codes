@@ -27,6 +27,7 @@ from calibration_utils.iq_blobs import (
     process_raw_dataset,
     fit_raw_data,
     log_fitted_results,
+    save_fit_results,
     plot_iq_blobs_dashboard,
 )
 from qualibration_libs.parameters import get_qubits
@@ -325,6 +326,7 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
             node.name,
             node.results["ds_raw"],
             profile_name=current_profile_name(),
+            parameters=node.parameters,
         )
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")
@@ -347,6 +349,12 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
         """
         node.results["ds_fit"], fit_results = fit_raw_data(node.results["ds_raw"], node)
         node.results["fit_results"] = {k: asdict(v) for k, v in fit_results.items()}
+        if "calibration_run_directory" in node.namespace:
+            output_path = save_fit_results(
+                node.namespace["calibration_run_directory"],
+                node.results["fit_results"],
+            )
+            node.log(f"Fit results saved to {output_path}")
 
         # Log the relevant information extracted from the data analysis
         log_fitted_results(node.results["fit_results"], log_callable=node.log)
@@ -366,6 +374,14 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
             node.results["ds_raw"],
             node.namespace["qubits"],
             node.results["ds_fit"],
+            run_metadata={
+                "operation": node.parameters.operation,
+                "reset_type": node.parameters.reset_type,
+                "num_shots": node.parameters.num_shots,
+                "pi_repetitions": node.parameters.pi_repetitions,
+                "states": node.parameters.states,
+                "qubit_operation": node.parameters.qubit_operation,
+            },
             figure_name="iq_blobs_dashboard",
         )
         plt.show()
@@ -469,15 +485,13 @@ if __name__ == "__main__":
     parameters.qubit_operation = "x180_const"
     parameters.states = ["g", "e"]
     parameters.reset_type = "active"
-    parameters.num_shots = 1000
+    parameters.num_shots = 10000
 
     options = CalibrationOptions()
 
     calibration = IqBlobs(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q10"),
     )
     calibration.run()
-
-    analysis = 

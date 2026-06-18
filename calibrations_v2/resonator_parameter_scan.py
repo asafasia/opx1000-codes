@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime
 from pathlib import Path
 
 if __package__ in {None, ""}:
@@ -26,6 +25,7 @@ from qualang_tools.units import unit
 from qualibrate import NodeParameters
 from qualibration_libs.data import XarrayDataFetcher, convert_IQ_to_V
 
+from calibration_io import CalibrationSaver, current_profile_name
 from quam_config import Quam, create_machine
 from utils.plotting_settings import FIGURE_SIZE
 
@@ -266,16 +266,21 @@ class ResonatorParameterScan(BaseCalibration[NodeParameters, Quam]):
         return self.namespace["qua_program"]
 
     def run(self):
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = Path("data") / "resonator_parameter_scan" / timestamp
         qubit = self.machine.qubits[QUBIT_NAME]
         self.machine.connect()
         self.machine.qmm.close_all_qms()
 
-        self.log(f"Saving results to {output_dir.resolve()}")
         self.log(f"Running {len(READOUT_AMPLITUDE_FACTORS) * len(QUBIT_OFFSETS_HZ)} combinations")
         self.create_qua_program()
         self.execute_qua_program()
+        output_dir = CalibrationSaver().save_xarray(
+            self.name,
+            self.results["ds_raw"],
+            profile_name=current_profile_name(),
+            parameters=self.parameters,
+        )
+        self.namespace["calibration_run_directory"] = output_dir
+        self.log(f"Raw calibration results saved to {output_dir.resolve()}")
         summary = analyze_and_save(self.results["ds_raw"], output_dir)
         self.results["summary"] = summary
         self.namespace["output_directory"] = output_dir
