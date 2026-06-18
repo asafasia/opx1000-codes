@@ -318,17 +318,22 @@ class ReadoutPowerOptimization(BaseCalibration[Parameters, Quam]):
 
     def propose_profile_update(self):
         node = self
-        """Stage best readout fidelity in profile metrics."""
-        if node.parameters.reset_type not in {"active", "thermal"}:
-            return
+        """Stage optimized readout amplitude and readout fidelity in the active profile."""
+        updates = {}
+        for q in node.namespace["qubits"]:
+            if node.outcomes[q.name] != "successful":
+                continue
 
-        updates = {
-            f"metrics.json.qubits.{q.name}.readout.fidelity_percent.{node.parameters.reset_type}": float(
-                node.results["fit_results"][q.name]["readout_fidelity"]
+            fit_result = node.results["fit_results"][q.name]
+            updates[f"pulses.json.pulses.{q.name}.readout.amplitude"] = float(
+                fit_result["optimal_amplitude"]
             )
-            for q in node.namespace["qubits"]
-            if node.outcomes[q.name] == "successful"
-        }
+
+            if node.parameters.reset_type in {"active", "thermal"}:
+                updates[
+                    f"metrics.json.qubits.{q.name}.readout.fidelity_percent.{node.parameters.reset_type}"
+                ] = float(fit_result["readout_fidelity"])
+
         if updates:
             proposal = ProfileUpdater().stage(
                 node.name, updates, profile_name=current_profile_name()

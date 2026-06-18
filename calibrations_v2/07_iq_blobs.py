@@ -492,6 +492,6 @@ if __name__ == "__main__":
     calibration = IqBlobs(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q10"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()
