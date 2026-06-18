@@ -13,7 +13,7 @@ from datetime import datetime
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 
 import numpy as np
 
@@ -83,15 +83,47 @@ def relative(path: Path) -> str:
     return path.resolve().relative_to(PROJECT_ROOT.resolve()).as_posix()
 
 
-def experiment_summary(path: Path, kind: str, experiment_type: str) -> dict[str, Any]:
-    stat = safe_stat(path)
-    qubits: list[str] = []
+def unique_strings(values: Sequence[Any]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        text = str(value)
+        if text and text not in seen:
+            seen.add(text)
+            result.append(text)
+    return result
+
+
+def qubits_from_sweep(path: Path) -> list[str]:
+    sweep_path = path / "sweep.npz"
+    if not safe_stat(sweep_path):
+        return []
+    try:
+        with np.load(sweep_path, allow_pickle=False) as sweep_file:
+            if "qubit" not in sweep_file.files:
+                return []
+            return unique_strings(np.asarray(sweep_file["qubit"]).reshape(-1).tolist())
+    except (OSError, ValueError, KeyError):
+        return []
+
+
+def qubits_from_profile(path: Path) -> list[str]:
     profile_path = path / "profile" / "profile.json"
     profile_stat = safe_stat(profile_path)
     if profile_stat and profile_stat.st_size:
         profile, _ = read_json(profile_path)
-        if isinstance(profile, dict) and isinstance(profile.get("active_qubits"), list):
-            qubits = [str(qubit) for qubit in profile["active_qubits"]]
+        if isinstance(profile, dict):
+            active_qubits = profile.get("active_qubits")
+            if not isinstance(active_qubits, list) and isinstance(profile.get("manifest"), dict):
+                active_qubits = profile["manifest"].get("active_qubits")
+            if isinstance(active_qubits, list):
+                return unique_strings(active_qubits)
+    return []
+
+
+def experiment_summary(path: Path, kind: str, experiment_type: str) -> dict[str, Any]:
+    stat = safe_stat(path)
+    qubits = qubits_from_sweep(path) or qubits_from_profile(path)
     return {
         "id": relative(path),
         "name": path.name if kind == "general" else experiment_type,

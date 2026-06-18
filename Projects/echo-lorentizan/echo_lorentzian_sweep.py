@@ -11,28 +11,30 @@ from qualang_tools.units import unit
 from qualibrate import QualibrationNode
 from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.parameters import get_qubits
-from quam.components.pulses import WaveformPulse
 
 from calibration_io import CalibrationSaver, current_profile_name
-from calibration_utils.power_rabi_chevron import plot_raw_data
 from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
 from utils.simulation import simulate_and_plot
 
-from lorentzian import lorentzian_envelope, process_raw_dataset
+from lorentzian import install_lorentzian_operation, plot_raw_data, process_raw_dataset
 from parameters import Parameters
-
 
 description = """
         ECHO LORENTZIAN - FREQUENCY VS AMPLITUDE
-This project plays a fixed-length Lorentzian qubit pulse while sweeping both
+This project plays a fixed-length Lorentzian-like qubit pulse while sweeping both
 the qubit-drive detuning and the Lorentzian amplitude. It follows the same
 two-dimensional structure as the power Rabi chevron, but replaces the square or
-DRAG operation with a user-length waveform pulse:
+DRAG operation with a user-length waveform pulse. The standard Lorentzian is:
 
     A / (1 + (t / tau)^2)
 
-where t is centered on the pulse midpoint.
+The root-Lorentzian option uses:
+
+    A / sqrt(1 + (t / tau)^2)
+
+where t is centered on the pulse midpoint and tau is derived from the requested
+edge cutoff.
 """
 
 
@@ -43,6 +45,7 @@ node = QualibrationNode[Parameters, Quam](
     machine=create_machine(),
 )
 
+
 node.machine.connect()
 node.machine.qmm.close_all_qms()
 
@@ -52,7 +55,9 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     """Allow local parameter overrides when running this file directly."""
     # node.parameters.qubits = ["q3"]
     # node.parameters.lorentzian_length_in_ns = 80
+    # node.parameters.pulse_shape = "root_lorentzian"
     # node.parameters.lorentzian_tau_in_ns = 12
+    # node.parameters.root_lorentzian_cutoff = 0.2
     # node.parameters.lorentzian_peak_amplitude = 0.08
     pass
 
@@ -70,32 +75,6 @@ def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> 
             f"use_state_discrimination={use_state_discrimination}, "
             f"dataset variables={sorted(variables)}, "
             f"missing={sorted(missing)}, unexpected={sorted(present_unexpected)}"
-        )
-
-
-def install_lorentzian_operation(node: QualibrationNode[Parameters, Quam]) -> None:
-    """Install the temporary Lorentzian waveform operation on every active qubit."""
-    waveform = lorentzian_envelope(
-        node.parameters.lorentzian_length_in_ns,
-        node.parameters.lorentzian_tau_in_ns,
-        node.parameters.lorentzian_peak_amplitude,
-    )
-    max_scaled_amplitude = max(abs(sample) for sample in waveform) * max(
-        abs(node.parameters.min_amp_factor),
-        abs(node.parameters.max_amp_factor),
-    )
-    if max_scaled_amplitude >= 0.5:
-        raise ValueError(
-            "The swept Lorentzian waveform reaches "
-            f"{max_scaled_amplitude:g} V. Keep OPX waveform samples below 0.5 V "
-            "by reducing lorentzian_peak_amplitude or max_amp_factor."
-        )
-
-    node.namespace["lorentzian_waveform"] = waveform
-    for qubit in node.namespace["qubits"]:
-        qubit.xy.operations[node.parameters.operation] = WaveformPulse(
-            waveform_I=waveform,
-            waveform_Q=[0.0] * len(waveform),
         )
 
 
@@ -126,7 +105,9 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
 
     node.namespace["sweep_axes"] = {
         "qubit": xr.DataArray(qubits.get_names()),
-        "detuning": xr.DataArray(dfs, attrs={"long_name": "qubit detuning", "units": "Hz"}),
+        "detuning": xr.DataArray(
+            dfs, attrs={"long_name": "qubit detuning", "units": "Hz"}
+        ),
         "amp_prefactor": xr.DataArray(
             amps,
             attrs={"long_name": "Lorentzian amplitude prefactor"},
@@ -156,7 +137,9 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                                 node.parameters.reset_type,
                                 node.parameters.simulate,
                             )
-                            qubit.xy.update_frequency(qubit.xy.intermediate_frequency + df)
+                            qubit.xy.update_frequency(
+                                qubit.xy.intermediate_frequency + df
+                            )
                         align()
 
                         for qubit in multiplexed_qubits.values():
@@ -168,7 +151,9 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                                 qubit.readout_state(state[i])
                                 save(state[i], state_st[i])
                             else:
-                                qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
+                                qubit.resonator.measure(
+                                    "readout", qua_vars=(I[i], Q[i])
+                                )
                                 save(I[i], I_st[i])
                                 save(Q[i], Q_st[i])
                         align()
@@ -177,13 +162,21 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
             n_st.save("n")
             for i in range(num_qubits):
                 if node.parameters.use_state_discrimination:
-                    state_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(f"state{i + 1}")
+                    state_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(
+                        f"state{i + 1}"
+                    )
                 else:
-                    I_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(f"I{i + 1}")
-                    Q_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(f"Q{i + 1}")
+                    I_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(
+                        f"I{i + 1}"
+                    )
+                    Q_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(
+                        f"Q{i + 1}"
+                    )
 
 
-@node.run_action(skip_if=node.parameters.load_data_id is not None or not node.parameters.simulate)
+@node.run_action(
+    skip_if=node.parameters.load_data_id is not None or not node.parameters.simulate
+)
 def simulate_qua_program(node: QualibrationNode[Parameters, Quam]):
     qmm = node.machine.connect()
     config = node.machine.generate_config()
@@ -200,7 +193,9 @@ def simulate_qua_program(node: QualibrationNode[Parameters, Quam]):
     }
 
 
-@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
+@node.run_action(
+    skip_if=node.parameters.load_data_id is not None or node.parameters.simulate
+)
 def execute_qua_program(node: QualibrationNode[Parameters, Quam]):
     qmm = node.machine.connect()
     config = node.machine.generate_config()
@@ -218,7 +213,9 @@ def execute_qua_program(node: QualibrationNode[Parameters, Quam]):
     node.results["ds_raw"] = dataset
 
 
-@node.run_action(skip_if=node.parameters.load_data_id is not None or node.parameters.simulate)
+@node.run_action(
+    skip_if=node.parameters.load_data_id is not None or node.parameters.simulate
+)
 def save_raw_results(node: QualibrationNode[Parameters, Quam]):
     output_directory = CalibrationSaver().save_xarray(
         node.name,
@@ -239,7 +236,9 @@ def load_data(node: QualibrationNode[Parameters, Quam]):
 
 @node.run_action(skip_if=node.parameters.simulate)
 def analyse_data(node: QualibrationNode[Parameters, Quam]):
-    validate_readout_dataset(node.results["ds_raw"], node.parameters.use_state_discrimination)
+    validate_readout_dataset(
+        node.results["ds_raw"], node.parameters.use_state_discrimination
+    )
     node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
 
 
