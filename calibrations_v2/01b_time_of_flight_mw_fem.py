@@ -63,12 +63,7 @@ State update:
 """
 
 
-
-
 # Create the machine directly from profiles/main without loading state.json.
-
-
-
 
 
 def select_full_scale_power_dbm(power_in_dbm: float, max_amplitude: float = 1) -> int:
@@ -77,7 +72,8 @@ def select_full_scale_power_dbm(power_in_dbm: float, max_amplitude: float = 1) -
     compatible_powers = [
         int(full_scale_power)
         for full_scale_power in allowed_full_scale_powers
-        if calculate_voltage_scaling_factor(full_scale_power, power_in_dbm) <= max_amplitude
+        if calculate_voltage_scaling_factor(full_scale_power, power_in_dbm)
+        <= max_amplitude
     ]
     if not compatible_powers:
         raise ValueError(
@@ -99,6 +95,7 @@ def select_full_scale_power_dbm(power_in_dbm: float, max_amplitude: float = 1) -
 # %% {Update_state}
 # %% {Save_results}
 
+
 class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
     """v2 class migration for ``calibrations/01b_time_of_flight_mw_fem.py``."""
 
@@ -115,6 +112,7 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
             machine=machine,
             **kwargs,
         )
+
     def create_qua_program(self):
         node = self
         """Create the sweep axes and generate the QUA program from the pulse sequence and the node parameters."""
@@ -125,14 +123,20 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
         num_qubits = len(qubits)
 
         node.namespace["tracked_resonators"] = []
-        full_scale_power_dbm = select_full_scale_power_dbm(node.parameters.readout_amplitude_in_dBm)
+        full_scale_power_dbm = select_full_scale_power_dbm(
+            node.parameters.readout_amplitude_in_dBm
+        )
         for q in qubits:
             resonator = q.resonator
             # make temporary updates before running the program and revert at the end.
-            with tracked_updates(resonator, auto_revert=False, dont_assign_to_none=True) as resonator:
+            with tracked_updates(
+                resonator, auto_revert=False, dont_assign_to_none=True
+            ) as resonator:
                 if node.parameters.time_of_flight_in_ns is not None:
                     resonator.time_of_flight = node.parameters.time_of_flight_in_ns
-                resonator.operations["readout"].length = node.parameters.readout_length_in_ns
+                resonator.operations["readout"].length = (
+                    node.parameters.readout_length_in_ns
+                )
                 resonator.set_output_power(
                     power_in_dbm=node.parameters.readout_amplitude_in_dBm,
                     full_scale_power_dbm=full_scale_power_dbm,
@@ -150,9 +154,12 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
         }
 
         with program() as node.namespace["qua_program"]:
+
             n = declare(int)  # QUA variable for the averaging loop
             n_st = declare_stream()
-            adc_st = [declare_stream(adc_trace=True) for _ in range(num_qubits)]  # The stream to store the raw ADC trace
+            adc_st = [
+                declare_stream(adc_trace=True) for _ in range(num_qubits)
+            ]  # The stream to store the raw ADC trace
 
             for multiplexed_qubits in qubits.batch():
                 with for_(n, 0, n < node.parameters.num_shots, n + 1):
@@ -186,11 +193,14 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
         debug_file = debug_directory / Path(__file__).name
         config = node.machine.generate_config()
         with debug_file.open("w") as source_file:
-            print(generate_qua_script(node.namespace["qua_program"], config), file=source_file)
+            print(
+                generate_qua_script(node.namespace["qua_program"], config),
+                file=source_file,
+            )
         node.log(f"Serialized QUA debug script saved to {debug_file}")
 
-
         return node.namespace.get("qua_program")
+
     def simulate_qua_program(self):
         node = self
         """Connect to the QOP and simulate the QUA program"""
@@ -199,10 +209,15 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
         # Get the config from the machine
         config = node.machine.generate_config()
         # Simulate the QUA program, generate the waveform report and plot the simulated samples
-        samples, fig, wf_report = simulate_and_plot(qmm, config, node.namespace["qua_program"], node.parameters)
+        samples, fig, wf_report = simulate_and_plot(
+            qmm, config, node.namespace["qua_program"], node.parameters
+        )
         # Store the figure, waveform report and simulated samples
-        node.results["simulation"] = {"figure": fig, "wf_report": wf_report, "samples": samples}
-
+        node.results["simulation"] = {
+            "figure": fig,
+            "wf_report": wf_report,
+            "samples": samples,
+        }
 
     def execute_qua_program(self):
         node = self
@@ -228,7 +243,6 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
         # Register the raw dataset
         node.results["ds_raw"] = dataset
 
-
     def save_raw_results(self):
         node = self
         """Save the acquired vectors and a snapshot of the selected profile."""
@@ -241,7 +255,6 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")
 
-
     def load_data(self):
         node = self
         """Load a previously acquired dataset."""
@@ -251,7 +264,6 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
         node.namespace["qubits"] = get_qubits(node)
-
 
     def analyse_data(self):
         node = self
@@ -266,7 +278,6 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
             qubit_name: ("successful" if fit_result["success"] else "failed")
             for qubit_name, fit_result in node.results["fit_results"].items()
         }
-
 
     def plot_data(self):
         node = self
@@ -296,7 +307,6 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
             )
             node.log(f"Calibration figures saved to {figures_directory}")
 
-
     def update_state(self):
         node = self
         """Update the relevant parameters if the qubit data analysis was successful."""
@@ -312,11 +322,11 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
 
                 fit_result = node.results["fit_results"][q.name]
                 if node.parameters.time_of_flight_in_ns is not None:
-                    q.resonator.time_of_flight = node.parameters.time_of_flight_in_ns + fit_result["tof_to_add"]
+                    q.resonator.time_of_flight = (
+                        node.parameters.time_of_flight_in_ns + fit_result["tof_to_add"]
+                    )
                 else:
                     q.resonator.time_of_flight += fit_result["tof_to_add"]
-
-
 
 
 if __name__ == "__main__":
