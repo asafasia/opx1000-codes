@@ -246,7 +246,9 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
         node = self
         """Save the acquired vectors and a snapshot of the selected profile."""
         output_directory = CalibrationSaver().save_xarray(
-            node.name, node.results["ds_raw"], profile_name=current_profile_name(),
+            node.name,
+            node.results["ds_raw"],
+            profile_name=current_profile_name(),
             parameters=node.parameters,
         )
         node.namespace["calibration_run_directory"] = output_directory
@@ -338,6 +340,6 @@ if __name__ == "__main__":
     calibration = Ramsey(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

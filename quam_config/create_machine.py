@@ -50,7 +50,9 @@ class CreateMachine:
         if env_qubit:
             qubit = env_qubit
 
-        selected_profile = profile if isinstance(profile, Profile) else Profile(str(profile))
+        selected_profile = (
+            profile if isinstance(profile, Profile) else Profile(str(profile))
+        )
         if (
             qubit is not None
             and selected_profile.name == DEFAULT_PROFILE.name
@@ -60,15 +62,23 @@ class CreateMachine:
         elif qubit is not None:
             selected_profile = selected_profile.for_qubit(qubit)
 
-        if selected_profile.name == SINGLE_QUBIT_PROFILE and selected_profile.qubit is None:
+        if (
+            selected_profile.name == SINGLE_QUBIT_PROFILE
+            and selected_profile.qubit is None
+        ):
             raise ProfileError("Mode 'single_qubit' requires a qubit selection")
-        if selected_profile.name != SINGLE_QUBIT_PROFILE and selected_profile.qubit is not None:
+        if (
+            selected_profile.name != SINGLE_QUBIT_PROFILE
+            and selected_profile.qubit is not None
+        ):
             raise ProfileError(
                 f"Profile {selected_profile.name!r} does not support selecting a single qubit"
             )
 
         if __package__ in {None, ""}:
-            from quam_config.create_machine_from_profile import create_machine_from_profile
+            from quam_config.create_machine_from_profile import (
+                create_machine_from_profile,
+            )
         else:
             from .create_machine_from_profile import create_machine_from_profile
 
@@ -100,4 +110,5 @@ if __name__ == "__main__":
     config = machine.generate_config()
 
     from pprint import pprint
+
     pprint(config)
