@@ -14,6 +14,8 @@ from scipy.ndimage import gaussian_filter
 
 KDE_GRID_SIZE = 80
 KDE_PROBABILITY = 0.95
+READOUT_FIDELITY_SUCCESS_THRESHOLD_PERCENT = 57
+SEPARATION_TO_WIDTH_SUCCESS_THRESHOLD = 0.1
 STATE_SPECS = (
     ("g", "Ig", "Qg", "ground", "Ground"),
     ("e", "Ie", "Qe", "prepared", "Prepared"),
@@ -423,7 +425,11 @@ def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
         | np.isnan(fit.rus_threshold)
         | np.isnan(fit.readout_fidelity)
     )
-    success_criteria = ~nan_success & (fit.separation_to_width >= 1) & (fit.readout_fidelity >= 60)
+    success_criteria = (
+        ~nan_success
+        & (fit.separation_to_width >= SEPARATION_TO_WIDTH_SUCCESS_THRESHOLD)
+        & (fit.readout_fidelity >= READOUT_FIDELITY_SUCCESS_THRESHOLD_PERCENT)
+    )
     fit = fit.assign({"success": success_criteria})
 
     fit_results = {

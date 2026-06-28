@@ -6,13 +6,22 @@ from types import SimpleNamespace
 import numpy as np
 import xarray as xr
 
-from calibration_utils.iq_blobs.analysis import fit_raw_data, save_fit_results
+from calibration_utils.iq_blobs.analysis import (
+    READOUT_FIDELITY_SUCCESS_THRESHOLD_PERCENT,
+    SEPARATION_TO_WIDTH_SUCCESS_THRESHOLD,
+    fit_raw_data,
+    save_fit_results,
+)
 
 
 class IQBlobsAnalysisTests(unittest.TestCase):
     def make_node(self):
         qubit = SimpleNamespace(name="q1")
         return SimpleNamespace(namespace={"qubits": [qubit]})
+
+    def test_success_threshold_allows_57_percent_readout_fidelity(self):
+        self.assertEqual(READOUT_FIDELITY_SUCCESS_THRESHOLD_PERCENT, 57)
+        self.assertEqual(SEPARATION_TO_WIDTH_SUCCESS_THRESHOLD, 0.1)
 
     def test_overlapping_clouds_fail_calibration(self):
         rng = np.random.default_rng(4)

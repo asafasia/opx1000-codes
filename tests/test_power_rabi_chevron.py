@@ -18,7 +18,7 @@ REPOSITORY_ROOT = Path(__file__).parent.parent
 
 class PowerRabiChevronTests(unittest.TestCase):
     def test_sequence_sweeps_frequency_and_amplitude(self):
-        source = (REPOSITORY_ROOT / "calibrations" / "04d_power_rabi_chevron.py").read_text()
+        source = (REPOSITORY_ROOT / "calibrations_v2" / "04d_power_rabi_chevron.py").read_text()
 
         self.assertIn("with for_(*from_array(df, dfs)):", source)
         self.assertIn("with for_(*from_array(a, amps)):", source)
@@ -47,7 +47,7 @@ class PowerRabiChevronTests(unittest.TestCase):
         qubit = SimpleNamespace(
             xy=SimpleNamespace(
                 RF_frequency=4.1e9,
-                operations={"x180": SimpleNamespace(amplitude=0.1)},
+                operations={"x180": SimpleNamespace(amplitude=0.1, length=40)},
             )
         )
         node = SimpleNamespace(
@@ -59,18 +59,25 @@ class PowerRabiChevronTests(unittest.TestCase):
 
         np.testing.assert_allclose(processed.full_freq, [[4.099e9, 4.101e9]])
         np.testing.assert_allclose(processed.full_amp, [[0.05, 0.1]])
+        np.testing.assert_allclose(processed.rabi_frequency_hz, [[6.25e6, 12.5e6]])
 
     def test_state_plot_uses_amplitude_on_y_axis(self):
         ds = self._make_dataset().assign_coords(
             full_freq=(("qubit", "detuning"), [[4.099e9, 4.101e9]]),
             full_amp=(("qubit", "amp_prefactor"), [[0.05, 0.1]]),
+            rabi_frequency_hz=(("qubit", "amp_prefactor"), [[6.25e6, 12.5e6]]),
         )
         qubit = SimpleNamespace(name="q7", grid_location="0,0")
 
         figure = plot_raw_data(ds, [qubit], use_state_discrimination=True)
 
-        self.assertEqual(figure.axes[0].get_ylabel(), "Pulse amplitude [mV]")
+        self.assertEqual(figure.axes[0].get_ylabel(), "Rabi frequency [MHz]")
         self.assertEqual(figure.axes[0].get_xlabel(), "RF frequency [GHz]")
+        self.assertTrue(
+            any(axis.get_xlabel() == "Detuning [MHz]" for axis in figure.axes)
+        )
+        self.assertTrue(self._has_secondary_amplitude_yaxis(figure.axes[0]))
+        self.assertEqual(figure._suptitle.get_text(), "Power Rabi chevron: measured state")
 
     def test_iq_plot_shows_i_and_q_quadratures(self):
         ds = xr.Dataset(
@@ -90,6 +97,7 @@ class PowerRabiChevronTests(unittest.TestCase):
                 "amp_prefactor": [0.5, 1.0],
                 "full_freq": (("qubit", "detuning"), [[4.099e9, 4.101e9]]),
                 "full_amp": (("qubit", "amp_prefactor"), [[0.05, 0.1]]),
+                "rabi_frequency_hz": (("qubit", "amp_prefactor"), [[6.25e6, 12.5e6]]),
             },
         )
         qubit = SimpleNamespace(name="q7", grid_location="0,0")
@@ -100,7 +108,10 @@ class PowerRabiChevronTests(unittest.TestCase):
         self.assertEqual(len(data_axes), 2)
         self.assertIn("I [mV]", data_axes[0].get_title())
         self.assertIn("Q [mV]", data_axes[1].get_title())
-        self.assertEqual(data_axes[0].get_ylabel(), "Pulse amplitude [mV]")
+        self.assertEqual(data_axes[0].get_ylabel(), "Rabi frequency [MHz]")
+        self.assertTrue(self._has_secondary_amplitude_yaxis(data_axes[0]))
+        self.assertEqual(figure._suptitle.get_text(), "Power Rabi chevron: I and Q quadratures")
+        self.assertLess(data_axes[1].get_position().y1, data_axes[0].get_position().y0)
 
     @staticmethod
     def _make_dataset():
@@ -116,6 +127,14 @@ class PowerRabiChevronTests(unittest.TestCase):
                 "detuning": [-1e6, 1e6],
                 "amp_prefactor": [0.5, 1.0],
             },
+        )
+
+    @staticmethod
+    def _has_secondary_amplitude_yaxis(axis):
+        return any(
+            type(child).__name__ == "SecondaryAxis"
+            and child.get_ylabel() == "Pulse amplitude [mV]"
+            for child in axis.get_children()
         )
 
 

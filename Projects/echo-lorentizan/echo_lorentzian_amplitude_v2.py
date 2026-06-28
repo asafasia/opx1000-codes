@@ -186,15 +186,16 @@ if __name__ == "__main__":
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
     parameters.pulse_shape = "root_lorentzian"
-    parameters.echo = True
+    parameters.echo = False
     parameters.cutoff = 0.01
     parameters.num_shots = 1000
-    parameters.lorentzian_length_in_ns = 80000
+    parameters.lorentzian_length_in_ns = 30000
     parameters.waveform_template_length_in_ns = 2000
     parameters.lorentzian_peak_amplitude = 0.5
     parameters.min_amp_factor = 0.0
     parameters.max_amp_factor = 1.0
-    parameters.amp_factor_step = 0.005
+    parameters.amp_factor_step = 0.05
+    parameters.
 
     options = CalibrationOptions()
 

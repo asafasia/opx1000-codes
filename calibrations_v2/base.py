@@ -189,10 +189,10 @@ class BaseCalibration(ABC, Generic[P, M]):
                     self.plot_data()
                 if self.options.save_figures:
                     figures_saved = self.save_figures()
-                if self.options.propose_profile_update:
-                    profile_update_proposed = self._propose_profile_update_from_options()
                 if self.options.update_state:
                     self.update_state()
+                if self.options.propose_profile_update:
+                    profile_update_proposed = self._propose_profile_update_from_options()
         finally:
             self.cleanup()
 

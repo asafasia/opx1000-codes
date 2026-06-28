@@ -6,11 +6,10 @@ class SeparateIQBlobsSequenceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = (
-            Path(__file__).parent.parent / "calibrations" / "07_iq_blobs_separate.py"
+            Path(__file__).parent.parent / "calibrations_v2" / "07_iq_blobs_separate.py"
         ).read_text()
 
     def test_builds_two_independent_state_programs(self):
-        self.assertIn("node.machine = create_machine()", self.source)
         self.assertNotIn("node.machine.qmm.close_all_qms()", self.source)
         self.assertIn("def make_state_program", self.source)
         self.assertIn('state: make_state_program(node, state) for state in ("g", "e")', self.source)
@@ -37,7 +36,7 @@ class SeparateIQBlobsSequenceTests(unittest.TestCase):
         self.assertIn('dataset.rename({"I": f"I{suffix}", "Q": f"Q{suffix}"})', self.source)
         self.assertIn("process_raw_dataset(xr.merge([ground, excited]), node)", self.source)
         self.assertIn("fit_raw_data(node.results[\"ds_raw\"], node)", self.source)
-        self.assertIn("plot_iq_blobs_dashboard(", self.source)
+        self.assertIn("plot_iq_blobs_dashboard,", self.source)
 
     def test_successful_fit_updates_profile_angle_and_threshold(self):
         self.assertIn("record_state_updates", self.source)
@@ -46,6 +45,14 @@ class SeparateIQBlobsSequenceTests(unittest.TestCase):
         self.assertIn("readout.rus_exit_threshold", self.source)
         self.assertIn("proposing fitted parameters despite failed IQ-blob quality checks", self.source)
         self.assertIn("ProfileUpdater().confirm_and_apply(proposal)", self.source)
+        self.assertIn(
+            'operation.integration_weights_angle -= float(fit_result["iw_angle"])',
+            self.source,
+        )
+        self.assertNotIn(
+            'operation.integration_weights_angle += float(fit_result["iw_angle"])',
+            self.source,
+        )
 
 
 if __name__ == "__main__":

@@ -214,23 +214,23 @@ if __name__ == "__main__":
     parameters = Parameters()
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
-    parameters.pulse_shape = "gaussian"
+    parameters.pulse_shape = "root_lorentzian"
     parameters.echo = False
-    parameters.cutoff = 0.0005
-    parameters.num_shots = 500
-    parameters.lorentzian_length_in_ns = 160000
-    parameters.waveform_template_length_in_ns = 60000
-    parameters.lorentzian_peak_amplitude = 0.5
-    parameters.amp_factor_step = 0.005
-    parameters.frequency_span_in_mhz = 5
-    parameters.frequency_step_in_mhz = 0.01
+    parameters.cutoff = 0.99
+    parameters.num_shots = 100
+    parameters.lorentzian_length_in_ns = 1000
+    parameters.waveform_template_length_in_ns = 1000
+    parameters.lorentzian_peak_amplitude = 0.2
+    parameters.amp_factor_step = 0.01
+    parameters.frequency_span_in_mhz = 400
+    parameters.frequency_step_in_mhz = 4
 
     options = CalibrationOptions()
 
     calibration = EchoLorentzian(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q1"),
         auto_connect=True,
     )
     calibration.run()

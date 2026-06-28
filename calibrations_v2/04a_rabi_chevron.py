@@ -87,6 +87,7 @@ def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> 
 # %% {Update_state}
 # %% {Save_results}
 
+
 class RabiChevron(BaseCalibration[Parameters, Quam]):
     """v2 class migration for ``calibrations/04a_rabi_chevron.py``."""
 
@@ -103,6 +104,7 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
             machine=machine,
             **kwargs,
         )
+
     def create_qua_program(self):
         node = self
         """Create the sweep axes and generate the QUA program from the pulse sequence and the node parameters."""
@@ -135,8 +137,13 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
         # Register the sweep axes to be added to the dataset when fetching data
         node.namespace["sweep_axes"] = {
             "qubit": xr.DataArray(qubits.get_names()),
-            "detuning": xr.DataArray(dfs, attrs={"long_name": "qubit frequency", "units": "Hz"}),
-            "pulse_duration": xr.DataArray(pulse_durations, attrs={"long_name": "qubit pulse duration", "units": "ns"}),
+            "detuning": xr.DataArray(
+                dfs, attrs={"long_name": "qubit frequency", "units": "Hz"}
+            ),
+            "pulse_duration": xr.DataArray(
+                pulse_durations,
+                attrs={"long_name": "qubit pulse duration", "units": "ns"},
+            ),
         }
 
         with program() as node.namespace["qua_program"]:
@@ -160,7 +167,9 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
                             # Qubit initialization
                             for i, qubit in multiplexed_qubits.items():
                                 # Set the xy drive frequency back to the qubit frequency before reset.
-                                qubit.xy.update_frequency(qubit.xy.intermediate_frequency)
+                                qubit.xy.update_frequency(
+                                    qubit.xy.intermediate_frequency
+                                )
                                 qubit.reset(
                                     node.parameters.reset_type,
                                     node.parameters.simulate,
@@ -168,7 +177,9 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
                                 )
 
                                 # Update the xy drive frequency
-                                qubit.xy.update_frequency(df + qubit.xy.intermediate_frequency)
+                                qubit.xy.update_frequency(
+                                    df + qubit.xy.intermediate_frequency
+                                )
                             align()
                             # Qubit manipulation
                             for i, qubit in multiplexed_qubits.items():
@@ -181,10 +192,11 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
                                     qubit.readout_state(state[i])
                                     save(state[i], state_st[i])
                                 else:
-                                    qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
+                                    qubit.resonator.measure(
+                                        "readout", qua_vars=(I[i], Q[i])
+                                    )
                                     save(I[i], I_st[i])
                                     save(Q[i], Q_st[i])
-
 
                             align()
 
@@ -192,13 +204,19 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
                 n_st.save("n")
                 for i in range(num_qubits):
                     if node.parameters.use_state_discrimination:
-                        state_st[i].buffer(len(pulse_durations)).buffer(len(dfs)).average().save(f"state{i + 1}")
+                        state_st[i].buffer(len(pulse_durations)).buffer(
+                            len(dfs)
+                        ).average().save(f"state{i + 1}")
                     else:
-                        I_st[i].buffer(len(pulse_durations)).buffer(len(dfs)).average().save(f"I{i + 1}")
-                        Q_st[i].buffer(len(pulse_durations)).buffer(len(dfs)).average().save(f"Q{i + 1}")
-
+                        I_st[i].buffer(len(pulse_durations)).buffer(
+                            len(dfs)
+                        ).average().save(f"I{i + 1}")
+                        Q_st[i].buffer(len(pulse_durations)).buffer(
+                            len(dfs)
+                        ).average().save(f"Q{i + 1}")
 
         return node.namespace.get("qua_program")
+
     def simulate_qua_program(self):
         node = self
         """Connect to the QOP and simulate the QUA program"""
@@ -207,10 +225,15 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
         # Get the config from the machine
         config = node.machine.generate_config()
         # Simulate the QUA program, generate the waveform report and plot the simulated samples
-        samples, fig, wf_report = simulate_and_plot(qmm, config, node.namespace["qua_program"], node.parameters)
+        samples, fig, wf_report = simulate_and_plot(
+            qmm, config, node.namespace["qua_program"], node.parameters
+        )
         # Store the figure, waveform report and simulated samples
-        node.results["simulation"] = {"figure": fig, "wf_report": wf_report, "samples": samples}
-
+        node.results["simulation"] = {
+            "figure": fig,
+            "wf_report": wf_report,
+            "samples": samples,
+        }
 
     def execute_qua_program(self):
         node = self
@@ -237,7 +260,6 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
         validate_readout_dataset(dataset, node.parameters.use_state_discrimination)
         node.results["ds_raw"] = dataset
 
-
     def save_raw_results(self):
         node = self
         """Save the acquired vectors and a snapshot of the selected profile."""
@@ -250,7 +272,6 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")
 
-
     def load_data(self):
         node = self
         """Load a previously acquired dataset."""
@@ -261,11 +282,12 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
         # Get the active qubits from the loaded node parameters
         node.namespace["qubits"] = get_qubits(node)
 
-
     def analyse_data(self):
         node = self
         """Analyse the raw data and store the fitted data in another xarray dataset "ds_fit" and the fitted results in the "fit_results" dictionary."""
-        validate_readout_dataset(node.results["ds_raw"], node.parameters.use_state_discrimination)
+        validate_readout_dataset(
+            node.results["ds_raw"], node.parameters.use_state_discrimination
+        )
         node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
         node.results["ds_fit"], fit_results = fit_raw_data(node.results["ds_raw"], node)
         node.results["fit_results"] = {k: asdict(v) for k, v in fit_results.items()}
@@ -276,7 +298,6 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
             qubit_name: ("successful" if fit_result["success"] else "failed")
             for qubit_name, fit_result in node.results["fit_results"].items()
         }
-
 
     def plot_data(self):
         node = self
@@ -298,7 +319,6 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
             )
             node.log(f"Calibration figures saved to {figures_directory}")
 
-
     def update_state(self):
         node = self
         """Update the relevant parameters if the qubit data analysis was successful."""
@@ -313,19 +333,19 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
                     continue
 
 
-
-
 if __name__ == "__main__":
     parameters = Parameters()
 
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
+    parameters.use_state_discrimination = False
+    parameters.num_shots = 100
 
     options = CalibrationOptions()
 
     calibration = RabiChevron(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

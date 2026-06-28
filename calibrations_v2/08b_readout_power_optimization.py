@@ -344,11 +344,11 @@ class ReadoutPowerOptimization(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
     parameters.use_state_discrimination = True
-    parameters.reset_type = "active"
+    parameters.reset_type = "thermal"
     parameters.start_amp = 0
     parameters.end_amp = 2
-    parameters.num_amps = 100
-    parameters.num_shots = 100
+    parameters.num_amps = 20
+    parameters.num_shots = 1000
 
     options = CalibrationOptions()
 

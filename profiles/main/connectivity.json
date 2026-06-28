@@ -21,37 +21,37 @@
             "2": {
               "band": 1,
               "lo_frequency_hz": 4200000000,
-              "full_scale_power_dbm": -10,
+              "full_scale_power_dbm": 0,
               "sampling_rate_hz": 1000000000
             },
             "3": {
               "band": 1,
               "lo_frequency_hz": 4200000000,
-              "full_scale_power_dbm": -10,
+              "full_scale_power_dbm": 0,
               "sampling_rate_hz": 1000000000
             },
             "4": {
               "band": 1,
               "lo_frequency_hz": 4200000000,
-              "full_scale_power_dbm": -10,
+              "full_scale_power_dbm": 0,
               "sampling_rate_hz": 1000000000
             },
             "5": {
               "band": 1,
               "lo_frequency_hz": 4200000000,
-              "full_scale_power_dbm": -10,
+              "full_scale_power_dbm": 0,
               "sampling_rate_hz": 1000000000
             },
             "6": {
               "band": 1,
               "lo_frequency_hz": 4200000000,
-              "full_scale_power_dbm": -10,
+              "full_scale_power_dbm": 0,
               "sampling_rate_hz": 1000000000
             },
             "7": {
               "band": 1,
               "lo_frequency_hz": 4200000000,
-              "full_scale_power_dbm": -10,
+              "full_scale_power_dbm": 0,
               "sampling_rate_hz": 1000000000
             },
             "8": {

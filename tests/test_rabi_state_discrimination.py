@@ -24,17 +24,18 @@ REPOSITORY_ROOT = Path(__file__).parent.parent
 
 class RabiStateDiscriminationTests(unittest.TestCase):
     def test_power_rabi_uses_parameter_for_acquisition_and_plotting(self):
-        source = (REPOSITORY_ROOT / "calibrations" / "04b_power_rabi.py").read_text()
+        source = (REPOSITORY_ROOT / "calibrations_v2" / "04b_power_rabi.py").read_text()
 
         self.assertNotIn("node.use_state_discrimination", source)
-        self.assertIn("if node.parameters.use_state_discrimination:", source)
+        self.assertIn("if self.parameters.use_state_discrimination:", source)
         self.assertIn("qubit.readout_state(state[i])", source)
-        self.assertIn('save(f"state{i + 1}")', source)
-        self.assertIn("validate_readout_dataset(dataset, node.parameters.use_state_discrimination)", source)
-        self.assertIn("use_state_discrimination=node.parameters.use_state_discrimination", source)
+        self.assertIn('f"state{i + 1}"', source)
+        self.assertIn("validate_readout_dataset(", source)
+        self.assertIn("self.parameters.use_state_discrimination", source)
+        self.assertIn("use_state_discrimination=self.parameters.use_state_discrimination", source)
 
     def test_rabi_chevron_uses_parameter_for_acquisition_and_plotting(self):
-        source = (REPOSITORY_ROOT / "calibrations" / "04a_rabi_chevron.py").read_text()
+        source = (REPOSITORY_ROOT / "calibrations_v2" / "04a_rabi_chevron.py").read_text()
 
         self.assertIn("state_discrimination = node.parameters.use_state_discrimination", source)
         self.assertIn("state = [declare(int) for _ in range(num_qubits)]", source)

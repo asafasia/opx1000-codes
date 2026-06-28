@@ -57,10 +57,6 @@ State update:
 # Be sure to include [Parameters, Quam] so the node has proper type hinting
 
 
-
-
-
-
 # Any parameters that should change for debugging purposes only should go in here
 # These parameters are ignored when run through the GUI or as part of a graph
 # %% {Create_QUA_program}
@@ -73,6 +69,7 @@ State update:
 # %% {Update_state}
 # %% {Propose_profile_update}
 # %% {Save_results}
+
 
 class T1(BaseCalibration[Parameters, Quam]):
     """v2 class migration for ``calibrations/05_T1.py``."""
@@ -90,6 +87,7 @@ class T1(BaseCalibration[Parameters, Quam]):
             machine=machine,
             **kwargs,
         )
+
     def create_qua_program(self):
         node = self
         """Create the sweep axes and generate the QUA program from the pulse sequence and the node parameters."""
@@ -104,7 +102,9 @@ class T1(BaseCalibration[Parameters, Quam]):
         # Register the sweep axes to be added to the dataset when fetching data
         node.namespace["sweep_axes"] = {
             "qubit": xr.DataArray(qubits.get_names()),
-            "idle_time": xr.DataArray(4 * idle_times, attrs={"long_name": "idle time", "units": "ns"}),
+            "idle_time": xr.DataArray(
+                4 * idle_times, attrs={"long_name": "idle time", "units": "ns"}
+            ),
         }
 
         # The QUA program stored in the node namespace to be transfer to the simulation and execution run_actions
@@ -130,7 +130,6 @@ class T1(BaseCalibration[Parameters, Quam]):
                                 node.parameters.simulate,
                                 # log_callable=node.log,
                             )
-                            # qubit.wait(10000)
                         # Multiplexed sync: every qubit must finish reset (possibly different durations, e.g. active reset)
                         # before any manipulation starts; also keeps shared resources (e.g. TWPA sticky elements) coherent.
                         align()
@@ -151,13 +150,15 @@ class T1(BaseCalibration[Parameters, Quam]):
                                 qubit.readout_state(state[i])
                                 save(state[i], state_st[i])
                             else:
-                                qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
+                                qubit.resonator.measure(
+                                    "readout", qua_vars=(I[i], Q[i])
+                                )
                                 # save data
                                 save(I[i], I_st[i])
                                 save(Q[i], Q_st[i])
 
                         # End-of-segment barrier before the next sweep step (and before sticky/aux elements ramp down early).
-                            # qubit.wait(10000)
+                        # qubit.wait(10000)
 
                         align()
 
@@ -165,13 +166,15 @@ class T1(BaseCalibration[Parameters, Quam]):
                 n_st.save("n")
                 for i in range(num_qubits):
                     if node.parameters.use_state_discrimination:
-                        state_st[i].buffer(len(idle_times)).average().save(f"state{i + 1}")
+                        state_st[i].buffer(len(idle_times)).average().save(
+                            f"state{i + 1}"
+                        )
                     else:
                         I_st[i].buffer(len(idle_times)).average().save(f"I{i + 1}")
                         Q_st[i].buffer(len(idle_times)).average().save(f"Q{i + 1}")
 
-
         return node.namespace.get("qua_program")
+
     def simulate_qua_program(self):
         node = self
         """Connect to the QOP and simulate the QUA program"""
@@ -180,10 +183,11 @@ class T1(BaseCalibration[Parameters, Quam]):
         # Get the config from the machine
         config = node.machine.generate_config()
         # Simulate the QUA program, generate the waveform report and plot the simulated samples
-        samples, fig, wf_report = simulate_and_plot(qmm, config, node.namespace["qua_program"], node.parameters)
+        samples, fig, wf_report = simulate_and_plot(
+            qmm, config, node.namespace["qua_program"], node.parameters
+        )
         # Store the figure, waveform report and simulated samples
         node.results["simulation"] = {"figure": fig, "wf_report": wf_report.to_dict()}
-
 
     def execute_qua_program(self):
         node = self
@@ -209,7 +213,6 @@ class T1(BaseCalibration[Parameters, Quam]):
         # Register the raw dataset
         node.results["ds_raw"] = dataset
 
-
     def save_raw_results(self):
         node = self
         """Save the acquired vectors and a snapshot of the selected profile."""
@@ -222,7 +225,6 @@ class T1(BaseCalibration[Parameters, Quam]):
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")
 
-
     def load_data(self):
         node = self
         """Load a previously acquired dataset."""
@@ -232,7 +234,6 @@ class T1(BaseCalibration[Parameters, Quam]):
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
         node.namespace["qubits"] = get_qubits(node)
-
 
     def analyse_data(self):
         node = self
@@ -247,7 +248,6 @@ class T1(BaseCalibration[Parameters, Quam]):
             qubit_name: ("successful" if fit_result["success"] else "failed")
             for qubit_name, fit_result in node.results["fit_results"].items()
         }
-
 
     def plot_data(self):
         node = self
@@ -268,7 +268,6 @@ class T1(BaseCalibration[Parameters, Quam]):
             )
             node.log(f"Calibration figures saved to {figures_directory}")
 
-
     def update_state(self):
         node = self
         """Update the relevant parameters if the qubit data analysis was successful."""
@@ -278,7 +277,6 @@ class T1(BaseCalibration[Parameters, Quam]):
                     continue
 
                 q.T1 = float(node.results["ds_fit"].sel(qubit=q.name).tau.values) * 1e-9
-
 
     def propose_profile_update(self):
         node = self
@@ -291,10 +289,10 @@ class T1(BaseCalibration[Parameters, Quam]):
             if node.outcomes[q.name] == "successful"
         }
         if updates:
-            proposal = ProfileUpdater().stage(node.name, updates, profile_name=current_profile_name())
+            proposal = ProfileUpdater().stage(
+                node.name, updates, profile_name=current_profile_name()
+            )
             ProfileUpdater().confirm_and_apply(proposal)
-
-
 
 
 if __name__ == "__main__":
@@ -311,6 +309,6 @@ if __name__ == "__main__":
     calibration = T1(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q2"),
     )
     calibration.run()

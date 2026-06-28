@@ -71,8 +71,6 @@ State update:
 # Create the machine directly from profiles/main without loading state.json.
 
 
-
-
 def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> None:
     """Ensure fetched results match the requested readout mode."""
     variables = set(ds.data_vars)
@@ -105,13 +103,14 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
             machine=machine,
             **kwargs,
         )
+
     def create_qua_program(self):
         node = self
         """Create the sweep axes and generate the QUA program from the pulse sequence and the node parameters."""
         # Class containing tools to help handle units and conversions.
         u = unit(coerce_to_integer=True)
         # Get the active qubits from the node and organize them by batches
-        node.namespace["qubits"] = qubits = get_qubits(node) 
+        node.namespace["qubits"] = qubits = get_qubits(node)
         num_qubits = len(qubits)
 
         operation = node.parameters.operation  # The qubit operation to play
@@ -151,6 +150,8 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
                     save(n, n_st)
                     with for_(*from_array(df, dfs)):
                         for i, qubit in multiplexed_qubits.items():
+                            qubit.xy.update_frequency(qubit.xy.intermediate_frequency)
+
                             qubit.reset(
                                 node.parameters.reset_type,
                                 node.parameters.simulate,
@@ -163,7 +164,9 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
                                 else qubit.xy.operations[operation].length
                             )
                             # Update the qubit frequency
-                            qubit.xy.update_frequency(df + qubit.xy.intermediate_frequency)
+                            qubit.xy.update_frequency(
+                                df + qubit.xy.intermediate_frequency
+                            )
                             # Play the saturation pulse
                             qubit.xy.play(
                                 operation,
@@ -178,7 +181,9 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
                                 qubit.readout_state(state[i])
                                 save(state[i], state_st[i])
                             else:
-                                qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
+                                qubit.resonator.measure(
+                                    "readout", qua_vars=(I[i], Q[i])
+                                )
                                 save(I[i], I_st[i])
                                 save(Q[i], Q_st[i])
 
@@ -194,8 +199,8 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
                         I_st[i].buffer(len(dfs)).average().save(f"I{i + 1}")
                         Q_st[i].buffer(len(dfs)).average().save(f"Q{i + 1}")
 
-
         return node.namespace.get("qua_program")
+
     def simulate_qua_program(self):
         node = self
         """Connect to the QOP and simulate the QUA program"""
@@ -214,7 +219,6 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
             "samples": samples,
         }
         plt.show()
-
 
     def execute_qua_program(self):
         node = self
@@ -241,7 +245,6 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
         validate_readout_dataset(dataset, node.parameters.use_state_discrimination)
         node.results["ds_raw"] = dataset
 
-
     def load_data(self):
         node = self
         """Load a previously acquired dataset."""
@@ -251,7 +254,6 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
         node.namespace["qubits"] = get_qubits(node)
-
 
     def save_raw_results(self):
         node = self
@@ -265,11 +267,12 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")
 
-
     def analyse_data(self):
         node = self
         """Analyse the raw data and store the fitted data in another xarray dataset "ds_fit" and the fitted results in the "fit_results" dictionary."""
-        validate_readout_dataset(node.results["ds_raw"], node.parameters.use_state_discrimination)
+        validate_readout_dataset(
+            node.results["ds_raw"], node.parameters.use_state_discrimination
+        )
         node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
         node.results["ds_fit"], fit_results = fit_raw_data(node.results["ds_raw"], node)
         node.results["fit_results"] = {k: asdict(v) for k, v in fit_results.items()}
@@ -280,7 +283,6 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
             qubit_name: ("successful" if fit_result["success"] else "failed")
             for qubit_name, fit_result in node.results["fit_results"].items()
         }
-
 
     def plot_data(self):
         node = self
@@ -305,7 +307,6 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
             )
             node.log(f"Calibration figures saved to {figures_directory}")
 
-
     def propose_profile_update(self):
         node = self
         """Stage fitted qubit frequencies and apply them only after confirmation."""
@@ -317,26 +318,34 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
             if node.outcomes[q.name] == "successful"
         }
         if updates:
-            proposal = ProfileUpdater().stage(node.name, updates, profile_name=current_profile_name())
+            proposal = ProfileUpdater().stage(
+                node.name, updates, profile_name=current_profile_name()
+            )
             ProfileUpdater().confirm_and_apply(proposal)
-
-
 
 
 if __name__ == "__main__":
     parameters = Parameters()
 
+    qubit = "q1"
+
     parameters.use_state_discrimination = False
-    parameters.num_shots = 1000
-    parameters.operation_amplitude_factor = 0.0005
-    parameters.frequency_span_in_mhz = 3
-    parameters.frequency_step_in_mhz = 0.03
+    parameters.num_shots = 100
+    parameters.operation_amplitude_factor = 0.005
+    parameters.frequency_span_in_mhz = 400
+    parameters.frequency_step_in_mhz = 0.5
+    parameters.reset_type = "thermal"
 
     options = CalibrationOptions()
+
+    machine = create_machine(qubit=qubit)
+
+    # machine.qubits["q1"].f_01 = 4.25e9
+    # machine.qubits[qubit].xy.RF_frequency -= 100e9
 
     calibration = QubitSpectroscopy(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=machine,
     )
     calibration.run()

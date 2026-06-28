@@ -20,7 +20,11 @@ from qualang_tools.results import progress_counter
 from qualang_tools.units import unit
 from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.parameters import get_qubits
-from calibration_utils.power_rabi_chevron import Parameters, plot_raw_data, process_raw_dataset
+from calibration_utils.power_rabi_chevron import (
+    Parameters,
+    plot_raw_data,
+    process_raw_dataset,
+)
 from quam_config import Quam, create_machine
 from calibration_io import CalibrationSaver, current_profile_name
 from utils.plotting_settings import plot_per_qubit
@@ -42,11 +46,6 @@ useful pulse-amplitude range. It does not automatically update pulse parameters.
 """
 
 
-
-
-
-
-
 def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> None:
     """Ensure fetched results match the requested readout mode."""
     variables = set(ds.data_vars)
@@ -61,7 +60,6 @@ def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> 
             f"dataset variables={sorted(variables)}, "
             f"missing={sorted(missing)}, unexpected={sorted(present_unexpected)}"
         )
-
 
 
 class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
@@ -80,6 +78,7 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
             machine=machine,
             **kwargs,
         )
+
     def create_qua_program(self):
         node = self
         """Create the frequency-versus-amplitude Rabi-chevron QUA program."""
@@ -89,7 +88,9 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
         operation = node.parameters.operation
         for qubit in qubits:
             if operation not in qubit.xy.operations:
-                raise ValueError(f"{qubit.name} does not define operation {operation!r}.")
+                raise ValueError(
+                    f"{qubit.name} does not define operation {operation!r}."
+                )
 
         amps = np.arange(
             node.parameters.min_amp_factor,
@@ -109,7 +110,9 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
 
         node.namespace["sweep_axes"] = {
             "qubit": xr.DataArray(qubits.get_names()),
-            "detuning": xr.DataArray(dfs, attrs={"long_name": "qubit detuning", "units": "Hz"}),
+            "detuning": xr.DataArray(
+                dfs, attrs={"long_name": "qubit detuning", "units": "Hz"}
+            ),
             "amp_prefactor": xr.DataArray(
                 amps,
                 attrs={"long_name": "pulse amplitude prefactor"},
@@ -134,13 +137,17 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
                     with for_(*from_array(df, dfs)):
                         with for_(*from_array(a, amps)):
                             for qubit in multiplexed_qubits.values():
-                                qubit.xy.update_frequency(qubit.xy.intermediate_frequency)
+                                qubit.xy.update_frequency(
+                                    qubit.xy.intermediate_frequency
+                                )
                                 qubit.reset(
                                     node.parameters.reset_type,
                                     node.parameters.simulate,
                                     # log_callable=node.log,
                                 )
-                                qubit.xy.update_frequency(qubit.xy.intermediate_frequency + df)
+                                qubit.xy.update_frequency(
+                                    qubit.xy.intermediate_frequency + df
+                                )
                             align()
 
                             for qubit in multiplexed_qubits.values():
@@ -152,10 +159,11 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
                                     qubit.readout_state(state[i])
                                     save(state[i], state_st[i])
                                 else:
-                                    qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
+                                    qubit.resonator.measure(
+                                        "readout", qua_vars=(I[i], Q[i])
+                                    )
                                     save(I[i], I_st[i])
                                     save(Q[i], Q_st[i])
-
 
                             align()
 
@@ -163,13 +171,19 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
                 n_st.save("n")
                 for i in range(num_qubits):
                     if node.parameters.use_state_discrimination:
-                        state_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(f"state{i + 1}")
+                        state_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(
+                            f"state{i + 1}"
+                        )
                     else:
-                        I_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(f"I{i + 1}")
-                        Q_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(f"Q{i + 1}")
-
+                        I_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(
+                            f"I{i + 1}"
+                        )
+                        Q_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(
+                            f"Q{i + 1}"
+                        )
 
         return node.namespace.get("qua_program")
+
     def simulate_qua_program(self):
         node = self
         qmm = node.machine.connect()
@@ -185,7 +199,6 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
             "waveform_report": waveform_report,
             "samples": samples,
         }
-
 
     def execute_qua_program(self):
         node = self
@@ -204,7 +217,6 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
         validate_readout_dataset(dataset, node.parameters.use_state_discrimination)
         node.results["ds_raw"] = dataset
 
-
     def save_raw_results(self):
         node = self
         output_directory = CalibrationSaver().save_xarray(
@@ -216,7 +228,6 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")
 
-
     def load_data(self):
         node = self
         load_data_id = node.parameters.load_data_id
@@ -224,12 +235,12 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
         node.parameters.load_data_id = load_data_id
         node.namespace["qubits"] = get_qubits(node)
 
-
     def analyse_data(self):
         node = self
-        validate_readout_dataset(node.results["ds_raw"], node.parameters.use_state_discrimination)
+        validate_readout_dataset(
+            node.results["ds_raw"], node.parameters.use_state_discrimination
+        )
         node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
-
 
     def plot_data(self):
         node = self
@@ -250,21 +261,23 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
         plt.show()
 
 
-
-
 if __name__ == "__main__":
     parameters = Parameters()
 
-    parameters.operation = 'saturation'
+    parameters.operation = "saturation"
+    parameters.frequency_span_in_mhz = 500
+    parameters.frequency_step_in_mhz = 2
+    parameters.min_amp_factor = 0
+    parameters.amp_factor_step = 0.05
     parameters.max_amp_factor = 1
-    parameters.frequency_span_in_mhz = 200
-    parameters.frequency_step_in_mhz = 1
+    parameters.num_shots = 200
+    parameters.use_state_discrimination = False
 
     options = CalibrationOptions()
 
     calibration = PowerRabiChevron(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q2"),
     )
     calibration.run()

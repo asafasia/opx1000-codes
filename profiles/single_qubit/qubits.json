@@ -9,7 +9,7 @@
       "frequencies_hz": {
         "qubit_f01": 4267000000.0,
         "qubit_f12": null,
-        "resonator": 6668800000.0,
+        "resonator": 6668700000.0,
         "resonator_bare": null
       },
       "transmon": {
@@ -23,10 +23,10 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": -0.00024567774237371315,
-        "rus_exit_threshold": -0.00024567774237371315,
+        "threshold": -0.00025235310076043025,
+        "rus_exit_threshold": -0.00025235310076043025,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": -1.9973659034767697
+        "integration_weights_angle_rad": -7.808138682914807
       },
       "operations": {
         "x180": "x180_const",
@@ -45,7 +45,7 @@
       "frequencies_hz": {
         "qubit_f01": 4092100000.0,
         "qubit_f12": null,
-        "resonator": 6780000000.0,
+        "resonator": 6780200000.0,
         "resonator_bare": null
       },
       "transmon": {
@@ -59,10 +59,10 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0.00012442630709138603,
-        "rus_exit_threshold": 0.00012442630709138603,
+        "threshold": -0.00011110145795089341,
+        "rus_exit_threshold": -0.00011110145795089341,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 1.2446176869112695
+        "integration_weights_angle_rad": -0.3580264936252954
       },
       "operations": {
         "x180": "x180_const",
@@ -295,7 +295,7 @@
         0
       ],
       "frequencies_hz": {
-        "qubit_f01": 4349480000.0,
+        "qubit_f01": 4349510000.0,
         "qubit_f12": 4133600000.0,
         "resonator": 7471500000.0,
         "resonator_bare": null
@@ -311,10 +311,10 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0.0006101443505523559,
-        "rus_exit_threshold": 0.0006101443505523559,
+        "threshold": 0.0004907580497330445,
+        "rus_exit_threshold": 0.0004907580497330445,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 1.6332429039792893
+        "integration_weights_angle_rad": 1.6637128398197025
       },
       "operations": {
         "x180": "x180_const",

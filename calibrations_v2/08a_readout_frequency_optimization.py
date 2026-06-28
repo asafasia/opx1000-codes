@@ -57,8 +57,6 @@ State update:
 """
 
 
-
-
 # Any parameters that should change for debugging purposes only should go in here
 # These parameters are ignored when run through the GUI or as part of a graph
 # %% {Create_QUA_program}
@@ -70,6 +68,7 @@ State update:
 # %% {Plot_data}
 # %% {Update_state}
 # %% {Propose_profile_update}
+
 
 class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
     """v2 class migration for ``calibrations/08a_readout_frequency_optimization.py``."""
@@ -87,6 +86,7 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
             machine=machine,
             **kwargs,
         )
+
     def create_qua_program(self):
         node = self
         """Create the sweep axes and generate the QUA program from the pulse sequence and the node parameters."""
@@ -104,7 +104,9 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
         # Register the sweep axes to be added to the dataset when fetching data
         node.namespace["sweep_axes"] = {
             "qubit": xr.DataArray(qubits.get_names()),
-            "detuning": xr.DataArray(dfs, attrs={"long_name": "readout frequency", "units": "Hz"}),
+            "detuning": xr.DataArray(
+                dfs, attrs={"long_name": "readout frequency", "units": "Hz"}
+            ),
         }
 
         with program() as node.namespace["qua_program"]:
@@ -132,7 +134,10 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
                         # Qubit initialization
                         for i, qubit in multiplexed_qubits.items():
                             # Update the resonator frequencies & reset the qubits
-                            update_frequency(qubit.resonator.name, df + qubit.resonator.intermediate_frequency)
+                            update_frequency(
+                                qubit.resonator.name,
+                                df + qubit.resonator.intermediate_frequency,
+                            )
                             qubit.reset(
                                 node.parameters.reset_type,
                                 node.parameters.simulate,
@@ -144,7 +149,9 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
                         # Qubit readout - |g> state
                         for i, qubit in multiplexed_qubits.items():
                             # Measure the state of the resonators
-                            qubit.resonator.measure("readout", qua_vars=(I_g[i], Q_g[i]))
+                            qubit.resonator.measure(
+                                "readout", qua_vars=(I_g[i], Q_g[i])
+                            )
                             # save data to their respective streams
                             save(I_g[i], I_g_st[i])
                             save(Q_g[i], Q_g_st[i])
@@ -165,7 +172,9 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
                             # Align the elements to measure after playing the qubit pulses.
                             qubit.align()
                             # Measure the state of the resonators
-                            qubit.resonator.measure("readout", qua_vars=(I_e[i], Q_e[i]))
+                            qubit.resonator.measure(
+                                "readout", qua_vars=(I_e[i], Q_e[i])
+                            )
                             # save data to their respective streams
                             save(I_e[i], I_e_st[i])
                             save(Q_e[i], Q_e_st[i])
@@ -178,8 +187,8 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
                     I_e_st[i].buffer(len(dfs)).average().save(f"I_e{i + 1}")
                     Q_e_st[i].buffer(len(dfs)).average().save(f"Q_e{i + 1}")
 
-
         return node.namespace.get("qua_program")
+
     def simulate_qua_program(self):
         node = self
         """Connect to the QOP and simulate the QUA program"""
@@ -188,10 +197,15 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
         # Get the config from the machine
         config = node.machine.generate_config()
         # Simulate the QUA program, generate the waveform report and plot the simulated samples
-        samples, fig, wf_report = simulate_and_plot(qmm, config, node.namespace["qua_program"], node.parameters)
+        samples, fig, wf_report = simulate_and_plot(
+            qmm, config, node.namespace["qua_program"], node.parameters
+        )
         # Store the figure, waveform report and simulated samples
-        node.results["simulation"] = {"figure": fig, "wf_report": wf_report, "samples": samples}
-
+        node.results["simulation"] = {
+            "figure": fig,
+            "wf_report": wf_report,
+            "samples": samples,
+        }
 
     def execute_qua_program(self):
         node = self
@@ -217,7 +231,6 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
         # Register the raw dataset
         node.results["ds_raw"] = dataset
 
-
     def save_raw_results(self):
         node = self
         """Save the acquired vectors and a snapshot of the selected profile."""
@@ -230,7 +243,6 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")
 
-
     def load_data(self):
         node = self
         """Load a previously acquired dataset."""
@@ -240,7 +252,6 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
         node.namespace["qubits"] = get_qubits(node)
-
 
     def analyse_data(self):
         node = self
@@ -255,7 +266,6 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
             qubit_name: ("successful" if fit_result["success"] else "failed")
             for qubit_name, fit_result in node.results["fit_results"].items()
         }
-
 
     def plot_data(self):
         node = self
@@ -285,7 +295,6 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
             )
             node.log(f"Calibration figures saved to {figures_directory}")
 
-
     def update_state(self):
         node = self
         """Update fitted values that are not currently represented in the profile."""
@@ -293,7 +302,6 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
             for q in node.namespace["qubits"]:
                 if node.results["fit_results"][q.name]["success"]:
                     q.chi = node.results["fit_results"][q.name]["chi"]
-
 
     def propose_profile_update(self):
         node = self
@@ -322,6 +330,6 @@ if __name__ == "__main__":
     calibration = ReadoutFrequencyOptimization(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

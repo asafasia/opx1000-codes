@@ -34,6 +34,16 @@ class FakeCalibration(BaseCalibration[SimpleNamespace, object]):
         self.results["updated"] = True
 
 
+class OrderedCalibration(FakeCalibration):
+    def update_state(self):
+        super().update_state()
+        self.results.setdefault("lifecycle_order", []).append("update_state")
+
+    def propose_profile_update(self, *, apply: bool = True):
+        self.results.setdefault("lifecycle_order", []).append("propose_profile_update")
+        return True
+
+
 class FakeMachine:
     def __init__(self):
         self.qmm = Mock()
@@ -76,6 +86,27 @@ class CalibrationsV2BaseTests(unittest.TestCase):
             parameters = calibration.namespace["calibration_run_directory"] / "parameters.json"
             self.assertTrue(parameters.is_file())
             self.assertIn('"num_shots": 3', parameters.read_text(encoding="utf-8"))
+
+    def test_run_updates_state_before_profile_proposal(self):
+        calibration = OrderedCalibration(
+            name="ordered_calibration",
+            parameters=SimpleNamespace(simulate=False, load_data_id=None, num_shots=3),
+            machine=object(),
+            logger=lambda message: None,
+            options=CalibrationOptions(
+                save_raw_data=False,
+                save_figures=False,
+                plot_data=False,
+            ),
+        )
+
+        status = calibration.run()
+
+        self.assertTrue(status.profile_update_proposed)
+        self.assertEqual(
+            calibration.results["lifecycle_order"],
+            ["update_state", "propose_profile_update"],
+        )
 
     def test_options_can_skip_saving_plotting_and_updates(self):
         with tempfile.TemporaryDirectory() as directory:
