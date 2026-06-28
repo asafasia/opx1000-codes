@@ -95,6 +95,9 @@
         "controller": "con1",
         "fem": 7,
         "port": 1
+      },
+      "z_output": {
+        "global_line": "global_z"
       }
     },
     "q2": {
@@ -116,6 +119,9 @@
         "controller": "con1",
         "fem": 7,
         "port": 1
+      },
+      "z_output": {
+        "global_line": "global_z"
       }
     },
     "q3": {
@@ -137,6 +143,9 @@
         "controller": "con1",
         "fem": 7,
         "port": 1
+      },
+      "z_output": {
+        "global_line": "global_z"
       }
     },
     "q4": {
@@ -158,6 +167,9 @@
         "controller": "con1",
         "fem": 7,
         "port": 1
+      },
+      "z_output": {
+        "global_line": "global_z"
       }
     },
     "q5": {
@@ -179,6 +191,9 @@
         "controller": "con1",
         "fem": 7,
         "port": 1
+      },
+      "z_output": {
+        "global_line": "global_z"
       }
     },
     "q6": {
@@ -200,6 +215,9 @@
         "controller": "con1",
         "fem": 7,
         "port": 1
+      },
+      "z_output": {
+        "global_line": "global_z"
       }
     },
     "q7": {
@@ -221,6 +239,9 @@
         "controller": "con1",
         "fem": 7,
         "port": 1
+      },
+      "z_output": {
+        "global_line": "global_z"
       }
     },
     "q8": {
@@ -242,6 +263,9 @@
         "controller": "con1",
         "fem": 7,
         "port": 1
+      },
+      "z_output": {
+        "global_line": "global_z"
       }
     },
     "q9": {
@@ -263,6 +287,9 @@
         "controller": "con1",
         "fem": 7,
         "port": 1
+      },
+      "z_output": {
+        "global_line": "global_z"
       }
     },
     "q10": {
@@ -284,6 +311,9 @@
         "controller": "con1",
         "fem": 7,
         "port": 1
+      },
+      "z_output": {
+        "global_line": "global_z"
       }
     },
     "q11": {
@@ -305,6 +335,9 @@
         "controller": "con1",
         "fem": 7,
         "port": 2
+      },
+      "z_output": {
+        "global_line": "global_z"
       }
     },
     "q12": {
@@ -326,7 +359,16 @@
         "controller": "con1",
         "fem": 7,
         "port": 2
+      },
+      "z_output": {
+        "global_line": "global_z"
       }
+    }
+  },
+  "global_flux_lines": {
+    "global_z": {
+      "description": "Single chip-wide solenoid/Z bias shared by all transmons. Fill output when this bias is driven by an OPX LF-FEM/analog output; leave null for an external current source.",
+      "output": null
     }
   }
 }

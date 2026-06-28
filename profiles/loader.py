@@ -11,6 +11,7 @@ PROFILES_ROOT = Path(__file__).resolve().parent
 SUPPORTED_SCHEMA_VERSION = 1
 PULSE_TYPES = {"constant", "drag", "cosine", "saturation"}
 STATE_1_RULES = {"above_threshold", "below_threshold"}
+FLUX_POINTS = {"joint", "independent", "min", "arbitrary", "zero"}
 MAX_PROFILE_PULSE_AMPLITUDE = 0.7
 MW_FEM_BAND_RANGES_HZ = {
     1: (50e6, 5.5e9),
@@ -162,6 +163,19 @@ def _validate_mw_input_port(port: dict[str, Any], label: str) -> None:
     )
 
 
+def _validate_lf_output_port(port: dict[str, Any], label: str) -> None:
+    sampling_rate = port.get("sampling_rate_hz")
+    _require(
+        isinstance(sampling_rate, (int, float)) and sampling_rate > 0,
+        f"{label} needs positive sampling_rate_hz",
+    )
+    offset = port.get("offset_v")
+    _require(
+        offset is None or isinstance(offset, (int, float)),
+        f"{label} offset_v must be numeric or null",
+    )
+
+
 def _validate_shared_lo_output_pairs(connectivity: dict[str, Any]) -> None:
     """Require configured MW-FEM output pairs to use their shared physical LO."""
     for controller_name, controller in connectivity["controllers"].items():
@@ -179,6 +193,24 @@ def _validate_shared_lo_output_pairs(connectivity: dict[str, Any]) -> None:
                     f"{controller_name} MW-FEM {fem_name} outputs {first} and {second} "
                     "share an LO and must use the same lo_frequency_hz",
                 )
+
+
+def _global_flux_output_reference(
+    connectivity: dict[str, Any], connection: dict[str, Any]
+) -> dict[str, Any] | None:
+    z_output = connection.get("z_output")
+    if z_output is None:
+        return None
+    if "global_line" not in z_output:
+        return z_output
+
+    lines = connectivity.get("global_flux_lines", {})
+    try:
+        return lines[z_output["global_line"]].get("output")
+    except KeyError as exc:
+        raise ProfileError(
+            f"Global flux line {z_output['global_line']!r} is undefined"
+        ) from exc
 
 
 def _validate_connectivity(connectivity: dict[str, Any], qubits_document: dict[str, Any]) -> None:
@@ -221,6 +253,15 @@ def _validate_connectivity(connectivity: dict[str, Any], qubits_document: dict[s
             f"Qubit {qubit_name!r} resonator IF exceeds {MW_FEM_MAX_IF_HZ / 1e6:g} MHz: "
             f"RF={frequencies['resonator']} Hz, connectivity output LO={resonator_output['lo_frequency_hz']} Hz",
         )
+        z_output_reference = _global_flux_output_reference(connectivity, connection)
+        if z_output_reference is not None:
+            z_output = _get_port(
+                connectivity,
+                z_output_reference,
+                "outputs",
+                f"{qubit_name}.z_output",
+            )
+            _validate_lf_output_port(z_output, f"Qubit {qubit_name!r} Z output")
 
 
 def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str, Any]) -> None:
@@ -239,6 +280,7 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
         operations = qubit.get("operations", {})
         readout = qubit.get("readout", {})
         transmon = qubit.get("transmon", {})
+        flux = qubit.get("flux")
 
         for frequency_name in ("qubit_f01", "resonator"):
             _require(
@@ -267,6 +309,34 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
             f"Qubit {name!r} needs positive integer transmon.thermalization_time_ns",
         )
         _require(isinstance(operations, dict) and operations, f"Qubit {name!r} must define operations")
+
+        if flux is not None:
+            _require(isinstance(flux, dict), f"Qubit {name!r} flux must be an object")
+            _require(
+                flux.get("flux_point") in FLUX_POINTS,
+                f"Qubit {name!r} has invalid flux.flux_point",
+            )
+            for offset_name in (
+                "independent_offset_v",
+                "joint_offset_v",
+                "min_offset_v",
+                "arbitrary_offset_v",
+            ):
+                _require(
+                    isinstance(flux.get(offset_name), (int, float)),
+                    f"Qubit {name!r} needs numeric flux.{offset_name}",
+                )
+            for optional_name in (
+                "settle_time_ns",
+                "freq_vs_flux_01_quad_term",
+                "phi0_current_a",
+                "phi0_voltage_v",
+            ):
+                value = flux.get(optional_name)
+                _require(
+                    value is None or isinstance(value, (int, float)),
+                    f"Qubit {name!r} flux.{optional_name} must be numeric or null",
+                )
 
         for operation_name, pulse_name in operations.items():
             _require(pulse_name in qubit_pulses, f"Qubit {name!r} operation {operation_name!r} references unknown pulse {pulse_name!r}")
@@ -372,6 +442,30 @@ def _selected_hardware(
         )
         fem[direction][port_name] = deepcopy(source_port)
 
+    z_reference = _global_flux_output_reference(connectivity, connection)
+    if z_reference is not None:
+        try:
+            controller_name = z_reference["controller"]
+            fem_name = str(z_reference["fem"])
+            port_name = str(z_reference["port"])
+            source_controller = connectivity["controllers"][controller_name]
+            source_fem = source_controller["fems"][fem_name]
+            source_port = source_fem["outputs"][port_name]
+        except KeyError as exc:
+            raise ProfileError(
+                "Selected qubit has incomplete z_output hardware configuration"
+            ) from exc
+
+        controller = selected_controllers.setdefault(
+            controller_name,
+            {"type": source_controller["type"], "fems": {}},
+        )
+        fem = controller["fems"].setdefault(
+            fem_name,
+            {"type": source_fem["type"], "outputs": {}, "inputs": {}},
+        )
+        fem["outputs"][port_name] = deepcopy(source_port)
+
     selected["controllers"] = selected_controllers
     return selected
 
@@ -415,6 +509,17 @@ def _select_qubit(profile: dict[str, Any], qubit: str) -> dict[str, Any]:
         profile["metrics"]["qubits"] = {qubit: profile["metrics"]["qubits"][qubit]}
     profile["connectivity"] = _selected_hardware(profile["connectivity"], connection)
     profile["connectivity"]["connections"] = {qubit: connection}
+    if "global_flux_lines" in profile["connectivity"]:
+        referenced_line = connection.get("z_output", {}).get("global_line")
+        profile["connectivity"]["global_flux_lines"] = (
+            {
+                referenced_line: profile["connectivity"]["global_flux_lines"][
+                    referenced_line
+                ]
+            }
+            if referenced_line is not None
+            else {}
+        )
     xy_output = _get_port(
         profile["connectivity"], connection["xy_output"], "outputs", f"{qubit}.xy_output"
     )

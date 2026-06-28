@@ -19,7 +19,7 @@ from qualang_tools.wirer.connectivity.wiring_spec import (
     WiringIOType,
     WiringLineType,
 )
-from qualang_tools.wirer.wirer.channel_specs import mw_fem_spec
+from qualang_tools.wirer.wirer.channel_specs import lf_fem_spec, mw_fem_spec
 from quam_builder.builder.qop_connectivity import build_quam_wiring
 from quam_builder.builder.superconducting import build_quam
 
@@ -48,17 +48,16 @@ def _qubit_reference(qubit_name: str) -> int:
     return int(match.group(1))
 
 
-def _mw_fem_inventory(connectivity_profile: dict[str, Any]) -> dict[int, list[int]]:
-    """Return MW-FEM slots grouped by controller."""
+def _fem_inventory(
+    connectivity_profile: dict[str, Any], fem_type: str
+) -> dict[int, list[int]]:
+    """Return FEM slots of the requested type grouped by controller."""
     inventory: dict[int, list[int]] = defaultdict(list)
     for controller_name, controller in connectivity_profile["controllers"].items():
         controller_number = _controller_number(controller_name)
         for fem_name, fem in controller["fems"].items():
-            if fem["type"] != "mw_fem":
-                raise ProfileError(
-                    f"Unsupported FEM type {fem['type']!r} at "
-                    f"{controller_name}/{fem_name}"
-                )
+            if fem["type"] != fem_type:
+                continue
             inventory[controller_number].append(int(fem_name))
     return dict(inventory)
 
@@ -104,6 +103,40 @@ def _xy_lines(
     return dict(lines)
 
 
+def _global_flux_output_reference(
+    connectivity_profile: dict[str, Any], connection: dict[str, Any]
+) -> dict[str, Any] | None:
+    z_output = connection.get("z_output")
+    if z_output is None:
+        return None
+    if "global_line" not in z_output:
+        return z_output
+    return connectivity_profile["global_flux_lines"][z_output["global_line"]].get(
+        "output"
+    )
+
+
+def _z_lines(
+    connectivity_profile: dict[str, Any], active_qubits: list[str]
+) -> dict[tuple[int, int, int], list[int]]:
+    """Group qubits that share the same DC Z output line."""
+    lines: dict[tuple[int, int, int], list[int]] = defaultdict(list)
+    connections = connectivity_profile["connections"]
+    for qubit_name in active_qubits:
+        output = _global_flux_output_reference(
+            connectivity_profile, connections[qubit_name]
+        )
+        if output is None:
+            continue
+        key = (
+            _controller_number(output["controller"]),
+            int(output["fem"]),
+            int(output["port"]),
+        )
+        lines[key].append(_qubit_reference(qubit_name))
+    return dict(lines)
+
+
 def create_profile_connectivity(
     profile: dict[str, Any],
 ) -> tuple[Connectivity, Instruments]:
@@ -113,8 +146,10 @@ def create_profile_connectivity(
     connections = connectivity_profile["connections"]
 
     instruments = Instruments()
-    for controller, slots in _mw_fem_inventory(connectivity_profile).items():
+    for controller, slots in _fem_inventory(connectivity_profile, "mw_fem").items():
         instruments.add_mw_fem(controller=controller, slots=sorted(slots))
+    for controller, slots in _fem_inventory(connectivity_profile, "lf_fem").items():
+        instruments.add_lf_fem(controller=controller, slots=sorted(slots))
 
     connectivity = Connectivity()
     for (controller, fem, input_port, output_port), qubits in _resonator_lines(
@@ -148,6 +183,30 @@ def create_profile_connectivity(
                 frequency=WiringFrequency.RF,
                 io_type=WiringIOType.OUTPUT,
                 line_type=WiringLineType.DRIVE,
+                triggered=False,
+                constraints=constraints,
+                elements=connectivity._make_qubit_elements(qubits),
+                shared_line=True,
+            )
+
+    for (controller, fem, output_port), qubits in _z_lines(
+        connectivity_profile, qubit_names
+    ).items():
+        constraints = lf_fem_spec(
+            con=controller,
+            out_slot=fem,
+            out_port=output_port,
+        )
+        if len(qubits) == 1:
+            connectivity.add_qubit_flux_lines(
+                qubits=qubits,
+                constraints=constraints,
+            )
+        else:
+            connectivity.add_wiring_spec(
+                frequency=WiringFrequency.DC,
+                io_type=WiringIOType.OUTPUT,
+                line_type=WiringLineType.FLUX,
                 triggered=False,
                 constraints=constraints,
                 elements=connectivity._make_qubit_elements(qubits),

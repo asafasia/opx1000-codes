@@ -1,8 +1,7 @@
 from pathlib import Path
 
 from quam.core import quam_dataclass
-from quam_builder.architecture.superconducting.qpu import FixedFrequencyQuam, FluxTunableQuam
-from quam_builder.architecture.superconducting.qubit import FixedFrequencyTransmon
+from quam_builder.architecture.superconducting.qpu import FluxTunableQuam
 
 
 TEMPORARY_MW_FEM_INPUT_LO_MODE = "always_on"
@@ -23,9 +22,8 @@ def apply_temporary_mw_fem_lo_mode_bugfix(config):
 
 
 # Define the QUAM class that will be used in all calibration nodes
-# Should inherit from either FixedFrequencyQuam or FluxTunableQuam
 @quam_dataclass
-class Quam(FixedFrequencyQuam):
+class Quam(FluxTunableQuam):
     @classmethod
     def load(cls, filepath_or_dict=None, *args, **kwargs):
         """Build a fresh machine from the selected profile by default."""
@@ -53,4 +51,3 @@ class Quam(FixedFrequencyQuam):
         if path is None or Path(path) == Path("."):
             return None
         return super().save(path, content_mapping, include_defaults, ignore)
-

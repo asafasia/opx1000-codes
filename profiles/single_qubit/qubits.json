@@ -35,6 +35,18 @@
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
         "readout": "readout"
+      },
+      "flux": {
+        "global_line": "global_z",
+        "flux_point": "arbitrary",
+        "independent_offset_v": 0.0,
+        "joint_offset_v": 0.0,
+        "min_offset_v": 0.0,
+        "arbitrary_offset_v": 0.0,
+        "settle_time_ns": null,
+        "freq_vs_flux_01_quad_term": null,
+        "phi0_current_a": null,
+        "phi0_voltage_v": null
       }
     },
     "q2": {
@@ -71,6 +83,18 @@
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
         "readout": "readout"
+      },
+      "flux": {
+        "global_line": "global_z",
+        "flux_point": "arbitrary",
+        "independent_offset_v": 0.0,
+        "joint_offset_v": 0.0,
+        "min_offset_v": 0.0,
+        "arbitrary_offset_v": 0.0,
+        "settle_time_ns": null,
+        "freq_vs_flux_01_quad_term": null,
+        "phi0_current_a": null,
+        "phi0_voltage_v": null
       }
     },
     "q3": {
@@ -107,6 +131,18 @@
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
         "readout": "readout"
+      },
+      "flux": {
+        "global_line": "global_z",
+        "flux_point": "arbitrary",
+        "independent_offset_v": 0.0,
+        "joint_offset_v": 0.0,
+        "min_offset_v": 0.0,
+        "arbitrary_offset_v": 0.0,
+        "settle_time_ns": null,
+        "freq_vs_flux_01_quad_term": null,
+        "phi0_current_a": null,
+        "phi0_voltage_v": null
       }
     },
     "q4": {
@@ -143,6 +179,18 @@
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
         "readout": "readout"
+      },
+      "flux": {
+        "global_line": "global_z",
+        "flux_point": "arbitrary",
+        "independent_offset_v": 0.0,
+        "joint_offset_v": 0.0,
+        "min_offset_v": 0.0,
+        "arbitrary_offset_v": 0.0,
+        "settle_time_ns": null,
+        "freq_vs_flux_01_quad_term": null,
+        "phi0_current_a": null,
+        "phi0_voltage_v": null
       }
     },
     "q5": {
@@ -179,6 +227,18 @@
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
         "readout": "readout"
+      },
+      "flux": {
+        "global_line": "global_z",
+        "flux_point": "arbitrary",
+        "independent_offset_v": 0.0,
+        "joint_offset_v": 0.0,
+        "min_offset_v": 0.0,
+        "arbitrary_offset_v": 0.0,
+        "settle_time_ns": null,
+        "freq_vs_flux_01_quad_term": null,
+        "phi0_current_a": null,
+        "phi0_voltage_v": null
       }
     },
     "q6": {
@@ -215,6 +275,18 @@
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
         "readout": "readout"
+      },
+      "flux": {
+        "global_line": "global_z",
+        "flux_point": "arbitrary",
+        "independent_offset_v": 0.0,
+        "joint_offset_v": 0.0,
+        "min_offset_v": 0.0,
+        "arbitrary_offset_v": 0.0,
+        "settle_time_ns": null,
+        "freq_vs_flux_01_quad_term": null,
+        "phi0_current_a": null,
+        "phi0_voltage_v": null
       }
     },
     "q7": {
@@ -251,6 +323,18 @@
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
         "readout": "readout"
+      },
+      "flux": {
+        "global_line": "global_z",
+        "flux_point": "arbitrary",
+        "independent_offset_v": 0.0,
+        "joint_offset_v": 0.0,
+        "min_offset_v": 0.0,
+        "arbitrary_offset_v": 0.0,
+        "settle_time_ns": null,
+        "freq_vs_flux_01_quad_term": null,
+        "phi0_current_a": null,
+        "phi0_voltage_v": null
       }
     },
     "q8": {
@@ -287,6 +371,18 @@
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
         "readout": "readout"
+      },
+      "flux": {
+        "global_line": "global_z",
+        "flux_point": "arbitrary",
+        "independent_offset_v": 0.0,
+        "joint_offset_v": 0.0,
+        "min_offset_v": 0.0,
+        "arbitrary_offset_v": 0.0,
+        "settle_time_ns": null,
+        "freq_vs_flux_01_quad_term": null,
+        "phi0_current_a": null,
+        "phi0_voltage_v": null
       }
     },
     "q9": {
@@ -323,6 +419,18 @@
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
         "readout": "readout"
+      },
+      "flux": {
+        "global_line": "global_z",
+        "flux_point": "arbitrary",
+        "independent_offset_v": 0.0,
+        "joint_offset_v": 0.0,
+        "min_offset_v": 0.0,
+        "arbitrary_offset_v": 0.0,
+        "settle_time_ns": null,
+        "freq_vs_flux_01_quad_term": null,
+        "phi0_current_a": null,
+        "phi0_voltage_v": null
       }
     },
     "q10": {
@@ -359,6 +467,18 @@
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
         "readout": "readout"
+      },
+      "flux": {
+        "global_line": "global_z",
+        "flux_point": "arbitrary",
+        "independent_offset_v": 0.0,
+        "joint_offset_v": 0.0,
+        "min_offset_v": 0.0,
+        "arbitrary_offset_v": 0.0,
+        "settle_time_ns": null,
+        "freq_vs_flux_01_quad_term": null,
+        "phi0_current_a": null,
+        "phi0_voltage_v": null
       }
     },
     "q11": {
@@ -395,6 +515,18 @@
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
         "readout": "readout"
+      },
+      "flux": {
+        "global_line": "global_z",
+        "flux_point": "arbitrary",
+        "independent_offset_v": 0.0,
+        "joint_offset_v": 0.0,
+        "min_offset_v": 0.0,
+        "arbitrary_offset_v": 0.0,
+        "settle_time_ns": null,
+        "freq_vs_flux_01_quad_term": null,
+        "phi0_current_a": null,
+        "phi0_voltage_v": null
       }
     },
     "q12": {
@@ -431,6 +563,18 @@
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
         "readout": "readout"
+      },
+      "flux": {
+        "global_line": "global_z",
+        "flux_point": "arbitrary",
+        "independent_offset_v": 0.0,
+        "joint_offset_v": 0.0,
+        "min_offset_v": 0.0,
+        "arbitrary_offset_v": 0.0,
+        "settle_time_ns": null,
+        "freq_vs_flux_01_quad_term": null,
+        "phi0_current_a": null,
+        "phi0_voltage_v": null
       }
     }
   }

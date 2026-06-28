@@ -16,6 +16,7 @@ from quam.components.pulses import (
     SquarePulse,
     SquareReadoutPulse,
 )
+from quam_builder.architecture.superconducting.components.flux_line import FluxLine
 
 from profiles import MAX_PROFILE_PULSE_AMPLITUDE, ProfileError, load_profile
 from quam_config import Quam
@@ -57,6 +58,29 @@ def _apply_transmon_times(qubit: Any, transmon: dict[str, Any]) -> None:
             f"T1 ({reference_t1_ns} ns, or the 10000 ns default)"
         )
     qubit.thermalization_time_factor = factor
+
+
+def _apply_flux_settings(qubit: Any, flux: dict[str, Any] | None) -> None:
+    if flux is None:
+        return
+
+    qubit.freq_vs_flux_01_quad_term = flux.get("freq_vs_flux_01_quad_term") or 0.0
+    qubit.phi0_current = flux.get("phi0_current_a") or 0.0
+    qubit.phi0_voltage = flux.get("phi0_voltage_v") or 0.0
+
+    if qubit.z is None:
+        qubit.extras["flux"] = flux
+        return
+
+    if not isinstance(qubit.z, FluxLine):
+        raise ProfileError(f"{qubit.name} z component is not a FluxLine")
+
+    qubit.z.independent_offset = flux["independent_offset_v"]
+    qubit.z.joint_offset = flux["joint_offset_v"]
+    qubit.z.min_offset = flux["min_offset_v"]
+    qubit.z.arbitrary_offset = flux["arbitrary_offset_v"]
+    qubit.z.flux_point = flux["flux_point"]
+    qubit.z.settle_time = flux.get("settle_time_ns")
 
 
 def _create_pulse(
@@ -133,6 +157,7 @@ def apply_profile(machine: Quam, profile: dict[str, Any]) -> Quam:
         qubit_pulse_profiles = pulse_profiles[qubit_name]
         frequencies = settings["frequencies_hz"]
         transmon = settings["transmon"]
+        flux = settings.get("flux")
         readout = settings["readout"]
         connections = connectivity["connections"][qubit_name]
 
@@ -149,6 +174,10 @@ def apply_profile(machine: Quam, profile: dict[str, Any]) -> Quam:
         qubit.anharmonicity = transmon["anharmonicity_hz"]
         qubit.grid_location = ",".join(str(value) for value in settings["grid_location"])
         _apply_transmon_times(qubit, transmon)
+        _apply_flux_settings(qubit, flux)
+        global_flux_line = connections.get("z_output", {}).get("global_line")
+        if global_flux_line is not None:
+            qubit.extras["global_flux_line"] = global_flux_line
 
         qubit.xy.RF_frequency = frequencies["qubit_f01"]
         qubit.xy.opx_output.upconverter_frequency = xy_port["lo_frequency_hz"]

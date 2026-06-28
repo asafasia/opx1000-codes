@@ -9,7 +9,7 @@ from profiles.loader import validate_profile
 from quam_config import Quam
 from quam_config.create_machine_from_profile import create_machine_from_profile
 from quam_builder.architecture.superconducting.qpu import FluxTunableQuam
-from quam_config.wiring_lffem_mwfem import _xy_lines
+from quam_config.wiring_lffem_mwfem import _xy_lines, _z_lines
 
 
 class WiringProfileTests(unittest.TestCase):
@@ -38,6 +38,23 @@ class WiringProfileTests(unittest.TestCase):
         lines = _xy_lines(connections, ["q9", "q10"])
 
         self.assertEqual(lines, {(1, 7, 2): [9, 10]})
+
+    def test_z_lines_group_qubits_on_the_global_flux_output(self):
+        connectivity = {
+            "connections": {
+                "q9": {"z_output": {"global_line": "global_z"}},
+                "q10": {"z_output": {"global_line": "global_z"}},
+            },
+            "global_flux_lines": {
+                "global_z": {
+                    "output": {"controller": "con1", "fem": 1, "port": 5}
+                }
+            },
+        }
+
+        lines = _z_lines(connectivity, ["q9", "q10"])
+
+        self.assertEqual(lines, {(1, 1, 5): [9, 10]})
 
     def test_iqm_summary_keeps_vendor_q7_q8_frequencies(self):
         csv_path = Path(__file__).parent.parent / "docs" / "hardware" / "iqm_qubit_summary.csv"

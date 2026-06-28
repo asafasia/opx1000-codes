@@ -19,6 +19,7 @@ import xarray as xr
 
 try:
     import qutip
+
 except ImportError:  # pragma: no cover - exercised only when running the CLI.
     qutip = None
 
@@ -314,7 +315,9 @@ def raise_qutip_missing() -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--pulse-shape", choices=["lorentzian", "root_lorentzian", "gaussian"])
+    parser.add_argument(
+        "--pulse-shape", choices=["lorentzian", "root_lorentzian", "gaussian"]
+    )
     parser.add_argument("--lorentzian-length-in-ns", type=int)
     parser.add_argument("--waveform-template-length-in-ns", type=int)
     parser.add_argument("--lorentzian-tau-in-ns", type=float)

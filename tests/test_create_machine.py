@@ -47,12 +47,21 @@ class SingleQubitProfileTests(unittest.TestCase):
         self.assertEqual(set(fem["inputs"]), {"1"})
         self.assertEqual(fem["outputs"]["3"]["lo_frequency_hz"], 4_000_000_000)
         self.assertEqual(fem["outputs"]["1"]["lo_frequency_hz"], 6_900_000_000)
+        self.assertEqual(
+            connectivity["connections"]["q3"]["z_output"]["global_line"],
+            "global_z",
+        )
+        self.assertEqual(set(connectivity["global_flux_lines"]), {"global_z"})
 
     def test_single_qubit_profile_can_be_loaded_without_selection_for_editing(self):
         profile = load_profile("single_qubit")
 
         self.assertIn("q3", profile["qubits"]["qubits"])
         self.assertNotIn("selected_qubit", profile["manifest"])
+        self.assertEqual(
+            profile["qubits"]["qubits"]["q3"]["flux"]["global_line"],
+            "global_z",
+        )
 
     def test_single_qubit_profile_rejects_unknown_qubit(self):
         with self.assertRaisesRegex(ProfileError, "does not exist in profile 'single_qubit'"):
@@ -108,6 +117,14 @@ class SingleQubitProfileTests(unittest.TestCase):
 
         self.assertEqual(list(machine.qubits), ["q3"])
         self.assertEqual(machine.active_qubit_names, ["q3"])
+
+    def test_external_global_flux_bias_is_kept_in_qubit_extras(self):
+        machine = create_machine_from_profile("single_qubit", save=False, qubit="q10")
+        qubit = machine.qubits["q10"]
+
+        self.assertIsNone(qubit.z)
+        self.assertEqual(qubit.extras["global_flux_line"], "global_z")
+        self.assertEqual(qubit.extras["flux"]["flux_point"], "arbitrary")
 
 
 class CreateMachineTests(unittest.TestCase):
