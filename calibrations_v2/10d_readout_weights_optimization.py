@@ -327,7 +327,7 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
     parameters.num_shots = 100000
-    parameters.division_length_clock_cycles = 3000 // 100
+    parameters.division_length_clock_cycles = 40
     parameters.use_current_integration_weights = False
     parameters.reset_type = "active"
 
@@ -336,6 +336,6 @@ if __name__ == "__main__":
     calibration = ReadoutWeightsOptimization(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q2"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

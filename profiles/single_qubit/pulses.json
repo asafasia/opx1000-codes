@@ -43,7 +43,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.031578947368421054,
+        "amplitude": 0.08,
         "length_ns": 2000,
         "digital_marker": "ON",
         "integration_weights": [

@@ -36,7 +36,7 @@ class ReadoutWeightsOptimizationTests(unittest.TestCase):
         np.testing.assert_allclose(analysed.time_ns, [40, 80])
         self.assertEqual(kernel_to_segments([1.0, -0.5], 40), [[1.0, 40], [-0.5, 40]])
 
-    def test_save_kernel_artifacts_writes_manifest_and_npz(self):
+    def test_save_kernel_artifacts_overwrites_one_file_per_qubit(self):
         ds = xr.Dataset(
             {
                 "Ig": (("qubit", "time_slice"), [[0.0, 0.0]]),
@@ -64,9 +64,27 @@ class ReadoutWeightsOptimizationTests(unittest.TestCase):
                 now=datetime(2026, 6, 19, tzinfo=timezone.utc),
             )
 
-            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["qubits"], ["q1"])
+            self.assertEqual(output, root / "main" / "kernels")
+            self.assertFalse((output / "10d_readout_weights_optimization").exists())
             self.assertTrue((output / "q1_readout_kernel.npz").is_file())
+            with np.load(output / "q1_readout_kernel.npz") as kernel_file:
+                metadata = json.loads(str(kernel_file["metadata_json"]))
+                self.assertEqual(metadata["qubits"], ["q1"])
+
+            ds["profile_kernel"] = (("qubit", "time_slice"), [[0.5, -0.5]])
+            save_kernel_artifacts(
+                profile_name="main",
+                experiment_name="10d_readout_weights_optimization",
+                analysed=ds,
+                parameters={"num_shots": 3},
+                root=root,
+                now=datetime(2026, 6, 20, tzinfo=timezone.utc),
+            )
+
+            kernel_files = list((root / "main" / "kernels").glob("*_readout_kernel.npz"))
+            self.assertEqual([path.name for path in kernel_files], ["q1_readout_kernel.npz"])
+            with np.load(output / "q1_readout_kernel.npz") as kernel_file:
+                np.testing.assert_allclose(kernel_file["profile_kernel"], [0.5, -0.5])
 
 
 if __name__ == "__main__":

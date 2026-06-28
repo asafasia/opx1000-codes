@@ -95,6 +95,15 @@ def _parameter_metadata(parameters: Any | None) -> dict[str, Any] | None:
     return _to_jsonable(parameters)
 
 
+def _profile_snapshot_ignore(profile_source: Path):
+    def ignore(directory: str, names: list[str]) -> set[str]:
+        if Path(directory) == profile_source and "kernels" in names:
+            return {"kernels"}
+        return set()
+
+    return ignore
+
+
 class CalibrationSaver:
     """Save calibration arrays under a date, experiment name, and run time."""
 
@@ -134,7 +143,11 @@ class CalibrationSaver:
         try:
             np.savez_compressed(temporary_directory / "sweep.npz", **sweep_arrays)
             np.savez_compressed(temporary_directory / "results.npz", **result_arrays)
-            shutil.copytree(profile_source, temporary_directory / "profile")
+            shutil.copytree(
+                profile_source,
+                temporary_directory / "profile",
+                ignore=_profile_snapshot_ignore(profile_source),
+            )
             serialized_parameters = _parameter_metadata(parameters)
             if serialized_parameters is not None:
                 with (temporary_directory / "parameters.json").open("w", encoding="utf-8") as file:

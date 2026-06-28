@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import argparse
 import csv
+import io
 import json
 import mimetypes
 import os
 import re
 import urllib.parse
+import zipfile
 from datetime import datetime
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
 
@@ -107,6 +109,21 @@ def qubits_from_sweep(path: Path) -> list[str]:
         return []
 
 
+def qubits_from_run_files(path: Path) -> list[str]:
+    qubits = qubits_from_sweep(path)
+    if qubits:
+        return qubits
+    for directory in (path / "figures", path):
+        children, _ = safe_iterdir(directory)
+        matches = []
+        for child in children:
+            if child.is_file():
+                matches.extend(re.findall(r"q\d+", child.name.lower()))
+        if matches:
+            return unique_strings(matches)
+    return []
+
+
 def qubits_from_profile(path: Path) -> list[str]:
     profile_path = path / "profile" / "profile.json"
     profile_stat = safe_stat(profile_path)
@@ -121,9 +138,34 @@ def qubits_from_profile(path: Path) -> list[str]:
     return []
 
 
+def contains_file_with_extension(path: Path, extensions: set[str], depth: int = 2) -> bool:
+    if depth < 0:
+        return False
+    children, _ = safe_iterdir(path)
+    for child in children:
+        if child.is_file() and child.suffix.lower() in extensions:
+            return True
+        if child.is_dir() and contains_file_with_extension(child, extensions, depth - 1):
+            return True
+    return False
+
+
+def has_matching_profile_update(path: Path, experiment_type: str) -> bool:
+    date = date_for_path(path)
+    if not date:
+        return False
+    update_root = CALIBRATION_UPDATE_ROOT / date / experiment_type
+    if not update_root.is_dir():
+        return False
+    run_dirs, _ = safe_iterdir(update_root)
+    target_time = path.name[:8]
+    return any(run.is_dir() and run.name[:8] == target_time for run in run_dirs)
+
+
 def experiment_summary(path: Path, kind: str, experiment_type: str) -> dict[str, Any]:
     stat = safe_stat(path)
-    qubits = qubits_from_sweep(path) or qubits_from_profile(path)
+    qubits = qubits_from_run_files(path) or qubits_from_profile(path)
+    has_data = safe_stat(path / "sweep.npz") is not None and safe_stat(path / "results.npz") is not None
     return {
         "id": relative(path),
         "name": path.name if kind == "general" else experiment_type,
@@ -135,6 +177,10 @@ def experiment_summary(path: Path, kind: str, experiment_type: str) -> dict[str,
         "path": relative(path),
         "status": "available" if stat else "unreadable",
         "qubits": qubits,
+        "has_data": has_data,
+        "has_figures": contains_file_with_extension(path / "figures", IMAGE_EXTENSIONS),
+        "has_parameters": safe_stat(path / "parameters.json") is not None,
+        "has_profile_update": kind == "calibration" and has_matching_profile_update(path, experiment_type),
     }
 
 
@@ -256,6 +302,18 @@ def read_json(path: Path) -> tuple[Any | None, str | None]:
         return None, str(exc)
 
 
+def omit_integration_weights(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: omit_integration_weights(child)
+            for key, child in value.items()
+            if key != "integration_weights"
+        }
+    if isinstance(value, list):
+        return [omit_integration_weights(child) for child in value]
+    return value
+
+
 def preview_text(path: Path) -> tuple[str | None, str | None]:
     try:
         with path.open("r", encoding="utf-8", errors="replace") as file:
@@ -290,6 +348,118 @@ def file_record(path: Path, root: Path) -> dict[str, Any]:
         "modified": datetime.fromtimestamp(stat.st_mtime).isoformat() if stat else None,
         "url": "/api/file?path=" + urllib.parse.quote(relative(path)),
     }
+
+
+def is_profile_kernel_artifact(path: Path, root: Path) -> bool:
+    parts = path.relative_to(root).parts
+    return len(parts) >= 2 and parts[0] == "profile" and parts[1] == "kernels"
+
+
+def downloadable_run_files(path: Path) -> list[Path]:
+    files, _ = collect_files(path)
+    return [
+        item
+        for item in files
+        if item.is_file()
+        and not is_profile_kernel_artifact(item, path)
+        and (
+            item.relative_to(path).parts[0] != "profile"
+            or item.suffix.lower() == ".json"
+        )
+        and item.suffix.lower() in {".npz", ".json"}
+    ]
+
+
+def _download_entry(path: Path, root: Path) -> tuple[str, bytes]:
+    name = path.relative_to(root).as_posix()
+    if path.suffix.lower() == ".json" and "profile" in path.relative_to(root).parts:
+        value, error = read_json(path)
+        if error is None:
+            return name, (json.dumps(omit_integration_weights(value), indent=2) + "\n").encode("utf-8")
+    return name, path.read_bytes()
+
+
+def _np_to_jsonable(value: np.ndarray) -> Any:
+    if value.ndim == 0:
+        scalar = value.item()
+        return scalar.item() if isinstance(scalar, np.generic) else scalar
+    return value.tolist()
+
+
+def download_zip(raw_path: str) -> tuple[str, bytes]:
+    path = resolve_project_path(raw_path)
+    if not path.is_dir():
+        raise FileNotFoundError("Experiment directory does not exist or cannot be read.")
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for item in downloadable_run_files(path):
+            name, data = _download_entry(item, path)
+            archive.writestr(name, data)
+    return f"{path.parent.name}_{path.name}_data.zip", buffer.getvalue()
+
+
+def download_npz_bundle(raw_path: str) -> tuple[str, bytes]:
+    path = resolve_project_path(raw_path)
+    if not path.is_dir():
+        raise FileNotFoundError("Experiment directory does not exist or cannot be read.")
+    arrays: dict[str, Any] = {}
+    for item in downloadable_run_files(path):
+        relative_name = item.relative_to(path).as_posix().replace("/", "__")
+        if item.suffix.lower() == ".npz":
+            with np.load(item, allow_pickle=False) as npz_file:
+                for array_name in npz_file.files:
+                    arrays[f"{relative_name}__{array_name}"] = npz_file[array_name]
+        elif item.suffix.lower() == ".json":
+            entry_name, data = _download_entry(item, path)
+            arrays[entry_name.replace("/", "__")] = np.array(data.decode("utf-8"))
+    arrays["bundle_manifest_json"] = np.array(
+        json.dumps(
+            {
+                "source_path": relative(path),
+                "format": "Keys use '<file>__<array>' for NPZ contents and '<file>.json' for JSON strings.",
+            },
+            indent=2,
+        )
+    )
+    buffer = io.BytesIO()
+    np.savez_compressed(buffer, **arrays)
+    return f"{path.parent.name}_{path.name}_data_bundle.npz", buffer.getvalue()
+
+
+def download_json_bundle(raw_path: str) -> tuple[str, bytes]:
+    path = resolve_project_path(raw_path)
+    if not path.is_dir():
+        raise FileNotFoundError("Experiment directory does not exist or cannot be read.")
+
+    bundle: dict[str, Any] = {
+        "source_path": relative(path),
+        "sweep": {},
+        "results": {},
+        "metadata": {},
+        "parameters": None,
+        "profile": {},
+    }
+    for item in downloadable_run_files(path):
+        relative_name = item.relative_to(path).as_posix()
+        if item.suffix.lower() == ".npz":
+            target = bundle["sweep"] if item.name == "sweep.npz" else bundle["results"]
+            with np.load(item, allow_pickle=False) as npz_file:
+                for array_name in npz_file.files:
+                    target[array_name] = _np_to_jsonable(np.asarray(npz_file[array_name]))
+        elif item.suffix.lower() == ".json":
+            name, data = _download_entry(item, path)
+            value = json.loads(data.decode("utf-8"))
+            if relative_name == "parameters.json":
+                bundle["parameters"] = value
+            elif relative_name == "metadata.json":
+                bundle["metadata"] = value
+            elif relative_name.startswith("profile/"):
+                bundle["profile"][name.removeprefix("profile/")] = value
+            else:
+                bundle.setdefault("extra_json", {})[relative_name] = value
+
+    body = json.dumps(bundle, indent=2, ensure_ascii=False).encode("utf-8")
+    return f"{path.parent.name}_{path.name}_data.json", body
 
 
 def matching_calibration_assets(path: Path, experiment_type: str, date: str | None) -> dict[str, Any]:
@@ -340,6 +510,8 @@ def experiment_detail(raw_path: str) -> dict[str, Any]:
             figures.append(record)
         elif item.suffix.lower() == ".json":
             value, error = read_json(item)
+            if value is not None and "profile" in item.relative_to(path).parts:
+                value = omit_integration_weights(value)
             metadata.append({**record, "value": value, "error": error})
         elif item.suffix.lower() in {".csv", ".tsv"}:
             value, error = preview_csv(item)
@@ -347,7 +519,7 @@ def experiment_detail(raw_path: str) -> dict[str, Any]:
         elif item.suffix.lower() in TEXT_EXTENSIONS:
             value, error = preview_text(item)
             text.append({**record, "value": value, "error": error})
-        else:
+        elif not is_profile_kernel_artifact(item, path):
             artifacts.append(record)
 
     return {
@@ -585,6 +757,18 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             if parsed.path == "/api/parameter-scan":
                 self.send_json(parameter_scan_data(query.get("path", [""])[0]))
                 return
+            if parsed.path == "/api/download.zip":
+                filename, body = download_zip(query.get("path", [""])[0])
+                self.serve_download(filename, body, "application/zip")
+                return
+            if parsed.path == "/api/download.npz":
+                filename, body = download_npz_bundle(query.get("path", [""])[0])
+                self.serve_download(filename, body, "application/octet-stream")
+                return
+            if parsed.path == "/api/download.json":
+                filename, body = download_json_bundle(query.get("path", [""])[0])
+                self.serve_download(filename, body, "application/json; charset=utf-8")
+                return
             if parsed.path == "/api/file":
                 self.serve_project_file(query.get("path", [""])[0])
                 return
@@ -595,6 +779,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
         except Exception as exc:  # Keep a malformed experiment from taking down the browser.
             self.send_json({"error": f"Could not process request: {exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def serve_download(self, filename: str, body: bytes, content_type: str) -> None:
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.end_headers()
+        self.wfile.write(body)
 
     def serve_project_file(self, raw_path: str) -> None:
         path = resolve_project_path(raw_path)

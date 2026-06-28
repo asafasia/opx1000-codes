@@ -118,10 +118,10 @@ def save_kernel_artifacts(
 ) -> Path:
     """Save traces and calculated kernels under profiles/<profile>/kernels/."""
     timestamp = (now or datetime.now().astimezone()).strftime("%Y-%m-%d_%H-%M-%S-%f")
-    output_directory = root / profile_name / "kernels" / experiment_name / timestamp
-    output_directory.mkdir(parents=True, exist_ok=False)
+    output_directory = root / profile_name / "kernels"
+    output_directory.mkdir(parents=True, exist_ok=True)
 
-    manifest: dict[str, Any] = {
+    metadata: dict[str, Any] = {
         "experiment_name": experiment_name,
         "profile_name": profile_name,
         "timestamp": timestamp,
@@ -129,14 +129,15 @@ def save_kernel_artifacts(
         "qubits": [str(value) for value in analysed.qubit.values],
     }
     if hasattr(parameters, "model_dump"):
-        manifest["parameters"] = parameters.model_dump(mode="json")
+        metadata["parameters"] = parameters.model_dump(mode="json")
     elif isinstance(parameters, Mapping):
-        manifest["parameters"] = dict(parameters)
+        metadata["parameters"] = dict(parameters)
 
     for qubit in analysed.qubit.values:
         selected = analysed.sel(qubit=qubit)
         np.savez(
             output_directory / f"{qubit}_readout_kernel.npz",
+            metadata_json=np.array(json.dumps(metadata, sort_keys=True)),
             time_ns=selected.time_ns.values,
             Ig=selected.Ig.values,
             Qg=selected.Qg.values,
@@ -148,9 +149,5 @@ def save_kernel_artifacts(
             optimal_complex_trace=selected.optimal_complex_trace.values,
             profile_kernel=selected.profile_kernel.values,
         )
-
-    with (output_directory / "manifest.json").open("w", encoding="utf-8") as file:
-        json.dump(manifest, file, indent=2)
-        file.write("\n")
 
     return output_directory

@@ -19,9 +19,19 @@ from utils.plotting_settings import (
 u = unit(coerce_to_integer=True)
 
 STATE_PLOT_SPECS = (
-    ("g", "Ig", "Qg", "Ig_rot", "ground", "Ground", "tab:blue", "navy", 0.8),
-    ("e", "Ie", "Qe", "Ie_rot", "prepared", "Prepared", "tab:orange", "darkred", 0.5),
-    ("f", "If", "Qf", "If_rot", "f", "F", "tab:green", "darkgreen", 0.5),
+    ("g", "Ig", "Qg", "Ig_rot", "ground", "Ground", "tab:blue", "navy", 0.35),
+    (
+        "e",
+        "Ie",
+        "Qe",
+        "Ie_rot",
+        "prepared",
+        "Prepared",
+        "tab:orange",
+        "darkred",
+        0.35,
+    ),
+    ("f", "If", "Qf", "If_rot", "f", "F", "tab:green", "darkgreen", 0.35),
 )
 
 
@@ -173,9 +183,26 @@ def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fi
 
     raw = ds.sel(qubit=qubit["qubit"])
     for _, i_name, q_name, _, _, label, color, _, alpha in _available_state_specs(raw):
-        ax.plot(1e3 * raw[i_name], 1e3 * raw[q_name], ".", alpha=alpha, label=label, markersize=2, color=color)
+        ax.plot(
+            1e3 * raw[i_name],
+            1e3 * raw[q_name],
+            ".",
+            alpha=alpha,
+            label=label,
+            markersize=2,
+            color=color,
+            zorder=1,
+        )
         center = (float(raw[i_name].mean()) * 1e3, float(raw[q_name].mean()) * 1e3)
-        ax.plot(*center, "o", color=color, markeredgecolor="black", markersize=6, label=f"{label} center")
+        ax.plot(
+            *center,
+            "o",
+            color=color,
+            markeredgecolor="black",
+            markersize=6,
+            label=f"{label} center",
+            zorder=10,
+        )
     for _, _, _, _, state_name, label, _, contour_color, _ in _available_state_specs(raw):
         level_name = f"{state_name}_kde_95_level"
         if level_name not in fit or not np.isfinite(float(fit[level_name].values)):

@@ -8,12 +8,12 @@
         "t2_echo_ns": 17104.916414048766
       },
       "gates": {
-        "single_qubit_average_fidelity": null
+        "single_qubit_average_fidelity": 0.9903453182655684
       },
       "readout": {
         "fidelity_percent": {
-          "active": 94.04999999999998,
-          "thermal": 92.60000000000001
+          "active": 93.68,
+          "thermal": 89.395
         }
       }
     },

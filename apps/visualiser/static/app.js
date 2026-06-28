@@ -1,4 +1,4 @@
-const state = { experiments: [], filtered: [], selected: null, detail: null, calibrationType: null, qubit: "all", tab: "figures", figureIndex: 0, plotData: null, plotResult: 0, plotHeatmap: 0, plotSlice: null, plotTranspose: false, trendData: null, trendSeries: 0 };
+const state = { experiments: [], filtered: [], selected: null, detail: null, calibrationType: null, qubit: "all", runFilter: "all", tab: "figures", figureIndex: 0, plotData: null, plotResult: 0, plotHeatmap: 0, plotSlice: null, plotTranspose: false, trendData: null, trendSeries: 0 };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[c]));
 const formatBytes = n => n == null ? "unavailable" : n < 1024 ? `${n} B` : n < 1048576 ? `${(n/1024).toFixed(1)} KB` : `${(n/1048576).toFixed(1)} MB`;
@@ -78,20 +78,38 @@ async function selectLatestRun() {
 
 function applyFilters() {
   const q = $("searchInput").value.trim().toLowerCase();
+  state.runFilter = $("runFilter").value;
   renderCalibrationNav();
   renderQubitNav();
   state.filtered = state.experiments.filter(e =>
     e.type === state.calibrationType
     && (state.qubit === "all" || (e.qubits || []).includes(state.qubit))
+    && runMatchesFilter(e)
     && `${e.name} ${e.type} ${(e.qubits || []).join(" ")} ${e.path}`.toLowerCase().includes(q)
   );
   $("resultCount").textContent = `${state.filtered.length} run${state.filtered.length === 1 ? "" : "s"}`;
   $("experimentList").innerHTML = state.filtered.length ? state.filtered.map(e => `
     <article class="experiment-card ${state.selected?.id === e.id ? "active" : ""}" data-id="${escapeHtml(e.id)}">
       <div class="experiment-time">${escapeHtml(e.time.slice(0,5))}</div>
-      <div><h3>${escapeHtml((e.qubits || []).join(", ") || e.name)}</h3><p>${escapeHtml(e.type)} | ${escapeHtml(e.path)}</p></div>
+      <div><h3>${escapeHtml((e.qubits || []).join(", ") || e.name)}</h3><p>${escapeHtml(e.type)} | ${escapeHtml(e.path)}</p>${runBadges(e)}</div>
     </article>`).join("") : `<div class="empty-state"><p>No experiments match this filter.</p></div>`;
   document.querySelectorAll(".experiment-card").forEach(card => card.onclick = () => selectExperiment(card.dataset.id));
+}
+
+function runMatchesFilter(experiment) {
+  if (state.runFilter === "figures") return Boolean(experiment.has_figures);
+  if (state.runFilter === "no-figures") return !experiment.has_figures;
+  if (state.runFilter === "data") return Boolean(experiment.has_data);
+  if (state.runFilter === "updates") return Boolean(experiment.has_profile_update);
+  return true;
+}
+
+function runBadges(experiment) {
+  const badges = [];
+  if (experiment.has_data) badges.push("data");
+  if (experiment.has_figures) badges.push("figures");
+  if (experiment.has_profile_update) badges.push("update");
+  return badges.length ? `<div class="run-badges">${badges.map(label => `<span>${label}</span>`).join("")}</div>` : "";
 }
 
 function renderCalibrationNav() {
@@ -203,6 +221,7 @@ function renderOverview() {
 }
 
 function activeQubits() {
+  if (state.selected?.qubits?.length) return state.selected.qubits;
   const profile = state.detail?.metadata.find(item => item.relative === "profile/profile.json")?.value;
   return Array.isArray(profile?.active_qubits) ? profile.active_qubits.map(String) : (state.selected?.qubits || []);
 }
@@ -265,7 +284,14 @@ function renderParameterTrends() {
 function renderData() {
   const d = state.detail;
   const tables = d.tables.map(item => card(item, item.error ? `<pre class="text-view">${escapeHtml(item.error)}</pre>` : `<div class="table-wrap"><table>${item.value.rows.map(row => `<tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</table></div>`)).join("");
-  return section("Table Previews", `${d.tables.length} CSV/TSV files`, `<div class="card-grid">${tables || `<p class="mono">No tabular data found.</p>`}</div>`)
+  const encodedPath = encodeURIComponent(state.selected.id);
+  const downloads = `<div class="download-actions">
+    <a class="download-button" href="/api/download.zip?path=${encodedPath}">Download ZIP</a>
+    <a class="download-button" href="/api/download.json?path=${encodedPath}">Download JSON</a>
+    <a class="download-button" href="/api/download.npz?path=${encodedPath}">Download Python NPZ</a>
+  </div>`;
+  return section("Download Run Data", "clean bundle", downloads)
+    + section("Table Previews", `${d.tables.length} CSV/TSV files`, `<div class="card-grid">${tables || `<p class="mono">No tabular data found.</p>`}</div>`)
     + section("Binary & Other Artifacts", `${d.artifacts.length} files`, artifactRows(d.artifacts));
 }
 function renderCalibrations() {
@@ -425,6 +451,7 @@ function showGlobalError(message) { $("experimentList").innerHTML = `<div class=
 function setStatus(value) { $("statusText").textContent = value; }
 $("dateSelect").onchange = e => loadExperiments(e.target.value);
 $("searchInput").oninput = applyFilters;
+$("runFilter").onchange = async () => { applyFilters(); await selectLatestRun(); };
 $("refreshButton").onclick = () => loadDates();
 document.querySelectorAll(".tab").forEach(button => button.onclick = () => { state.tab=button.dataset.tab; renderTab(); });
 loadDates();

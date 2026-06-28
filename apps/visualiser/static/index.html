@@ -37,6 +37,13 @@
       <section class="control-section">
         <label class="section-label" for="searchInput">Runs</label>
         <div class="search-wrap"><span>/</span><input id="searchInput" placeholder="Search name, type, path..."></div>
+        <select id="runFilter" class="filter-select" title="Filter runs">
+          <option value="all">All runs</option>
+          <option value="figures">With figures</option>
+          <option value="no-figures">Missing figures</option>
+          <option value="data">With NPZ data</option>
+          <option value="updates">With profile update</option>
+        </select>
         <div class="list-meta"><span id="resultCount">0 experiments</span><span id="dateBadge"></span></div>
       </section>
       <div id="experimentList" class="experiment-list"></div>

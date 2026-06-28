@@ -13,6 +13,9 @@ from calibration_utils.iq_blobs.plotting import (
     plot_individual_iq_blobs,
     plot_iq_blobs_dashboard,
 )
+from calibration_utils.iq_blobs_ef.plotting import (
+    plot_individual_iq_blobs as plot_individual_iq_blobs_ef,
+)
 
 
 class IQBlobsPlottingTests(unittest.TestCase):
@@ -51,11 +54,13 @@ class IQBlobsPlottingTests(unittest.TestCase):
 
         self.assertEqual(len(fig.axes), 3)
         lines_by_label = {line.get_label(): line for line in fig.axes[0].lines}
-        self.assertEqual(lines_by_label["Ground"].get_alpha(), 0.8)
-        self.assertEqual(lines_by_label["Prepared"].get_alpha(), 0.5)
+        self.assertEqual(lines_by_label["Ground"].get_alpha(), 0.35)
+        self.assertEqual(lines_by_label["Prepared"].get_alpha(), 0.35)
         center_points = [lines_by_label["Ground center"], lines_by_label["Prepared center"]]
         self.assertEqual(tuple(center_points[0].get_data()), ((-4.0,), (2.0,)))
         self.assertEqual(tuple(center_points[1].get_data()), ((6.0,), (-2.0,)))
+        self.assertGreater(center_points[0].get_zorder(), lines_by_label["Ground"].get_zorder())
+        self.assertGreater(center_points[1].get_zorder(), lines_by_label["Prepared"].get_zorder())
         self.assertIn("fitted rotation=-45.0 deg", fig.axes[0].get_title())
         threshold_line = lines_by_label["Threshold"]
         threshold_i, threshold_q = threshold_line.get_data()
@@ -255,6 +260,41 @@ class IQBlobsPlottingTests(unittest.TestCase):
         self.assertLess(histogram_axis.get_xlim()[1], 10)
         plt.close(blob_figure)
         plt.close(histogram_figure)
+
+    def test_gef_iq_blobs_draw_centers_above_transparent_points(self):
+        runs = np.arange(3)
+        fit = xr.Dataset(
+            {
+                "Ig": ("n_runs", [-2e-3, -1e-3, 0.0]),
+                "Qg": ("n_runs", [0.0, 0.0, 0.0]),
+                "Ie": ("n_runs", [1e-3, 2e-3, 3e-3]),
+                "Qe": ("n_runs", [0.0, 0.0, 0.0]),
+                "If": ("n_runs", [4e-3, 5e-3, 6e-3]),
+                "Qf": ("n_runs", [0.0, 0.0, 0.0]),
+                "I_g_center": -1e-3,
+                "Q_g_center": 0.0,
+                "I_e_center": 2e-3,
+                "Q_e_center": 0.0,
+                "I_f_center": 5e-3,
+                "Q_f_center": 0.0,
+            },
+            coords={"n_runs": runs},
+        )
+        figure, axis = plt.subplots()
+
+        plot_individual_iq_blobs_ef(axis, xr.Dataset(), {"qubit": "q1"}, fit)
+
+        lines_by_label = {line.get_label(): line for line in axis.lines}
+        self.assertEqual(lines_by_label["Ground"].get_alpha(), 0.15)
+        self.assertEqual(lines_by_label["Excited"].get_alpha(), 0.15)
+        self.assertEqual(lines_by_label["Second Excited"].get_alpha(), 0.15)
+        self.assertGreater(lines_by_label["G"].get_zorder(), lines_by_label["Ground"].get_zorder())
+        self.assertGreater(lines_by_label["E"].get_zorder(), lines_by_label["Excited"].get_zorder())
+        self.assertGreater(
+            lines_by_label["F"].get_zorder(),
+            lines_by_label["Second Excited"].get_zorder(),
+        )
+        plt.close(figure)
 
 
 if __name__ == "__main__":

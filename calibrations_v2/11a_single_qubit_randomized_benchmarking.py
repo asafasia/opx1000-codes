@@ -515,7 +515,7 @@ if __name__ == "__main__":
 
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
-    parameters.gate_family = "drag"
+    parameters.gate_family = "square"
     parameters.max_circuit_depth = int(2**9)
     parameters.delta_clifford = 2
     parameters.num_random_sequences = 30
@@ -523,6 +523,7 @@ if __name__ == "__main__":
     parameters.log_scale = False
     parameters.use_strict_timing = True
     parameters.simulate = False
+    parameters.log_scale = False
 
     options = CalibrationOptions()
 

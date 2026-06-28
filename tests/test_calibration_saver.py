@@ -32,7 +32,9 @@ class CalibrationSaverTests(unittest.TestCase):
             root = Path(directory)
             profile = root / "profiles" / "main"
             profile.mkdir(parents=True)
+            (profile / "kernels").mkdir()
             (profile / "profile.json").write_text('{"name": "main"}\n', encoding="utf-8")
+            (profile / "kernels" / "q1_readout_kernel.npz").write_bytes(b"not part of a run snapshot")
             saver = CalibrationSaver(root / "data" / "calibrations", root / "profiles")
             timestamp = datetime(2026, 6, 10, 14, 5, 6, 123456, tzinfo=timezone.utc)
 
@@ -54,6 +56,7 @@ class CalibrationSaverTests(unittest.TestCase):
                 (run_directory / "profile" / "profile.json").read_text(encoding="utf-8"),
                 '{"name": "main"}\n',
             )
+            self.assertFalse((run_directory / "profile" / "kernels").exists())
             metadata = json.loads((run_directory / "metadata.json").read_text(encoding="utf-8"))
             self.assertEqual(metadata["profile_name"], "main")
             self.assertEqual(metadata["results"]["Q"]["shape"], [3])

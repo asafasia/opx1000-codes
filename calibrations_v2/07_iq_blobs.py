@@ -183,6 +183,7 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                         qubit.reset(
                             node.parameters.reset_type,
                             node.parameters.simulate,
+                            max_attempts=5,
                             # log_callable=node.log,
                         )
                     align()
@@ -199,6 +200,7 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                         qubit.reset(
                             node.parameters.reset_type,
                             node.parameters.simulate,
+                            max_attempts=5,
                             # log_callable=node.log,
                         )
                     align()
@@ -233,6 +235,7 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                             qubit.reset(
                                 node.parameters.reset_type,
                                 node.parameters.simulate,
+                                max_attempts=5,
                                 # log_callable=node.log,
                             )
                         align()
