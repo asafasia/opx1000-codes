@@ -36,9 +36,9 @@ from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.core import tracked_updates
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration, CalibrationOptions
+    from calibrations_v2.core import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration, CalibrationOptions
+    from .core import BaseCalibration, CalibrationOptions
 
 description = """
         RESONATOR SPECTROSCOPY VERSUS READOUT POWER

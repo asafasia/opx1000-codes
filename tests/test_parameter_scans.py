@@ -173,6 +173,92 @@ class ParameterScanTests(unittest.TestCase):
             status = json.loads((run_directory / "status.json").read_text(encoding="utf-8"))
             self.assertEqual(status["status"], "complete")
 
+    def test_runner_extracts_results_from_v2_calibration_object(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            script = root / "fake_v2.py"
+            script.write_text(
+                "from types import SimpleNamespace\n"
+                "calibration = SimpleNamespace(\n"
+                "    name='05_T1',\n"
+                "    results={'fit_results': {'q2': {'t1': 18000.0, 'success': True}}},\n"
+                "    outcomes={},\n"
+                ")\n",
+                encoding="utf-8",
+            )
+            config = ScanConfig(
+                name="test_scan",
+                experiments=[ExperimentSpec(script=script)],
+                repetitions=1,
+                output_root=root / "data" / "parameter_scans",
+            )
+
+            run_directory = LongScanRunner(config, repository_root=root).run()
+
+            with (run_directory / "summary.csv").open(encoding="utf-8") as file:
+                rows = list(csv.DictReader(file))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["experiment_name"], "05_T1")
+            self.assertEqual(rows[0]["parameter"], "T1")
+
+    def test_runner_resolves_legacy_calibrations_path_to_v2(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            v2_directory = root / "calibrations_v2"
+            v2_directory.mkdir()
+            (v2_directory / "05_T1.py").write_text(
+                "from types import SimpleNamespace\n"
+                "calibration = SimpleNamespace(\n"
+                "    name='05_T1',\n"
+                "    results={'fit_results': {'q1': {'t1': 12000.0, 'success': True}}},\n"
+                "    outcomes={},\n"
+                ")\n",
+                encoding="utf-8",
+            )
+            config = ScanConfig(
+                name="test_scan",
+                experiments=[ExperimentSpec(script=Path("calibrations/05_T1.py"))],
+                repetitions=1,
+                output_root=root / "data" / "parameter_scans",
+            )
+
+            run_directory = LongScanRunner(config, repository_root=root).run()
+
+            status = json.loads((run_directory / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual(status["status"], "complete")
+
+    def test_runner_closes_plots_and_suppresses_show_calls(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            script = root / "plotting_script.py"
+            script.write_text(
+                "import matplotlib.pyplot as plt\n"
+                "from types import SimpleNamespace\n"
+                "plt.figure()\n"
+                "plt.plot([0, 1], [0, 1])\n"
+                "plt.show()\n"
+                "node = SimpleNamespace(\n"
+                "    name='plotting_script',\n"
+                "    results={'fit_results': {'q1': {'frequency': 4.2e9, 'success': True}}},\n"
+                "    outcomes={},\n"
+                ")\n",
+                encoding="utf-8",
+            )
+            config = ScanConfig(
+                name="test_scan",
+                experiments=[ExperimentSpec(script=script)],
+                repetitions=1,
+                output_root=root / "data" / "parameter_scans",
+            )
+
+            run_directory = LongScanRunner(config, repository_root=root).run()
+
+            import matplotlib.pyplot as plt
+
+            status = json.loads((run_directory / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual(status["status"], "complete")
+            self.assertEqual(plt.get_fignums(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

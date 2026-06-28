@@ -142,14 +142,14 @@
       "saturation": {
         "target": "qubit",
         "type": "saturation",
-        "amplitude": 0.1,
-        "length_ns": 50000,
+        "amplitude": 0.2,
+        "length_ns": 30000,
         "axis_angle_rad": 0
       },
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.1,
+        "amplitude": 0.05,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [
@@ -202,7 +202,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.1,
+        "amplitude": 0.02,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [
@@ -255,7 +255,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.05,
+        "amplitude": 0.02,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [
@@ -308,7 +308,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.01,
+        "amplitude": 0.02,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [
@@ -355,13 +355,13 @@
         "target": "qubit",
         "type": "saturation",
         "amplitude": 0.1,
-        "length_ns": 20000,
+        "length_ns": 30000,
         "axis_angle_rad": 0
       },
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.05,
+        "amplitude": 0.02,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [
@@ -414,7 +414,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.05,
+        "amplitude": 0.02,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [
@@ -467,7 +467,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.05,
+        "amplitude": 0.02,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [
@@ -573,7 +573,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.05,
+        "amplitude": 0.02,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [
@@ -626,7 +626,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.05,
+        "amplitude": 0.02,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [

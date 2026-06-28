@@ -55,10 +55,10 @@ class ParameterScanAppTests(unittest.TestCase):
         self.assertEqual(
             [item["script"] for item in scripts],
             [
-                "calibrations/03a_qubit_spectroscopy.py",
-                "calibrations/05_T1.py",
-                "calibrations/06a_ramsey.py",
-                "calibrations/07_iq_blobs.py",
+                "calibrations_v2/03a_qubit_spectroscopy.py",
+                "calibrations_v2/05_T1.py",
+                "calibrations_v2/06a_ramsey.py",
+                "calibrations_v2/07_iq_blobs.py",
             ],
         )
 

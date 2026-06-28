@@ -11,7 +11,7 @@ from qiskit_experiments.library import StandardRB
 
 from gate_level.runner import Runner, result_counts_list
 
-QUBIT = "q9"
+QUBIT = "q1"
 SHOTS = 1000
 LENGTHS = [1, 2, 4, 8, 16, 32, 64, 128]
 NUM_SAMPLES = 5
@@ -56,7 +56,7 @@ def plot_rb(
     mean_survival: list[float],
     std_survival: list[float],
     fit_params: tuple[float, float, float],
-) -> None:
+):
     fig, ax = plt.subplots(figsize=(7.0, 4.2))
     ax.errorbar(
         lengths,
@@ -82,7 +82,7 @@ def plot_rb(
     ax.legend()
     fig.tight_layout()
     fig.savefig(OUTPUT_FIGURE, dpi=160)
-    plt.close(fig)
+    return fig
 
 
 def main() -> None:
@@ -94,7 +94,11 @@ def main() -> None:
     )
     circuits = experiment.circuits()
 
-    runner = Runner(qubit=QUBIT)
+    runner = Runner(
+        qubit=QUBIT,
+        reset_type="active",
+        status_updates=True,
+    )
     transpiled = runner.transpile(circuits)
     result = runner.submit(transpiled, shots=SHOTS, do_transpile=False)
     counts_by_circuit = result_counts_list(result)
@@ -124,6 +128,7 @@ def main() -> None:
     for length, mean, std in zip(sorted_lengths, mean_survival, std_survival):
         print(f"m={length:3d} survival={mean:.4f} std={std:.4f}")
     print(f"\nSaved plot: {OUTPUT_FIGURE}")
+    plt.show()
 
 
 if __name__ == "__main__":

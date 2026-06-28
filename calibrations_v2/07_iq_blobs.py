@@ -13,7 +13,6 @@ if __package__ in {None, ""}:
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-from dataclasses import asdict
 from qm.qua import *
 from qualang_tools.multi_user import qm_session
 from qualang_tools.results import progress_counter
@@ -27,18 +26,18 @@ from calibration_utils.iq_blobs import (
     process_raw_dataset,
     fit_raw_data,
     log_fitted_results,
-    save_fit_results,
     plot_iq_blobs_dashboard,
 )
+from calibration_utils.analysis_base import BaseAnalysis
 from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 from quam.components.pulses import SquareReadoutPulse
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration, CalibrationOptions
+    from calibrations_v2.core import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration, CalibrationOptions
+    from .core import BaseCalibration, CalibrationOptions
 
 description = """
         IQ BLOBS
@@ -79,6 +78,20 @@ State update:
 # %% {Save_results}
 
 
+class IqBlobsAnalysis(BaseAnalysis):
+    """Shared analysis adapter for IQ-blob calibration data."""
+
+    def process(self, ds):
+        # IQ blobs currently save voltage-scaled ds_raw during execution/load.
+        return ds
+
+    def fit(self, ds):
+        return fit_raw_data(ds, self.node)
+
+    def log(self, result):
+        log_fitted_results(result.fit_results, log_callable=self.node.log)
+
+
 class IqBlobs(BaseCalibration[Parameters, Quam]):
     """v2 class migration for ``calibrations/07_iq_blobs.py``."""
 
@@ -95,6 +108,9 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
             machine=machine,
             **kwargs,
         )
+
+    def create_analysis(self):
+        return IqBlobsAnalysis(self)
 
     def create_qua_program(self):
         node = self
@@ -344,28 +360,6 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
         # Get the active qubits from the loaded node parameters
         node.namespace["qubits"] = get_qubits(node)
 
-    def analyse_data(self):
-        node = self
-        """
-        Analyse the raw data and store the fitted data in another xarray dataset "ds_fit"
-        and the fitted results in the "fit_results" dictionary.
-        """
-        node.results["ds_fit"], fit_results = fit_raw_data(node.results["ds_raw"], node)
-        node.results["fit_results"] = {k: asdict(v) for k, v in fit_results.items()}
-        if "calibration_run_directory" in node.namespace:
-            output_path = save_fit_results(
-                node.namespace["calibration_run_directory"],
-                node.results["fit_results"],
-            )
-            node.log(f"Fit results saved to {output_path}")
-
-        # Log the relevant information extracted from the data analysis
-        log_fitted_results(node.results["fit_results"], log_callable=node.log)
-        node.outcomes = {
-            qubit_name: ("successful" if fit_result["success"] else "failed")
-            for qubit_name, fit_result in node.results["fit_results"].items()
-        }
-
     def plot_data(self):
         node = self
         """
@@ -487,12 +481,12 @@ if __name__ == "__main__":
 
     parameters.qubit_operation = "x180_const"
     parameters.states = ["g", "e"]
-    parameters.reset_type = "active"
-    parameters.num_shots = 50000
+    parameters.reset_type = "thermal"
+    parameters.num_shots = 5000
 
     options = CalibrationOptions()
 
-    machine = create_machine(qubit="q1")
+    machine = create_machine(qubit="q3")
     # qubit = machine.qubits["q9"]
 
     calibration = IqBlobs(

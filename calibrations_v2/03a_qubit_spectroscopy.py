@@ -35,9 +35,9 @@ from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration, CalibrationOptions
+    from calibrations_v2.core import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration, CalibrationOptions
+    from .core import BaseCalibration, CalibrationOptions
 
 description = """
         QUBIT SPECTROSCOPY
@@ -327,14 +327,14 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
-    qubit = "q1"
+    qubit = "q4"
 
     parameters.use_state_discrimination = False
-    parameters.num_shots = 500
-    parameters.operation_amplitude_factor = 0.001
-    parameters.frequency_span_in_mhz = 1
-    parameters.frequency_step_in_mhz = 0.005
-    parameters.reset_type = "active"
+    parameters.num_shots = 300
+    parameters.operation_amplitude_factor = 0.01
+    parameters.frequency_span_in_mhz = 5
+    parameters.frequency_step_in_mhz = 0.05
+    parameters.reset_type = "thermal"
 
     options = CalibrationOptions()
 

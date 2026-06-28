@@ -26,6 +26,7 @@ APP_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = APP_ROOT.parent.parent
 DATA_ROOT = PROJECT_ROOT / "data"
 CALIBRATION_CODE_ROOT = PROJECT_ROOT / "calibrations"
+CALIBRATION_V2_CODE_ROOT = PROJECT_ROOT / "calibrations_v2"
 CALIBRATION_RUN_ROOT = DATA_ROOT / "calibrations"
 CALIBRATION_UPDATE_ROOT = DATA_ROOT / "calibration_updates"
 PARAMETER_SCAN_ROOT = DATA_ROOT / "parameter_scans"
@@ -426,7 +427,13 @@ def download_npz_bundle(raw_path: str) -> tuple[str, bytes]:
         if item.suffix.lower() == ".npz":
             with np.load(item, allow_pickle=False) as npz_file:
                 for array_name in npz_file.files:
-                    arrays[f"{relative_name}__{array_name}"] = npz_file[array_name]
+                    if item.name in {"sweep.npz", "results.npz"}:
+                        key = f"data__{array_name}"
+                    else:
+                        key = f"{relative_name}__{array_name}"
+                    if key in arrays:
+                        key = f"{relative_name}__{array_name}"
+                    arrays[key] = npz_file[array_name]
         elif item.suffix.lower() == ".json":
             entry_name, data = _download_entry(item, path)
             arrays[entry_name.replace("/", "__")] = np.array(data.decode("utf-8"))
@@ -434,7 +441,7 @@ def download_npz_bundle(raw_path: str) -> tuple[str, bytes]:
         json.dumps(
             {
                 "source_path": relative(path),
-                "format": "Keys use '<file>__<array>' for NPZ contents and '<file>.json' for JSON strings.",
+                "format": "sweep.npz and results.npz arrays share data__<array> keys; other NPZ contents use <file>__<array>; JSON files are stored as strings.",
             },
             indent=2,
         )
@@ -451,8 +458,7 @@ def download_json_bundle(raw_path: str) -> tuple[str, bytes]:
 
     bundle: dict[str, Any] = {
         "source_path": relative(path),
-        "sweep": {},
-        "results": {},
+        "data": {},
         "metadata": {},
         "parameters": None,
         "profile": {},
@@ -460,10 +466,12 @@ def download_json_bundle(raw_path: str) -> tuple[str, bytes]:
     for item in downloadable_run_files(path, require_readable=True):
         relative_name = item.relative_to(path).as_posix()
         if item.suffix.lower() == ".npz":
-            target = bundle["sweep"] if item.name == "sweep.npz" else bundle["results"]
             with np.load(item, allow_pickle=False) as npz_file:
                 for array_name in npz_file.files:
-                    target[array_name] = _np_to_jsonable(np.asarray(npz_file[array_name]))
+                    target_name = array_name
+                    if target_name in bundle["data"]:
+                        target_name = f"{item.stem}.{array_name}"
+                    bundle["data"][target_name] = _np_to_jsonable(np.asarray(npz_file[array_name]))
         elif item.suffix.lower() == ".json":
             name, data = _download_entry(item, path)
             value = json.loads(data.decode("utf-8"))
@@ -495,9 +503,23 @@ def open_result_folder(raw_path: str) -> dict[str, str]:
 
 def matching_calibration_assets(path: Path, experiment_type: str, date: str | None) -> dict[str, Any]:
     scripts = []
+    scan_manifest_path = path / "scan.json"
+    if scan_manifest_path.is_file():
+        manifest, _ = read_json(scan_manifest_path)
+        if isinstance(manifest, dict):
+            for item in manifest.get("experiments", []):
+                script = item.get("script") if isinstance(item, dict) else item
+                if not script:
+                    continue
+                candidate = resolve_project_path(str(script))
+                if candidate.is_file():
+                    scripts.append(file_record(candidate, PROJECT_ROOT))
+
     for candidate in (
-        CALIBRATION_CODE_ROOT / f"{experiment_type}.py",
-        CALIBRATION_CODE_ROOT / f"{experiment_type.lower()}.py",
+        PROJECT_ROOT / "calibrations" / f"{experiment_type}.py",
+        PROJECT_ROOT / "calibrations" / f"{experiment_type.lower()}.py",
+        PROJECT_ROOT / "calibrations_v2" / f"{experiment_type}.py",
+        PROJECT_ROOT / "calibrations_v2" / f"{experiment_type.lower()}.py",
     ):
         if candidate.is_file():
             scripts.append(file_record(candidate, PROJECT_ROOT))
@@ -558,9 +580,9 @@ def experiment_detail(raw_path: str) -> dict[str, Any]:
             path,
             (
                 "calibration"
-                if CALIBRATION_RUN_ROOT.resolve() in path.resolve().parents
+                if (PROJECT_ROOT / "data" / "calibrations").resolve() in path.resolve().parents
                 else "parameter_scan"
-                if PARAMETER_SCAN_ROOT.resolve() in path.resolve().parents
+                if (PROJECT_ROOT / "data" / "parameter_scans").resolve() in path.resolve().parents
                 else "general"
             ),
             experiment_type,

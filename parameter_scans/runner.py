@@ -18,7 +18,7 @@ import traceback
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 import numpy as np
 
@@ -26,6 +26,8 @@ import numpy as np
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT_ROOT = REPOSITORY_ROOT / "data" / "parameter_scans"
 DEFAULT_STOP_FILE = "STOP"
+LEGACY_CALIBRATIONS_DIR = "calibrations"
+V2_CALIBRATIONS_DIR = "calibrations_v2"
 SUMMARY_FIELDS = [
     "timestamp",
     "cycle",
@@ -148,6 +150,17 @@ def _experiment_name(script: Path, node: Any | None, spec_name: str | None) -> s
         return spec_name
     node_name = getattr(node, "name", None)
     return str(node_name) if node_name else script.stem
+
+
+def _result_node(namespace: Mapping[str, Any]) -> Any | None:
+    """Return the object that exposes node-like calibration results."""
+    node = namespace.get("node")
+    if node is not None:
+        return node
+    calibration = namespace.get("calibration")
+    if calibration is not None and hasattr(calibration, "results"):
+        return calibration
+    return None
 
 
 def _parameter_label(experiment_name: str, key: str) -> tuple[str, str]:
@@ -285,8 +298,29 @@ class LongScanRunner:
     def _script_path(self, spec: ExperimentSpec) -> Path:
         path = spec.script if spec.script.is_absolute() else self.repository_root / spec.script
         if not path.is_file():
+            path = self._v2_script_path(spec.script, path)
+        if not path.is_file():
             raise FileNotFoundError(f"Experiment script does not exist: {path}")
         return path
+
+    def _v2_script_path(self, requested_script: Path, resolved_path: Path) -> Path:
+        """Map legacy ``calibrations/*.py`` requests to ``calibrations_v2/*.py``.
+
+        Older scan plans and the live app were written against the original
+        ``calibrations`` directory. The current calibration language lives in
+        ``calibrations_v2``; keeping this resolver here lets those scan plans
+        continue to work while newly written configs can point at v2 directly.
+        """
+        parts = requested_script.parts
+        if parts and parts[0] == LEGACY_CALIBRATIONS_DIR:
+            candidate = self.repository_root / V2_CALIBRATIONS_DIR / Path(*parts[1:])
+            if candidate.is_file():
+                return candidate
+        if resolved_path.parent.name == LEGACY_CALIBRATIONS_DIR:
+            candidate = resolved_path.parent.parent / V2_CALIBRATIONS_DIR / resolved_path.name
+            if candidate.is_file():
+                return candidate
+        return resolved_path
 
     def _install_summary_only_saver(self) -> Any | None:
         if self.config.save_full_results:
@@ -349,6 +383,80 @@ class LongScanRunner:
         CalibrationSaver.save_xarray = original_save_xarray
         CalibrationSaver.save_figures = original_save_figures
 
+    def _install_v2_scan_options(self) -> Any | None:
+        try:
+            from calibrations_v2.base import BaseCalibration
+        except ImportError:
+            return None
+
+        original_init = BaseCalibration.__init__
+        original_save_figures = BaseCalibration.save_figures
+        original_propose = BaseCalibration._propose_profile_update_from_options
+
+        def init(instance: Any, *args: Any, **kwargs: Any) -> None:
+            original_init(instance, *args, **kwargs)
+            if not self.config.save_full_results:
+                instance.options.save_raw_data = False
+                instance.options.save_figures = False
+                instance.options.plot_data = False
+            instance.options.update_state = False
+            instance.options.propose_profile_update = False
+            instance.options.apply_profile_update = False
+
+        def save_figures(instance: Any) -> bool:
+            if self.config.save_full_results:
+                return original_save_figures(instance)
+            return False
+
+        def propose(instance: Any) -> bool:
+            return False
+
+        BaseCalibration.__init__ = init
+        BaseCalibration.save_figures = save_figures
+        BaseCalibration._propose_profile_update_from_options = propose
+        return BaseCalibration, original_init, original_save_figures, original_propose
+
+    def _restore_v2_scan_options(self, patch: Any | None) -> None:
+        if patch is None:
+            return
+        BaseCalibration, original_init, original_save_figures, original_propose = patch
+        BaseCalibration.__init__ = original_init
+        BaseCalibration.save_figures = original_save_figures
+        BaseCalibration._propose_profile_update_from_options = original_propose
+
+    def _install_plot_guard(self) -> Any | None:
+        try:
+            import matplotlib
+
+            matplotlib.use("Agg", force=True)
+            import matplotlib.pyplot as plt
+        except ImportError:
+            return None
+
+        original_show = plt.show
+        plt.show = lambda *args, **kwargs: None
+        plt.close("all")
+        return plt, original_show
+
+    def _restore_plot_guard(self, patch: Any | None) -> None:
+        if patch is None:
+            return
+        plt, original_show = patch
+        plt.show = original_show
+        plt.close("all")
+
+    def _install_scan_patches(self) -> Callable[[], None]:
+        plot_patch = self._install_plot_guard()
+        saver_patch = self._install_summary_only_saver()
+        v2_patch = self._install_v2_scan_options()
+
+        def restore() -> None:
+            self._restore_v2_scan_options(v2_patch)
+            self._restore_summary_only_saver(saver_patch)
+            self._restore_plot_guard(plot_patch)
+
+        return restore
+
     def _script_environment(self) -> dict[str, str]:
         environment = {"MPLBACKEND": os.environ.get("MPLBACKEND", "Agg")}
         if self.config.profile_name:
@@ -376,17 +484,19 @@ class LongScanRunner:
         timestamp = datetime.now().astimezone().isoformat()
 
         environment_patch = self._install_script_environment()
-        saver_patch = self._install_summary_only_saver()
+        restore_scan_patches = self._install_scan_patches()
         try:
             namespace = runpy.run_path(str(script), run_name="__main__")
         finally:
-            self._restore_summary_only_saver(saver_patch)
+            restore_scan_patches()
             self._restore_script_environment(environment_patch)
         duration_s = time.monotonic() - started
-        node = namespace.get("node")
+        node = _result_node(namespace)
         experiment_name = _experiment_name(spec.script, node, spec.name)
         if node is None:
-            raise RuntimeError(f"{script} did not leave a global 'node' object to inspect")
+            raise RuntimeError(
+                f"{script} did not leave a global 'node' or v2 'calibration' object to inspect"
+            )
 
         records = extract_fit_records(
             node,

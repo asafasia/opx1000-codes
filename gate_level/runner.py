@@ -3,8 +3,19 @@
 from __future__ import annotations
 
 import inspect
+from datetime import datetime
+from time import perf_counter
 from collections.abc import Mapping
 from typing import Any
+
+
+_GATE_LEVEL_STATUS_UPDATES = True
+
+
+def _status(message: str) -> None:
+    if _GATE_LEVEL_STATUS_UPDATES:
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[gate-level {timestamp}] {message}", flush=True)
 
 
 def patch_qm_job_submit_for_current_sdk() -> None:
@@ -49,25 +60,46 @@ def patch_qm_job_submit_for_current_sdk() -> None:
             kwargs["options"] = {"timeout": self.metadata["timeout"]}
 
         if isinstance(simulate, SimulationConfig):
+            _status("QOP simulation compile/submit started.")
+            started = perf_counter()
             simulate_kwargs = _accepted_kwargs(
                 self.qm.simulate,
                 {"simulate": simulate, "compiler_options": compiler_options},
             )
             self._qm_job = self.qm.simulate(self.program, **simulate_kwargs)
+            _status(
+                "QOP simulation compile/submit finished "
+                f"after {perf_counter() - started:.1f} s."
+            )
             return
 
         if isinstance(self.program, list):
+            _status(f"QOP queue submission started for {len(self.program)} circuits.")
+            started = perf_counter()
             self._job_id = ""
             self._qm_job = []
             for prog in self.program:
                 queue_kwargs = _accepted_kwargs(self.qm.queue.add, kwargs)
                 self._qm_job.append(self.qm.queue.add(prog, **queue_kwargs))
             self._job_id += ",".join([job.id for job in self._qm_job])
+            _status(
+                "QOP queue submission finished "
+                f"after {perf_counter() - started:.1f} s; "
+                f"job id(s): {self._job_id or 'unavailable'}."
+            )
             return
 
+        _status("QOP compile/execute started. Waiting for hardware job to be accepted.")
+        started = perf_counter()
         execute_kwargs = _accepted_kwargs(self.qm.execute, kwargs)
         self._qm_job = self.qm.execute(self.program, **execute_kwargs)
         self._job_id = self._qm_job.id if hasattr(self._qm_job, "id") else ""
+        _status(
+            "QOP compile/execute finished "
+            f"after {perf_counter() - started:.1f} s; "
+            "circuit is now running or already completed on the OPX "
+            f"(job id: {self._job_id or 'unavailable'})."
+        )
 
     submit._opx1000_compat = True
     QMJob.submit = submit
@@ -207,16 +239,31 @@ class Runner:
         *,
         profile: str = "single_qubit",
         reset_type: str = "active",
+        status_updates: bool = True,
     ) -> None:
         self.qubit = qubit
         self.profile = profile
         self.reset_type = reset_type
+        self.status_updates = status_updates
         self.backend = build_backend(profile=profile, qubit=qubit, reset_type=reset_type)
 
     def transpile(self, circuits, **transpile_options):
         from qiskit import transpile
 
-        return transpile(circuits, self.backend, **transpile_options)
+        global _GATE_LEVEL_STATUS_UPDATES
+        previous_status_updates = _GATE_LEVEL_STATUS_UPDATES
+        _GATE_LEVEL_STATUS_UPDATES = self.status_updates
+        try:
+            _status("Qiskit transpilation started.")
+            started = perf_counter()
+            transpiled = transpile(circuits, self.backend, **transpile_options)
+            _status(
+                "Qiskit transpilation finished "
+                f"after {perf_counter() - started:.1f} s."
+            )
+            return transpiled
+        finally:
+            _GATE_LEVEL_STATUS_UPDATES = previous_status_updates
 
     def submit(
         self,
@@ -227,15 +274,26 @@ class Runner:
         transpile_options: dict[str, Any] | None = None,
         **run_options,
     ):
+        global _GATE_LEVEL_STATUS_UPDATES
+        previous_status_updates = _GATE_LEVEL_STATUS_UPDATES
+        _GATE_LEVEL_STATUS_UPDATES = self.status_updates
         patch_qm_job_submit_for_current_sdk()
-        self.close_all_qms()
-        run_input = (
-            self.transpile(circuits, **(transpile_options or {}))
-            if do_transpile
-            else circuits
-        )
-        job = self.backend.run(run_input, shots=shots, **run_options)
-        return job.result()
+        try:
+            self.close_all_qms()
+            run_input = (
+                self.transpile(circuits, **(transpile_options or {}))
+                if do_transpile
+                else circuits
+            )
+            _status(f"Backend run requested with {shots} shots.")
+            job = self.backend.run(run_input, shots=shots, **run_options)
+            _status("Backend returned a job object; waiting for result data.")
+            started = perf_counter()
+            result = job.result()
+            _status(f"Result data received after {perf_counter() - started:.1f} s.")
+            return result
+        finally:
+            _GATE_LEVEL_STATUS_UPDATES = previous_status_updates
 
     def close_all_qms(self) -> None:
         try:

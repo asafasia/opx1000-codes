@@ -38,9 +38,9 @@ from qualibration_libs.core import tracked_updates
 from quam_builder.tools.power_tools import calculate_voltage_scaling_factor
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration, CalibrationOptions
+    from calibrations_v2.core import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration, CalibrationOptions
+    from .core import BaseCalibration, CalibrationOptions
 
 description = """
         TIME OF FLIGHT - MW FEM

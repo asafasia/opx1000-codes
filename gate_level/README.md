@@ -52,6 +52,16 @@ result = runner.submit(circuit, shots=1000)
 print(result_counts(result))
 ```
 
+By default the runner prints timestamped status messages around Qiskit
+transpilation, QOP compile/execute submission, and result collection. The
+message that starts with `QOP compile/execute finished` is the point where the
+program has been accepted by QOP and the circuit is running or has already
+completed on the OPX. For quiet runs, construct the runner with:
+
+```python
+runner = Runner(qubit="q3", status_updates=False)
+```
+
 For multi-circuit experiments, use `result_counts_list(result)`.
 
 The installed `qiskit-qm-provider` currently uses `iqcc_calibration_tools` inside

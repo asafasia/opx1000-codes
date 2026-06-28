@@ -69,6 +69,53 @@ options = CalibrationOptions(
 
 Pass `options=options` into any v2 calibration constructor.
 
+## Terminal runner
+
+The lightweight terminal wrapper is meant for Codex and quick lab use:
+
+```powershell
+python -m calibrations_v2.runner list
+python -m calibrations_v2.runner describe resonator
+python -m calibrations_v2.runner run resonator --qubit q9 --set num_shots=200
+python -m calibrations_v2.runner run power-rabi --qubit q9 --simulate --no-save
+python -m calibrations_v2.runner run resonator --load data/calibrations/2026-06-13/02a_resonator_spectroscopy/15-09-48-460578
+```
+
+Parameter overrides use `--set name=value`. Runtime lifecycle switches use
+`--option name=value`, matching `CalibrationOptions`.
+
+By default, profile updates may be staged but are not applied. Pass `--apply`
+only when you explicitly want the runner to apply a proposed profile update.
+
+Use `--dry-run` to print the resolved calibration, parameters, and options
+without constructing a machine:
+
+```powershell
+python -m calibrations_v2.runner run resonator --dry-run --qubit q9 --set num_shots=50
+```
+
+The runner also accepts JSON recipes:
+
+```json
+{
+  "calibration": "resonator",
+  "qubit": "q9",
+  "parameters": {
+    "num_shots": 200,
+    "frequency_span_in_mhz": 30
+  },
+  "options": {
+    "plot_data": false
+  }
+}
+```
+
+Run a recipe with:
+
+```powershell
+python -m calibrations_v2.runner run --recipe path/to/recipe.json
+```
+
 `PowerRabi` is the first concrete v2 calibration:
 
 ```python

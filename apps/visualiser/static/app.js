@@ -1,4 +1,4 @@
-const state = { experiments: [], filtered: [], selected: null, detail: null, calibrationType: null, qubit: "all", runFilter: "all", tab: "figures", figureIndex: 0, plotData: null, plotResult: 0, plotHeatmap: 0, plotSlice: null, plotTranspose: false, trendData: null, trendSeries: 0 };
+const state = { experiments: [], filtered: [], selected: null, detail: null, calibrationType: null, qubit: "all", runFilter: "all", tab: "overview", figureIndex: 0, plotData: null, plotResult: 0, plotHeatmap: 0, plotSlice: null, plotTranspose: false, trendData: null, trendSeries: 0 };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[c]));
 const formatBytes = n => n == null ? "unavailable" : n < 1024 ? `${n} B` : n < 1048576 ? `${(n/1024).toFixed(1)} KB` : `${(n/1048576).toFixed(1)} MB`;
@@ -6,6 +6,16 @@ let refreshInProgress = false;
 
 async function api(url) {
   const response = await fetch(url);
+  const contentType = response.headers.get("Content-Type") || "";
+  if (!contentType.includes("application/json")) {
+    const text = await response.text();
+    const title = text.match(/<title>(.*?)<\/title>/i)?.[1];
+    throw new Error(
+      title
+        ? `${title}. Restart the visualizer server if this button was just added.`
+        : `Expected JSON from ${url}, got ${contentType || "an unknown response type"}.`
+    );
+  }
   const value = await response.json();
   if (!response.ok) throw new Error(value.error || `Request failed (${response.status})`);
   return value;
@@ -146,7 +156,7 @@ function renderQubitNav() {
 
 async function selectExperiment(id) {
   state.selected = state.experiments.find(e => e.id === id);
-  state.tab = "figures";
+  state.tab = "overview";
   state.figureIndex = 0;
   state.plotData = null;
   state.plotResult = 0;
@@ -161,6 +171,7 @@ async function selectExperiment(id) {
   setStatus("Loading experiment");
   try {
     state.detail = await api(`/api/experiment?path=${encodeURIComponent(id)}`);
+    state.tab = defaultTabForSelection();
     populateHero();
     renderTab();
     setStatus("Live archive");
@@ -179,6 +190,12 @@ function populateHero() {
   $("figureCount").textContent = state.detail.figures.length;
   $("openFolderButton").onclick = openSelectedFolder;
   showDetailErrors(state.detail.errors);
+}
+
+function defaultTabForSelection() {
+  if (state.detail?.summary?.kind === "parameter_scan") return "trends";
+  if (state.detail?.figures?.length) return "figures";
+  return "overview";
 }
 
 async function openSelectedFolder() {
@@ -217,8 +234,9 @@ async function renderTab() {
       return;
     }
   }
-  const renderers = { overview: renderOverview, figures: renderFigures, interactive: renderInteractivePlot, trends: renderParameterTrends, data: renderData, calibrations: renderCalibrations };
-  $("tabContent").innerHTML = renderers[state.tab]();
+  const renderers = { overview: renderOverview, figures: renderFigures, interactive: renderInteractivePlot, trends: renderParameterTrends, data: renderData, profile: renderProfile, calibrations: renderCalibrations };
+  const renderer = renderers[state.tab] || renderOverview;
+  $("tabContent").innerHTML = renderer();
   bindFigures();
   if (state.tab === "data") bindDownloads();
   if (state.tab === "interactive") bindInteractivePlot();
@@ -312,6 +330,13 @@ function renderData() {
     + section("Table Previews", `${d.tables.length} CSV/TSV files`, `<div class="card-grid">${tables || `<p class="mono">No tabular data found.</p>`}</div>`)
     + section("Binary & Other Artifacts", `${d.artifacts.length} files`, artifactRows(d.artifacts));
 }
+
+function renderProfile() {
+  const d = state.detail;
+  const profileItems = d.metadata.filter(item => item.relative === "profile/profile.json" || item.relative.startsWith("profile/"));
+  return section("Profile Snapshot", `${profileItems.length} JSON files`, `<div class="card-grid">${profileItems.map(jsonCard).join("") || `<p class="mono">No profile snapshot was saved for this run.</p>`}</div>`);
+}
+
 function renderCalibrations() {
   const c = state.detail.calibrations;
   const updates = c.updates.map(u => `<article class="data-card"><div class="card-head"><strong>Update ${escapeHtml(u.time)}</strong><span class="mono">${escapeHtml(u.path)}</span></div><div style="padding:10px">${artifactRows(u.files)}</div></article>`).join("");

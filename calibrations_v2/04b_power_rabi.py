@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import dataclasses
 import sys
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +18,7 @@ import xarray as xr
 from qm.qua import *
 from qualang_tools.loops import from_array
 
+from calibration_utils.analysis_base import BaseAnalysis
 from calibration_utils.power_rabi import (
     Parameters,
     fit_raw_data,
@@ -32,9 +32,9 @@ from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration, CalibrationOptions
+    from calibrations_v2.core import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration, CalibrationOptions
+    from .core import BaseCalibration, CalibrationOptions
 
 DESCRIPTION = """
         POWER RABI
@@ -116,6 +116,9 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
             auto_connect=auto_connect,
             **kwargs,
         )
+
+    def create_analysis(self):
+        return PowerRabiAnalysis(self)
 
     def create_qua_program(self):
         """Create the sweep axes and generate the QUA program."""
@@ -248,23 +251,6 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
             self.parameters.use_state_discrimination,
         )
 
-    def analyse(self) -> None:
-        validate_readout_dataset(
-            self.results["ds_raw"],
-            self.parameters.use_state_discrimination,
-        )
-        self.results["ds_raw"] = process_raw_dataset(self.results["ds_raw"], self)
-        self.results["ds_fit"], fit_results = fit_raw_data(self.results["ds_raw"], self)
-        self.results["fit_results"] = {
-            qubit_name: asdict(fit_result)
-            for qubit_name, fit_result in fit_results.items()
-        }
-        log_fitted_results(self.results["fit_results"], log_callable=self.log)
-        self.outcomes = {
-            qubit_name: ("successful" if fit_result["success"] else "failed")
-            for qubit_name, fit_result in self.results["fit_results"].items()
-        }
-
     def plot_data(self) -> None:
         figures = plot_per_qubit(
             plot_raw_data_with_fit,
@@ -307,22 +293,39 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
             Q_st[i].buffer(len(amps)).buffer(len(n_pi_vec)).average().save(f"Q{i + 1}")
 
 
+class PowerRabiAnalysis(BaseAnalysis):
+    """Shared analysis adapter for Power Rabi calibration data."""
+
+    def process(self, ds):
+        validate_readout_dataset(
+            ds,
+            self.node.parameters.use_state_discrimination,
+        )
+        return process_raw_dataset(ds, self.node)
+
+    def fit(self, ds):
+        return fit_raw_data(ds, self.node)
+
+    def log(self, result):
+        log_fitted_results(result.fit_results, log_callable=self.node.log)
+
+
 if __name__ == "__main__":
 
     parameters = Parameters()
-    parameters.reset_type = "active"
-    parameters.use_state_discrimination = True
-    parameters.num_shots = 500
+    parameters.reset_type = "thermal"
+    parameters.use_state_discrimination = False
+    parameters.num_shots = 100
     parameters.transition = "ge"
-    parameters.pi_repetitions = 10
-    parameters.operation = "x180_drag"
+    parameters.pi_repetitions = 4
+    parameters.operation = "x180"
 
     options = CalibrationOptions()
 
     power_rabi = PowerRabi(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q4"),
         auto_connect=True,
     )
     power_rabi.run()

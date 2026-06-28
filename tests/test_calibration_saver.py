@@ -9,6 +9,7 @@ from matplotlib.figure import Figure
 
 from profiles import Profile, clear_active_profile, set_active_profile
 from calibration_io import CalibrationSaver
+from calibration_utils.analysis_base import AnalysisResult
 from utils.plotting_settings import CALIBRATION_TIMESTAMP_GID, add_calibration_timestamp
 
 
@@ -180,6 +181,24 @@ class CalibrationSaverTests(unittest.TestCase):
 
             timestamps = [text for text in figure.texts if text.get_gid() == CALIBRATION_TIMESTAMP_GID]
             self.assertEqual(len(timestamps), 1)
+
+    def test_save_analysis_result_writes_json_and_updates_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run_directory = Path(directory) / "run"
+            run_directory.mkdir()
+            (run_directory / "metadata.json").write_text('{"experiment_name": "t1"}\n', encoding="utf-8")
+            result = AnalysisResult(
+                fit_results={"q1": {"t1": np.float64(12000.0), "success": True}},
+                outcomes={"q1": "successful"},
+            )
+
+            output_path = CalibrationSaver().save_analysis_result(run_directory, result)
+
+            self.assertEqual(output_path, run_directory / "analysis_result.json")
+            saved = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(saved["fit_results"]["q1"]["t1"], 12000.0)
+            metadata = json.loads((run_directory / "metadata.json").read_text(encoding="utf-8"))
+            self.assertEqual(metadata["analysis_result"], "analysis_result.json")
 
 
 if __name__ == "__main__":

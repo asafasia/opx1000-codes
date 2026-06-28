@@ -36,9 +36,9 @@ from qualibration_libs.core import tracked_updates
 from quam_config import create_machine
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration, CalibrationOptions
+    from calibrations_v2.core import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration, CalibrationOptions
+    from .core import BaseCalibration, CalibrationOptions
 
 description = """
         RABI CHEVRON - DURATION VS AMPLITUDE
@@ -337,7 +337,7 @@ if __name__ == "__main__":
     parameters = Parameters()
 
     parameters.use_state_discrimination = True
-    parameters.reset_type = "active"
+    parameters.reset_type = "thermal"
     parameters.use_state_discrimination = False
     parameters.num_shots = 100
 
@@ -346,6 +346,6 @@ if __name__ == "__main__":
     calibration = RabiChevron(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q3"),
     )
     calibration.run()

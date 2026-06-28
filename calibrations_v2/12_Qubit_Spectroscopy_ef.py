@@ -35,9 +35,9 @@ from utils.plotting_settings import plot_per_qubit
 from profiles import ProfileUpdater
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration, CalibrationOptions
+    from calibrations_v2.core import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration, CalibrationOptions
+    from .core import BaseCalibration, CalibrationOptions
 
 description = """
         QUBIT SPECTROSCOPY E TO F

@@ -28,7 +28,7 @@
       },
       "readout": {
         "fidelity_percent": {
-          "active": 77.39,
+          "active": 77.34,
           "thermal": 77.47
         }
       }
@@ -45,7 +45,7 @@
       "readout": {
         "fidelity_percent": {
           "active": null,
-          "thermal": null
+          "thermal": 60.92999999999999
         }
       }
     },

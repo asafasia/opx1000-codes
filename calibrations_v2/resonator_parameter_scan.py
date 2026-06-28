@@ -30,9 +30,9 @@ from quam_config import Quam, create_machine
 from utils.plotting_settings import FIGURE_SIZE
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration, CalibrationOptions
+    from calibrations_v2.core import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration, CalibrationOptions
+    from .core import BaseCalibration, CalibrationOptions
 
 
 QUBIT_NAME = "q9"

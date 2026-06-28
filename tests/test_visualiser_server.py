@@ -171,8 +171,8 @@ class VisualiserServerTests(unittest.TestCase):
 
             self.assertEqual(filename, "04b_power_rabi_12-00-00-000000_data_bundle.npz")
             with np.load(io.BytesIO(body), allow_pickle=False) as bundle:
-                np.testing.assert_array_equal(bundle["sweep.npz__detuning"], [1, 2])
-                np.testing.assert_allclose(bundle["results.npz__I"], [0.1, 0.2])
+                np.testing.assert_array_equal(bundle["data__detuning"], [1, 2])
+                np.testing.assert_allclose(bundle["data__I"], [0.1, 0.2])
                 self.assertEqual(json.loads(str(bundle["profile__profile.json"]))["name"], "main")
 
     def test_download_json_bundle_loads_as_python_dict(self):
@@ -194,11 +194,61 @@ class VisualiserServerTests(unittest.TestCase):
 
             self.assertEqual(filename, "04b_power_rabi_12-00-00-000000_data.json")
             bundle = json.loads(body.decode("utf-8"))
-            self.assertEqual(bundle["sweep"]["detuning"], [1, 2])
-            self.assertEqual(bundle["results"]["I"], [0.1, 0.2])
+            self.assertEqual(bundle["data"]["detuning"], [1, 2])
+            self.assertEqual(bundle["data"]["I"], [0.1, 0.2])
             self.assertEqual(bundle["metadata"]["experiment_name"], "04b_power_rabi")
             self.assertEqual(bundle["parameters"]["num_shots"], 2)
             self.assertNotIn("integration_weights", bundle["profile"]["pulses.json"]["readout"])
+
+    def test_open_result_folder_launches_resolved_run_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "data" / "calibrations" / "2026-06-18" / "04b_power_rabi" / "12-00-00-000000"
+            run.mkdir(parents=True)
+
+            with patch.object(server, "PROJECT_ROOT", root), patch.object(
+                server.os, "name", "nt"
+            ), patch.object(server.os, "startfile", create=True) as startfile:
+                result = server.open_result_folder(run.relative_to(root).as_posix())
+
+            self.assertEqual(
+                result["opened"],
+                "data/calibrations/2026-06-18/04b_power_rabi/12-00-00-000000",
+            )
+            startfile.assert_called_once_with(run)
+
+    def test_parameter_scan_detail_links_scan_manifest_scripts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "data" / "parameter_scans" / "2026-06-28" / "codex_t1_q1_check" / "21-13-51-592429"
+            script = root / "calibrations_v2" / "05_T1.py"
+            run.mkdir(parents=True)
+            script.parent.mkdir(parents=True)
+            script.write_text("# fake T1 calibration\n", encoding="utf-8")
+            (run / "summary.csv").write_text(
+                "timestamp,cycle,experiment_name,script,status,qubit,parameter,value,unit,success,duration_s,error\n"
+                "2026-06-28T21:13:51+03:00,1,05_T1,calibrations_v2/05_T1.py,ok,q1,T1,47125,ns,True,15,\n",
+                encoding="utf-8",
+            )
+            (run / "scan.json").write_text(
+                json.dumps(
+                    {
+                        "name": "codex_t1_q1_check",
+                        "experiments": [{"script": "calibrations_v2/05_T1.py"}],
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with patch.object(server, "PROJECT_ROOT", root):
+                detail = server.experiment_detail(run.relative_to(root).as_posix())
+
+            self.assertEqual(detail["summary"]["kind"], "parameter_scan")
+            self.assertEqual(
+                [item["project_path"] for item in detail["calibrations"]["scripts"]],
+                ["calibrations_v2/05_T1.py"],
+            )
 
 
 if __name__ == "__main__":

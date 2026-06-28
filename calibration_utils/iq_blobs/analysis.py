@@ -111,11 +111,15 @@ class FitParameters:
     ge_threshold: float
     rus_threshold: float
     readout_fidelity: float
+    readout_fidelity_std: float
     average_fidelity: float
+    average_fidelity_std: float
     fidelity_matrix: list
+    fidelity_matrix_std: list
     center_separation: float
     separation_to_width: float
     confusion_matrix: list
+    confusion_matrix_std: list
     state_labels: list
     center_matrix: list | None
     threshold_pairs: list
@@ -271,17 +275,46 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     ds_fit = ds_fit.assign(
         {"readout_fidelity": xr.DataArray(100 * (ds_fit.gg + ds_fit.ee) / 2, coords=dict(qubit=ds_fit.qubit.data))}
     )
-    ds_fit = ds_fit.assign({"average_fidelity": ds_fit.readout_fidelity.copy()})
     fidelity_matrices = np.stack(
         [
             np.asarray([[gg_value, ge_value], [eg_value, ee_value]], dtype=float)
             for gg_value, ge_value, eg_value, ee_value in zip(gg, ge, eg, ee)
         ]
     )
+    n_runs = int(ds_fit.sizes["n_runs"])
+    fidelity_matrix_std = np.sqrt(fidelity_matrices * (1 - fidelity_matrices) / n_runs)
+    readout_fidelity_std = 50 * np.sqrt(
+        fidelity_matrix_std[:, 0, 0] ** 2 + fidelity_matrix_std[:, 1, 1] ** 2
+    )
+    ds_fit = ds_fit.assign(
+        {
+            "readout_fidelity_std": xr.DataArray(
+                readout_fidelity_std,
+                dims="qubit",
+                coords={"qubit": ds_fit.qubit.data},
+                attrs={"long_name": "readout fidelity standard error", "units": "%"},
+            )
+        }
+    )
+    ds_fit = ds_fit.assign({"average_fidelity": ds_fit.readout_fidelity.copy()})
+    ds_fit = ds_fit.assign({"average_fidelity_std": ds_fit.readout_fidelity_std.copy()})
     ds_fit = ds_fit.assign(
         {
             "fidelity_matrix": xr.DataArray(
                 fidelity_matrices,
+                dims=("qubit", "fidelity_prepared_state", "fidelity_measured_state"),
+                coords={
+                    "qubit": ds_fit.qubit.data,
+                    "fidelity_prepared_state": ["g", "e"],
+                    "fidelity_measured_state": ["g", "e"],
+                },
+            )
+        }
+    )
+    ds_fit = ds_fit.assign(
+        {
+            "fidelity_matrix_std": xr.DataArray(
+                fidelity_matrix_std,
                 dims=("qubit", "fidelity_prepared_state", "fidelity_measured_state"),
                 coords={
                     "qubit": ds_fit.qubit.data,
@@ -347,6 +380,7 @@ def _add_state_centers_and_confusion(fit: xr.Dataset) -> xr.Dataset:
     threshold_pairs = _threshold_pairs_for_states(state_labels)
     centers_by_qubit = []
     confusion_by_qubit = []
+    confusion_std_by_qubit = []
     threshold_midpoints_by_qubit = []
     threshold_normals_by_qubit = []
 
@@ -367,6 +401,8 @@ def _add_state_centers_and_confusion(fit: xr.Dataset) -> xr.Dataset:
                 confusion[prepared_index, measured_index] = float(np.mean(measured == measured_index))
         centers_by_qubit.append(centers)
         confusion_by_qubit.append(confusion)
+        n_runs = fit.sizes["n_runs"]
+        confusion_std_by_qubit.append(np.sqrt(confusion * (1 - confusion) / n_runs))
         midpoints = []
         normals = []
         for left_state, right_state in threshold_pairs:
@@ -386,6 +422,15 @@ def _add_state_centers_and_confusion(fit: xr.Dataset) -> xr.Dataset:
             ),
             "state_confusion_matrix": xr.DataArray(
                 np.stack(confusion_by_qubit),
+                dims=("qubit", "prepared_state", "measured_state"),
+                coords={
+                    "qubit": fit.qubit.data,
+                    "prepared_state": state_labels,
+                    "measured_state": state_labels,
+                },
+            ),
+            "state_confusion_matrix_std": xr.DataArray(
+                np.stack(confusion_std_by_qubit),
                 dims=("qubit", "prepared_state", "measured_state"),
                 coords={
                     "qubit": fit.qubit.data,
@@ -438,11 +483,15 @@ def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
             ge_threshold=float(fit.sel(qubit=q).ge_threshold),
             rus_threshold=float(fit.sel(qubit=q).rus_threshold),
             readout_fidelity=float(fit.sel(qubit=q).readout_fidelity),
+            readout_fidelity_std=float(fit.sel(qubit=q).readout_fidelity_std),
             average_fidelity=float(fit.sel(qubit=q).average_fidelity),
+            average_fidelity_std=float(fit.sel(qubit=q).average_fidelity_std),
             fidelity_matrix=fit.sel(qubit=q).fidelity_matrix.values.tolist(),
+            fidelity_matrix_std=fit.sel(qubit=q).fidelity_matrix_std.values.tolist(),
             center_separation=float(fit.sel(qubit=q).center_separation),
             separation_to_width=float(fit.sel(qubit=q).separation_to_width),
             confusion_matrix=fit.sel(qubit=q).state_confusion_matrix.values.tolist(),
+            confusion_matrix_std=fit.sel(qubit=q).state_confusion_matrix_std.values.tolist(),
             state_labels=list(fit.state.values),
             center_matrix=fit.sel(qubit=q).state_center_matrix.values.tolist(),
             threshold_pairs=list(fit.threshold.values),

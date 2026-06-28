@@ -3,6 +3,11 @@ data/
 /calibrations/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 /visualiser/*.log
 /apps/visualiser/*.log
+/apps/parameter_scan/*.log
+
+# Generated knowledge-graph automation output
+/knowledge_graphs/automation_data/
+/knowledge_graphs/*_log.jsonl
 
 # Generated QuAM machine artifacts
 /state.json

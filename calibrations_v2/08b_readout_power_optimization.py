@@ -36,9 +36,9 @@ from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration, CalibrationOptions
+    from calibrations_v2.core import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration, CalibrationOptions
+    from .core import BaseCalibration, CalibrationOptions
 
 description = """
         READOUT POWER OPTIMIZATION

@@ -8,6 +8,7 @@ import csv
 import json
 import mimetypes
 import os
+import subprocess
 import sys
 import threading
 import urllib.parse
@@ -27,7 +28,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from parameter_scans.runner import ExperimentSpec, LongScanRunner, ScanConfig
 
-CALIBRATIONS_ROOT = PROJECT_ROOT / "calibrations"
+CALIBRATIONS_ROOT = PROJECT_ROOT / "calibrations_v2"
 SINGLE_QUBIT_PROFILE_ROOT = PROJECT_ROOT / "profiles" / "single_qubit"
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "data" / "parameter_scans"
 PREFERRED_EXPERIMENTS = {
@@ -43,6 +44,29 @@ LIVE_SCAN_EXPERIMENTS = {
     "07_iq_blobs.py": "IQ blobs",
 }
 TERMINAL_OUTPUT_LIMIT = 120_000
+LAB_PYTHON = Path(r"C:\Users\owner\miniconda3\envs\opx1000_env\python.exe")
+
+
+def maybe_reexec_lab_python() -> None:
+    """Run the app under the OPX lab environment when it is launched directly.
+
+    The scan runner executes calibration scripts in-process. If the control app
+    is started with system Python, those scripts import a mismatched protobuf
+    package and fail before reaching hardware. Re-execing at startup keeps the
+    app and the calibrations in the same environment.
+    """
+    if os.environ.get("PARAMETER_SCAN_REEXECED") == "1":
+        return
+    if not LAB_PYTHON.is_file():
+        return
+    if Path(sys.executable).resolve() == LAB_PYTHON.resolve():
+        return
+
+    environment = dict(os.environ)
+    environment["PARAMETER_SCAN_REEXECED"] = "1"
+    raise SystemExit(
+        subprocess.call([str(LAB_PYTHON), *sys.argv], cwd=PROJECT_ROOT, env=environment)
+    )
 
 
 def json_default(value: Any) -> Any:
@@ -399,6 +423,7 @@ class ParameterScanHandler(SimpleHTTPRequestHandler):
 
 
 def main() -> None:
+    maybe_reexec_lab_python()
     parser = argparse.ArgumentParser(description="Run the live parameter scan app.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=8770, type=int)

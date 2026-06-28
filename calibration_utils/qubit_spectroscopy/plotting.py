@@ -173,11 +173,7 @@ def plot_raw_data_with_fit(
     - The fitted qubit frequency is marked on both subplots.
     """
     variables = ["state"] if use_state_discrimination else ["I", "Q"]
-    if not use_state_discrimination and transition != "ef" and "I_rot" in fits:
-        variables.append("I_rot")
     missing = [variable for variable in variables if variable not in ds]
-    if "I_rot" in missing and "I_rot" in fits:
-        missing.remove("I_rot")
     if missing:
         raise RuntimeError(
             f"Qubit-spectroscopy plot expected {variables} for "

@@ -212,3 +212,30 @@ class CalibrationSaver:
             add_calibration_timestamp(figure, timestamp)
             figure.savefig(figures_directory / filename, dpi=180, bbox_inches="tight")
         return figures_directory
+
+    def save_analysis_result(self, run_directory: Path | str, analysis_result: Any) -> Path:
+        """Save a JSON-serializable analysis result into an existing run."""
+        run_directory = Path(run_directory)
+        if not run_directory.is_dir():
+            raise FileNotFoundError(f"Calibration run directory does not exist: {run_directory}")
+
+        if hasattr(analysis_result, "to_dict"):
+            serialized = analysis_result.to_dict()
+        else:
+            serialized = _to_jsonable(analysis_result)
+
+        output_path = run_directory / "analysis_result.json"
+        with output_path.open("w", encoding="utf-8") as file:
+            json.dump(_to_jsonable(serialized), file, indent=2, allow_nan=True)
+            file.write("\n")
+
+        metadata_path = run_directory / "metadata.json"
+        if metadata_path.is_file():
+            with metadata_path.open(encoding="utf-8") as file:
+                metadata = json.load(file)
+            metadata["analysis_result"] = output_path.name
+            with metadata_path.open("w", encoding="utf-8") as file:
+                json.dump(metadata, file, indent=2)
+                file.write("\n")
+
+        return output_path

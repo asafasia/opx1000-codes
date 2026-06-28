@@ -11,7 +11,6 @@ if __package__ in {None, ""}:
         sys.path.insert(0, str(repository_root))
 
 import matplotlib.pyplot as plt
-from dataclasses import asdict
 import xarray as xr
 from qm.qua import *
 from qualang_tools.multi_user import qm_session
@@ -32,11 +31,12 @@ from calibration_utils.T1 import (
     log_fitted_results,
     plot_raw_data_with_fit,
 )
+from calibration_utils.analysis_base import BaseAnalysis
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration, CalibrationOptions
+    from calibrations_v2.core import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration, CalibrationOptions
+    from .core import BaseCalibration, CalibrationOptions
 
 description = """
         T1 MEASUREMENT
@@ -71,6 +71,19 @@ State update:
 # %% {Save_results}
 
 
+class T1Analysis(BaseAnalysis):
+    """Shared analysis adapter for T1 calibration data."""
+
+    def process(self, ds):
+        return process_raw_dataset(ds, self.node)
+
+    def fit(self, ds):
+        return fit_raw_data(ds, self.node)
+
+    def log(self, result):
+        log_fitted_results(result.ds_fit, log_callable=self.node.log)
+
+
 class T1(BaseCalibration[Parameters, Quam]):
     """v2 class migration for ``calibrations/05_T1.py``."""
 
@@ -87,6 +100,9 @@ class T1(BaseCalibration[Parameters, Quam]):
             machine=machine,
             **kwargs,
         )
+
+    def create_analysis(self):
+        return T1Analysis(self)
 
     def create_qua_program(self):
         node = self
@@ -235,20 +251,6 @@ class T1(BaseCalibration[Parameters, Quam]):
         # Get the active qubits from the loaded node parameters
         node.namespace["qubits"] = get_qubits(node)
 
-    def analyse_data(self):
-        node = self
-        """Analysis the raw data and store the fitted data in another xarray dataset and the fitted results in the fit_results class."""
-        node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
-        node.results["ds_fit"], fit_results = fit_raw_data(node.results["ds_raw"], node)
-        node.results["fit_results"] = {k: asdict(v) for k, v in fit_results.items()}
-
-        # Log the relevant information extracted from the data analysis
-        log_fitted_results(node.results["ds_fit"], log_callable=node.log)
-        node.outcomes = {
-            qubit_name: ("successful" if fit_result["success"] else "failed")
-            for qubit_name, fit_result in node.results["fit_results"].items()
-        }
-
     def plot_data(self):
         node = self
         """Plot the raw and fitted data in a specific figure whose shape is given by qubit.grid_location."""
@@ -309,6 +311,6 @@ if __name__ == "__main__":
     calibration = T1(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q2"),
     )
     calibration.run()

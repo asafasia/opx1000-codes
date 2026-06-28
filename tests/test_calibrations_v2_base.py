@@ -8,6 +8,7 @@ import numpy as np
 import xarray as xr
 
 from calibration_io import CalibrationSaver
+from calibration_utils.analysis_base import BaseAnalysis
 from calibrations_v2 import BaseCalibration, CalibrationOptions
 from profiles import Profile, clear_active_profile, set_active_profile
 
@@ -42,6 +43,30 @@ class OrderedCalibration(FakeCalibration):
     def propose_profile_update(self, *, apply: bool = True):
         self.results.setdefault("lifecycle_order", []).append("propose_profile_update")
         return True
+
+
+class ManagedAnalysis(BaseAnalysis):
+    def process(self, ds):
+        return ds.assign(processed=("x", ds.signal.values * 2))
+
+    def fit(self, ds):
+        fit = ds.assign(fit=("x", ds.processed.values + 1))
+        return fit, {"q1": {"value": np.float64(3.0), "success": True}}
+
+
+class ManagedAnalysisCalibration(BaseCalibration[SimpleNamespace, object]):
+    def create_qua_program(self):
+        self.namespace["sweep_axes"] = {"x": xr.DataArray(np.array([1, 2]))}
+        return "program"
+
+    def execute_qua_program(self):
+        self.results["ds_raw"] = xr.Dataset(
+            data_vars={"signal": ("x", np.array([0.1, 0.2]))},
+            coords={"x": np.array([1, 2])},
+        )
+
+    def create_analysis(self):
+        return ManagedAnalysis(self)
 
 
 class FakeMachine:
@@ -86,6 +111,31 @@ class CalibrationsV2BaseTests(unittest.TestCase):
             parameters = calibration.namespace["calibration_run_directory"] / "parameters.json"
             self.assertTrue(parameters.is_file())
             self.assertIn('"num_shots": 3', parameters.read_text(encoding="utf-8"))
+
+    def test_run_saves_managed_analysis_result_with_raw_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            profile = root / "profiles" / "main"
+            profile.mkdir(parents=True)
+            (profile / "profile.json").write_text("{}\n", encoding="utf-8")
+            set_active_profile(Profile("main", root=root / "profiles"))
+
+            calibration = ManagedAnalysisCalibration(
+                name="managed_calibration",
+                parameters=SimpleNamespace(simulate=False, load_data_id=None, num_shots=2),
+                machine=object(),
+                saver=CalibrationSaver(root / "data" / "calibrations", root / "profiles"),
+                profile_name="main",
+                logger=lambda message: None,
+                options=CalibrationOptions(plot_data=False, save_figures=False),
+            )
+
+            status = calibration.run()
+            run_directory = calibration.namespace["calibration_run_directory"]
+
+            self.assertEqual(status.outcomes, {"q1": "successful"})
+            self.assertTrue((run_directory / "analysis_result.json").is_file())
+            self.assertEqual(calibration.results["fit_results"]["q1"]["value"], 3.0)
 
     def test_run_updates_state_before_profile_proposal(self):
         calibration = OrderedCalibration(

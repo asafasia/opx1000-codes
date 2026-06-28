@@ -35,9 +35,9 @@ from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 
 if __package__ in {None, ""}:
-    from calibrations_v2.base import BaseCalibration, CalibrationOptions
+    from calibrations_v2.core import BaseCalibration, CalibrationOptions
 else:
-    from .base import BaseCalibration, CalibrationOptions
+    from .core import BaseCalibration, CalibrationOptions
 
 description = """
         1D RESONATOR SPECTROSCOPY
@@ -313,7 +313,7 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
-    parameters.qubit_operation = "saturation"
+    parameters.qubit_operation = "x180"
     parameters.num_shots = 200
     parameters.frequency_span_in_mhz = 30
     parameters.frequency_step_in_mhz = 0.3
@@ -323,6 +323,6 @@ if __name__ == "__main__":
     calibration = ResonatorSpectroscopy(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q3"),
     )
     calibration.run()

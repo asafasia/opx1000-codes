@@ -78,6 +78,17 @@ class IQBlobsAnalysisTests(unittest.TestCase):
         np.testing.assert_allclose(results["q1"].fidelity_matrix, expected_matrix)
         self.assertAlmostEqual(results["q1"].average_fidelity, 75.0)
         self.assertAlmostEqual(results["q1"].readout_fidelity, results["q1"].average_fidelity)
+        expected_matrix_std = np.sqrt(expected_matrix * (1 - expected_matrix) / 4)
+        expected_fidelity_std = 50 * np.sqrt(
+            expected_matrix_std[0, 0] ** 2 + expected_matrix_std[1, 1] ** 2
+        )
+        np.testing.assert_allclose(
+            fit.fidelity_matrix_std.sel(qubit="q1").values,
+            expected_matrix_std,
+        )
+        np.testing.assert_allclose(results["q1"].fidelity_matrix_std, expected_matrix_std)
+        self.assertAlmostEqual(results["q1"].readout_fidelity_std, expected_fidelity_std)
+        self.assertAlmostEqual(results["q1"].average_fidelity_std, expected_fidelity_std)
 
     def test_save_fit_results_writes_average_and_matrix(self):
         fit_results = {
@@ -118,6 +129,7 @@ class IQBlobsAnalysisTests(unittest.TestCase):
         self.assertEqual(results["q1"].threshold_pairs, ["ge", "ef", "gf"])
         self.assertEqual(np.asarray(results["q1"].threshold_line_midpoints).shape, (3, 2))
         self.assertEqual(np.asarray(results["q1"].threshold_line_normals).shape, (3, 2))
+        self.assertEqual(np.asarray(results["q1"].confusion_matrix_std).shape, (3, 3))
         centers = np.asarray(results["q1"].center_matrix)
         midpoints = np.asarray(results["q1"].threshold_line_midpoints)
         np.testing.assert_allclose(midpoints[0], 0.5 * (centers[0] + centers[1]))

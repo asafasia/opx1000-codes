@@ -27,7 +27,7 @@
         "rus_exit_threshold": -0.0002758320845562632,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": -2.026039039513255,
-        "use_kernel": true
+        "use_kernel": false
       },
       "operations": {
         "x180": "x180_const",
@@ -118,7 +118,7 @@
         3
       ],
       "frequencies_hz": {
-        "qubit_f01": 4438500000,
+        "qubit_f01": 4400000000,
         "qubit_f12": null,
         "resonator": 6977600000,
         "resonator_bare": null
