@@ -27,6 +27,7 @@ u = unit(coerce_to_integer=True)
 MIN_GAUSSIAN_FWHM_R_SQUARED = 0.1
 MAX_GAUSSIAN_CENTER_FRACTION_OF_SPAN = 0.5
 MAX_GAUSSIAN_FWHM_FRACTION_OF_SPAN = 0.3
+MAX_WAVEFORM_SAMPLE_V = 1.0
 
 
 def lorentzian_envelope(
@@ -168,10 +169,11 @@ def install_lorentzian_operation(node: QualibrationNode) -> list[float]:
         raise ValueError("Amplitude sweep is empty.")
     max_factor = float(np.max(np.abs(sweep_factors)))
     max_scaled_amplitude = max(abs(sample) for sample in waveform) * max_factor
-    if max_scaled_amplitude >= 0.5:
+    if max_scaled_amplitude >= MAX_WAVEFORM_SAMPLE_V:
         raise ValueError(
             "The swept Lorentzian waveform reaches "
-            f"{max_scaled_amplitude:g} V. Keep OPX waveform samples below 0.5 V "
+            f"{max_scaled_amplitude:g} V. Keep OPX waveform samples below "
+            f"{MAX_WAVEFORM_SAMPLE_V:g} V "
             f"(largest played amp_prefactor is {max_factor:g}). Reduce "
             "lorentzian_peak_amplitude or the amplitude sweep range."
         )

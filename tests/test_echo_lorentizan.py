@@ -310,6 +310,55 @@ class EchoLorentizanTests(unittest.TestCase):
         self.assertEqual(qubit.xy.operations["lorentzian"].length, 2000)
         self.assertEqual(node.namespace["lorentzian_play_duration_cycles"], 20000)
 
+    def test_lorentzian_safety_limit_allows_samples_below_one_volt(self):
+        qubit = SimpleNamespace(
+            xy=SimpleNamespace(operations={}),
+        )
+        node = SimpleNamespace(
+            parameters=SimpleNamespace(
+                pulse_shape="root_lorentzian",
+                lorentzian_length_in_ns=5000,
+                waveform_template_length_in_ns=5000,
+                lorentzian_tau_in_ns=2,
+                lorentzian_peak_amplitude=0.8,
+                cutoff=0.99,
+                echo=False,
+                operation="lorentzian",
+                min_amp_factor=0.0,
+                max_amp_factor=1.0,
+                amp_factor_step=0.01,
+            ),
+            namespace={"qubits": [qubit]},
+        )
+
+        waveform = lorentzian.install_lorentzian_operation(node)
+
+        self.assertLess(max(abs(sample) for sample in waveform) * 0.99, 1.0)
+
+    def test_lorentzian_safety_limit_rejects_samples_at_one_volt(self):
+        qubit = SimpleNamespace(
+            xy=SimpleNamespace(operations={}),
+        )
+        node = SimpleNamespace(
+            parameters=SimpleNamespace(
+                pulse_shape="root_lorentzian",
+                lorentzian_length_in_ns=20,
+                waveform_template_length_in_ns=20,
+                lorentzian_tau_in_ns=2,
+                lorentzian_peak_amplitude=1.0,
+                cutoff=1.0,
+                echo=False,
+                operation="lorentzian",
+                min_amp_factor=1.0,
+                max_amp_factor=1.01,
+                amp_factor_step=0.01,
+            ),
+            namespace={"qubits": [qubit]},
+        )
+
+        with self.assertRaisesRegex(ValueError, "below 1 V"):
+            lorentzian.install_lorentzian_operation(node)
+
     def test_waveform_template_requires_play_length_divisible_by_four(self):
         parameters = SimpleNamespace(
             pulse_shape="root_lorentzian",

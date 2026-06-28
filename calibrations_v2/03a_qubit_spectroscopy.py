@@ -330,10 +330,10 @@ if __name__ == "__main__":
     qubit = "q1"
 
     parameters.use_state_discrimination = False
-    parameters.num_shots = 100
-    parameters.operation_amplitude_factor = 0.005
-    parameters.frequency_span_in_mhz = 400
-    parameters.frequency_step_in_mhz = 0.5
+    parameters.num_shots = 500
+    parameters.operation_amplitude_factor = 0.001
+    parameters.frequency_span_in_mhz = 1
+    parameters.frequency_step_in_mhz = 0.005
     parameters.reset_type = "thermal"
 
     options = CalibrationOptions()

@@ -3,7 +3,7 @@
   "qubits": {
     "q1": {
       "coherence": {
-        "t1_ns": 43245.419005733165,
+        "t1_ns": 45184.80730985946,
         "t2_ramsey_ns": 7.347755771221152e-06,
         "t2_echo_ns": null
       },
@@ -12,7 +12,7 @@
       },
       "readout": {
         "fidelity_percent": {
-          "active": 91.895,
+          "active": 94.04999999999998,
           "thermal": 92.60000000000001
         }
       }

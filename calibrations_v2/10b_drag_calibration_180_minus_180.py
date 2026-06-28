@@ -64,8 +64,6 @@ Next steps before going to the next node:
 """
 
 
-
-
 # Any parameters that should change for debugging purposes only should go in here
 # These parameters are ignored when run through the GUI or as part of a graph
 # %% {Create_QUA_program}
@@ -78,6 +76,7 @@ Next steps before going to the next node:
 # %% {Update_state}
 # %% {Propose_profile_update}
 # %% {Save_results}
+
 
 class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
     """v2 class migration for ``calibrations/10b_drag_calibration_180_minus_180.py``."""
@@ -95,6 +94,7 @@ class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
             machine=machine,
             **kwargs,
         )
+
     def create_qua_program(self):
         node = self
         """Create the sweep axes and generate the QUA program from the pulse sequence and the node parameters."""
@@ -115,8 +115,12 @@ class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
         node.namespace["tracked_qubits"] = []
         if node.parameters.alpha_setpoint is not None:
             for q in qubits:
-                with tracked_updates(q, auto_revert=False, dont_assign_to_none=True) as q:
-                    q.xy.operations[node.parameters.operation].alpha = node.parameters.alpha_setpoint
+                with tracked_updates(
+                    q, auto_revert=False, dont_assign_to_none=True
+                ) as q:
+                    q.xy.operations[node.parameters.operation].alpha = (
+                        node.parameters.alpha_setpoint
+                    )
                     node.namespace["tracked_qubits"].append(q)
 
         n_avg = node.parameters.num_shots  # The number of averages
@@ -127,13 +131,20 @@ class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
             node.parameters.amp_factor_step,
         )
         # Number of applied Rabi pulses sweep
-        N_pi = node.parameters.max_number_pulses_per_sweep  # Maximum number of qubit pulses
+        N_pi = (
+            node.parameters.max_number_pulses_per_sweep
+        )  # Maximum number of qubit pulses
         N_pi_vec = np.linspace(1, N_pi, N_pi).astype("int")
         # Register the sweep axes to be added to the dataset when fetching data
         node.namespace["sweep_axes"] = {
             "qubit": xr.DataArray(qubits.get_names()),
-            "nb_of_pulses": xr.DataArray(N_pi_vec, attrs={"long_name": "number of pulses"}),
-            "alpha_prefactor": xr.DataArray(amps, attrs={"long_name": "DRAG coefficient alpha pre-factor", "units": ""}),
+            "nb_of_pulses": xr.DataArray(
+                N_pi_vec, attrs={"long_name": "number of pulses"}
+            ),
+            "alpha_prefactor": xr.DataArray(
+                amps,
+                attrs={"long_name": "DRAG coefficient alpha pre-factor", "units": ""},
+            ),
         }
         with program() as node.namespace["qua_program"]:
             I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
@@ -164,7 +175,9 @@ class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
                             # Qubit manipulation
                             for i, qubit in multiplexed_qubits.items():
                                 # Loop for error amplification (perform many qubit pulses)
-                                count = declare(int)  # QUA variable for counting the qubit pulses
+                                count = declare(
+                                    int
+                                )  # QUA variable for counting the qubit pulses
                                 with for_(count, 0, count < npi, count + 1):
                                     if node.parameters.operation.startswith("x180"):
                                         play(
@@ -172,7 +185,8 @@ class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
                                             qubit.xy.name,
                                         )
                                         play(
-                                            node.parameters.operation * amp(-1, 0, 0, -a),
+                                            node.parameters.operation
+                                            * amp(-1, 0, 0, -a),
                                             qubit.xy.name,
                                         )
                                     elif node.parameters.operation == "x90":
@@ -185,11 +199,13 @@ class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
                                             qubit.xy.name,
                                         )
                                         play(
-                                            node.parameters.operation * amp(-1, 0, 0, -a),
+                                            node.parameters.operation
+                                            * amp(-1, 0, 0, -a),
                                             qubit.xy.name,
                                         )
                                         play(
-                                            node.parameters.operation * amp(-1, 0, 0, -a),
+                                            node.parameters.operation
+                                            * amp(-1, 0, 0, -a),
                                             qubit.xy.name,
                                         )
 
@@ -199,22 +215,29 @@ class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
                                     qubit.readout_state(state[i])
                                     save(state[i], state_st[i])
                                 else:
-                                    qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
+                                    qubit.resonator.measure(
+                                        "readout", qua_vars=(I[i], Q[i])
+                                    )
                                     save(I[i], I_st[i])
                                     save(Q[i], Q_st[i])
-
 
             with stream_processing():
                 n_st.save("n")
                 for i, qubit in enumerate(qubits):
                     if node.parameters.use_state_discrimination:
-                        state_st[i].buffer(len(amps)).buffer(N_pi).average().save(f"state{i + 1}")
+                        state_st[i].buffer(len(amps)).buffer(N_pi).average().save(
+                            f"state{i + 1}"
+                        )
                     else:
-                        I_st[i].buffer(len(amps)).buffer(N_pi).average().save(f"I{i + 1}")
-                        Q_st[i].buffer(len(amps)).buffer(N_pi).average().save(f"Q{i + 1}")
-
+                        I_st[i].buffer(len(amps)).buffer(N_pi).average().save(
+                            f"I{i + 1}"
+                        )
+                        Q_st[i].buffer(len(amps)).buffer(N_pi).average().save(
+                            f"Q{i + 1}"
+                        )
 
         return node.namespace.get("qua_program")
+
     def simulate_qua_program(self):
         node = self
         """Connect to the QOP and simulate the QUA program"""
@@ -223,10 +246,15 @@ class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
         # Get the config from the machine
         config = node.machine.generate_config()
         # Simulate the QUA program, generate the waveform report and plot the simulated samples
-        samples, fig, wf_report = simulate_and_plot(qmm, config, node.namespace["qua_program"], node.parameters)
+        samples, fig, wf_report = simulate_and_plot(
+            qmm, config, node.namespace["qua_program"], node.parameters
+        )
         # Store the figure, waveform report and simulated samples
-        node.results["simulation"] = {"figure": fig, "wf_report": wf_report, "samples": samples}
-
+        node.results["simulation"] = {
+            "figure": fig,
+            "wf_report": wf_report,
+            "samples": samples,
+        }
 
     def execute_qua_program(self):
         node = self
@@ -252,17 +280,17 @@ class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
         # Register the raw dataset
         node.results["ds_raw"] = dataset
 
-
     def save_raw_results(self):
         node = self
         """Save the acquired vectors and a snapshot of the selected profile."""
         output_directory = CalibrationSaver().save_xarray(
-            node.name, node.results["ds_raw"], profile_name=current_profile_name(),
+            node.name,
+            node.results["ds_raw"],
+            profile_name=current_profile_name(),
             parameters=node.parameters,
         )
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")
-
 
     def load_data(self):
         node = self
@@ -273,7 +301,6 @@ class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
         node.namespace["qubits"] = get_qubits(node)
-
 
     def analyse_data(self):
         node = self
@@ -288,7 +315,6 @@ class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
             qubit_name: ("successful" if fit_result["success"] else "failed")
             for qubit_name, fit_result in node.results["fit_results"].items()
         }
-
 
     def plot_data(self):
         node = self
@@ -308,7 +334,6 @@ class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
             )
             node.log(f"Calibration figures saved to {figures_directory}")
 
-
     def update_state(self):
         node = self
         """Update the relevant parameters if the qubit data analysis was successful."""
@@ -325,7 +350,6 @@ class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
                 fit_result = node.results["fit_results"][q.name]
                 q.xy.operations[node.parameters.operation].alpha = fit_result["alpha"]
 
-
     def propose_profile_update(self):
         node = self
         """Stage the fitted DRAG coefficients and apply them after confirmation."""
@@ -339,7 +363,9 @@ class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
                 continue
             operation = node.parameters.operation
             pulse_name = qubit_profiles[q.name]["operations"].get(operation)
-            pulse_profile = pulse_profiles[q.name].get(pulse_name) if pulse_name else None
+            pulse_profile = (
+                pulse_profiles[q.name].get(pulse_name) if pulse_name else None
+            )
             if pulse_profile is None or pulse_profile.get("type") != "drag":
                 node.log(
                     f"Profile update skipped: operation {operation!r} does not map "
@@ -351,10 +377,10 @@ class DragCalibration180Minus180(BaseCalibration[Parameters, Quam]):
             )
 
         if updates:
-            proposal = ProfileUpdater().stage(node.name, updates, profile_name=profile_name)
+            proposal = ProfileUpdater().stage(
+                node.name, updates, profile_name=profile_name
+            )
             ProfileUpdater().confirm_and_apply(proposal)
-
-
 
 
 if __name__ == "__main__":
@@ -368,6 +394,6 @@ if __name__ == "__main__":
     calibration = DragCalibration180Minus180(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

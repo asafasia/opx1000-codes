@@ -315,7 +315,7 @@ if __name__ == "__main__":
     parameters.num_shots = 500
     parameters.transition = "ge"
     parameters.pi_repetitions = 10
-    parameters.operation = "x180"
+    parameters.operation = "x180_drag"
 
     options = CalibrationOptions()
 

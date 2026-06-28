@@ -56,12 +56,6 @@ State update:
 """
 
 
-
-
-
-
-
-
 def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> None:
     """Ensure fetched results match the requested readout mode."""
     expected = {"state"} if use_state_discrimination else {"I", "Q"}
@@ -86,6 +80,7 @@ def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> 
 # %% {Plot_data}
 # %% {Propose_profile_update}
 
+
 class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
     """v2 class migration for ``calibrations/04e_fine_rabi_calibration.py``."""
 
@@ -102,6 +97,7 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
             machine=machine,
             **kwargs,
         )
+
     def create_qua_program(self):
         node = self
         """Create the fine-Rabi amplitude and repetition-group sweep."""
@@ -112,7 +108,9 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
         pulses_per_group = pulses_per_repetition_group(node.parameters.rotation_type)
         for qubit in qubits:
             if operation not in qubit.xy.operations:
-                raise ValueError(f"{qubit.name} does not define operation {operation!r}.")
+                raise ValueError(
+                    f"{qubit.name} does not define operation {operation!r}."
+                )
 
         amps = node.parameters.get_amp_factors()
         repetition_groups = node.parameters.get_repetition_groups()
@@ -198,8 +196,8 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
                             len(repetition_groups)
                         ).average().save(f"Q{i + 1}")
 
-
         return node.namespace.get("qua_program")
+
     def simulate_qua_program(self):
         node = self
         qmm = node.machine.connect()
@@ -213,7 +211,6 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
             "samples": samples,
         }
         plt.show()
-
 
     def execute_qua_program(self):
         node = self
@@ -232,14 +229,12 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
         validate_readout_dataset(dataset, node.parameters.use_state_discrimination)
         node.results["ds_raw"] = dataset
 
-
     def load_data(self):
         node = self
         load_data_id = node.parameters.load_data_id
         node.load_from_id(load_data_id)
         node.parameters.load_data_id = load_data_id
         node.namespace["qubits"] = get_qubits(node)
-
 
     def save_raw_results(self):
         node = self
@@ -251,7 +246,6 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
         )
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")
-
 
     def analyse_data(self):
         node = self
@@ -265,7 +259,6 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
         node.results["fit_results"] = fit_results
         log_analysis_results(fit_results, log_callable=node.log)
         node.outcomes = {qubit.name: "successful" for qubit in node.namespace["qubits"]}
-
 
     def plot_data(self):
         node = self
@@ -286,7 +279,6 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
                 node.results["figures"],
             )
             node.log(f"Calibration figures saved to {figures_directory}")
-
 
     def propose_profile_update(self):
         node = self
@@ -327,7 +319,9 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
             )
 
         if updates:
-            proposal = ProfileUpdater().stage(node.name, updates, profile_name=profile_name)
+            proposal = ProfileUpdater().stage(
+                node.name, updates, profile_name=profile_name
+            )
             ProfileUpdater().confirm_and_apply(proposal)
 
 
@@ -337,12 +331,13 @@ if __name__ == "__main__":
     parameters.use_state_discrimination = True
     parameters.rotation_type = "PI"
     parameters.reset_type = "active"
+    parameters.num_shots = 100
 
     options = CalibrationOptions()
 
     calibration = FineRabiCalibration(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

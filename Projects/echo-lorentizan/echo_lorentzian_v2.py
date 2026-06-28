@@ -215,15 +215,15 @@ if __name__ == "__main__":
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
     parameters.pulse_shape = "root_lorentzian"
-    parameters.echo = False
-    parameters.cutoff = 0.99
-    parameters.num_shots = 100
-    parameters.lorentzian_length_in_ns = 1000
-    parameters.waveform_template_length_in_ns = 1000
-    parameters.lorentzian_peak_amplitude = 0.2
+    parameters.echo = True
+    parameters.cutoff = 0.005
+    parameters.num_shots = 20
+    parameters.lorentzian_length_in_ns = 15000
+    parameters.waveform_template_length_in_ns = 15000
+    parameters.lorentzian_peak_amplitude = 1
     parameters.amp_factor_step = 0.01
-    parameters.frequency_span_in_mhz = 400
-    parameters.frequency_step_in_mhz = 4
+    parameters.frequency_span_in_mhz = 1
+    parameters.frequency_step_in_mhz = 0.01
 
     options = CalibrationOptions()
 

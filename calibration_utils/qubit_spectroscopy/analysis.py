@@ -3,10 +3,13 @@ from dataclasses import dataclass
 from typing import Tuple, Dict
 import numpy as np
 import xarray as xr
+from scipy.optimize import curve_fit
 
 from qualibrate import QualibrationNode
 from qualibration_libs.data import add_amplitude_and_phase, convert_IQ_to_V
 from qualibration_libs.analysis import peaks_dips
+
+MIN_FIT_R_SQUARED = 0.8
 
 
 def _spectroscopy_center_frequency(qubit, node_name: str) -> float:
@@ -114,10 +117,117 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
         fit_signal = ds_fit.I_rot
 
     fit_vals = peaks_dips(fit_signal, dim="detuning", prominence_factor=5)
+    max_fit_vals = _fit_maximum_with_measured_fallback(fit_signal)
+    fit_vals = xr.merge([fit_vals, max_fit_vals])
+    fit_vals = fit_vals.assign(
+        {
+            "position": xr.where(
+                fit_vals.fit_r_squared >= MIN_FIT_R_SQUARED,
+                fit_vals.fit_position,
+                fit_vals.measured_max_position,
+            ),
+            "width": xr.where(
+                fit_vals.fit_r_squared >= MIN_FIT_R_SQUARED,
+                fit_vals.fit_width,
+                fit_vals.width,
+            ),
+        }
+    )
     ds_fit = xr.merge([ds_fit, fit_vals])
     # Extract the relevant fitted parameters
     fit_data, fit_results = _extract_relevant_fit_parameters(ds_fit, node)
     return fit_data, fit_results
+
+
+def _gaussian_peak(x, offset, amplitude, center, sigma):
+    return offset + amplitude * np.exp(-0.5 * ((x - center) / sigma) ** 2)
+
+
+def _fit_maximum_with_measured_fallback(fit_signal: xr.DataArray) -> xr.Dataset:
+    qubits = list(fit_signal.qubit.values)
+    measured_positions = []
+    fit_positions = []
+    fit_widths = []
+    fit_scores = []
+
+    for qubit in qubits:
+        trace = fit_signal.sel(qubit=qubit)
+        measured_position, fit_position, fit_width, fit_score = _fit_trace_maximum(
+            np.asarray(trace.detuning.values, dtype=float),
+            np.asarray(trace.values, dtype=float),
+        )
+        measured_positions.append(measured_position)
+        fit_positions.append(fit_position)
+        fit_widths.append(fit_width)
+        fit_scores.append(fit_score)
+
+    return xr.Dataset(
+        {
+            "measured_max_position": ("qubit", measured_positions),
+            "fit_position": ("qubit", fit_positions),
+            "fit_width": ("qubit", fit_widths),
+            "fit_r_squared": ("qubit", fit_scores),
+        },
+        coords={"qubit": qubits},
+    )
+
+
+def _fit_trace_maximum(
+    x: np.ndarray, y: np.ndarray
+) -> tuple[float, float, float, float]:
+    finite = np.isfinite(x) & np.isfinite(y)
+    x = np.asarray(x[finite], dtype=float)
+    y = np.asarray(y[finite], dtype=float)
+    if x.size < 5 or np.ptp(x) <= 0 or np.ptp(y) <= 0:
+        return np.nan, np.nan, np.nan, np.nan
+
+    max_index = int(np.argmax(y))
+    measured_position = float(x[max_index])
+    span = float(np.ptp(x))
+    step = _median_step(x)
+    baseline = float(np.percentile(y, 10))
+    amplitude = max(float(y[max_index] - baseline), np.finfo(float).eps)
+    sigma = max(span / 10, step)
+
+    try:
+        params, _ = curve_fit(
+            _gaussian_peak,
+            x,
+            y,
+            p0=[baseline, amplitude, measured_position, sigma],
+            bounds=(
+                [-np.inf, 0.0, float(np.min(x)), max(step / 10, np.finfo(float).eps)],
+                [np.inf, np.inf, float(np.max(x)), span],
+            ),
+            maxfev=10000,
+        )
+    except (RuntimeError, ValueError, FloatingPointError):
+        return measured_position, np.nan, np.nan, np.nan
+
+    offset, amplitude, center, sigma = [float(value) for value in params]
+    sigma = abs(sigma)
+    if (
+        not all(np.isfinite(value) for value in (offset, amplitude, center, sigma))
+        or sigma <= 0
+    ):
+        return measured_position, np.nan, np.nan, np.nan
+
+    fitted = _gaussian_peak(x, offset, amplitude, center, sigma)
+    residual_sum_squares = float(np.sum((y - fitted) ** 2))
+    total_sum_squares = float(np.sum((y - np.mean(y)) ** 2))
+    if total_sum_squares <= 0:
+        return measured_position, center, np.nan, np.nan
+
+    r_squared = 1 - residual_sum_squares / total_sum_squares
+    fwhm = float(2 * np.sqrt(2 * np.log(2)) * sigma)
+    return measured_position, center, fwhm, float(r_squared)
+
+
+def _median_step(x: np.ndarray) -> float:
+    steps = np.diff(np.sort(np.unique(x)))
+    if steps.size == 0:
+        return 1.0
+    return max(float(np.median(np.abs(steps))), np.finfo(float).eps)
 
 
 def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):

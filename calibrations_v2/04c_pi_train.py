@@ -40,12 +40,6 @@ This is a diagnostic experiment and does not update machine parameters.
 """
 
 
-
-
-
-
-
-
 def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> None:
     """Ensure fetched results match the requested readout mode."""
     expected = {"state"} if use_state_discrimination else {"I", "Q"}
@@ -69,6 +63,7 @@ def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> 
 # %% {Analyse_data}
 # %% {Plot_data}
 
+
 class PiTrain(BaseCalibration[Parameters, Quam]):
     """v2 class migration for ``calibrations/04c_pi_train.py``."""
 
@@ -85,6 +80,7 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
             machine=machine,
             **kwargs,
         )
+
     def create_qua_program(self):
         node = self
         """Create the pi-train pulse-count sweep."""
@@ -96,7 +92,9 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
         operation = node.parameters.operation
         for qubit in qubits:
             if operation not in qubit.xy.operations:
-                raise ValueError(f"{qubit.name} does not define operation {operation!r}.")
+                raise ValueError(
+                    f"{qubit.name} does not define operation {operation!r}."
+                )
         pulse_counts = np.arange(node.parameters.max_number_of_pulses + 1, dtype=int)
         node.namespace["sweep_axes"] = {
             "qubit": xr.DataArray(qubits.get_names()),
@@ -142,7 +140,9 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
                                 qubit.readout_state(state[i])
                                 save(state[i], state_st[i])
                             else:
-                                qubit.resonator.measure("readout", qua_vars=(I[i], Q[i]))
+                                qubit.resonator.measure(
+                                    "readout", qua_vars=(I[i], Q[i])
+                                )
                                 save(I[i], I_st[i])
                                 save(Q[i], Q_st[i])
 
@@ -152,13 +152,15 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
                 n_st.save("n")
                 for i in range(num_qubits):
                     if node.parameters.use_state_discrimination:
-                        state_st[i].buffer(len(pulse_counts)).average().save(f"state{i + 1}")
+                        state_st[i].buffer(len(pulse_counts)).average().save(
+                            f"state{i + 1}"
+                        )
                     else:
                         I_st[i].buffer(len(pulse_counts)).average().save(f"I{i + 1}")
                         Q_st[i].buffer(len(pulse_counts)).average().save(f"Q{i + 1}")
 
-
         return node.namespace.get("qua_program")
+
     def simulate_qua_program(self):
         node = self
         qmm = node.machine.connect()
@@ -172,7 +174,6 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
             "samples": samples,
         }
         plt.show()
-
 
     def execute_qua_program(self):
         node = self
@@ -191,14 +192,12 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
         validate_readout_dataset(dataset, node.parameters.use_state_discrimination)
         node.results["ds_raw"] = dataset
 
-
     def load_data(self):
         node = self
         load_data_id = node.parameters.load_data_id
         node.load_from_id(load_data_id)
         node.parameters.load_data_id = load_data_id
         node.namespace["qubits"] = get_qubits(node)
-
 
     def save_raw_results(self):
         node = self
@@ -211,13 +210,13 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")
 
-
     def analyse_data(self):
         node = self
-        validate_readout_dataset(node.results["ds_raw"], node.parameters.use_state_discrimination)
+        validate_readout_dataset(
+            node.results["ds_raw"], node.parameters.use_state_discrimination
+        )
         node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
         node.outcomes = {qubit.name: "successful" for qubit in node.namespace["qubits"]}
-
 
     def plot_data(self):
         node = self
@@ -244,8 +243,8 @@ if __name__ == "__main__":
 
     parameters.num_shots = 3000
     parameters.use_state_discrimination = True
-    parameters.operation = "x90"
-    parameters.reset_type = 'active'
+    parameters.operation = "x180"
+    parameters.reset_type = "active"
     parameters.max_number_of_pulses = 150
 
     options = CalibrationOptions()
@@ -253,6 +252,6 @@ if __name__ == "__main__":
     calibration = PiTrain(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

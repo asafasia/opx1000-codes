@@ -64,10 +64,6 @@ State update:
 # Be sure to include [Parameters, Quam] so the node has proper type hinting
 
 
-
-
-
-
 # Any parameters that should change for debugging purposes only should go in here
 # These parameters are ignored when run through the GUI or as part of a graph
 # %% {Create_QUA_program}
@@ -81,6 +77,7 @@ State update:
 # %% {Propose_profile_update}
 # %% {Save_results}
 # %%
+
 
 class QubitSpectroscopyEf(BaseCalibration[Parameters, Quam]):
     """v2 class migration for ``calibrations/12_Qubit_Spectroscopy_ef.py``."""
@@ -98,6 +95,7 @@ class QubitSpectroscopyEf(BaseCalibration[Parameters, Quam]):
             machine=machine,
             **kwargs,
         )
+
     def create_qua_program(self):
         node = self
         """Create the sweep axes and generate the QUA program from the pulse sequence and the node parameters."""
@@ -154,7 +152,9 @@ class QubitSpectroscopyEf(BaseCalibration[Parameters, Quam]):
                             qubit.xy.play("x180")
                             # Update the qubit frequency to scan around the expected f_01
                             qubit.xy.update_frequency(
-                                df - qubit.anharmonicity + qubit.xy.intermediate_frequency
+                                df
+                                - qubit.anharmonicity
+                                + qubit.xy.intermediate_frequency
                             )
                             # Play the saturation pulse
                             qubit.xy.play(
@@ -184,8 +184,8 @@ class QubitSpectroscopyEf(BaseCalibration[Parameters, Quam]):
                     I_st[i].buffer(len(dfs)).average().save(f"I{i + 1}")
                     Q_st[i].buffer(len(dfs)).average().save(f"Q{i + 1}")
 
-
         return node.namespace.get("qua_program")
+
     def simulate_qua_program(self):
         node = self
         """Connect to the QOP and simulate the QUA program"""
@@ -203,7 +203,6 @@ class QubitSpectroscopyEf(BaseCalibration[Parameters, Quam]):
             "wf_report": wf_report,
             "samples": samples,
         }
-
 
     def execute_qua_program(self):
         node = self
@@ -229,17 +228,17 @@ class QubitSpectroscopyEf(BaseCalibration[Parameters, Quam]):
         # Register the raw dataset
         node.results["ds_raw"] = dataset
 
-
     def save_raw_results(self):
         node = self
         """Save the acquired vectors and a snapshot of the selected profile."""
         output_directory = CalibrationSaver().save_xarray(
-            node.name, node.results["ds_raw"], profile_name=current_profile_name(),
+            node.name,
+            node.results["ds_raw"],
+            profile_name=current_profile_name(),
             parameters=node.parameters,
         )
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")
-
 
     def load_data(self):
         node = self
@@ -250,7 +249,6 @@ class QubitSpectroscopyEf(BaseCalibration[Parameters, Quam]):
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
         node.namespace["qubits"] = get_qubits(node)
-
 
     def analyse_data(self):
         node = self
@@ -265,7 +263,6 @@ class QubitSpectroscopyEf(BaseCalibration[Parameters, Quam]):
             qubit_name: ("successful" if fit_result["success"] else "failed")
             for qubit_name, fit_result in node.results["fit_results"].items()
         }
-
 
     def plot_data(self):
         node = self
@@ -289,7 +286,6 @@ class QubitSpectroscopyEf(BaseCalibration[Parameters, Quam]):
             )
             node.log(f"Calibration figures saved to {figures_directory}")
 
-
     def update_state(self):
         node = self
         """Update the relevant parameters if the qubit data analysis was successful."""
@@ -303,7 +299,6 @@ class QubitSpectroscopyEf(BaseCalibration[Parameters, Quam]):
                 q.f_12 = fitted_ef_frequency
                 q.anharmonicity = float(q.f_01) - fitted_ef_frequency
 
-
     def propose_profile_update(self):
         node = self
         """Stage fitted e-f frequencies and anharmonicities for confirmation."""
@@ -311,7 +306,9 @@ class QubitSpectroscopyEf(BaseCalibration[Parameters, Quam]):
         for q in node.namespace["qubits"]:
             if node.outcomes[q.name] != "successful":
                 continue
-            fitted_ef_frequency = float(node.results["fit_results"][q.name]["frequency"])
+            fitted_ef_frequency = float(
+                node.results["fit_results"][q.name]["frequency"]
+            )
             updates[f"qubits.json.qubits.{q.name}.frequencies_hz.qubit_f12"] = (
                 fitted_ef_frequency
             )
@@ -328,8 +325,6 @@ class QubitSpectroscopyEf(BaseCalibration[Parameters, Quam]):
             ProfileUpdater().confirm_and_apply(proposal)
 
 
-
-
 if __name__ == "__main__":
     parameters = Parameters()
 
@@ -343,6 +338,6 @@ if __name__ == "__main__":
     calibration = QubitSpectroscopyEf(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()
