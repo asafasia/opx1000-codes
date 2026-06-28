@@ -57,7 +57,7 @@ def custom_param(node: QualibrationNode[Parameters, Quam]):
     # node.parameters.lorentzian_length_in_ns = 80
     # node.parameters.pulse_shape = "root_lorentzian"
     # node.parameters.lorentzian_tau_in_ns = 12
-    # node.parameters.root_lorentzian_cutoff = 0.2
+    # node.parameters.cutoff = 0.2
     # node.parameters.lorentzian_peak_amplitude = 0.08
     pass
 
@@ -86,6 +86,7 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
     num_qubits = len(qubits)
     operation = node.parameters.operation
     install_lorentzian_operation(node)
+    play_duration = node.namespace["lorentzian_play_duration_cycles"]
 
     amps = np.arange(
         node.parameters.min_amp_factor,
@@ -143,7 +144,11 @@ def create_qua_program(node: QualibrationNode[Parameters, Quam]):
                         align()
 
                         for qubit in multiplexed_qubits.values():
-                            qubit.xy.play(operation, amplitude_scale=a)
+                            qubit.xy.play(
+                                operation,
+                                amplitude_scale=a,
+                                duration=play_duration,
+                            )
                         align()
 
                         for i, qubit in multiplexed_qubits.items():

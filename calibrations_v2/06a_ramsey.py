@@ -163,11 +163,13 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
                                         ),
                                     )
 
-                                # with strict_timing_():
-                                qubit.xy.play("x90")
-                                qubit.xy.frame_rotation_2pi(virtual_detuning_phases[i])
-                                qubit.xy.wait(idle_time)
-                                qubit.xy.play("x90")
+                                with strict_timing_():
+                                    qubit.xy.play("x90")
+                                    qubit.xy.frame_rotation_2pi(
+                                        virtual_detuning_phases[i]
+                                    )
+                                    qubit.xy.wait(idle_time)
+                                    qubit.xy.play("x90")
 
                             align()
                             for i, qubit in multiplexed_qubits.items():
@@ -340,6 +342,6 @@ if __name__ == "__main__":
     calibration = Ramsey(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q9"),
     )
     calibration.run()

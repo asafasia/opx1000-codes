@@ -1,4 +1,4 @@
-const state = { experiments: [], filtered: [], selected: null, detail: null, calibrationType: null, qubit: "all", tab: "figures", figureIndex: 0, plotData: null, plotResult: 0, plotHeatmap: 0, plotSlice: null, trendData: null, trendSeries: 0 };
+const state = { experiments: [], filtered: [], selected: null, detail: null, calibrationType: null, qubit: "all", tab: "figures", figureIndex: 0, plotData: null, plotResult: 0, plotHeatmap: 0, plotSlice: null, plotTranspose: false, trendData: null, trendSeries: 0 };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[c]));
 const formatBytes = n => n == null ? "unavailable" : n < 1024 ? `${n} B` : n < 1048576 ? `${(n/1024).toFixed(1)} KB` : `${(n/1048576).toFixed(1)} MB`;
@@ -134,6 +134,7 @@ async function selectExperiment(id) {
   state.plotResult = 0;
   state.plotHeatmap = 0;
   state.plotSlice = null;
+  state.plotTranspose = false;
   state.trendData = null;
   state.trendSeries = 0;
   applyFilters();
@@ -229,13 +230,16 @@ function renderInteractivePlot() {
   const selected = results[Math.min(state.plotResult, results.length - 1)];
   const heatmaps = selected.heatmaps || [];
   const heatmap = heatmaps[Math.min(state.plotHeatmap, heatmaps.length - 1)];
+  const orientedHeatmap = heatmap ? orientHeatmap(heatmap, state.plotTranspose) : null;
+  const sliceValue = orientedHeatmap ? Math.min(state.plotSlice ?? Math.floor(orientedHeatmap.y.length / 2), orientedHeatmap.y.length - 1) : 0;
   const heatmapControl = heatmaps.length > 1 ? `<label><span class="section-label">Qubit / slice</span><select id="plotHeatmapSelect">${heatmaps.map((item, index) => `<option value="${index}" ${index === state.plotHeatmap ? "selected" : ""}>${escapeHtml(item.label)}</option>`).join("")}</select></label>` : "";
-  const plotArea = heatmap ? `<div class="heatmap-layout"><div class="heatmap-panel"><canvas id="heatmapPlot"></canvas></div><div class="slice-panel"><canvas id="slicePlot"></canvas></div></div><div class="slice-control"><span>${escapeHtml(heatmap.y_name)}</span><input id="sliceSlider" type="range" min="0" max="${heatmap.y.length - 1}" value="${state.plotSlice ?? Math.floor(heatmap.y.length / 2)}"><strong id="sliceValue"></strong></div>`
+  const plotArea = orientedHeatmap ? `<div class="heatmap-layout"><div class="heatmap-panel"><canvas id="heatmapPlot"></canvas></div><div class="slice-panel"><canvas id="slicePlot"></canvas></div></div><div class="slice-control"><span>${escapeHtml(orientedHeatmap.y_name)}</span><input id="sliceSlider" type="range" min="0" max="${orientedHeatmap.y.length - 1}" value="${sliceValue}"><strong id="sliceValue"></strong></div>`
     : `<div class="interactive-plot-wrap"><canvas id="interactivePlot"></canvas><div id="plotTooltip" class="plot-tooltip hidden"></div></div>`;
   return `<div class="fit-tab-panel"><div class="plot-toolbar">
     <label><span class="section-label">Result array</span><select id="plotResultSelect">${results.map((result, index) => `<option value="${index}" ${index === state.plotResult ? "selected" : ""}>${escapeHtml(result.name)} [${result.shape.join(" x ")}]</option>`).join("")}</select></label>
     ${heatmapControl}
-    <div class="plot-meta"><span>x: ${escapeHtml(selected.x_name)}</span><span>${selected.traces.length} trace${selected.traces.length === 1 ? "" : "s"}</span>${selected.downsampled ? "<span>downsampled</span>" : ""}</div>
+    <div class="plot-meta"><span>x: ${escapeHtml(orientedHeatmap?.x_name || selected.x_name)}</span>${orientedHeatmap ? `<span>y: ${escapeHtml(orientedHeatmap.y_name)}</span>` : ""}<span>${selected.traces.length} trace${selected.traces.length === 1 ? "" : "s"}</span>${selected.downsampled ? "<span>downsampled</span>" : ""}</div>
+    ${heatmap ? `<button id="transposeHeatmap" class="plot-button axis-swap-button" title="Swap x and y axes">${state.plotTranspose ? "Original axes" : "Swap axes"}</button>` : ""}
     <button id="resetPlot" class="plot-button">Reset view</button>
   </div>
   ${plotArea}
@@ -284,14 +288,29 @@ function bindInteractivePlot() {
   const result = state.plotData.results[state.plotResult];
   let plot;
   if (result.heatmaps?.length) {
-    plot = createHeatmapPlot($("heatmapPlot"), $("slicePlot"), result.heatmaps[state.plotHeatmap]);
+    const heatmapIndex = Math.min(state.plotHeatmap, result.heatmaps.length - 1);
+    plot = createHeatmapPlot($("heatmapPlot"), $("slicePlot"), orientHeatmap(result.heatmaps[heatmapIndex], state.plotTranspose));
     $("plotHeatmapSelect") && ($("plotHeatmapSelect").onchange = event => { state.plotHeatmap = Number(event.target.value); state.plotSlice = null; renderTab(); });
+    $("transposeHeatmap").onclick = () => { state.plotTranspose = !state.plotTranspose; state.plotSlice = null; renderTab(); };
     $("sliceSlider").oninput = event => { state.plotSlice = Number(event.target.value); plot.setSlice(state.plotSlice); };
   } else if (canvas) {
     plot = createCanvasPlot(canvas, result, $("plotTooltip"), $("plotLegend"));
   } else return;
-  $("plotResultSelect").onchange = event => { state.plotResult = Number(event.target.value); renderTab(); };
+  $("plotResultSelect").onchange = event => { state.plotResult = Number(event.target.value); state.plotHeatmap = 0; state.plotSlice = null; renderTab(); };
   $("resetPlot").onclick = () => plot.reset();
+}
+
+function orientHeatmap(heatmap, transpose) {
+  if (!transpose) return heatmap;
+  const z = heatmap.x.map((_, xi) => heatmap.y.map((_, yi) => heatmap.z[yi]?.[xi] ?? null));
+  return {
+    ...heatmap,
+    x: heatmap.y,
+    y: heatmap.x,
+    x_name: heatmap.y_name,
+    y_name: heatmap.x_name,
+    z,
+  };
 }
 
 function bindParameterTrends() {

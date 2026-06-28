@@ -1,0 +1,41 @@
+{
+  "created": "2026-06-23T10:46:03.421862",
+  "qubit": "q9",
+  "pulse_shape": "root_lorentzian",
+  "echo": false,
+  "lengths_us": [
+    2.0,
+    5.0,
+    10.0,
+    30.0,
+    60.0,
+    90.0,
+    130.0,
+    160.0,
+    250.0
+  ],
+  "run_dirs": [
+    "C:\\Users\\owner\\Developer\\opx1000-codes\\data\\calibrations\\2026-06-23\\echo_lorentzian\\08-09-14-162235",
+    "C:\\Users\\owner\\Developer\\opx1000-codes\\data\\calibrations\\2026-06-23\\echo_lorentzian\\08-14-50-443805",
+    "C:\\Users\\owner\\Developer\\opx1000-codes\\data\\calibrations\\2026-06-23\\echo_lorentzian\\08-21-04-530458",
+    "C:\\Users\\owner\\Developer\\opx1000-codes\\data\\calibrations\\2026-06-23\\echo_lorentzian\\08-30-05-715310",
+    "C:\\Users\\owner\\Developer\\opx1000-codes\\data\\calibrations\\2026-06-23\\echo_lorentzian\\08-44-25-321864",
+    "C:\\Users\\owner\\Developer\\opx1000-codes\\data\\calibrations\\2026-06-23\\echo_lorentzian\\09-03-32-131309",
+    "C:\\Users\\owner\\Developer\\opx1000-codes\\data\\calibrations\\2026-06-23\\echo_lorentzian\\09-29-10-306997",
+    "C:\\Users\\owner\\Developer\\opx1000-codes\\data\\calibrations\\2026-06-23\\echo_lorentzian\\10-00-01-972580",
+    "C:\\Users\\owner\\Developer\\opx1000-codes\\data\\calibrations\\2026-06-23\\echo_lorentzian\\10-45-55-956096"
+  ],
+  "montage": "C:\\Users\\owner\\Developer\\opx1000-codes\\codex\\root_lorentzian_sequence\\20260623_080356\\root_lorentzian_length_sequence_3x3.png",
+  "num_shots": 100,
+  "cutoff": 0.0005,
+  "peak_amplitude": 0.5,
+  "amp_factor": {
+    "min": 0.0,
+    "max": 1.0,
+    "step": 0.005
+  },
+  "detuning": {
+    "span_mhz": 5.0,
+    "step_mhz": 0.01
+  }
+}
