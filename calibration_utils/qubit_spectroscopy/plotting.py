@@ -1,8 +1,10 @@
 from typing import List, Optional
 import matplotlib.pyplot as plt
+import numpy as np
 import xarray as xr
 from matplotlib.figure import Figure
 
+from calibration_utils.qubit_spectroscopy.analysis import MIN_FIT_R_SQUARED
 from qualang_tools.units import unit
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 from utils.plotting_settings import (
@@ -33,6 +35,71 @@ def _transition_frequency(qubit, transition: str) -> float:
             return float(qubit.f_12)
         return float(qubit.f_01 - qubit.anharmonicity)
     return float(qubit.xy.RF_frequency)
+
+
+def _gaussian_peak(x, offset, amplitude, center, sigma):
+    return offset + amplitude * np.exp(-0.5 * ((x - center) / sigma) ** 2)
+
+
+def _fit_value(fit: xr.Dataset, name: str) -> float:
+    return float(fit[name].values)
+
+
+def _can_plot_gaussian_fit(fit: xr.Dataset) -> bool:
+    required = {
+        "fit_offset",
+        "fit_amplitude",
+        "fit_position",
+        "fit_sigma",
+        "fit_r_squared",
+    }
+    if not required.issubset(set(fit.variables)):
+        return False
+    values = [_fit_value(fit, name) for name in required]
+    return all(np.isfinite(value) for value in values) and (
+        _fit_value(fit, "fit_r_squared") >= MIN_FIT_R_SQUARED
+    )
+
+
+def _plot_gaussian_fit(ax, trace: xr.Dataset, fit: xr.Dataset, scale: float) -> None:
+    x = np.asarray(trace.detuning.values, dtype=float)
+    if x.size == 0:
+        return
+    x_dense = np.linspace(float(np.min(x)), float(np.max(x)), 500)
+    y_dense = _gaussian_peak(
+        x_dense,
+        _fit_value(fit, "fit_offset"),
+        _fit_value(fit, "fit_amplitude"),
+        _fit_value(fit, "fit_position"),
+        _fit_value(fit, "fit_sigma"),
+    )
+    current_frequency_hz = (
+        np.asarray(trace.full_freq_GHz.values, dtype=float)[0] * u.GHz - x[0]
+    )
+    ax.plot(
+        (current_frequency_hz + x_dense) / u.GHz,
+        y_dense * scale,
+        color="tab:red",
+        linewidth=1.4,
+        label=f"Gaussian fit R^2={_fit_value(fit, 'fit_r_squared'):.3f}",
+    )
+
+
+def _plot_measured_max(ax, fit: xr.Dataset, current_frequency_ghz: float) -> None:
+    if "measured_max_position" not in fit:
+        return
+    measured_position = _fit_value(fit, "measured_max_position")
+    if not np.isfinite(measured_position):
+        return
+    ax.axvline(
+        current_frequency_ghz + measured_position / u.GHz,
+        color="tab:gray",
+        linestyle=":",
+        label=(
+            "Measured max: "
+            f"{current_frequency_ghz + measured_position / u.GHz:.6f} GHz"
+        ),
+    )
 
 
 def _spectroscopy_parameter_lines(
@@ -105,8 +172,12 @@ def plot_raw_data_with_fit(
     - Each qubit occupies two rows containing separate I and Q subplots.
     - The fitted qubit frequency is marked on both subplots.
     """
-    variables = ("state",) if use_state_discrimination else ("I", "Q")
+    variables = ["state"] if use_state_discrimination else ["I", "Q"]
+    if not use_state_discrimination and "I_rot" in fits:
+        variables.append("I_rot")
     missing = [variable for variable in variables if variable not in ds]
+    if "I_rot" in missing and "I_rot" in fits:
+        missing.remove("I_rot")
     if missing:
         raise RuntimeError(
             f"Qubit-spectroscopy plot expected {variables} for "
@@ -135,10 +206,20 @@ def plot_raw_data_with_fit(
 
         start = len(variables) * qubit_index
         qubit_axes = axes[start : start + len(variables), 0]
-        for ax, variable, color in zip(qubit_axes, variables, ("tab:blue", "tab:orange")):
+        colors = ("tab:blue", "tab:orange", "tab:green")
+        for ax, variable, color in zip(qubit_axes, variables, colors):
             scale = 1 if variable == "state" else 1 / u.mV
-            label = "Measured state" if variable == "state" else f"{variable} [mV]"
-            (selected[variable] * scale).plot(ax=ax, x="full_freq_GHz", color=color)
+            label = (
+                "Measured state"
+                if variable == "state"
+                else "Rotated I [mV]"
+                if variable == "I_rot"
+                else f"{variable} [mV]"
+            )
+            trace = selected if variable in selected else fit.assign_coords(
+                full_freq_GHz=selected.full_freq_GHz
+            )
+            (trace[variable] * scale).plot(ax=ax, x="full_freq_GHz", color=color)
             ax.axvline(
                 current_frequency_ghz,
                 color="black",
@@ -166,6 +247,9 @@ def plot_raw_data_with_fit(
                     else f"Fitted new ef: {fitted_frequency_ghz:.6f} GHz"
                 ),
             )
+            _plot_measured_max(ax, fit, current_frequency_ghz)
+            if variable in {"state", "I_rot"} and _can_plot_gaussian_fit(fit):
+                _plot_gaussian_fit(ax, trace, fit, scale)
             ax.set_xlim(*sweep_limits)
             ax.set_title(f"{qubit.name}: {label}")
             ax.set_xlabel("RF frequency [GHz]")

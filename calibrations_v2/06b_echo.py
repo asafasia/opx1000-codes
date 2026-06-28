@@ -257,9 +257,9 @@ if __name__ == "__main__":
 
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
-    parameters.max_wait_time_in_ns = 3e3
+    parameters.max_wait_time_in_ns = 50e3
     parameters.wait_time_num_points = 150
-    parameters.log_or_linear_sweep = "linear"
+    parameters.log_or_linear_sweep = "log"
     parameters.num_shots = 5000
 
     options = CalibrationOptions()

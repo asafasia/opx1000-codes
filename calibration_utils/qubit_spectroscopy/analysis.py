@@ -149,10 +149,21 @@ def _fit_maximum_with_measured_fallback(fit_signal: xr.DataArray) -> xr.Dataset:
     fit_positions = []
     fit_widths = []
     fit_scores = []
+    fit_offsets = []
+    fit_amplitudes = []
+    fit_sigmas = []
 
     for qubit in qubits:
         trace = fit_signal.sel(qubit=qubit)
-        measured_position, fit_position, fit_width, fit_score = _fit_trace_maximum(
+        (
+            measured_position,
+            fit_position,
+            fit_width,
+            fit_score,
+            fit_offset,
+            fit_amplitude,
+            fit_sigma,
+        ) = _fit_trace_maximum(
             np.asarray(trace.detuning.values, dtype=float),
             np.asarray(trace.values, dtype=float),
         )
@@ -160,6 +171,9 @@ def _fit_maximum_with_measured_fallback(fit_signal: xr.DataArray) -> xr.Dataset:
         fit_positions.append(fit_position)
         fit_widths.append(fit_width)
         fit_scores.append(fit_score)
+        fit_offsets.append(fit_offset)
+        fit_amplitudes.append(fit_amplitude)
+        fit_sigmas.append(fit_sigma)
 
     return xr.Dataset(
         {
@@ -167,6 +181,9 @@ def _fit_maximum_with_measured_fallback(fit_signal: xr.DataArray) -> xr.Dataset:
             "fit_position": ("qubit", fit_positions),
             "fit_width": ("qubit", fit_widths),
             "fit_r_squared": ("qubit", fit_scores),
+            "fit_offset": ("qubit", fit_offsets),
+            "fit_amplitude": ("qubit", fit_amplitudes),
+            "fit_sigma": ("qubit", fit_sigmas),
         },
         coords={"qubit": qubits},
     )
@@ -174,12 +191,12 @@ def _fit_maximum_with_measured_fallback(fit_signal: xr.DataArray) -> xr.Dataset:
 
 def _fit_trace_maximum(
     x: np.ndarray, y: np.ndarray
-) -> tuple[float, float, float, float]:
+) -> tuple[float, float, float, float, float, float, float]:
     finite = np.isfinite(x) & np.isfinite(y)
     x = np.asarray(x[finite], dtype=float)
     y = np.asarray(y[finite], dtype=float)
     if x.size < 5 or np.ptp(x) <= 0 or np.ptp(y) <= 0:
-        return np.nan, np.nan, np.nan, np.nan
+        return np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
     max_index = int(np.argmax(y))
     measured_position = float(x[max_index])
@@ -202,7 +219,7 @@ def _fit_trace_maximum(
             maxfev=10000,
         )
     except (RuntimeError, ValueError, FloatingPointError):
-        return measured_position, np.nan, np.nan, np.nan
+        return measured_position, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
     offset, amplitude, center, sigma = [float(value) for value in params]
     sigma = abs(sigma)
@@ -210,17 +227,17 @@ def _fit_trace_maximum(
         not all(np.isfinite(value) for value in (offset, amplitude, center, sigma))
         or sigma <= 0
     ):
-        return measured_position, np.nan, np.nan, np.nan
+        return measured_position, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
     fitted = _gaussian_peak(x, offset, amplitude, center, sigma)
     residual_sum_squares = float(np.sum((y - fitted) ** 2))
     total_sum_squares = float(np.sum((y - np.mean(y)) ** 2))
     if total_sum_squares <= 0:
-        return measured_position, center, np.nan, np.nan
+        return measured_position, center, np.nan, np.nan, offset, amplitude, sigma
 
     r_squared = 1 - residual_sum_squares / total_sum_squares
     fwhm = float(2 * np.sqrt(2 * np.log(2)) * sigma)
-    return measured_position, center, fwhm, float(r_squared)
+    return measured_position, center, fwhm, float(r_squared), offset, amplitude, sigma
 
 
 def _median_step(x: np.ndarray) -> float:

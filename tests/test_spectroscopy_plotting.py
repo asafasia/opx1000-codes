@@ -88,6 +88,50 @@ class SpectroscopyPlottingTests(unittest.TestCase):
         self.assertNotIn("q1: I [mV]", [axis.get_title() for axis in fig.axes])
         self.assertNotIn("q1: Q [mV]", [axis.get_title() for axis in fig.axes])
 
+    def test_qubit_plot_shows_gaussian_fit_and_measured_max(self):
+        detuning = np.linspace(-10e6, 10e6, 41)
+        current_frequency = 4.35e9
+        center = 1.37e6
+        sigma = 1.8e6
+        state = 0.1 + 0.8 * np.exp(-0.5 * ((detuning - center) / sigma) ** 2)
+        ds = xr.Dataset(
+            {"state": (("qubit", "detuning"), state[np.newaxis, :])},
+            coords={
+                "qubit": ["q1"],
+                "detuning": detuning,
+                "full_freq": (
+                    ("qubit", "detuning"),
+                    (current_frequency + detuning)[None, :],
+                ),
+            },
+        )
+        fits = xr.Dataset(
+            {
+                "res_freq": ("qubit", [current_frequency + center]),
+                "measured_max_position": ("qubit", [detuning[np.argmax(state)]]),
+                "fit_position": ("qubit", [center]),
+                "fit_width": ("qubit", [2 * np.sqrt(2 * np.log(2)) * sigma]),
+                "fit_r_squared": ("qubit", [0.999]),
+                "fit_offset": ("qubit", [0.1]),
+                "fit_amplitude": ("qubit", [0.8]),
+                "fit_sigma": ("qubit", [sigma]),
+            },
+            coords={"qubit": ["q1"]},
+        )
+        qubit = SimpleNamespace(
+            name="q1",
+            f_01=current_frequency,
+            xy=SimpleNamespace(RF_frequency=current_frequency),
+        )
+
+        fig = plot_raw_data_with_fit(ds, [qubit], fits, use_state_discrimination=True)
+        labels = [
+            label for axis in fig.axes for label in axis.get_legend_handles_labels()[1]
+        ]
+
+        self.assertTrue(any(label.startswith("Gaussian fit R^2=") for label in labels))
+        self.assertTrue(any(label.startswith("Measured max:") for label in labels))
+
     def test_ef_plot_marks_current_ge_and_ef_without_expanding_sweep_limits(self):
         frequencies = np.linspace(4.19e9, 4.21e9, 11)
         ds = xr.Dataset(

@@ -4,8 +4,8 @@
     "q1": {
       "coherence": {
         "t1_ns": 45184.80730985946,
-        "t2_ramsey_ns": 7.347755771221152e-06,
-        "t2_echo_ns": null
+        "t2_ramsey_ns": 6.855588134130561e-06,
+        "t2_echo_ns": 17104.916414048766
       },
       "gates": {
         "single_qubit_average_fidelity": null
