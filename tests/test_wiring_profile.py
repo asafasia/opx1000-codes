@@ -1,13 +1,17 @@
 import unittest
 import csv
+import tempfile
 from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
+
+import numpy as np
 
 from profiles import ProfileError, load_profile
 from profiles.loader import validate_profile
 from quam_config import Quam
 from quam_config.create_machine_from_profile import create_machine_from_profile
+from quam_config.populate_quam_lf_mw_fems import _readout_integration_weights
 from quam_builder.architecture.superconducting.qpu import FluxTunableQuam
 from quam_config.wiring_lffem_mwfem import _xy_lines
 
@@ -27,6 +31,14 @@ class WiringProfileTests(unittest.TestCase):
         profile["qubits"]["qubits"]["q9"]["enabled"] = True
 
         with self.assertRaisesRegex(ProfileError, "use profile.json active_qubits"):
+            validate_profile(profile)
+
+    def test_profile_rejects_non_boolean_readout_use_kernel(self):
+        profile = deepcopy(load_profile("main"))
+        qubit_name = profile["manifest"]["active_qubits"][0]
+        profile["qubits"]["qubits"][qubit_name]["readout"]["use_kernel"] = "yes"
+
+        with self.assertRaisesRegex(ProfileError, "readout.use_kernel must be boolean"):
             validate_profile(profile)
 
     def test_xy_lines_group_qubits_on_the_same_output(self):
@@ -212,6 +224,81 @@ class WiringProfileTests(unittest.TestCase):
         )
         self.assertEqual(pulse.threshold, readout["threshold"])
         self.assertEqual(pulse.rus_exit_threshold, readout["rus_exit_threshold"])
+
+    def test_readout_use_kernel_false_uses_profile_integration_weights(self):
+        profile = load_profile("main")
+        qubit_name = profile["manifest"]["active_qubits"][0]
+        readout = deepcopy(profile["qubits"]["qubits"][qubit_name]["readout"])
+        readout["use_kernel"] = False
+        pulse = profile["pulses"]["pulses"][qubit_name]["readout"]
+
+        weights = _readout_integration_weights(
+            profile_name="main",
+            profile_root=Path("profiles"),
+            qubit_name=qubit_name,
+            pulse_name="readout",
+            pulse=pulse,
+            readout=readout,
+        )
+
+        self.assertEqual(weights, pulse["integration_weights"])
+
+    def test_readout_use_kernel_true_loads_optimized_kernel_file(self):
+        profile = load_profile("main")
+        qubit_name = profile["manifest"]["active_qubits"][0]
+        readout = deepcopy(profile["qubits"]["qubits"][qubit_name]["readout"])
+        readout["use_kernel"] = True
+        pulse = deepcopy(profile["pulses"]["pulses"][qubit_name]["readout"])
+        pulse["length_ns"] = 80
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            kernel_dir = root / "main" / "kernels"
+            kernel_dir.mkdir(parents=True)
+            np.savez(
+                kernel_dir / f"{qubit_name}_readout_kernel.npz",
+                time_ns=np.array([40, 80]),
+                profile_kernel=np.array([1.0, -0.25]),
+            )
+
+            weights = _readout_integration_weights(
+                profile_name="main",
+                profile_root=root,
+                qubit_name=qubit_name,
+                pulse_name="readout",
+                pulse=pulse,
+                readout=readout,
+            )
+
+        self.assertEqual(weights, [[1.0, 40], [-0.25, 40]])
+
+    def test_readout_use_kernel_true_requires_matching_kernel_length(self):
+        profile = load_profile("main")
+        qubit_name = profile["manifest"]["active_qubits"][0]
+        readout = deepcopy(profile["qubits"]["qubits"][qubit_name]["readout"])
+        readout["use_kernel"] = True
+        pulse = deepcopy(profile["pulses"]["pulses"][qubit_name]["readout"])
+        pulse["length_ns"] = 120
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            kernel_dir = root / "main" / "kernels"
+            kernel_dir.mkdir(parents=True)
+            np.savez(
+                kernel_dir / f"{qubit_name}_readout_kernel.npz",
+                time_ns=np.array([40, 80]),
+                profile_kernel=np.array([1.0, -0.25]),
+            )
+
+            with self.assertRaisesRegex(ProfileError, "spans 80 ns"):
+                _readout_integration_weights(
+                    profile_name="main",
+                    profile_root=root,
+                    qubit_name=qubit_name,
+                    pulse_name="readout",
+                    pulse=pulse,
+                    readout=readout,
+                )
 
     def test_rb_gates_are_derived_from_x180(self):
         machine = create_machine_from_profile("main", save=False)

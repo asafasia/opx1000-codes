@@ -488,7 +488,7 @@ if __name__ == "__main__":
     parameters.qubit_operation = "x180_const"
     parameters.states = ["g", "e"]
     parameters.reset_type = "active"
-    parameters.num_shots = 10000
+    parameters.num_shots = 50000
 
     options = CalibrationOptions()
 

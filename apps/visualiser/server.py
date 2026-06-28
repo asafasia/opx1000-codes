@@ -9,6 +9,8 @@ import json
 import mimetypes
 import os
 import re
+import subprocess
+import sys
 import urllib.parse
 import zipfile
 from datetime import datetime
@@ -355,9 +357,13 @@ def is_profile_kernel_artifact(path: Path, root: Path) -> bool:
     return len(parts) >= 2 and parts[0] == "profile" and parts[1] == "kernels"
 
 
-def downloadable_run_files(path: Path) -> list[Path]:
-    files, _ = collect_files(path)
-    return [
+def downloadable_run_files(path: Path, require_readable: bool = False) -> list[Path]:
+    files, errors = collect_files(path)
+    if require_readable and errors:
+        raise PermissionError(
+            "Could not read experiment files for download: " + "; ".join(errors)
+        )
+    downloadable = [
         item
         for item in files
         if item.is_file()
@@ -368,6 +374,11 @@ def downloadable_run_files(path: Path) -> list[Path]:
         )
         and item.suffix.lower() in {".npz", ".json"}
     ]
+    if require_readable and not downloadable:
+        raise FileNotFoundError(
+            "This experiment does not contain downloadable .npz or .json files."
+        )
+    return downloadable
 
 
 def _download_entry(path: Path, root: Path) -> tuple[str, bytes]:
@@ -380,6 +391,13 @@ def _download_entry(path: Path, root: Path) -> tuple[str, bytes]:
 
 
 def _np_to_jsonable(value: np.ndarray) -> Any:
+    if np.iscomplexobj(value):
+        return {
+            "real": _np_to_jsonable(np.asarray(value.real)),
+            "imag": _np_to_jsonable(np.asarray(value.imag)),
+        }
+    if value.dtype.kind == "S":
+        return _np_to_jsonable(value.astype(str))
     if value.ndim == 0:
         scalar = value.item()
         return scalar.item() if isinstance(scalar, np.generic) else scalar
@@ -392,7 +410,7 @@ def download_zip(raw_path: str) -> tuple[str, bytes]:
         raise FileNotFoundError("Experiment directory does not exist or cannot be read.")
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for item in downloadable_run_files(path):
+        for item in downloadable_run_files(path, require_readable=True):
             name, data = _download_entry(item, path)
             archive.writestr(name, data)
     return f"{path.parent.name}_{path.name}_data.zip", buffer.getvalue()
@@ -403,7 +421,7 @@ def download_npz_bundle(raw_path: str) -> tuple[str, bytes]:
     if not path.is_dir():
         raise FileNotFoundError("Experiment directory does not exist or cannot be read.")
     arrays: dict[str, Any] = {}
-    for item in downloadable_run_files(path):
+    for item in downloadable_run_files(path, require_readable=True):
         relative_name = item.relative_to(path).as_posix().replace("/", "__")
         if item.suffix.lower() == ".npz":
             with np.load(item, allow_pickle=False) as npz_file:
@@ -439,7 +457,7 @@ def download_json_bundle(raw_path: str) -> tuple[str, bytes]:
         "parameters": None,
         "profile": {},
     }
-    for item in downloadable_run_files(path):
+    for item in downloadable_run_files(path, require_readable=True):
         relative_name = item.relative_to(path).as_posix()
         if item.suffix.lower() == ".npz":
             target = bundle["sweep"] if item.name == "sweep.npz" else bundle["results"]
@@ -460,6 +478,19 @@ def download_json_bundle(raw_path: str) -> tuple[str, bytes]:
 
     body = json.dumps(bundle, indent=2, ensure_ascii=False).encode("utf-8")
     return f"{path.parent.name}_{path.name}_data.json", body
+
+
+def open_result_folder(raw_path: str) -> dict[str, str]:
+    path = resolve_project_path(raw_path)
+    if not path.is_dir():
+        raise FileNotFoundError("Experiment directory does not exist or cannot be read.")
+    if os.name == "nt":
+        os.startfile(path)  # type: ignore[attr-defined]
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", str(path)])
+    else:
+        subprocess.Popen(["xdg-open", str(path)])
+    return {"opened": relative(path)}
 
 
 def matching_calibration_assets(path: Path, experiment_type: str, date: str | None) -> dict[str, Any]:
@@ -757,17 +788,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             if parsed.path == "/api/parameter-scan":
                 self.send_json(parameter_scan_data(query.get("path", [""])[0]))
                 return
-            if parsed.path == "/api/download.zip":
+            if parsed.path in {"/api/download.zip", "/api/download/zip"}:
                 filename, body = download_zip(query.get("path", [""])[0])
                 self.serve_download(filename, body, "application/zip")
                 return
-            if parsed.path == "/api/download.npz":
+            if parsed.path in {"/api/download.npz", "/api/download/npz"}:
                 filename, body = download_npz_bundle(query.get("path", [""])[0])
                 self.serve_download(filename, body, "application/octet-stream")
                 return
-            if parsed.path == "/api/download.json":
+            if parsed.path in {"/api/download.json", "/api/download/json"}:
                 filename, body = download_json_bundle(query.get("path", [""])[0])
                 self.serve_download(filename, body, "application/json; charset=utf-8")
+                return
+            if parsed.path == "/api/open-folder":
+                self.send_json(open_result_folder(query.get("path", [""])[0]))
                 return
             if parsed.path == "/api/file":
                 self.serve_project_file(query.get("path", [""])[0])

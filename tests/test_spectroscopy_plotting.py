@@ -162,6 +162,41 @@ class SpectroscopyPlottingTests(unittest.TestCase):
         self.assertTrue(any(label.startswith("Fitted new ef:") for label in labels))
         self.assertEqual(fig.axes[0].get_xlim(), (4.19, 4.21))
 
+    def test_ef_plot_does_not_add_rotated_subplot(self):
+        frequencies = np.linspace(4.19e9, 4.21e9, 11)
+        ds = xr.Dataset(
+            {
+                "I": (("qubit", "detuning"), np.zeros((1, 11))),
+                "Q": (("qubit", "detuning"), np.zeros((1, 11))),
+            },
+            coords={
+                "qubit": ["q1"],
+                "detuning": np.arange(11),
+                "full_freq": (("qubit", "detuning"), frequencies[None, :]),
+            },
+        )
+        fits = xr.Dataset(
+            {
+                "res_freq": ("qubit", [4.201e9]),
+                "I_rot": ("qubit", [0.0]),
+            },
+            coords={"qubit": ["q1"]},
+        )
+        qubit = SimpleNamespace(
+            name="q1",
+            f_01=4.35e9,
+            f_12=4.2e9,
+            anharmonicity=150e6,
+            xy=SimpleNamespace(RF_frequency=4.35e9),
+        )
+
+        fig = plot_raw_data_with_fit(ds, [qubit], fits, transition="ef")
+
+        titles = [axis.get_title() for axis in fig.axes]
+        self.assertIn("q1: I [mV]", titles)
+        self.assertIn("q1: Q [mV]", titles)
+        self.assertNotIn("q1: Rotated I [mV]", titles)
+
     def test_resonator_plot_labels_current_and_new_resonances(self):
         frequencies = np.linspace(7.46e9, 7.48e9, 11)
         separation = np.zeros((1, 11))

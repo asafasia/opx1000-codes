@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 # Allow direct execution and `python -m quam_config.populate_quam_lf_mw_fems`.
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 if str(REPOSITORY_ROOT) not in sys.path:
@@ -18,6 +20,7 @@ from quam.components.pulses import (
 )
 
 from profiles import MAX_PROFILE_PULSE_AMPLITUDE, ProfileError, load_profile
+from profiles.loader import PROFILES_ROOT
 from quam_config import Quam
 from quam_config.derived_gates import add_derived_single_qubit_gates
 
@@ -59,11 +62,78 @@ def _apply_transmon_times(qubit: Any, transmon: dict[str, Any]) -> None:
     qubit.thermalization_time_factor = factor
 
 
+def _kernel_to_segments(weights: np.ndarray, slice_length_ns: int) -> list[list[float | int]]:
+    if slice_length_ns <= 0:
+        raise ProfileError("Optimized readout kernel slice length must be positive.")
+    return [[float(weight), int(slice_length_ns)] for weight in np.asarray(weights, dtype=float).reshape(-1)]
+
+
+def _optimized_kernel_segments(
+    *,
+    profile_name: str,
+    profile_root: Path,
+    qubit_name: str,
+    pulse_name: str,
+    pulse: dict[str, Any],
+) -> list[list[float | int]]:
+    kernel_path = profile_root / profile_name / "kernels" / f"{qubit_name}_readout_kernel.npz"
+    if not kernel_path.is_file():
+        raise ProfileError(
+            f"{qubit_name}.{pulse_name} has readout.use_kernel=true, but optimized kernel "
+            f"file does not exist: {kernel_path}"
+        )
+    try:
+        with np.load(kernel_path, allow_pickle=False) as kernel_file:
+            weights = np.asarray(kernel_file["profile_kernel"], dtype=float)
+            time_ns = np.asarray(kernel_file["time_ns"], dtype=float)
+    except (OSError, KeyError, ValueError) as exc:
+        raise ProfileError(f"Could not load optimized readout kernel: {kernel_path}") from exc
+
+    if weights.ndim != 1 or not weights.size:
+        raise ProfileError(f"{kernel_path} profile_kernel must be a non-empty 1D array")
+    if time_ns.ndim != 1 or time_ns.size != weights.size:
+        raise ProfileError(f"{kernel_path} time_ns must be a 1D array matching profile_kernel")
+    slice_length_ns = int(round(float(time_ns[0])))
+    expected_time_ns = np.arange(1, weights.size + 1) * slice_length_ns
+    if not np.allclose(time_ns, expected_time_ns):
+        raise ProfileError(f"{kernel_path} time_ns must be evenly spaced from one slice length")
+    segments = _kernel_to_segments(weights, slice_length_ns)
+    total_length_ns = sum(int(segment[1]) for segment in segments)
+    if total_length_ns != pulse["length_ns"]:
+        raise ProfileError(
+            f"{kernel_path} spans {total_length_ns} ns, but {qubit_name}.{pulse_name} "
+            f"length_ns is {pulse['length_ns']}"
+        )
+    return segments
+
+
+def _readout_integration_weights(
+    *,
+    profile_name: str,
+    profile_root: Path,
+    qubit_name: str,
+    pulse_name: str,
+    pulse: dict[str, Any],
+    readout: dict[str, Any],
+) -> list[list[float | int]]:
+    if not readout.get("use_kernel", False):
+        return pulse["integration_weights"]
+    return _optimized_kernel_segments(
+        profile_name=profile_name,
+        profile_root=profile_root,
+        qubit_name=qubit_name,
+        pulse_name=pulse_name,
+        pulse=pulse,
+    )
+
+
 def _create_pulse(
     pulse_name: str,
     pulse: dict[str, Any],
     qubit: Any,
     readout: dict[str, Any],
+    profile_name: str,
+    profile_root: Path,
 ):
     if abs(pulse["amplitude"]) > MAX_PROFILE_PULSE_AMPLITUDE:
         raise ProfileError(
@@ -85,7 +155,14 @@ def _create_pulse(
             axis_angle=axis_angle,
             threshold=readout["threshold"],
             rus_exit_threshold=readout["rus_exit_threshold"],
-            integration_weights=pulse["integration_weights"],
+            integration_weights=_readout_integration_weights(
+                profile_name=profile_name,
+                profile_root=profile_root,
+                qubit_name=qubit.name,
+                pulse_name=pulse_name,
+                pulse=pulse,
+                readout=readout,
+            ),
             integration_weights_angle=readout["integration_weights_angle_rad"],
             # amplitude=common["amplitude"],  # Account for mixer conversion loss.
         )
@@ -115,8 +192,14 @@ def _create_pulse(
     raise ProfileError(f"Unsupported pulse type for {pulse_name!r}: {pulse['type']!r}")
 
 
-def apply_profile(machine: Quam, profile: dict[str, Any]) -> Quam:
+def apply_profile(
+    machine: Quam,
+    profile: dict[str, Any],
+    profile_root: Path | str = PROFILES_ROOT,
+) -> Quam:
     """Apply frequencies, ports, readout settings, and pulses to a QuAM."""
+    profile_root = Path(profile_root)
+    profile_name = profile["manifest"]["name"]
     connectivity = profile["connectivity"]
     qubit_profiles = profile["qubits"]["qubits"]
     pulse_profiles = profile["pulses"]["pulses"]
@@ -180,6 +263,8 @@ def apply_profile(machine: Quam, profile: dict[str, Any]) -> Quam:
                 qubit_pulse_profiles[pulse_name],
                 qubit,
                 readout,
+                profile_name,
+                profile_root,
             )
             target_operations = (
                 qubit.resonator.operations

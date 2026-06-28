@@ -171,8 +171,6 @@ class QubitSpectroscopyEf(BaseCalibration[Parameters, Quam]):
                             # wait for the resonator to deplete
                             qubit.resonator.wait(node.machine.depletion_time * u.ns)
 
-                            qubit.xy.wait(10000)
-
                             # save data
                             save(I[i], I_st[i])
                             save(Q[i], Q_st[i])
@@ -328,10 +326,10 @@ class QubitSpectroscopyEf(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
-    parameters.num_shots = 1000
-    parameters.frequency_span_in_mhz = 100
-    parameters.frequency_step_in_mhz = 0.5
-    parameters.operation_amplitude_factor = 0.03
+    parameters.num_shots = 100
+    parameters.frequency_span_in_mhz = 200
+    parameters.frequency_step_in_mhz = 2
+    parameters.operation_amplitude_factor = 0.9
 
     options = CalibrationOptions()
 

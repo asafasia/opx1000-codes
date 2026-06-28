@@ -50,9 +50,12 @@ def create_machine_from_profile(
 ) -> Quam:
     """Build wiring, create the base QuAM, and apply all profile parameters."""
     if isinstance(profile_name, Profile):
-        profile = profile_name.for_qubit(qubit).load() if qubit is not None else profile_name.load()
+        profile_object = profile_name.for_qubit(qubit) if qubit is not None else profile_name
+        profile = profile_object.load()
+        profile_root = profile_object.root
     else:
         profile = load_profile(profile_name, qubit=qubit)
+        profile_root = Path(__file__).resolve().parent.parent / "profiles"
     network = profile["connectivity"]["network"]
     connectivity, _ = create_profile_connectivity(profile)
 
@@ -66,7 +69,7 @@ def create_machine_from_profile(
             port=network["port"],
         )
         build_quam(machine)
-        apply_profile(machine, profile)
+        apply_profile(machine, profile, profile_root=profile_root)
 
         if save:
             machine.save()

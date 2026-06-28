@@ -62,9 +62,6 @@ State update:
 # Be sure to include [Parameters, Quam] so the node has proper type hinting
 
 
-
-
-
 # Any parameters that should change for debugging purposes only should go in here
 # These parameters are ignored when run through the GUI or as part of a graph
 class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
@@ -83,6 +80,7 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
             machine=machine,
             **kwargs,
         )
+
     def create_qua_program(self):
         node = self
         """Create the sweep axes and generate the QUA program from the pulse sequence and the node parameters."""
@@ -94,18 +92,24 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
         # Extract the sweep parameters and axes from the node parameters
         n_runs = node.parameters.num_shots
         selected_operation = node.parameters.qubit_operation
-        qua_operation = "x180" if selected_operation == "x180_const" else selected_operation
+        qua_operation = (
+            "x180" if selected_operation == "x180_const" else selected_operation
+        )
         # The frequency sweep around the resonator resonance frequency
         span = node.parameters.frequency_span_in_mhz * u.MHz
         step = node.parameters.frequency_step_in_mhz * u.MHz
         dfs = np.arange(-span / 2, +span / 2, step)
         for qubit in qubits:
             if qua_operation not in qubit.xy.operations:
-                raise ValueError(f"{qubit.name} does not define qubit operation {qua_operation!r}.")
+                raise ValueError(
+                    f"{qubit.name} does not define qubit operation {qua_operation!r}."
+                )
             if selected_operation == "saturation":
                 saturation_length = qubit.xy.operations["saturation"].length
                 readout_length = qubit.resonator.operations["readout"].length
-                required_length = node.parameters.saturation_lead_time_in_ns + readout_length
+                required_length = (
+                    node.parameters.saturation_lead_time_in_ns + readout_length
+                )
                 if saturation_length < required_length:
                     raise ValueError(
                         f"{qubit.name} saturation pulse is {saturation_length} ns, but at least "
@@ -114,8 +118,12 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
         # Register the sweep axes to be added to the dataset when fetching data
         node.namespace["sweep_axes"] = {
             "qubit": xr.DataArray(qubits.get_names()),
-            "n_runs": xr.DataArray(np.arange(n_runs), attrs={"long_name": "shot index"}),
-            "detuning": xr.DataArray(dfs, attrs={"long_name": "readout frequency", "units": "Hz"}),
+            "n_runs": xr.DataArray(
+                np.arange(n_runs), attrs={"long_name": "shot index"}
+            ),
+            "detuning": xr.DataArray(
+                dfs, attrs={"long_name": "readout frequency", "units": "Hz"}
+            ),
         }
 
         # The QUA program stored in the node namespace to be transfer to the simulation and execution run_actions
@@ -160,7 +168,9 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
                                     qua_operation,
                                     amplitude_scale=node.parameters.saturation_amplitude_factor,
                                 )
-                                rr.wait(node.parameters.saturation_lead_time_in_ns * u.ns)
+                                rr.wait(
+                                    node.parameters.saturation_lead_time_in_ns * u.ns
+                                )
                             else:
                                 qubit.xy.play(
                                     qua_operation,
@@ -184,8 +194,8 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
                     Im_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Im{i + 1}")
                     Qm_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Qm{i + 1}")
 
-
         return node.namespace.get("qua_program")
+
     def simulate_qua_program(self):
         node = self
         """Connect to the QOP and simulate the QUA program"""
@@ -194,11 +204,16 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
         # Get the config from the machine
         config = node.machine.generate_config()
         # Simulate the QUA program, generate the waveform report and plot the simulated samples
-        samples, fig, wf_report = simulate_and_plot(qmm, config, node.namespace["qua_program"], node.parameters)
+        samples, fig, wf_report = simulate_and_plot(
+            qmm, config, node.namespace["qua_program"], node.parameters
+        )
         # Store the figure, waveform report and simulated samples
-        node.results["simulation"] = {"figure": fig, "wf_report": wf_report, "samples": samples}
+        node.results["simulation"] = {
+            "figure": fig,
+            "wf_report": wf_report,
+            "samples": samples,
+        }
         plt.show()
-
 
     def execute_qua_program(self):
         node = self
@@ -224,7 +239,6 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
         # Register the raw dataset
         node.results["ds_raw"] = dataset
 
-
     def load_data(self):
         node = self
         """Load a previously acquired dataset."""
@@ -234,7 +248,6 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
         node.namespace["qubits"] = get_qubits(node)
-
 
     def save_raw_results(self):
         node = self
@@ -247,7 +260,6 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
         )
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")
-
 
     def analyse_data(self):
         node = self
@@ -262,7 +274,6 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
             qubit_name: ("successful" if fit_result["success"] else "failed")
             for qubit_name, fit_result in node.results["fit_results"].items()
         }
-
 
     def plot_data(self):
         node = self
@@ -282,11 +293,6 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
             )
             node.log(f"Calibration figures saved to {figures_directory}")
 
-
-
-            
-
-
     def propose_profile_update(self):
         node = self
         """Stage fitted resonator frequencies and apply them only after confirmation."""
@@ -298,17 +304,17 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
             if node.outcomes[q.name] == "successful"
         }
         if updates:
-            proposal = ProfileUpdater().stage(node.name, updates, profile_name=current_profile_name())
+            proposal = ProfileUpdater().stage(
+                node.name, updates, profile_name=current_profile_name()
+            )
             ProfileUpdater().confirm_and_apply(proposal)
-
-
 
 
 if __name__ == "__main__":
     parameters = Parameters()
 
-    parameters.qubit_operation = 'saturation'
-    parameters.num_shots= 600
+    parameters.qubit_operation = "saturation"
+    parameters.num_shots = 200
     parameters.frequency_span_in_mhz = 30
     parameters.frequency_step_in_mhz = 0.3
 
@@ -317,6 +323,6 @@ if __name__ == "__main__":
     calibration = ResonatorSpectroscopy(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

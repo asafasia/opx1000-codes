@@ -177,7 +177,24 @@ function populateHero() {
   $("experimentPath").textContent = s.path;
   $("runTime").textContent = s.time;
   $("figureCount").textContent = state.detail.figures.length;
+  $("openFolderButton").onclick = openSelectedFolder;
   showDetailErrors(state.detail.errors);
+}
+
+async function openSelectedFolder() {
+  if (!state.selected?.id) return;
+  const button = $("openFolderButton");
+  button.disabled = true;
+  setStatus("Opening folder");
+  try {
+    await api(`/api/open-folder?path=${encodeURIComponent(state.selected.id)}`);
+    setStatus("Opened folder");
+  } catch (error) {
+    showDetailErrors([error.message]);
+    setStatus("Open folder failed");
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function renderTab() {
@@ -203,6 +220,7 @@ async function renderTab() {
   const renderers = { overview: renderOverview, figures: renderFigures, interactive: renderInteractivePlot, trends: renderParameterTrends, data: renderData, calibrations: renderCalibrations };
   $("tabContent").innerHTML = renderers[state.tab]();
   bindFigures();
+  if (state.tab === "data") bindDownloads();
   if (state.tab === "interactive") bindInteractivePlot();
   if (state.tab === "trends") bindParameterTrends();
 }
@@ -286,10 +304,10 @@ function renderData() {
   const tables = d.tables.map(item => card(item, item.error ? `<pre class="text-view">${escapeHtml(item.error)}</pre>` : `<div class="table-wrap"><table>${item.value.rows.map(row => `<tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</table></div>`)).join("");
   const encodedPath = encodeURIComponent(state.selected.id);
   const downloads = `<div class="download-actions">
-    <a class="download-button" href="/api/download.zip?path=${encodedPath}">Download ZIP</a>
-    <a class="download-button" href="/api/download.json?path=${encodedPath}">Download JSON</a>
-    <a class="download-button" href="/api/download.npz?path=${encodedPath}">Download Python NPZ</a>
-  </div>`;
+    <a class="download-button" data-download-url="/api/download.zip?path=${encodedPath}" href="/api/download.zip?path=${encodedPath}">Download ZIP</a>
+    <a class="download-button" data-download-url="/api/download.json?path=${encodedPath}" href="/api/download.json?path=${encodedPath}">Download JSON</a>
+    <a class="download-button" data-download-url="/api/download.npz?path=${encodedPath}" href="/api/download.npz?path=${encodedPath}">Download Python NPZ</a>
+  </div><div id="downloadError" class="error-panel hidden"></div>`;
   return section("Download Run Data", "clean bundle", downloads)
     + section("Table Previews", `${d.tables.length} CSV/TSV files`, `<div class="card-grid">${tables || `<p class="mono">No tabular data found.</p>`}</div>`)
     + section("Binary & Other Artifacts", `${d.artifacts.length} files`, artifactRows(d.artifacts));
@@ -306,6 +324,54 @@ function bindFigures() {
   document.querySelectorAll("[data-figure-index]").forEach(button => button.onclick = () => {
     state.figureIndex = Number(button.dataset.figureIndex);
     renderTab();
+  });
+}
+
+function filenameFromDisposition(disposition, fallback) {
+  const match = /filename="?([^";]+)"?/i.exec(disposition || "");
+  return match ? match[1] : fallback;
+}
+
+async function downloadRunFile(url, label) {
+  const errorPanel = $("downloadError");
+  if (errorPanel) errorPanel.classList.add("hidden");
+  const response = await fetch(url);
+  if (!response.ok) {
+    let message = `Download failed (${response.status})`;
+    try {
+      const value = await response.json();
+      message = value.error || message;
+    } catch (_) {
+      const text = await response.text();
+      if (text.trim()) message = text.trim();
+    }
+    throw new Error(message);
+  }
+  const blob = await response.blob();
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filenameFromDisposition(response.headers.get("Content-Disposition"), label);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(link.href);
+}
+
+function bindDownloads() {
+  document.querySelectorAll("[data-download-url]").forEach(button => button.onclick = async event => {
+    event.preventDefault();
+    button.classList.add("loading");
+    try {
+      await downloadRunFile(button.dataset.downloadUrl, button.textContent.trim().replace(/\s+/g, "_"));
+    } catch (error) {
+      const errorPanel = $("downloadError");
+      if (errorPanel) {
+        errorPanel.textContent = error.message;
+        errorPanel.classList.remove("hidden");
+      }
+    } finally {
+      button.classList.remove("loading");
+    }
   });
 }
 

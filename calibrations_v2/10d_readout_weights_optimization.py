@@ -45,7 +45,8 @@ trace, normalize it into an optimal complex kernel, and save the traces plus pro
 kernel under profiles/<active-profile>/kernels/.
 
 State update:
-    - pulses.json.pulses.<qubit>.readout.integration_weights
+    - profiles/<profile>/kernels/<qubit>_readout_kernel.npz
+    - qubits.json.qubits.<qubit>.readout.use_kernel
 """
 
 
@@ -307,13 +308,7 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
 
         updates = {}
         for q in node.namespace["qubits"]:
-            weights = node.results["ds_fit"].profile_kernel.sel(qubit=q.name).values
-            updates[f"pulses.json.pulses.{q.name}.readout.integration_weights"] = (
-                kernel_to_segments(
-                    weights,
-                    node.slice_length_ns,
-                )
-            )
+            updates[f"qubits.json.qubits.{q.name}.readout.use_kernel"] = True
 
         if updates:
             proposal = ProfileUpdater().stage(

@@ -217,13 +217,13 @@ if __name__ == "__main__":
     parameters.pulse_shape = "root_lorentzian"
     parameters.echo = False
     parameters.cutoff = 0.99
-    parameters.num_shots = 100
-    parameters.lorentzian_length_in_ns = 15000
-    parameters.waveform_template_length_in_ns = 15000
-    parameters.lorentzian_peak_amplitude = 1
-    parameters.amp_factor_step = 0.01
-    parameters.frequency_span_in_mhz = 600
-    parameters.frequency_step_in_mhz = 3
+    parameters.num_shots = 20
+    parameters.lorentzian_length_in_ns = 20000
+    parameters.waveform_template_length_in_ns = 20000
+    parameters.lorentzian_peak_amplitude = 0.001
+    parameters.amp_factor_step = 0.0001
+    parameters.frequency_span_in_mhz = 1
+    parameters.frequency_step_in_mhz = 0.01
 
     options = CalibrationOptions()
 

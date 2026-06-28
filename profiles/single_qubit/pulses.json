@@ -12,7 +12,7 @@
       "EF_x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.09999999999968523,
+        "amplitude": 0.11839745702329751,
         "length_ns": 40,
         "axis_angle_rad": 0
       },

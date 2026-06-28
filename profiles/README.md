@@ -57,6 +57,12 @@ span the full readout pulse. The per-qubit
 `readout.integration_weights_angle_rad` rotates this kernel when the QuAM
 configuration is generated.
 
+Set `qubits.json.qubits.<qubit>.readout.use_kernel` to choose the kernel source
+for the default readout operation. `false` uses the basic `pulses.json`
+`integration_weights`. `true` loads the optimized kernel from
+`profiles/<profile>/kernels/<qubit>_readout_kernel.npz`; that kernel must span
+the readout pulse length.
+
 Validate the main profile:
 
 ```powershell
