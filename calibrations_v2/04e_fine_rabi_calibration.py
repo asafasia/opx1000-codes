@@ -332,6 +332,8 @@ if __name__ == "__main__":
     parameters.rotation_type = "PI"
     parameters.reset_type = "active"
     parameters.num_shots = 100
+    parameters.max_repetition_groups = 200
+    parameters.amp_factor_step = 0.002
 
     options = CalibrationOptions()
 

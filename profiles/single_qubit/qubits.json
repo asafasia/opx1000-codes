@@ -327,10 +327,10 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0.00029291393500260963,
-        "rus_exit_threshold": 0.00029291393500260963,
+        "threshold": 0.0003273819383483091,
+        "rus_exit_threshold": 0.0003273819383483091,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 2.3426319268877878,
+        "integration_weights_angle_rad": 2.18433482794572,
         "use_kernel": false,
         "gef_frequency_shift_hz": 0
       },

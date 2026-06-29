@@ -313,9 +313,9 @@ class PowerRabiAnalysis(BaseAnalysis):
 if __name__ == "__main__":
 
     parameters = Parameters()
-    parameters.reset_type = "thermal"
-    parameters.use_state_discrimination = False
-    parameters.num_shots = 100
+    parameters.reset_type = "active"
+    parameters.use_state_discrimination = True
+    parameters.num_shots = 1000
     parameters.transition = "ge"
     parameters.pi_repetitions = 4
     parameters.operation = "x180"
@@ -325,7 +325,7 @@ if __name__ == "__main__":
     power_rabi = PowerRabi(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q4"),
+        machine=create_machine(qubit="q1"),
         auto_connect=True,
     )
     power_rabi.run()
