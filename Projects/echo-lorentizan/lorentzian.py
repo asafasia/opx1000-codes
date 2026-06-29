@@ -700,15 +700,12 @@ def _coherence_value_to_seconds(value) -> float | None:
 
 
 def _finish_figure_layout(
-    figure, title: str, ds: xr.Dataset, qubits: List[AnyTransmon]
+    figure, _title: str, ds: xr.Dataset, qubits: List[AnyTransmon]
 ) -> None:
-    pulse_name = ds.attrs.get("pulse_shape") or ds.attrs.get("operation")
-    figure_title = f"{title} - {pulse_name}" if pulse_name else title
-    figure.suptitle(figure_title, y=0.99)
     parameter_lines = _parameter_lines(ds, qubits)
     add_calibration_parameter_box(figure, parameter_lines, gid="lorentzian_parameters")
     bottom = min(0.25, 0.055 + 0.018 * len(parameter_lines))
-    figure.subplots_adjust(top=0.9, bottom=bottom, right=0.86, hspace=0.35, wspace=0.45)
+    figure.subplots_adjust(top=0.95, bottom=bottom, right=0.86, hspace=0.35, wspace=0.45)
 
 
 def _t2_seconds(qubit: AnyTransmon) -> float | None:

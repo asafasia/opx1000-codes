@@ -279,6 +279,22 @@ function renderFigures() {
   return `<div class="fit-tab-panel"><div class="figure-toolbar"><div><span class="section-label">Qubit / Figure</span><div class="qubit-figure-tabs">${selectors}</div></div><a href="${figure.url}" target="_blank">Open original</a></div>
     <article class="focused-figure"><div class="focused-figure-stage figure-stage" data-src="${figure.url}" data-name="${escapeHtml(figure.relative)}"><img src="${figure.url}" alt="${escapeHtml(figure.name)}"></div><div class="focused-figure-caption"><strong>${escapeHtml(figureLabel(figure, index))}</strong><span>${escapeHtml(figure.relative)}</span></div></article></div>`;
 }
+
+function setFigureIndex(index) {
+  const figures = state.detail?.figures || [];
+  if (!figures.length) return false;
+  const nextIndex = (index + figures.length) % figures.length;
+  if (nextIndex === state.figureIndex && state.tab === "figures") return true;
+  state.figureIndex = nextIndex;
+  renderTab();
+  return true;
+}
+
+function stepFigure(direction) {
+  if (state.tab !== "figures") return false;
+  return setFigureIndex(state.figureIndex + direction);
+}
+
 function renderInteractivePlot() {
   const results = state.plotData?.results || [];
   if (!results.length) return `<div class="error-panel">No numeric NPZ result arrays are available for plotting.</div>`;
@@ -347,8 +363,7 @@ function renderCalibrations() {
 function bindFigures() {
   document.querySelectorAll(".figure-stage").forEach(el => el.onclick = () => openLightbox(el.dataset.src, el.dataset.name));
   document.querySelectorAll("[data-figure-index]").forEach(button => button.onclick = () => {
-    state.figureIndex = Number(button.dataset.figureIndex);
-    renderTab();
+    setFigureIndex(Number(button.dataset.figureIndex));
   });
 }
 
@@ -535,7 +550,17 @@ $("lightboxStage").onmousedown = e => { dragging=true; startX=e.clientX-panX; st
 window.onmousemove = e => { if (dragging) { panX=e.clientX-startX; panY=e.clientY-startY; transformImage(); } };
 window.onmouseup = () => dragging=false;
 $("closeLightbox").onclick = () => $("lightbox").classList.add("hidden");
-window.onkeydown = e => { if (e.key === "Escape") $("lightbox").classList.add("hidden"); };
+window.onkeydown = e => {
+  if (e.key === "Escape") {
+    $("lightbox").classList.add("hidden");
+    return;
+  }
+  const tagName = e.target?.tagName;
+  if (["INPUT", "SELECT", "TEXTAREA"].includes(tagName) || e.target?.isContentEditable) return;
+  if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+    if (stepFigure(e.key === "ArrowUp" ? -1 : 1)) e.preventDefault();
+  }
+};
 
 function showDetailErrors(errors) { $("errorPanel").textContent = errors.join("\n"); $("errorPanel").classList.toggle("hidden", !errors.length); }
 function showGlobalError(message) { $("experimentList").innerHTML = `<div class="error-panel">${escapeHtml(message)}</div>`; }
