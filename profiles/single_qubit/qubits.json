@@ -27,7 +27,8 @@
         "rus_exit_threshold": -0.00015285725897516513,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": -12.886278056304441,
-        "use_kernel": false
+        "use_kernel": false,
+        "gef_frequency_shift_hz": 0
       },
       "operations": {
         "x180": "x180_const",
@@ -64,7 +65,8 @@
         "rus_exit_threshold": -0.00011370052403819489,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": 1.5790126768708976,
-        "use_kernel": false
+        "use_kernel": false,
+        "gef_frequency_shift_hz": 0
       },
       "operations": {
         "x180": "x180_const",
@@ -101,7 +103,8 @@
         "rus_exit_threshold": 1.6165462805532881e-06,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": 2.1385959516530386,
-        "use_kernel": false
+        "use_kernel": false,
+        "gef_frequency_shift_hz": 0
       },
       "operations": {
         "x180": "x180_const",
@@ -138,7 +141,8 @@
         "rus_exit_threshold": 0.0,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": 0.0,
-        "use_kernel": false
+        "use_kernel": false,
+        "gef_frequency_shift_hz": 0
       },
       "operations": {
         "x180": "x180_const",
@@ -175,7 +179,8 @@
         "rus_exit_threshold": 0.0,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": 0.0,
-        "use_kernel": false
+        "use_kernel": false,
+        "gef_frequency_shift_hz": 0
       },
       "operations": {
         "x180": "x180_const",
@@ -212,7 +217,8 @@
         "rus_exit_threshold": 0.0,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": 0.0,
-        "use_kernel": false
+        "use_kernel": false,
+        "gef_frequency_shift_hz": 0
       },
       "operations": {
         "x180": "x180_const",
@@ -249,7 +255,8 @@
         "rus_exit_threshold": -0.0008939383688024923,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": -1.4664667020344893,
-        "use_kernel": false
+        "use_kernel": false,
+        "gef_frequency_shift_hz": 0
       },
       "operations": {
         "x180": "x180_const",
@@ -286,7 +293,8 @@
         "rus_exit_threshold": 0.0,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": 0.0,
-        "use_kernel": false
+        "use_kernel": false,
+        "gef_frequency_shift_hz": 0
       },
       "operations": {
         "x180": "x180_const",
@@ -323,7 +331,8 @@
         "rus_exit_threshold": 0.0004907580497330445,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": 1.6637128398197025,
-        "use_kernel": false
+        "use_kernel": false,
+        "gef_frequency_shift_hz": 0
       },
       "operations": {
         "x180": "x180_const",
@@ -360,7 +369,8 @@
         "rus_exit_threshold": 9.493856096641864e-05,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": 2.8418476523244647,
-        "use_kernel": false
+        "use_kernel": false,
+        "gef_frequency_shift_hz": 0
       },
       "operations": {
         "x180": "x180_const",
@@ -397,7 +407,8 @@
         "rus_exit_threshold": 0.0,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": 0.0,
-        "use_kernel": false
+        "use_kernel": false,
+        "gef_frequency_shift_hz": 0
       },
       "operations": {
         "x180": "x180_const",
@@ -434,7 +445,8 @@
         "rus_exit_threshold": 0.0,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": 0.0,
-        "use_kernel": false
+        "use_kernel": false,
+        "gef_frequency_shift_hz": 0
       },
       "operations": {
         "x180": "x180_const",

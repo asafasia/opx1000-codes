@@ -266,6 +266,11 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
             f"Qubit {name!r} readout.use_kernel must be boolean",
         )
         _require(
+            "gef_frequency_shift_hz" not in readout
+            or isinstance(readout["gef_frequency_shift_hz"], (int, float)),
+            f"Qubit {name!r} readout.gef_frequency_shift_hz must be numeric",
+        )
+        _require(
             isinstance(transmon.get("thermalization_time_ns"), int)
             and transmon["thermalization_time_ns"] > 0,
             f"Qubit {name!r} needs positive integer transmon.thermalization_time_ns",

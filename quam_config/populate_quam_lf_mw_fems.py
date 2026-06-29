@@ -245,6 +245,10 @@ def apply_profile(
         qubit.resonator.time_of_flight = readout["time_of_flight_ns"]
         qubit.resonator.smearing = readout["smearing_ns"]
         qubit.resonator.depletion_time = readout["depletion_time_ns"]
+        qubit.resonator.GEF_frequency_shift = readout.get(
+            "gef_frequency_shift_hz",
+            0,
+        )
 
         qubit.resonator.opx_output.upconverter_frequency = rr_output["lo_frequency_hz"]
         qubit.resonator.opx_output.band = rr_output["band"]

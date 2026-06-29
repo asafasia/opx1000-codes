@@ -93,6 +93,7 @@ Notes:
 # %% {Save_results}
 # %%
 
+
 class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
     """v2 class migration for ``calibrations/14_gef_readout_frequency_optimization.py``."""
 
@@ -109,6 +110,7 @@ class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
             machine=machine,
             **kwargs,
         )
+
     def create_qua_program(self):
         node = self
         """
@@ -149,7 +151,9 @@ class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
         # Register the sweep axes to be added to the dataset when fetching data
         node.namespace["sweep_axes"] = {
             "qubit": xr.DataArray(qubits.get_names()),
-            "frequency": xr.DataArray(frequencies, attrs={"long_name": "readout frequency shift in MHz"}),
+            "frequency": xr.DataArray(
+                frequencies, attrs={"long_name": "readout frequency shift in MHz"}
+            ),
         }
 
         with program() as node.namespace["qua_program"]:
@@ -171,7 +175,9 @@ class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
                         if qubit.resonator.GEF_frequency_shift is None:
                             qubit.resonator.GEF_frequency_shift = 0
                         qubit.resonator.update_frequency(
-                            qubit.resonator.intermediate_frequency + qubit.resonator.GEF_frequency_shift + df
+                            qubit.resonator.intermediate_frequency
+                            + qubit.resonator.GEF_frequency_shift
+                            + df
                         )
                         # Ground state iq blobs for all qubits
                         # Qubit initialization
@@ -184,7 +190,9 @@ class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
                         align()
                         # Qubit readout
                         for i, qubit in multiplexed_qubits.items():
-                            qubit.resonator.measure(operation, qua_vars=(I_g[i], Q_g[i]))
+                            qubit.resonator.measure(
+                                operation, qua_vars=(I_g[i], Q_g[i])
+                            )
                             qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
                             # save data
                             save(I_g[i], I_g_st[i])
@@ -205,7 +213,9 @@ class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
                         for i, qubit in multiplexed_qubits.items():
                             qubit.xy.play("x180")
                             qubit.align()
-                            qubit.resonator.measure(operation, qua_vars=(I_e[i], Q_e[i]))
+                            qubit.resonator.measure(
+                                operation, qua_vars=(I_e[i], Q_e[i])
+                            )
                             qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
                             # save data
                             save(I_e[i], I_e_st[i])
@@ -224,16 +234,23 @@ class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
                         # Qubit readout
                         for i, qubit in multiplexed_qubits.items():
                             qubit.xy.play("x180")
-                            update_frequency(qubit.xy.name, qubit.xy.intermediate_frequency - qubit.anharmonicity)
+                            update_frequency(
+                                qubit.xy.name,
+                                qubit.xy.intermediate_frequency - qubit.anharmonicity,
+                            )
                             qubit.xy.play("EF_x180")
-                            update_frequency(qubit.xy.name, qubit.xy.intermediate_frequency)
+                            update_frequency(
+                                qubit.xy.name, qubit.xy.intermediate_frequency
+                            )
                             qubit.align()
-                            qubit.resonator.measure(operation, qua_vars=(I_f[i], Q_f[i]))
+                            qubit.resonator.measure(
+                                operation, qua_vars=(I_f[i], Q_f[i])
+                            )
                             qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
                             # save data
                             save(I_f[i], I_f_st[i])
                             save(Q_f[i], Q_f_st[i])
-                            
+
             with stream_processing():
                 n_st.save("n")
                 for i in range(num_qubits):
@@ -244,8 +261,8 @@ class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
                     I_f_st[i].buffer(len(frequencies)).average().save(f"If{i + 1}")
                     Q_f_st[i].buffer(len(frequencies)).average().save(f"Qf{i + 1}")
 
-
         return node.namespace.get("qua_program")
+
     def simulate_qua_program(self):
         node = self
         """Connect to the QOP and simulate the QUA program"""
@@ -254,10 +271,15 @@ class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
         # Get the config from the machine
         config = node.machine.generate_config()
         # Simulate the QUA program, generate the waveform report and plot the simulated samples
-        samples, fig, wf_report = simulate_and_plot(qmm, config, node.namespace["qua_program"], node.parameters)
+        samples, fig, wf_report = simulate_and_plot(
+            qmm, config, node.namespace["qua_program"], node.parameters
+        )
         # Store the figure, waveform report and simulated samples
-        node.results["simulation"] = {"figure": fig, "wf_report": wf_report, "samples": samples}
-
+        node.results["simulation"] = {
+            "figure": fig,
+            "wf_report": wf_report,
+            "samples": samples,
+        }
 
     def execute_qua_program(self):
         node = self
@@ -286,17 +308,17 @@ class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
         node.results["ds_raw"] = dataset
         node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
 
-
     def save_raw_results(self):
         node = self
         """Save the acquired vectors and a snapshot of the selected profile."""
         output_directory = CalibrationSaver().save_xarray(
-            node.name, node.results["ds_raw"], profile_name=current_profile_name(),
+            node.name,
+            node.results["ds_raw"],
+            profile_name=current_profile_name(),
             parameters=node.parameters,
         )
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")
-
 
     def load_data(self):
         node = self
@@ -307,7 +329,6 @@ class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
         node.namespace["qubits"] = get_qubits(node)
-
 
     def analyse_data(self):
         node = self
@@ -324,7 +345,6 @@ class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
             qubit_name: ("successful" if fit_result["success"] else "failed")
             for qubit_name, fit_result in node.results["fit_results"].items()
         }
-
 
     def plot_data(self):
         node = self
@@ -347,7 +367,6 @@ class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
             )
             node.log(f"Calibration figures saved to {figures_directory}")
 
-
     def update_state(self):
         node = self
         """Update the relevant parameters if the qubit data analysis was successful."""
@@ -355,11 +374,23 @@ class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
             for q in node.namespace["qubits"]:
                 if node.outcomes[q.name] == "failed":
                     continue
-                node.machine.qubits[q.name].resonator.GEF_frequency_shift += node.results["fit_results"][q.name][
-                    "optimal_detuning"
-                ]
+                resonator = node.machine.qubits[q.name].resonator
+                current_shift = resonator.GEF_frequency_shift or 0
+                resonator.GEF_frequency_shift = current_shift + node.results[
+                    "fit_results"
+                ][q.name]["optimal_detuning"]
 
-
+    def profile_updates(self):
+        node = self
+        """Return proposed profile updates for fitted GEF readout shifts."""
+        updates = {}
+        for q in node.namespace["qubits"]:
+            if node.outcomes[q.name] != "successful":
+                continue
+            updates[
+                f"qubits.json.qubits.{q.name}.readout.gef_frequency_shift_hz"
+            ] = float(node.machine.qubits[q.name].resonator.GEF_frequency_shift)
+        return updates
 
 
 if __name__ == "__main__":
