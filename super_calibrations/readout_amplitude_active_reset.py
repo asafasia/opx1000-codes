@@ -727,6 +727,6 @@ if __name__ == "__main__":
     calibration = ReadoutAmplitudeActiveReset(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q2"),
+        machine=create_machine(qubit="q9"),
     )
     calibration.run()

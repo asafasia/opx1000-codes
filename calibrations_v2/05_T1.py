@@ -300,10 +300,10 @@ class T1(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
-    parameters.use_state_discrimination = True
-    parameters.reset_type = "active"
-    parameters.max_wait_time_in_ns = 250e3
-    parameters.wait_time_num_points = 150
+    parameters.use_state_discrimination = False
+    parameters.reset_type = "thermal"
+    parameters.max_wait_time_in_ns = 150e3
+    parameters.wait_time_num_points = 100
     parameters.log_or_linear_sweep = "log"
 
     options = CalibrationOptions()
@@ -311,6 +311,6 @@ if __name__ == "__main__":
     calibration = T1(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q2"),
+        machine=create_machine(qubit="q4"),
     )
     calibration.run()

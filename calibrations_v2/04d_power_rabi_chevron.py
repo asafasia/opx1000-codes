@@ -270,7 +270,7 @@ if __name__ == "__main__":
     parameters.min_amp_factor = 0
     parameters.amp_factor_step = 0.05
     parameters.max_amp_factor = 1
-    parameters.num_shots = 200
+    parameters.num_shots = 20
     parameters.use_state_discrimination = False
 
     options = CalibrationOptions()
@@ -278,6 +278,6 @@ if __name__ == "__main__":
     calibration = PowerRabiChevron(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q4"),
+        machine=create_machine(qubit="q3"),
     )
     calibration.run()

@@ -376,9 +376,10 @@ class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
                     continue
                 resonator = node.machine.qubits[q.name].resonator
                 current_shift = resonator.GEF_frequency_shift or 0
-                resonator.GEF_frequency_shift = current_shift + node.results[
-                    "fit_results"
-                ][q.name]["optimal_detuning"]
+                resonator.GEF_frequency_shift = (
+                    current_shift
+                    + node.results["fit_results"][q.name]["optimal_detuning"]
+                )
 
     def profile_updates(self):
         node = self
@@ -387,9 +388,9 @@ class GefReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
         for q in node.namespace["qubits"]:
             if node.outcomes[q.name] != "successful":
                 continue
-            updates[
-                f"qubits.json.qubits.{q.name}.readout.gef_frequency_shift_hz"
-            ] = float(node.machine.qubits[q.name].resonator.GEF_frequency_shift)
+            updates[f"qubits.json.qubits.{q.name}.readout.gef_frequency_shift_hz"] = (
+                float(node.machine.qubits[q.name].resonator.GEF_frequency_shift)
+            )
         return updates
 
 
@@ -401,6 +402,6 @@ if __name__ == "__main__":
     calibration = GefReadoutFrequencyOptimization(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

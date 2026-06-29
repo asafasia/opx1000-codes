@@ -316,7 +316,7 @@ if __name__ == "__main__":
     parameters.reset_type = "thermal"
     parameters.use_state_discrimination = False
     parameters.num_shots = 100
-    parameters.transition = "ef"
+    parameters.transition = "ge"
     parameters.pi_repetitions = 4
     parameters.operation = "x180"
 
@@ -325,7 +325,7 @@ if __name__ == "__main__":
     power_rabi = PowerRabi(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q4"),
         auto_connect=True,
     )
     power_rabi.run()

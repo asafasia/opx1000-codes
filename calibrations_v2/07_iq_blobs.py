@@ -200,7 +200,6 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                         qubit.reset(
                             node.parameters.reset_type,
                             node.parameters.simulate,
-                            max_attempts=5,
                             # log_callable=node.log,
                         )
                     align()
@@ -217,7 +216,6 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                         qubit.reset(
                             node.parameters.reset_type,
                             node.parameters.simulate,
-                            max_attempts=5,
                             # log_callable=node.log,
                         )
                     align()
@@ -252,7 +250,6 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                             qubit.reset(
                                 node.parameters.reset_type,
                                 node.parameters.simulate,
-                                max_attempts=5,
                                 # log_callable=node.log,
                             )
                         align()
@@ -481,13 +478,13 @@ if __name__ == "__main__":
     parameters = Parameters()
 
     parameters.qubit_operation = "x180_const"
-    parameters.states = ["g", "e", "f"]
-    parameters.reset_type = "active"
+    parameters.states = ["g", "e"]
+    parameters.reset_type = "thermal"
     parameters.num_shots = 5000
 
     options = CalibrationOptions()
 
-    machine = create_machine(qubit="q1")
+    machine = create_machine(qubit="q4")
 
     calibration = IqBlobs(
         parameters=parameters,
