@@ -41,12 +41,14 @@ else:
 
 description = """
         QUBIT SPECTROSCOPY
-This sequence involves sending a saturation pulse to the qubit, placing it in a mixed state,
-and then measuring the state of the resonator across various qubit drive frequencies.
+This sequence calibrates either the GE or EF transition. For transition="ge", it sends a
+saturation pulse to the qubit, placing it in a mixed state, then measures the resonator
+across various qubit drive frequencies. For transition="ef", it first prepares |e> with
+x180, scans the e->f transition, and measures the resonator.
 In order to facilitate the qubit search, the qubit pulse duration and amplitude can be changed manually
 from the node parameters.
 
-The data is post-processed to determine the qubit resonance frequency and the width of the peak.
+The data is post-processed to determine the transition resonance frequency and the width of the peak.
 
 Note that it can happen that the qubit is excited by the image sideband or LO leakage instead of the desired sideband.
 This is why calibrating the qubit mixer is highly recommended when using external mixers or the Octave.
@@ -57,6 +59,8 @@ Prerequisites:
 
 State update:
     - The qubit 0->1 frequency: qubit.f_01 & qubit.xy.RF_frequency
+    - The qubit e->f frequency: qubit.f_12.
+    - The qubit anharmonicity: qubit.anharmonicity.
     - The integration weight angle to get the state discrimination along the 'I' quadrature: qubit.resonator.operations["readout"].integration_weights_angle.
     - (optional) The saturation pulse amplitude to get the targeted fwhm: qubit.xy.operations["saturation"].amplitude.
     - (optional) The guessed x180/x90 pulse amplitude: qubit.xy.operations["x180"/"x90"].amplitude.
@@ -87,6 +91,19 @@ def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> 
         )
 
 
+def validate_transition(transition: str) -> None:
+    if transition not in {"ge", "ef"}:
+        raise ValueError(
+            f"Unsupported qubit spectroscopy transition {transition!r}; expected 'ge' or 'ef'."
+        )
+
+
+def transition_frequency_offset(qubit, transition: str):
+    if transition == "ef":
+        return -qubit.anharmonicity
+    return 0
+
+
 class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
     """v2 class migration for ``calibrations/03a_qubit_spectroscopy.py``."""
 
@@ -114,6 +131,12 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
         num_qubits = len(qubits)
 
         operation = node.parameters.operation  # The qubit operation to play
+        transition = node.parameters.transition
+        validate_transition(transition)
+        if transition == "ef" and node.parameters.use_state_discrimination:
+            raise ValueError(
+                "EF qubit spectroscopy currently supports resonator IQ readout only."
+            )
         n_avg = node.parameters.num_shots  # The number of averages
         # Adjust the pulse duration and amplitude to drive the qubit into a mixed state - can be None
         operation_len = node.parameters.operation_len_in_ns
@@ -163,9 +186,13 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
                                 if operation_len is not None
                                 else qubit.xy.operations[operation].length
                             )
+                            if transition == "ef":
+                                qubit.xy.play("x180")
                             # Update the qubit frequency
                             qubit.xy.update_frequency(
-                                df + qubit.xy.intermediate_frequency
+                                df
+                                + transition_frequency_offset(qubit, transition)
+                                + qubit.xy.intermediate_frequency
                             )
                             # Play the saturation pulse
                             qubit.xy.play(
@@ -297,6 +324,7 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
             operation=node.parameters.operation,
             operation_amplitude_factor=node.parameters.operation_amplitude_factor,
             operation_len_in_ns=node.parameters.operation_len_in_ns,
+            transition=node.parameters.transition,
         )
         plt.show()
         node.results["figures"] = figures
@@ -307,16 +335,42 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
             )
             node.log(f"Calibration figures saved to {figures_directory}")
 
+    def update_state(self):
+        node = self
+        """Update the in-memory machine state after successful EF spectroscopy."""
+        if node.parameters.transition != "ef":
+            return
+        with node.record_state_updates():
+            for q in node.namespace["qubits"]:
+                if node.outcomes[q.name] == "failed":
+                    continue
+                fitted_ef_frequency = float(
+                    node.results["fit_results"][q.name]["frequency"]
+                )
+                q.f_12 = fitted_ef_frequency
+                q.anharmonicity = float(q.f_01) - fitted_ef_frequency
+
     def propose_profile_update(self):
         node = self
-        """Stage fitted qubit frequencies and apply them only after confirmation."""
-        updates = {
-            f"qubits.json.qubits.{q.name}.frequencies_hz.qubit_f01": float(
-                node.results["fit_results"][q.name]["frequency"]
-            )
-            for q in node.namespace["qubits"]
-            if node.outcomes[q.name] == "successful"
-        }
+        """Stage fitted transition frequencies and apply them only after confirmation."""
+        transition = node.parameters.transition
+        validate_transition(transition)
+        updates = {}
+        for q in node.namespace["qubits"]:
+            if node.outcomes[q.name] != "successful":
+                continue
+            fitted_frequency = float(node.results["fit_results"][q.name]["frequency"])
+            if transition == "ef":
+                updates[f"qubits.json.qubits.{q.name}.frequencies_hz.qubit_f12"] = (
+                    fitted_frequency
+                )
+                updates[f"qubits.json.qubits.{q.name}.transmon.anharmonicity_hz"] = (
+                    float(q.f_01) - fitted_frequency
+                )
+            else:
+                updates[f"qubits.json.qubits.{q.name}.frequencies_hz.qubit_f01"] = (
+                    fitted_frequency
+                )
         if updates:
             proposal = ProfileUpdater().stage(
                 node.name, updates, profile_name=current_profile_name()
@@ -327,14 +381,15 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
-    qubit = "q4"
+    qubit = "q1"
 
     parameters.use_state_discrimination = False
     parameters.num_shots = 300
-    parameters.operation_amplitude_factor = 0.01
-    parameters.frequency_span_in_mhz = 5
-    parameters.frequency_step_in_mhz = 0.05
+    parameters.operation_amplitude_factor = 0.1
+    parameters.frequency_span_in_mhz = 200
+    parameters.frequency_step_in_mhz = 0.5
     parameters.reset_type = "thermal"
+    parameters.transition = "ef"
 
     options = CalibrationOptions()
 

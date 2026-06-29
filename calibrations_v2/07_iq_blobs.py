@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pprint import pprint
 import sys
 from pathlib import Path
 
@@ -480,14 +481,13 @@ if __name__ == "__main__":
     parameters = Parameters()
 
     parameters.qubit_operation = "x180_const"
-    parameters.states = ["g", "e"]
+    parameters.states = ["g", "e", "f"]
     parameters.reset_type = "active"
     parameters.num_shots = 5000
 
     options = CalibrationOptions()
 
     machine = create_machine(qubit="q1")
-    # qubit = machine.qubits["q9"]
 
     calibration = IqBlobs(
         parameters=parameters,

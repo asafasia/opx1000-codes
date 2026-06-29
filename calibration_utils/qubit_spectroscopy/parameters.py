@@ -5,6 +5,8 @@ from qualibration_libs.parameters import QubitsExperimentNodeParameters, CommonN
 
 
 class NodeSpecificParameters(RunnableParameters):
+    transition: str = "ge"
+    """Transition to scan: "ge" for |g>->|e>, or "ef" for |e>->|f>. Default is "ge"."""
     num_shots: int = 1000
     """Number of averages to perform. Default is 100."""
     frequency_span_in_mhz: float = 500

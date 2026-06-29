@@ -13,6 +13,15 @@ from utils.plotting_settings import FIGURE_SIZE, qubit_grid_locations
 u = unit(coerce_to_integer=True)
 
 
+def _single_gate_error_label(fit: xr.Dataset) -> str:
+    """Return a compact legend label for the fitted RB decay."""
+    fidelity = float(fit.fidelity.values)
+    if fidelity > 1:
+        fidelity /= 100
+    single_gate_error = 1 - fidelity
+    return f"Fit, single gate error = {single_gate_error:.3e}"
+
+
 def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
     """
     Plots the resonator spectroscopy amplitude IQ_abs with fitted curves for the given qubits.
@@ -92,17 +101,17 @@ def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str
     ax.set_xlabel("Circuit depth")
     ax.set_ylabel(label)
     if fit_succeeded:
+        smooth_depths = xr.DataArray(
+            np.linspace(float(fit.depths.min()), float(fit.depths.max()), 300),
+            dims="depths",
+        )
         fitted = decay_exp(
-            fit.depths,
+            smooth_depths,
             fit.fit_data.sel(fit_vals="a"),
             fit.fit_data.sel(fit_vals="offset"),
             fit.fit_data.sel(fit_vals="decay"),
         )
-        ax.plot(fit.depths, fitted, "r--", label="fit")
-        fit_text = f"1Q RB fidelity = {100 * float(fit.fidelity.values):.3f}"
-        if "fidelity_std" in fit and not np.isnan(float(fit.fidelity_std.values)):
-            fit_text += f" +/- {100 * float(fit.fidelity_std.values):.3f}"
-        fit_text += "%"
+        ax.plot(smooth_depths, fitted, "r--", label=_single_gate_error_label(fit))
     else:
-        fit_text = "RB decay fit failed"
-    ax.text(0.15, 0.9, fit_text, transform=ax.transAxes)
+        ax.plot([], [], "r--", label="RB decay fit failed")
+    ax.legend()

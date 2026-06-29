@@ -57,6 +57,7 @@ class TestRbPopulation(unittest.TestCase):
                 "averaged_data": ("depths", population.mean(axis=1)),
                 "fit_data": ("fit_vals", [0.5, 0.4, -0.1]),
                 "error_per_gate": xr.DataArray(0.01),
+                "error_per_clifford": xr.DataArray(0.01875),
                 "fidelity": xr.DataArray(0.99),
                 "fidelity_std": xr.DataArray(0.002),
             },
@@ -73,6 +74,13 @@ class TestRbPopulation(unittest.TestCase):
         plotted_population = np.asarray(axis.lines[0].get_ydata(), dtype=float)
         np.testing.assert_allclose(plotted_population, population.mean(axis=1))
         self.assertEqual(axis.get_ylabel(), "Ground-state population")
+        labels = axis.get_legend_handles_labels()[1]
+        self.assertIn("Fit, single gate error = 1.000e-02", labels)
+        self.assertEqual(len(axis.texts), 0)
+        self.assertGreater(
+            max(len(line.get_xdata()) for line in axis.lines),
+            fit.depths.size,
+        )
         plt.close(figure)
 
     def test_failed_decay_fit_preserves_population_and_marks_failure(self):

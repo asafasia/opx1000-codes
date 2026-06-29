@@ -27,7 +27,7 @@
         "rus_exit_threshold": -0.0002758320845562632,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": -2.026039039513255,
-        "use_kernel": false
+        "use_kernel": true
       },
       "operations": {
         "x180": "x180_const",

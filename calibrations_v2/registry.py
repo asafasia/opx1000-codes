@@ -146,6 +146,12 @@ CALIBRATIONS: dict[str, CalibrationEntry] = {
         "SingleQubitRandomizedBenchmarking",
         parameters_module="calibration_utils.single_qubit_randomized_benchmarking.parameters",
     ),
+    "rb-interleaved": CalibrationEntry(
+        "rb-interleaved",
+        "calibrations_v2.11b_single_qubit_randomized_benchmarking_interleaved",
+        "SingleQubitRandomizedBenchmarkingInterleaved",
+        parameters_module="calibration_utils.single_qubit_randomized_benchmarking_interleaved.parameters",
+    ),
     "qubit-ef": CalibrationEntry(
         "qubit-ef",
         "calibrations_v2.12_Qubit_Spectroscopy_ef",
