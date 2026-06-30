@@ -232,6 +232,7 @@ def add_gaussian_fwhm_analysis(
     shape = (len(qubits), len(amps))
     centers = np.full(shape, np.nan, dtype=float)
     fwhm = np.full(shape, np.nan, dtype=float)
+    fit_amplitudes = np.full(shape, np.nan, dtype=float)
     r_squared = np.full(shape, np.nan, dtype=float)
 
     detuning = np.asarray(ds.detuning.values, dtype=float)
@@ -243,9 +244,13 @@ def add_gaussian_fwhm_analysis(
                 trace,
                 use_state_discrimination=use_state_discrimination,
             )
-            center, width, score = _fit_gaussian_center_fwhm(detuning, signal)
+            center, width, fit_amplitude, score = _fit_gaussian_center_fwhm(
+                detuning,
+                signal,
+            )
             centers[qubit_index, amp_index] = center
             fwhm[qubit_index, amp_index] = width
+            fit_amplitudes[qubit_index, amp_index] = fit_amplitude
             r_squared[qubit_index, amp_index] = score
 
     left = centers - fwhm / 2
@@ -255,6 +260,11 @@ def add_gaussian_fwhm_analysis(
         gaussian_fwhm_hz=(["qubit", "amp_prefactor"], fwhm),
         gaussian_fwhm_left_hz=(["qubit", "amp_prefactor"], left),
         gaussian_fwhm_right_hz=(["qubit", "amp_prefactor"], right),
+        gaussian_fit_amplitude=(["qubit", "amp_prefactor"], fit_amplitudes),
+        gaussian_fit_abs_amplitude=(
+            ["qubit", "amp_prefactor"],
+            np.abs(fit_amplitudes),
+        ),
         gaussian_fit_r_squared=(["qubit", "amp_prefactor"], r_squared),
     )
     ds.gaussian_center_hz.attrs = {
@@ -272,6 +282,12 @@ def add_gaussian_fwhm_analysis(
     ds.gaussian_fwhm_right_hz.attrs = {
         "long_name": "Gaussian FWHM right edge",
         "units": "Hz",
+    }
+    ds.gaussian_fit_amplitude.attrs = {
+        "long_name": "Signed Gaussian fit amplitude",
+    }
+    ds.gaussian_fit_abs_amplitude.attrs = {
+        "long_name": "Absolute Gaussian fit amplitude",
     }
     ds.gaussian_fit_r_squared.attrs = {
         "long_name": "Gaussian fit R squared",
@@ -294,12 +310,12 @@ def _spectroscopy_trace_for_fwhm(
 
 def _fit_gaussian_center_fwhm(
     x: np.ndarray, y: np.ndarray
-) -> tuple[float, float, float]:
+) -> tuple[float, float, float, float]:
     finite = np.isfinite(x) & np.isfinite(y)
     x = np.asarray(x[finite], dtype=float)
     y = np.asarray(y[finite], dtype=float)
     if x.size < 5 or np.ptp(x) <= 0 or np.ptp(y) <= 0:
-        return np.nan, np.nan, np.nan
+        return np.nan, np.nan, np.nan, np.nan
 
     from scipy.optimize import curve_fit
 
@@ -311,7 +327,7 @@ def _fit_gaussian_center_fwhm(
     center = float(x[np.argmax(y) if is_peak else np.argmin(y)])
     sigma = float(np.ptp(x) / 6)
     if sigma <= 0:
-        return np.nan, np.nan, np.nan
+        return np.nan, np.nan, np.nan, np.nan
 
     try:
         fit_offset, fit_amplitude, fit_center, fit_sigma = curve_fit(
@@ -322,12 +338,13 @@ def _fit_gaussian_center_fwhm(
             maxfev=10000,
         )[0]
     except (RuntimeError, ValueError, FloatingPointError):
-        return np.nan, np.nan, np.nan
+        return np.nan, np.nan, np.nan, np.nan
 
     fit_sigma = abs(float(fit_sigma))
     fit_center = float(fit_center)
+    fit_amplitude = float(fit_amplitude)
     if not np.isfinite(fit_center) or not np.isfinite(fit_sigma) or fit_sigma <= 0:
-        return np.nan, np.nan, np.nan
+        return np.nan, np.nan, np.nan, np.nan
 
     fitted = _gaussian(x, fit_offset, fit_amplitude, fit_center, fit_sigma)
     residual_sum_squares = float(np.sum((y - fitted) ** 2))
@@ -346,9 +363,9 @@ def _fit_gaussian_center_fwhm(
         or abs(fit_center) > max_allowed_center
         or fwhm > MAX_GAUSSIAN_FWHM_FRACTION_OF_SPAN * np.ptp(x)
     ):
-        return np.nan, np.nan, r_squared
+        return np.nan, np.nan, np.nan, r_squared
 
-    return fit_center, fwhm, r_squared
+    return fit_center, fwhm, fit_amplitude, r_squared
 
 
 def _gaussian(x, offset, amplitude, center, sigma):

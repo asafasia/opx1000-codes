@@ -58,9 +58,8 @@ class QubitSpectroscopyAnalysisTests(unittest.TestCase):
         node = self.make_node()
         detuning = np.linspace(-10e6, 10e6, 41)
         true_center = 1.37e6
-        state = 0.1 + 0.8 * np.exp(
-            -0.5 * ((detuning - true_center) / 1.8e6) ** 2
-        )
+        gamma = 1.8e6
+        state = 0.1 + 0.8 * gamma**2 / ((detuning - true_center) ** 2 + gamma**2)
         sampled_max = float(detuning[np.argmax(state)])
         ds = xr.Dataset(
             {"state": (("qubit", "detuning"), state[np.newaxis, :])},
@@ -92,6 +91,34 @@ class QubitSpectroscopyAnalysisTests(unittest.TestCase):
         fit_r_squared = float(selected.fit_r_squared.values)
         self.assertTrue(not np.isfinite(fit_r_squared) or fit_r_squared < 0.8)
         self.assertEqual(fit_results["q1"].relative_freq, measured_max)
+
+    def test_iq_qubit_spectroscopy_fit_uses_best_quadrature_r_squared(self):
+        node = self.make_node()
+        node.parameters.use_state_discrimination = False
+        detuning = np.linspace(-10e6, 10e6, 41)
+        true_center = 1.37e6
+        gamma = 1.8e6
+        signal = 0.1 + 0.8 * gamma**2 / ((detuning - true_center) ** 2 + gamma**2)
+        i_data = np.linspace(-0.2, 0.2, detuning.size)
+        q_data = signal
+        ds = xr.Dataset(
+            {
+                "I": (("qubit", "detuning"), i_data[np.newaxis, :]),
+                "Q": (("qubit", "detuning"), q_data[np.newaxis, :]),
+                "IQ_abs": (
+                    ("qubit", "detuning"),
+                    np.sqrt(i_data**2 + q_data**2)[np.newaxis, :],
+                ),
+            },
+            coords={"qubit": ["q1"], "detuning": detuning},
+        )
+
+        fit_data, fit_results = fit_raw_data(ds, node)
+
+        selected = fit_data.sel(qubit="q1")
+        self.assertEqual(str(selected.selected_quadrature.values), "Q")
+        self.assertGreater(float(selected.fit_r_squared_Q.values), float(selected.fit_r_squared_I.values))
+        self.assertLess(abs(fit_results["q1"].relative_freq - true_center), 1e3)
 
 
 if __name__ == "__main__":

@@ -36,7 +36,7 @@
       "saturation": {
         "target": "qubit",
         "type": "saturation",
-        "amplitude": 0.1,
+        "amplitude": 0.5,
         "length_ns": 50000,
         "axis_angle_rad": 0
       },

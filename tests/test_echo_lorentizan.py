@@ -205,6 +205,16 @@ class EchoLorentizanTests(unittest.TestCase):
             expected_fwhm,
             rtol=1e-6,
         )
+        np.testing.assert_allclose(
+            processed.gaussian_fit_amplitude.sel(qubit="q7"),
+            [0.8, 0.8],
+            rtol=1e-6,
+        )
+        np.testing.assert_allclose(
+            processed.gaussian_fit_abs_amplitude.sel(qubit="q7"),
+            [0.8, 0.8],
+            rtol=1e-6,
+        )
         self.assertTrue(
             np.all(processed.gaussian_fit_r_squared.sel(qubit="q7").values > 0.99)
         )
@@ -253,6 +263,39 @@ class EchoLorentizanTests(unittest.TestCase):
         self.assertIn("duration=play_duration", amplitude_source)
         self.assertIn('"detuning": xr.DataArray(', source)
         self.assertIn('"amp_prefactor": xr.DataArray(', source)
+
+    def test_cutoff_sweep_uses_ten_log_points_and_summarizes_fit_signal(self):
+        source = (PROJECT_ROOT / "echo_lorentzian_cutoff_sweep.py").read_text()
+
+        self.assertIn("np.geomspace(", source)
+        self.assertIn("0.99", source)
+        self.assertIn("parameters.cutoff = float(cutoff)", source)
+        self.assertIn("EchoLorentzian(", source)
+        self.assertIn("save_raw_data=False", source)
+        self.assertIn("save_analysis_result=False", source)
+        self.assertIn("save_figures=False", source)
+        self.assertIn("plot_data=False", source)
+        self.assertIn("logger=_quiet_log", source)
+        self.assertIn("_quiet_inner_run()", source)
+        self.assertIn("contextlib.redirect_stdout(stdout)", source)
+        self.assertIn("contextlib.redirect_stderr(stderr)", source)
+        self.assertIn("logging.disable(logging.CRITICAL)", source)
+        self.assertIn("Cutoff sweep [", source)
+        self.assertIn("cutoff_sweep_fit_results.csv", source)
+        self.assertIn("cutoff_sweep_best_signal.csv", source)
+        self.assertIn("cutoff_sweep_fwhm_heatmap.png", source)
+        self.assertIn("gaussian_fit_amplitude", source)
+        self.assertIn("gaussian_fit_abs_amplitude", source)
+        self.assertIn('ax.set_xscale("log")', source)
+        self.assertIn("t2_fwhm_limit_hz", source)
+        self.assertIn("fwhm_t2_units", source)
+        self.assertIn("1 / (np.pi * float(t2_s))", source)
+        self.assertIn("rabi_frequency_mhz", source)
+        self.assertIn("amplitude_to_rabi_frequency_hz", source)
+        self.assertIn('Rabi frequency [MHz]', source)
+        self.assertIn("fwhm_over_signal", source)
+        self.assertIn("FWHM / (1/(pi*T2))", source)
+        self.assertIn("FWHM / (signal * 1/(pi*T2))", source)
 
     def test_shared_operation_builder_supports_root_lorentzian(self):
         parameters = SimpleNamespace(

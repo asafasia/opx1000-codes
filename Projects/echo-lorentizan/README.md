@@ -66,7 +66,8 @@ Figures include a compact parameter banner with the pulse shape, pulse length,
 cutoff or tau, echo flag, peak amplitude, sweep span/step, and square pi pulse.
 When available, the banner also includes T1, T2, and `1 / (pi * T2)` in Hz.
 For each amplitude in the 2D spectroscopy scan, analysis fits a Gaussian versus
-detuning and overlays the fitted FWHM edges as paired markers on the heatmap.
+detuning, stores the fitted FWHM and signal amplitude, and overlays the fitted
+FWHM edges as paired markers on the heatmap.
 
 Run the sweep with:
 
@@ -86,6 +87,25 @@ the Lorentzian amplitude:
 ```powershell
 python Projects\echo-lorentizan\echo_lorentzian_amplitude_v2.py
 ```
+
+To sweep the root-Lorentzian cutoff itself, run:
+
+```powershell
+python Projects\echo-lorentizan\echo_lorentzian_cutoff_sweep.py
+```
+
+This runs ten log-spaced cutoff values from `1e-4` to `0.99`. For each cutoff it
+runs the class-based echo-Lorentzian spectroscopy experiment in memory, without
+saving the individual per-cutoff experiments. The wrapper writes only the
+combined `cutoff_sweep_fit_results.csv`, `cutoff_sweep_best_signal.csv`,
+`manifest.json`, `cutoff_sweep_summary.png`, and `cutoff_sweep_fwhm_heatmap.png`
+under `data/echo_lorentzian_cutoff_sweep/`. The heatmap shows FWHM versus
+equivalent Rabi frequency in MHz and cutoff, plus a second subplot of FWHM
+divided by fitted signal amplitude, with cutoff plotted on a log scale. The
+Rabi-frequency axis is translated from the Lorentzian peak amplitude using the
+qubit's square `x180` calibration. FWHM values in the
+summary and heatmap are normalized by the qubit's T2 FWHM limit `1 / (pi*T2)`;
+for example, `T2=6.86 us` corresponds to a `46.4 kHz` normalization unit.
 
 For long pulses, keep `lorentzian_length_in_ns` as the physical pulse duration
 and set `waveform_template_length_in_ns` to a shorter template, for example

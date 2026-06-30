@@ -37,20 +37,20 @@ def _transition_frequency(qubit, transition: str) -> float:
     return float(qubit.xy.RF_frequency)
 
 
-def _gaussian_peak(x, offset, amplitude, center, sigma):
-    return offset + amplitude * np.exp(-0.5 * ((x - center) / sigma) ** 2)
+def _lorentzian_peak(x, offset, amplitude, center, gamma):
+    return offset + amplitude * gamma**2 / ((x - center) ** 2 + gamma**2)
 
 
 def _fit_value(fit: xr.Dataset, name: str) -> float:
     return float(fit[name].values)
 
 
-def _can_plot_gaussian_fit(fit: xr.Dataset) -> bool:
+def _can_plot_lorentzian_fit(fit: xr.Dataset) -> bool:
     required = {
         "fit_offset",
         "fit_amplitude",
         "fit_position",
-        "fit_sigma",
+        "fit_gamma",
         "fit_r_squared",
     }
     if not required.issubset(set(fit.variables)):
@@ -61,17 +61,25 @@ def _can_plot_gaussian_fit(fit: xr.Dataset) -> bool:
     )
 
 
-def _plot_gaussian_fit(ax, trace: xr.Dataset, fit: xr.Dataset, scale: float) -> None:
+def _is_selected_fit_trace(fit: xr.Dataset, variable: str) -> bool:
+    if variable == "state":
+        return True
+    if "selected_quadrature" not in fit:
+        return False
+    return str(fit.selected_quadrature.values) == variable
+
+
+def _plot_lorentzian_fit(ax, trace: xr.Dataset, fit: xr.Dataset, scale: float) -> None:
     x = np.asarray(trace.detuning.values, dtype=float)
     if x.size == 0:
         return
     x_dense = np.linspace(float(np.min(x)), float(np.max(x)), 500)
-    y_dense = _gaussian_peak(
+    y_dense = _lorentzian_peak(
         x_dense,
         _fit_value(fit, "fit_offset"),
         _fit_value(fit, "fit_amplitude"),
         _fit_value(fit, "fit_position"),
-        _fit_value(fit, "fit_sigma"),
+        _fit_value(fit, "fit_gamma"),
     )
     current_frequency_hz = (
         np.asarray(trace.full_freq_GHz.values, dtype=float)[0] * u.GHz - x[0]
@@ -81,7 +89,7 @@ def _plot_gaussian_fit(ax, trace: xr.Dataset, fit: xr.Dataset, scale: float) -> 
         y_dense * scale,
         color="tab:red",
         linewidth=1.4,
-        label=f"Gaussian fit R^2={_fit_value(fit, 'fit_r_squared'):.3f}",
+        label=f"Lorentzian fit R^2={_fit_value(fit, 'fit_r_squared'):.3f}",
     )
 
 
@@ -244,8 +252,8 @@ def plot_raw_data_with_fit(
                 ),
             )
             _plot_measured_max(ax, fit, current_frequency_ghz)
-            if variable in {"state", "I_rot"} and _can_plot_gaussian_fit(fit):
-                _plot_gaussian_fit(ax, trace, fit, scale)
+            if _is_selected_fit_trace(fit, variable) and _can_plot_lorentzian_fit(fit):
+                _plot_lorentzian_fit(ax, trace, fit, scale)
             ax.set_xlim(*sweep_limits)
             ax.set_title(f"{qubit.name}: {label}")
             ax.set_xlabel("RF frequency [GHz]")

@@ -118,11 +118,24 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
         ds_fit = ds_fit.assign(
             {"I_rot": ds_fit.I * np.cos(ds_fit.iw_angle) + ds_fit.Q * np.sin(ds_fit.iw_angle)}
         )
-        fit_signal = ds_fit.I_rot
+        fit_I = xr.merge(
+            [
+                peaks_dips(ds_fit.I, dim="detuning", prominence_factor=5),
+                _fit_maximum_with_measured_fallback(ds_fit.I),
+            ]
+        )
+        fit_Q = xr.merge(
+            [
+                peaks_dips(ds_fit.Q, dim="detuning", prominence_factor=5),
+                _fit_maximum_with_measured_fallback(ds_fit.Q),
+            ]
+        )
+        fit_vals = _select_best_quadrature_fit(fit_I, fit_Q)
 
-    fit_vals = peaks_dips(fit_signal, dim="detuning", prominence_factor=5)
-    max_fit_vals = _fit_maximum_with_measured_fallback(fit_signal)
-    fit_vals = xr.merge([fit_vals, max_fit_vals])
+    if node.parameters.use_state_discrimination:
+        fit_vals = peaks_dips(fit_signal, dim="detuning", prominence_factor=5)
+        max_fit_vals = _fit_maximum_with_measured_fallback(fit_signal)
+        fit_vals = xr.merge([fit_vals, max_fit_vals])
     fit_vals = fit_vals.assign(
         {
             "position": xr.where(
@@ -143,8 +156,23 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     return fit_data, fit_results
 
 
-def _gaussian_peak(x, offset, amplitude, center, sigma):
-    return offset + amplitude * np.exp(-0.5 * ((x - center) / sigma) ** 2)
+def _lorentzian_peak(x, offset, amplitude, center, gamma):
+    return offset + amplitude * gamma**2 / ((x - center) ** 2 + gamma**2)
+
+
+def _select_best_quadrature_fit(fit_I: xr.Dataset, fit_Q: xr.Dataset) -> xr.Dataset:
+    """Select the I or Q Lorentzian fit with the highest valid R-squared."""
+    select_Q = fit_Q.fit_r_squared.notnull() & (
+        fit_I.fit_r_squared.isnull() | (fit_Q.fit_r_squared > fit_I.fit_r_squared)
+    )
+    selected = xr.where(select_Q, fit_Q, fit_I)
+    return selected.assign(
+        {
+            "selected_quadrature": xr.where(select_Q, "Q", "I"),
+            "fit_r_squared_I": fit_I.fit_r_squared,
+            "fit_r_squared_Q": fit_Q.fit_r_squared,
+        }
+    )
 
 
 def _fit_maximum_with_measured_fallback(fit_signal: xr.DataArray) -> xr.Dataset:
@@ -155,7 +183,7 @@ def _fit_maximum_with_measured_fallback(fit_signal: xr.DataArray) -> xr.Dataset:
     fit_scores = []
     fit_offsets = []
     fit_amplitudes = []
-    fit_sigmas = []
+    fit_gammas = []
 
     for qubit in qubits:
         trace = fit_signal.sel(qubit=qubit)
@@ -166,7 +194,7 @@ def _fit_maximum_with_measured_fallback(fit_signal: xr.DataArray) -> xr.Dataset:
             fit_score,
             fit_offset,
             fit_amplitude,
-            fit_sigma,
+            fit_gamma,
         ) = _fit_trace_maximum(
             np.asarray(trace.detuning.values, dtype=float),
             np.asarray(trace.values, dtype=float),
@@ -177,7 +205,7 @@ def _fit_maximum_with_measured_fallback(fit_signal: xr.DataArray) -> xr.Dataset:
         fit_scores.append(fit_score)
         fit_offsets.append(fit_offset)
         fit_amplitudes.append(fit_amplitude)
-        fit_sigmas.append(fit_sigma)
+        fit_gammas.append(fit_gamma)
 
     return xr.Dataset(
         {
@@ -187,7 +215,7 @@ def _fit_maximum_with_measured_fallback(fit_signal: xr.DataArray) -> xr.Dataset:
             "fit_r_squared": ("qubit", fit_scores),
             "fit_offset": ("qubit", fit_offsets),
             "fit_amplitude": ("qubit", fit_amplitudes),
-            "fit_sigma": ("qubit", fit_sigmas),
+            "fit_gamma": ("qubit", fit_gammas),
         },
         coords={"qubit": qubits},
     )
@@ -208,14 +236,14 @@ def _fit_trace_maximum(
     step = _median_step(x)
     baseline = float(np.percentile(y, 10))
     amplitude = max(float(y[max_index] - baseline), np.finfo(float).eps)
-    sigma = max(span / 10, step)
+    gamma = max(span / 10, step)
 
     try:
         params, _ = curve_fit(
-            _gaussian_peak,
+            _lorentzian_peak,
             x,
             y,
-            p0=[baseline, amplitude, measured_position, sigma],
+            p0=[baseline, amplitude, measured_position, gamma],
             bounds=(
                 [-np.inf, 0.0, float(np.min(x)), max(step / 10, np.finfo(float).eps)],
                 [np.inf, np.inf, float(np.max(x)), span],
@@ -225,23 +253,23 @@ def _fit_trace_maximum(
     except (RuntimeError, ValueError, FloatingPointError):
         return measured_position, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
-    offset, amplitude, center, sigma = [float(value) for value in params]
-    sigma = abs(sigma)
+    offset, amplitude, center, gamma = [float(value) for value in params]
+    gamma = abs(gamma)
     if (
-        not all(np.isfinite(value) for value in (offset, amplitude, center, sigma))
-        or sigma <= 0
+        not all(np.isfinite(value) for value in (offset, amplitude, center, gamma))
+        or gamma <= 0
     ):
         return measured_position, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
-    fitted = _gaussian_peak(x, offset, amplitude, center, sigma)
+    fitted = _lorentzian_peak(x, offset, amplitude, center, gamma)
     residual_sum_squares = float(np.sum((y - fitted) ** 2))
     total_sum_squares = float(np.sum((y - np.mean(y)) ** 2))
     if total_sum_squares <= 0:
-        return measured_position, center, np.nan, np.nan, offset, amplitude, sigma
+        return measured_position, center, np.nan, np.nan, offset, amplitude, gamma
 
     r_squared = 1 - residual_sum_squares / total_sum_squares
-    fwhm = float(2 * np.sqrt(2 * np.log(2)) * sigma)
-    return measured_position, center, fwhm, float(r_squared), offset, amplitude, sigma
+    fwhm = float(2 * gamma)
+    return measured_position, center, fwhm, float(r_squared), offset, amplitude, gamma
 
 
 def _median_step(x: np.ndarray) -> float:

@@ -195,7 +195,6 @@ if __name__ == "__main__":
     parameters.min_amp_factor = 0.0
     parameters.max_amp_factor = 1.0
     parameters.amp_factor_step = 0.05
-    parameters.
 
     options = CalibrationOptions()
 

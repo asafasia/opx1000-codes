@@ -381,22 +381,20 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
-    qubit = "q4"
+    qubit = "q1"
 
-    parameters.use_state_discrimination = False
-    parameters.num_shots = 1000
-    parameters.operation_amplitude_factor = 0.02
-    parameters.frequency_span_in_mhz = 150
-    parameters.frequency_step_in_mhz = 1
-    parameters.reset_type = "thermal"
+    parameters.use_state_discrimination = True
+    parameters.num_shots = 500
+    parameters.operation_amplitude_factor = 0.0002
+    parameters.operation_len_in_ns = 70000
+    parameters.frequency_span_in_mhz = 1
+    parameters.frequency_step_in_mhz = 0.002
+    parameters.reset_type = "active"
     parameters.transition = "ge"
 
     options = CalibrationOptions()
 
     machine = create_machine(qubit=qubit)
-
-    # machine.qubits["q1"].f_01 = 4.25e9
-    # machine.qubits[qubit].xy.RF_frequency -= 100e9
 
     calibration = QubitSpectroscopy(
         parameters=parameters,
