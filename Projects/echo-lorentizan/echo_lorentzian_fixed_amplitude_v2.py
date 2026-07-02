@@ -1,4 +1,4 @@
-"""Class-based echo-Lorentzian frequency-versus-amplitude sweep."""
+"""Class-based echo-Lorentzian spectroscopy at one selected amplitude."""
 
 from __future__ import annotations
 
@@ -28,18 +28,18 @@ from lorentzian import (
 from parameters import Parameters
 from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
+from utils.rabi_amplitude import rabi_frequency_hz_to_amplitude
 
 DESCRIPTION = """
-        ECHO LORENTZIAN - FREQUENCY VS AMPLITUDE
-This calibration plays a fixed-length Lorentzian-like qubit pulse while sweeping
-both the qubit-drive detuning and the waveform amplitude. The pulse shape can be
-the standard Lorentzian or the root-Lorentzian with tau derived from the cutoff
-edge-to-peak ratio.
+        ECHO LORENTZIAN - FIXED AMPLITUDE SPECTROSCOPY
+This calibration plays one selected Lorentzian-like qubit pulse amplitude and
+sweeps only qubit-drive detuning. The selected amplitude may be supplied either
+as a Lorentzian amplitude prefactor or as a Rabi frequency in MHz, converted
+through the selected qubit's square x180 pulse calibration.
 """
 
 
 def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> None:
-    """Ensure fetched results match the requested readout mode."""
     variables = set(ds.data_vars)
     expected = {"state"} if use_state_discrimination else {"I", "Q"}
     unexpected = {"I", "Q"} if use_state_discrimination else {"state"}
@@ -47,22 +47,22 @@ def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> 
     present_unexpected = unexpected & variables
     if missing or present_unexpected:
         raise RuntimeError(
-            "Echo-Lorentzian readout mode mismatch: "
+            "Echo-Lorentzian fixed-amplitude readout mode mismatch: "
             f"use_state_discrimination={use_state_discrimination}, "
             f"dataset variables={sorted(variables)}, "
             f"missing={sorted(missing)}, unexpected={sorted(present_unexpected)}"
         )
 
 
-class EchoLorentzian(BaseCalibration[Parameters, Quam]):
-    """Echo-Lorentzian calibration implemented with the v2 base lifecycle."""
+class EchoLorentzianFixedAmplitude(BaseCalibration[Parameters, Quam]):
+    """Fixed-amplitude echo-Lorentzian detuning spectroscopy."""
 
     def __init__(
         self,
         parameters: Parameters,
         machine: Quam | None = None,
         *,
-        name: str = "echo_lorentzian",
+        name: str = "echo_lorentzian_fixed_amplitude",
         profile_name: str | None = None,
         qubit: str | None = None,
         auto_connect: bool = False,
@@ -79,24 +79,45 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
             **kwargs,
         )
 
+    def fixed_amp_factor(self, qubits: Any) -> float:
+        if self.parameters.fixed_amp_factor is not None:
+            return float(self.parameters.fixed_amp_factor)
+        if self.parameters.fixed_rabi_frequency_mhz is None:
+            raise ValueError(
+                "Set fixed_rabi_frequency_mhz or fixed_amp_factor for "
+                "fixed-amplitude spectroscopy."
+            )
+        if len(qubits) != 1:
+            raise ValueError(
+                "fixed_rabi_frequency_mhz conversion currently expects one selected qubit."
+            )
+        qubit = list(qubits)[0]
+        pi_pulse = qubit.xy.operations["x180"]
+        full_amp = float(
+            rabi_frequency_hz_to_amplitude(
+                self.parameters.fixed_rabi_frequency_mhz * 1e6,
+                float(pi_pulse.amplitude),
+                float(pi_pulse.length),
+            )
+        )
+        return full_amp / float(self.parameters.lorentzian_peak_amplitude)
+
     def create_qua_program(self):
-        """Create the detuning-versus-amplitude Lorentzian sweep program."""
         u = unit(coerce_to_integer=True)
         qubits = self.get_qubits()
         num_qubits = len(qubits)
         operation = self.parameters.operation
+        amp_factor = self.fixed_amp_factor(qubits)
+        if abs(amp_factor) >= 2:
+            raise ValueError("QUA amplitude prefactors must stay within [-2, 2).")
+
+        # Reuse waveform installation safety checks by exposing a one-point sweep.
+        self.parameters.min_amp_factor = amp_factor
+        self.parameters.max_amp_factor = amp_factor + 1e-6
+        self.parameters.amp_factor_step = 1e-6
         install_lorentzian_operation(self)
         play_duration = self.namespace["lorentzian_play_duration_cycles"]
-
-        amps = np.arange(
-            self.parameters.min_amp_factor,
-            self.parameters.max_amp_factor,
-            self.parameters.amp_factor_step,
-        )
-        if amps.size == 0:
-            raise ValueError("Amplitude sweep is empty.")
-        if np.any(np.abs(amps) >= 2):
-            raise ValueError("QUA amplitude prefactors must stay within [-2, 2).")
+        amps = np.asarray([amp_factor], dtype=float)
 
         span = int(round(self.parameters.frequency_span_in_mhz * u.MHz))
         step = int(round(self.parameters.frequency_step_in_mhz * u.MHz))
@@ -203,7 +224,7 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
             plot_raw_data,
             self.results["ds_raw"],
             self.namespace["qubits"],
-            figure_name="echo_lorentzian",
+            figure_name="echo_lorentzian_fixed_amplitude",
             use_state_discrimination=self.parameters.use_state_discrimination,
         )
         plt.show()
@@ -215,21 +236,19 @@ if __name__ == "__main__":
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
     parameters.pulse_shape = "root_lorentzian"
-    parameters.echo = True
-    parameters.cutoff = 0.999
-    parameters.num_shots = 40
-    parameters.lorentzian_length_in_ns = 60000
-    parameters.waveform_template_length_in_ns = 60000
+    parameters.echo = False
+    parameters.cutoff = 0.005
+    parameters.fixed_rabi_frequency_mhz = 2.32
+    parameters.num_shots = 100
+    parameters.lorentzian_length_in_ns = 20000
+    parameters.waveform_template_length_in_ns = 20000
     parameters.lorentzian_peak_amplitude = 0.2
-    parameters.amp_factor_step = 0.01
-    parameters.frequency_span_in_mhz = 100
-    parameters.frequency_step_in_mhz = 0.1
+    parameters.frequency_span_in_mhz = 1
+    parameters.frequency_step_in_mhz = 1 / 99
 
-    options = CalibrationOptions()
-
-    calibration = EchoLorentzian(
+    calibration = EchoLorentzianFixedAmplitude(
         parameters=parameters,
-        options=options,
+        options=CalibrationOptions(),
         machine=create_machine(qubit="q1"),
         auto_connect=True,
     )

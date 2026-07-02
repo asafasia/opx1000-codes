@@ -176,6 +176,12 @@ CALIBRATIONS: dict[str, CalibrationEntry] = {
         "XY8",
         parameters_module="calibration_utils.xy8.parameters",
     ),
+    "cpmg": CalibrationEntry(
+        "cpmg",
+        "calibrations_v2.17_cpmg",
+        "CPMG",
+        parameters_module="calibration_utils.cpmg.parameters",
+    ),
 }
 
 

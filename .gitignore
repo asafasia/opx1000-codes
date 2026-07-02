@@ -5,6 +5,9 @@ data/
 /apps/visualiser/*.log
 /apps/parameter_scan/*.log
 /codex/overnight_logs/
+/codex/individual_amplitude_logs/
+*.log
+*.log.*
 
 # Generated knowledge-graph automation output
 /knowledge_graphs/automation_data/

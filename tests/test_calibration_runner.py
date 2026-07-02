@@ -62,6 +62,8 @@ class CalibrationRunnerTests(unittest.TestCase):
     def test_get_entry_accepts_friendly_and_module_stem_names(self):
         self.assertEqual(get_entry("power-rabi").class_name, "PowerRabi")
         self.assertEqual(get_entry("04b_power_rabi").key, "power-rabi")
+        self.assertEqual(get_entry("cpmg").class_name, "CPMG")
+        self.assertEqual(get_entry("17_cpmg").key, "cpmg")
 
     def test_coerce_value_parses_common_cli_types(self):
         self.assertIs(coerce_value("true"), True)

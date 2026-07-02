@@ -803,25 +803,36 @@ def _plot_state(ds: xr.Dataset, qubits: List[AnyTransmon]):
         qubit_name = qubit_ref["qubit"]
         qubit = qubits_by_name[qubit_name]
         selected = _with_plot_coords(ds.sel(qubit=qubit_name), qubit)
-        plotted = (
-            selected["state"]
-            .transpose("amp_prefactor", "detuning")
-            .plot(
-                ax=ax,
-                x="detuning_MHz",
-                y="rabi_frequency_MHz",
-                add_colorbar=True,
-                cbar_kwargs={"pad": 0.16},
+        if selected.sizes.get("amp_prefactor", 0) == 1:
+            ax.plot(
+                selected.detuning_MHz,
+                selected["state"].isel(amp_prefactor=0),
+                marker="o",
+                linewidth=1.2,
+                markersize=3,
             )
-        )
-        plotted.colorbar.set_label("Measured state")
+            ax.set_ylabel("Measured state")
+            _add_single_amp_fwhm_lines(ax, selected)
+        else:
+            plotted = (
+                selected["state"]
+                .transpose("amp_prefactor", "detuning")
+                .plot(
+                    ax=ax,
+                    x="detuning_MHz",
+                    y="rabi_frequency_MHz",
+                    add_colorbar=True,
+                    cbar_kwargs={"pad": 0.16},
+                )
+            )
+            plotted.colorbar.set_label("Measured state")
+            _add_absolute_amplitude_axis(ax, qubit)
+            _add_fwhm_markers(ax, selected)
+            ax.set_ylabel("Rabi frequency [MHz]")
         _add_absolute_frequency_axis(ax, _rf_frequency_ghz(selected))
-        _add_absolute_amplitude_axis(ax, qubit)
         _add_t2_limit_lines(ax, qubit)
-        _add_fwhm_markers(ax, selected)
         ax.set_title(f"{qubit_name}: measured state")
         ax.set_xlabel("Detuning [MHz]")
-        ax.set_ylabel("Rabi frequency [MHz]")
 
     grid.fig.set_size_inches(*FIGURE_SIZE)
     _finish_figure_layout(grid.fig, "Echo Lorentzian: state", ds, qubits)
@@ -843,28 +854,62 @@ def _plot_iq(ds: xr.Dataset, qubits: List[AnyTransmon]):
         rf_frequency_ghz = _rf_frequency_ghz(selected)
         for column, variable in enumerate(("I", "Q")):
             ax = axes[row][column]
-            plotted = (
-                selected[variable].transpose("amp_prefactor", "detuning") / u.mV
-            ).plot(
-                ax=ax,
-                x="detuning_MHz",
-                y="rabi_frequency_MHz",
-                add_colorbar=True,
-                robust=True,
-                cbar_kwargs={"pad": 0.16},
-            )
             label = f"{variable} [mV]"
-            plotted.colorbar.set_label(label)
+            if selected.sizes.get("amp_prefactor", 0) == 1:
+                ax.plot(
+                    selected.detuning_MHz,
+                    selected[variable].isel(amp_prefactor=0) / u.mV,
+                    marker="o",
+                    linewidth=1.2,
+                    markersize=3,
+                )
+                ax.set_ylabel(label)
+                _add_single_amp_fwhm_lines(ax, selected)
+            else:
+                plotted = (
+                    selected[variable].transpose("amp_prefactor", "detuning") / u.mV
+                ).plot(
+                    ax=ax,
+                    x="detuning_MHz",
+                    y="rabi_frequency_MHz",
+                    add_colorbar=True,
+                    robust=True,
+                    cbar_kwargs={"pad": 0.16},
+                )
+                plotted.colorbar.set_label(label)
+                _add_absolute_amplitude_axis(ax, qubit)
+                _add_fwhm_markers(ax, selected)
+                ax.set_ylabel("Rabi frequency [MHz]")
             _add_absolute_frequency_axis(ax, rf_frequency_ghz)
-            _add_absolute_amplitude_axis(ax, qubit)
             _add_t2_limit_lines(ax, qubit)
-            _add_fwhm_markers(ax, selected)
             ax.set_title(f"{qubit_name}: {label}")
             ax.set_xlabel("Detuning [MHz]")
-            ax.set_ylabel("Rabi frequency [MHz]")
 
     _finish_figure_layout(figure, "Echo Lorentzian: I and Q quadratures", ds, qubits)
     return figure
+
+
+def _add_single_amp_fwhm_lines(ax, selected: xr.Dataset) -> None:
+    required = {"gaussian_fwhm_left_hz", "gaussian_fwhm_right_hz"}
+    if not required.issubset(set(selected.variables)):
+        return
+    for name, label in (
+        ("gaussian_fwhm_left_hz", "Gaussian FWHM"),
+        ("gaussian_fwhm_right_hz", None),
+    ):
+        value = float(selected[name].isel(amp_prefactor=0) / u.MHz)
+        if np.isfinite(value):
+            ax.axvline(
+                value,
+                color="red",
+                linestyle=":",
+                linewidth=1.1,
+                label=label,
+            )
+    handles, labels = ax.get_legend_handles_labels()
+    if handles:
+        unique = dict(zip(labels, handles))
+        ax.legend(unique.values(), unique.keys(), loc="best", fontsize=8)
 
 
 if __name__ == "__main__":

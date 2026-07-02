@@ -33,6 +33,10 @@ class NodeSpecificParameters(RunnableParameters):
     """Exclusive maximum Lorentzian-amplitude prefactor."""
     amp_factor_step: float = 0.03
     """Lorentzian-amplitude prefactor step."""
+    fixed_amp_factor: float | None = None
+    """Single Lorentzian-amplitude prefactor for fixed-amplitude spectroscopy."""
+    fixed_rabi_frequency_mhz: float | None = None
+    """Single target Rabi frequency in MHz, converted through the square x180 pulse."""
     frequency_span_in_mhz: float = 850
     """Total qubit-frequency span in MHz."""
     frequency_step_in_mhz: float = 2

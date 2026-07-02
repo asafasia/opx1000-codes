@@ -7,7 +7,7 @@
         4
       ],
       "frequencies_hz": {
-        "qubit_f01": 4267128311.915768,
+        "qubit_f01": 4267100311.915768,
         "qubit_f12": 4050000000.0,
         "resonator": 6668900000.0,
         "resonator_bare": null

@@ -81,6 +81,24 @@ The class-based v2 version lives in the same project folder and can be run with:
 python Projects\echo-lorentizan\echo_lorentzian_v2.py
 ```
 
+For fixed-amplitude detuning spectroscopy, run one selected Rabi amplitude with:
+
+```powershell
+python Projects\echo-lorentizan\echo_lorentzian_fixed_amplitude_v2.py
+```
+
+or loop over the plotted amplitudes for both no-echo and echo with:
+
+```powershell
+python Projects\echo-lorentizan\echo_lorentzian_fixed_amplitude_set.py
+```
+
+The set runner defaults to `cutoff=0.005`, `20 us` pulse/template length,
+`100` shots, `100` detuning points across `1 MHz`, and Rabi amplitudes
+`2.32`, `4.64`, `7.58`, and `11.45 MHz`. Each amplitude is translated through
+the selected qubit's square `x180` pulse into the Lorentzian amplitude
+prefactor used by QUA.
+
 The minimalist amplitude-only version keeps detuning at zero and sweeps only
 the Lorentzian amplitude:
 
@@ -98,12 +116,19 @@ This runs ten log-spaced cutoff values from `1e-4` to `0.99`. For each cutoff it
 runs the class-based echo-Lorentzian spectroscopy experiment in memory, without
 saving the individual per-cutoff experiments. The wrapper writes only the
 combined `cutoff_sweep_fit_results.csv`, `cutoff_sweep_best_signal.csv`,
-`manifest.json`, `cutoff_sweep_summary.png`, and `cutoff_sweep_fwhm_heatmap.png`
-under `data/echo_lorentzian_cutoff_sweep/`. The heatmap shows FWHM versus
-equivalent Rabi frequency in MHz and cutoff, plus a second subplot of FWHM
-divided by fitted signal amplitude, with cutoff plotted on a log scale. The
-Rabi-frequency axis is translated from the Lorentzian peak amplitude using the
-qubit's square `x180` calibration. FWHM values in the
+`manifest.json`, `cutoff_sweep_summary.png`, `cutoff_sweep_fwhm_heatmap.png`,
+and `cutoff_sweep_per_cutoff_traces.png` under
+`data/echo_lorentzian_cutoff_sweep/`. Each completed cutoff also saves only its
+individual figure PNGs under `individual_figures/`; the full inner experiment
+data is not saved. If the sweep is interrupted, completed rows, aggregate
+figures, individual figures, and `manifest.json` are still written, with
+`interrupted=true` in the manifest. The per-cutoff trace figure is the
+sanity-check view: it plots the fitted FWHM and fitted signal versus equivalent
+Rabi frequency for every cutoff. The heatmap shows FWHM versus equivalent Rabi
+frequency in MHz and cutoff, plus a second subplot of FWHM divided by fitted
+signal amplitude, with cutoff plotted on a log scale. The Rabi-frequency axis is
+translated from the Lorentzian peak amplitude using the qubit's square `x180`
+calibration. FWHM values in the
 summary and heatmap are normalized by the qubit's T2 FWHM limit `1 / (pi*T2)`;
 for example, `T2=6.86 us` corresponds to a `46.4 kHz` normalization unit.
 

@@ -30,19 +30,20 @@ import xarray as xr
 
 from calibrations_v2.base import CalibrationOptions
 from echo_lorentzian_v2 import EchoLorentzian
-from lorentzian import _t2_seconds
+from lorentzian import _t2_seconds, plot_raw_data
 from parameters import Parameters
 from quam_config import Quam, create_machine
+from utils.plotting_settings import plot_per_qubit
 from utils.rabi_amplitude import amplitude_to_rabi_frequency_hz
 
-DEFAULT_CUTOFFS = np.geomspace(0.5e-4, 0.99, 20)
+DEFAULT_CUTOFFS = np.geomspace(2e-4, 0.99, 20)
 
 
 def cutoff_points(num_points: int = 10) -> np.ndarray:
     """Return log-spaced cutoff values from 1e-4 through 0.99."""
     if num_points < 2:
         raise ValueError("num_points must be at least 2.")
-    return np.geomspace(0.5e-4, 0.99, num_points)
+    return np.geomspace(2e-3, 0.99, num_points)
 
 
 def run_cutoff_sweep(
@@ -63,63 +64,77 @@ def run_cutoff_sweep(
     full_records: list[dict[str, Any]] = []
     best_records: list[dict[str, Any]] = []
     run_summaries: list[dict[str, Any]] = []
+    output_paths: dict[str, Path | None] = {}
+    interrupted = False
 
     total_cutoffs = len(cutoffs)
     _show_outer_progress(0, total_cutoffs, "starting")
-    for run_index, cutoff in enumerate(cutoffs, start=1):
-        parameters = copy.deepcopy(base_parameters)
-        parameters.pulse_shape = "root_lorentzian"
-        parameters.cutoff = float(cutoff)
-        _show_outer_progress(
-            run_index - 1,
-            total_cutoffs,
-            f"running cutoff={float(cutoff):.4g}",
-        )
-        with _quiet_inner_run():
-            calibration = EchoLorentzian(
-                parameters=parameters,
-                options=_individual_run_options(options),
-                machine=machine,
-                qubit=qubit,
-                auto_connect=auto_connect,
-                name=f"echo_lorentzian_cutoff_{run_index:02d}",
-                logger=_quiet_log,
+    try:
+        for run_index, cutoff in enumerate(cutoffs, start=1):
+            parameters = copy.deepcopy(base_parameters)
+            parameters.pulse_shape = "root_lorentzian"
+            parameters.cutoff = float(cutoff)
+            _show_outer_progress(
+                run_index - 1,
+                total_cutoffs,
+                f"running cutoff={float(cutoff):.4g}",
             )
-            calibration.run()
-        ds = calibration.results["ds_raw"]
-        run_records = summarize_cutoff_dataset(
-            ds,
-            float(cutoff),
-            run_index,
-            calibration.namespace.get("qubits"),
-        )
-        full_records.extend(run_records)
-        best_records.extend(best_signal_records(run_records))
-        run_summaries.append(
-            {
-                "run_index": run_index,
-                "cutoff": float(cutoff),
-                "calibration_name": calibration.name,
-            }
-        )
-        _show_outer_progress(
-            run_index,
-            total_cutoffs,
-            f"finished cutoff={float(cutoff):.4g}",
-        )
+            with _quiet_inner_run():
+                calibration = EchoLorentzian(
+                    parameters=parameters,
+                    options=_individual_run_options(options),
+                    machine=machine,
+                    qubit=qubit,
+                    auto_connect=auto_connect,
+                    name=f"echo_lorentzian_cutoff_{run_index:02d}",
+                    logger=_quiet_log,
+                )
+                calibration.run()
+            ds = calibration.results["ds_raw"]
+            run_records = summarize_cutoff_dataset(
+                ds,
+                float(cutoff),
+                run_index,
+                calibration.namespace.get("qubits"),
+            )
+            full_records.extend(run_records)
+            best_records.extend(best_signal_records(run_records))
+            run_summaries.append(
+                {
+                    "run_index": run_index,
+                    "cutoff": float(cutoff),
+                    "calibration_name": calibration.name,
+                }
+            )
+            _save_individual_figures(
+                calibration, ds, output_dir, run_index, float(cutoff)
+            )
+            _show_outer_progress(
+                run_index,
+                total_cutoffs,
+                f"finished cutoff={float(cutoff):.4g}",
+            )
+    except KeyboardInterrupt:
+        interrupted = True
+        print("\nCutoff sweep interrupted; saving completed results.")
     print()
 
-    _write_csv(output_dir / "cutoff_sweep_fit_results.csv", full_records)
-    _write_csv(output_dir / "cutoff_sweep_best_signal.csv", best_records)
-    _write_manifest(output_dir, base_parameters, run_summaries)
-    figure_path = plot_cutoff_summary(best_records, output_dir)
-    heatmap_path = plot_fwhm_heatmap(full_records, output_dir)
+    output_paths = _save_sweep_outputs(
+        output_dir,
+        base_parameters,
+        run_summaries,
+        full_records,
+        best_records,
+        interrupted=interrupted,
+    )
     return {
         "output_dir": output_dir,
         "fit_results": full_records,
         "best_signal": best_records,
-        "figure": figure_path,
-        "fwhm_heatmap": heatmap_path,
+        "figure": output_paths["summary"],
+        "fwhm_heatmap": output_paths["fwhm_heatmap"],
+        "per_cutoff_traces": output_paths["per_cutoff_traces"],
+        "interrupted": interrupted,
     }
 
 
@@ -173,6 +188,59 @@ def _show_outer_progress(completed: int, total: int, label: str) -> None:
         end="",
         flush=True,
     )
+
+
+def _save_individual_figures(
+    calibration: EchoLorentzian,
+    ds: xr.Dataset,
+    output_dir: Path,
+    run_index: int,
+    cutoff: float,
+) -> None:
+    """Save per-cutoff figures only, without saving full inner experiment data."""
+    qubits = calibration.namespace.get("qubits")
+    if not qubits:
+        return
+    figures = plot_per_qubit(
+        plot_raw_data,
+        ds,
+        qubits,
+        figure_name=f"cutoff_{run_index:02d}_{_cutoff_stem(cutoff)}",
+        use_state_discrimination=calibration.parameters.use_state_discrimination,
+    )
+    figures_dir = output_dir / "individual_figures"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    for figure_name, figure in figures.items():
+        figure.savefig(figures_dir / f"{figure_name}.png", dpi=150, bbox_inches="tight")
+        plt.close(figure)
+
+
+def _cutoff_stem(cutoff: float) -> str:
+    return f"cutoff_{cutoff:.3e}".replace("+", "").replace("-", "m").replace(".", "p")
+
+
+def _save_sweep_outputs(
+    output_dir: Path,
+    base_parameters: Parameters,
+    run_summaries: list[dict[str, Any]],
+    full_records: list[dict[str, Any]],
+    best_records: list[dict[str, Any]],
+    *,
+    interrupted: bool,
+) -> dict[str, Path | None]:
+    _write_csv(output_dir / "cutoff_sweep_fit_results.csv", full_records)
+    _write_csv(output_dir / "cutoff_sweep_best_signal.csv", best_records)
+    _write_manifest(
+        output_dir,
+        base_parameters,
+        run_summaries,
+        interrupted=interrupted,
+    )
+    return {
+        "summary": plot_cutoff_summary(best_records, output_dir),
+        "fwhm_heatmap": plot_fwhm_heatmap(full_records, output_dir),
+        "per_cutoff_traces": plot_per_cutoff_traces(full_records, output_dir),
+    }
 
 
 def summarize_cutoff_dataset(
@@ -426,6 +494,76 @@ def plot_fwhm_heatmap(
     return figure_path
 
 
+def plot_per_cutoff_traces(
+    records: list[dict[str, Any]],
+    output_dir: Path,
+) -> Path | None:
+    """Plot the fitted FWHM and signal traces calculated for every cutoff."""
+    valid_records = [
+        record
+        for record in records
+        if _is_finite_number(record["cutoff"])
+        and _is_finite_number(record["rabi_frequency_mhz"])
+    ]
+    if not valid_records:
+        return None
+
+    qubits = sorted({record["qubit"] for record in valid_records})
+    figure, axes = plt.subplots(
+        2 * len(qubits),
+        1,
+        figsize=(8, 7 * len(qubits)),
+        squeeze=False,
+    )
+    for qubit_index, qubit in enumerate(qubits):
+        fwhm_ax = axes[2 * qubit_index, 0]
+        signal_ax = axes[2 * qubit_index + 1, 0]
+        qubit_records = [record for record in valid_records if record["qubit"] == qubit]
+        cutoffs = np.array(sorted({record["cutoff"] for record in qubit_records}))
+        colors = plt.cm.viridis(np.linspace(0, 1, len(cutoffs)))
+
+        for color, cutoff in zip(colors, cutoffs):
+            cutoff_records = sorted(
+                (record for record in qubit_records if record["cutoff"] == cutoff),
+                key=lambda record: record["rabi_frequency_mhz"],
+            )
+            x = [record["rabi_frequency_mhz"] for record in cutoff_records]
+            fwhm_ax.plot(
+                x,
+                [record["fwhm_t2_units"] for record in cutoff_records],
+                marker="o",
+                linewidth=1.2,
+                markersize=3,
+                color=color,
+                label=f"{cutoff:.3g}",
+            )
+            signal_ax.plot(
+                x,
+                [record["fit_abs_amplitude"] for record in cutoff_records],
+                marker="o",
+                linewidth=1.2,
+                markersize=3,
+                color=color,
+                label=f"{cutoff:.3g}",
+            )
+
+        fwhm_ax.set_title(f"{qubit}: fitted FWHM trace for each cutoff")
+        fwhm_ax.set_ylabel("FWHM / (1/(pi*T2))")
+        signal_ax.set_title(f"{qubit}: fitted signal trace for each cutoff")
+        signal_ax.set_ylabel("Fit signal amplitude")
+        signal_ax.set_xlabel("Rabi frequency [MHz]")
+        for axis in (fwhm_ax, signal_ax):
+            axis.grid(alpha=0.25)
+            axis.legend(title="cutoff", fontsize=7, ncols=2)
+
+    figure.tight_layout()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    figure_path = output_dir / "cutoff_sweep_per_cutoff_traces.png"
+    figure.savefig(figure_path, dpi=150)
+    plt.close(figure)
+    return figure_path
+
+
 def _cell_edges_log(values: np.ndarray) -> np.ndarray:
     values = np.asarray(values, dtype=float)
     if values.size == 1:
@@ -466,9 +604,13 @@ def _write_manifest(
     output_dir: Path,
     base_parameters: Parameters,
     runs: list[dict[str, Any]],
+    *,
+    interrupted: bool = False,
 ) -> None:
     manifest = {
         "created_at": datetime.now().astimezone().isoformat(),
+        "interrupted": bool(interrupted),
+        "completed_runs": len(runs),
         "cutoffs": [run["cutoff"] for run in runs],
         "runs": runs,
         "base_parameters": {
@@ -528,13 +670,13 @@ if __name__ == "__main__":
     parameters.reset_type = "active"
     parameters.pulse_shape = "root_lorentzian"
     parameters.echo = True
-    parameters.num_shots = 20
+    parameters.num_shots = 60
     parameters.lorentzian_length_in_ns = 20000
     parameters.waveform_template_length_in_ns = 20000
     parameters.lorentzian_peak_amplitude = 0.2
     parameters.min_amp_factor = 0.0
     parameters.max_amp_factor = 1
-    parameters.amp_factor_step = 0.05
+    parameters.amp_factor_step = 0.04
     parameters.frequency_span_in_mhz = 5
     parameters.frequency_step_in_mhz = 0.005
 

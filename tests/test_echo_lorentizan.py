@@ -249,11 +249,15 @@ class EchoLorentizanTests(unittest.TestCase):
         source = (PROJECT_ROOT / "echo_lorentzian_sweep.py").read_text()
         v2_source = (PROJECT_ROOT / "echo_lorentzian_v2.py").read_text()
         amplitude_source = (PROJECT_ROOT / "echo_lorentzian_amplitude_v2.py").read_text()
+        fixed_source = (PROJECT_ROOT / "echo_lorentzian_fixed_amplitude_v2.py").read_text()
 
         self.assertIn("install_lorentzian_operation(node)", source)
         self.assertIn("class EchoLorentzian(BaseCalibration", v2_source)
         self.assertIn("install_lorentzian_operation(self)", v2_source)
         self.assertIn("class EchoLorentzianAmplitude(BaseCalibration", amplitude_source)
+        self.assertIn("class EchoLorentzianFixedAmplitude(BaseCalibration", fixed_source)
+        self.assertIn("fixed_rabi_frequency_mhz", fixed_source)
+        self.assertIn("rabi_frequency_hz_to_amplitude", fixed_source)
         self.assertIn("with for_(*from_array(a, amps)):", amplitude_source)
         self.assertNotIn("with for_(*from_array(df, dfs)):", amplitude_source)
         self.assertIn("with for_(*from_array(df, dfs)):", source)
@@ -263,6 +267,25 @@ class EchoLorentizanTests(unittest.TestCase):
         self.assertIn("duration=play_duration", amplitude_source)
         self.assertIn('"detuning": xr.DataArray(', source)
         self.assertIn('"amp_prefactor": xr.DataArray(', source)
+
+    def test_fixed_amplitude_set_loops_over_echo_modes_and_rabi_amplitudes(self):
+        source = (PROJECT_ROOT / "echo_lorentzian_fixed_amplitude_set.py").read_text()
+
+        self.assertIn("EchoLorentzianFixedAmplitude", source)
+        self.assertIn("default=[2.32, 4.64, 7.58, 11.45]", source)
+        self.assertIn('default=["no-echo", "echo"]', source)
+        self.assertIn("fixed_rabi_frequency_mhz", source)
+        self.assertIn("num_shots = args.num_shots", source)
+        self.assertIn("frequency_span_in_mhz = args.frequency_span_mhz", source)
+        self.assertIn("frequency_step_in_mhz", source)
+        self.assertIn("plot_data=False", source)
+        self.assertIn("plot_spectroscopy_traces(", source)
+        self.assertIn("t2_seconds=_t2_seconds(machine.qubits[args.qubit])", source)
+        self.assertIn("fixed_amplitude_lorentzian_no_echo.png", source)
+        self.assertIn("fixed_amplitude_echo_lorentzian.png", source)
+        self.assertIn("_t2_seconds(machine.qubits[args.qubit])", source)
+        self.assertIn("T2 limit:", source)
+        self.assertIn("1 / (2 * np.pi * t2_seconds)", source)
 
     def test_cutoff_sweep_uses_ten_log_points_and_summarizes_fit_signal(self):
         source = (PROJECT_ROOT / "echo_lorentzian_cutoff_sweep.py").read_text()
@@ -281,9 +304,17 @@ class EchoLorentizanTests(unittest.TestCase):
         self.assertIn("contextlib.redirect_stderr(stderr)", source)
         self.assertIn("logging.disable(logging.CRITICAL)", source)
         self.assertIn("Cutoff sweep [", source)
+        self.assertIn("except KeyboardInterrupt:", source)
+        self.assertIn("_save_sweep_outputs(", source)
+        self.assertIn("_save_individual_figures(", source)
+        self.assertIn("individual_figures", source)
+        self.assertIn('"interrupted"', source)
         self.assertIn("cutoff_sweep_fit_results.csv", source)
         self.assertIn("cutoff_sweep_best_signal.csv", source)
         self.assertIn("cutoff_sweep_fwhm_heatmap.png", source)
+        self.assertIn("cutoff_sweep_per_cutoff_traces.png", source)
+        self.assertIn("plot_per_cutoff_traces", source)
+        self.assertIn("fitted FWHM trace for each cutoff", source)
         self.assertIn("gaussian_fit_amplitude", source)
         self.assertIn("gaussian_fit_abs_amplitude", source)
         self.assertIn('ax.set_xscale("log")', source)
@@ -557,6 +588,54 @@ class EchoLorentizanTests(unittest.TestCase):
             for text in legend.get_texts()
         )
         self.assertIn("Gaussian FWHM", legend_text)
+        plt.close(figure)
+
+    def test_lorentzian_plot_handles_single_fixed_amplitude(self):
+        detuning = np.linspace(-0.5e6, 0.5e6, 101)
+        sigma = 0.08e6
+        state = 0.1 + 0.6 * np.exp(-0.5 * (detuning / sigma) ** 2)
+        ds = xr.Dataset(
+            {
+                "state": (
+                    ("qubit", "detuning", "amp_prefactor"),
+                    state[np.newaxis, :, np.newaxis],
+                )
+            },
+            coords={
+                "qubit": ["q7"],
+                "detuning": detuning,
+                "amp_prefactor": [0.5],
+            },
+        )
+        qubit = SimpleNamespace(xy=SimpleNamespace(RF_frequency=4.1e9))
+        node = SimpleNamespace(
+            parameters=SimpleNamespace(
+                use_state_discrimination=True,
+                lorentzian_peak_amplitude=0.12,
+                pulse_shape="root_lorentzian",
+                lorentzian_length_in_ns=80,
+                lorentzian_tau_in_ns=8.0,
+                cutoff=0.25,
+                echo=False,
+                min_amp_factor=0.5,
+                max_amp_factor=0.500001,
+                amp_factor_step=0.000001,
+                frequency_span_in_mhz=1,
+                frequency_step_in_mhz=0.01,
+            ),
+            namespace={"qubits": [qubit]},
+        )
+        processed = lorentzian.process_raw_dataset(ds, node)
+        plot_qubit = make_plot_qubit()
+
+        figure = lorentzian.plot_raw_data(
+            processed,
+            [plot_qubit],
+            use_state_discrimination=True,
+        )
+
+        self.assertEqual(figure.axes[0].get_ylabel(), "Measured state")
+        self.assertTrue(figure.axes[0].lines)
         plt.close(figure)
 
     def test_amplitude_sweep_processing_and_plot_are_1d(self):
