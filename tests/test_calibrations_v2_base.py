@@ -190,6 +190,41 @@ class CalibrationsV2BaseTests(unittest.TestCase):
             self.assertNotIn("plotted", calibration.results)
             self.assertNotIn("updated", calibration.results)
 
+    def test_ai_review_option_reviews_saved_run_and_logs_summary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run_directory = root / "data" / "calibrations" / "2026-07-04" / "fake" / "12-00-00-000000"
+            (run_directory / "figures").mkdir(parents=True)
+            (run_directory / "figures" / "fake.png").write_bytes(b"not really a png")
+            review_path = run_directory / "ai_review.json"
+            messages = []
+            test_case = self
+
+            class FakeReviewer:
+                def review_run(self, path):
+                    test_case.assertEqual(Path(path), run_directory)
+                    review_path.write_text(
+                        '{"pass_fail": "pass", "summary": "The feature is clear."}\n',
+                        encoding="utf-8",
+                    )
+                    return SimpleNamespace(json_path=review_path)
+
+            calibration = FakeCalibration(
+                name="fake_calibration",
+                parameters=SimpleNamespace(simulate=False, load_data_id=None),
+                machine=object(),
+                logger=messages.append,
+                options=CalibrationOptions(ai_review=True),
+            )
+            calibration.namespace["calibration_run_directory"] = run_directory
+
+            with patch("calibration_ai.CalibrationAIReviewer", return_value=FakeReviewer()):
+                saved = calibration.save_ai_review()
+
+            self.assertTrue(saved)
+            self.assertEqual(calibration.namespace["ai_review"], review_path)
+            self.assertTrue(any("AI review: pass - The feature is clear." in message for message in messages))
+
     def test_simulation_shows_figure_when_plotting_is_enabled(self):
         calibration = FakeCalibration(
             name="fake_calibration",

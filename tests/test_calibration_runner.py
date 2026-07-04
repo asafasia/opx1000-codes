@@ -46,6 +46,7 @@ class FakeCalibration:
             outcomes={"q1": "successful"},
             raw_data_saved=self.options.save_raw_data,
             figures_saved=self.options.save_figures,
+            ai_review_saved=self.options.ai_review,
             profile_update_proposed=self.options.propose_profile_update,
         )
 
@@ -92,6 +93,11 @@ class CalibrationRunnerTests(unittest.TestCase):
         self.assertFalse(options.analyse_data)
         self.assertTrue(options.save_raw_data)
 
+    def test_build_options_accepts_ai_review(self):
+        options = build_options([parse_assignment("ai_review=true")])
+
+        self.assertTrue(options.ai_review)
+
     def test_load_recipe_reads_json_recipe(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "recipe.json"
@@ -121,6 +127,7 @@ class CalibrationRunnerTests(unittest.TestCase):
         printed = print_mock.call_args.args[0]
         self.assertIn('"mode": "simulate"', printed)
         self.assertIn('"run_directory": "fake\\\\run"', printed)
+        self.assertIn('"ai_review_saved": false', printed)
 
 
 if __name__ == "__main__":

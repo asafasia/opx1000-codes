@@ -274,6 +274,7 @@ if __name__ == "__main__":
     parameters.use_state_discrimination = False
 
     options = CalibrationOptions()
+    options.ai_review = True
 
     calibration = PowerRabiChevron(
         parameters=parameters,

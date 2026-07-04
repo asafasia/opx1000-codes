@@ -61,6 +61,7 @@ from calibrations_v2 import CalibrationOptions
 options = CalibrationOptions(
     save_raw_data=False,
     save_figures=False,
+    ai_review=False,
     plot_data=False,
     update_state=False,
     propose_profile_update=False,
@@ -68,6 +69,10 @@ options = CalibrationOptions(
 ```
 
 Pass `options=options` into any v2 calibration constructor.
+Set `ai_review=True` to review saved figures with `calibration_ai` after
+figure saving. The review is written into the run directory as
+`ai_review.json` and `ai_review.md`, and a short status line is printed through
+the calibration logger.
 
 ## Terminal runner
 
@@ -79,6 +84,7 @@ python -m calibrations_v2.runner describe resonator
 python -m calibrations_v2.runner run resonator --qubit q9 --set num_shots=200
 python -m calibrations_v2.runner run power-rabi --qubit q9 --simulate --no-save
 python -m calibrations_v2.runner run resonator --load data/calibrations/2026-06-13/02a_resonator_spectroscopy/15-09-48-460578
+python -m calibrations_v2.runner run resonator --qubit q9 --option ai_review=true
 ```
 
 Parameter overrides use `--set name=value`. Runtime lifecycle switches use

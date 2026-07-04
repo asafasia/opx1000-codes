@@ -24,6 +24,7 @@ class RunnerCalibrationOptions:
     update_state: bool = True
     propose_profile_update: bool = True
     apply_profile_update: bool = False
+    ai_review: bool = False
 
 
 OPTION_FIELDS = set(RunnerCalibrationOptions.__dataclass_fields__)
@@ -254,8 +255,10 @@ def run_entry(
         "outcomes": dict(status.outcomes),
         "raw_data_saved": status.raw_data_saved,
         "figures_saved": status.figures_saved,
+        "ai_review_saved": status.ai_review_saved,
         "profile_update_proposed": status.profile_update_proposed,
         "run_directory": calibration.namespace.get("calibration_run_directory"),
+        "ai_review": calibration.namespace.get("ai_review"),
         "profile_update_proposal": calibration.namespace.get("profile_update_proposal"),
     }
     print(json.dumps(summary, indent=2, default=_json_default))

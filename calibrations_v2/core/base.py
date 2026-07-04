@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 import inspect
+import json
 from pathlib import Path
 from typing import Any, Callable, Generic, Iterable, Mapping, TypeVar
 
@@ -42,6 +43,7 @@ class CalibrationStatus:
     loaded: bool
     raw_data_saved: bool
     figures_saved: bool
+    ai_review_saved: bool
     profile_update_proposed: bool
     outcomes: Mapping[str, str] = field(default_factory=dict)
 
@@ -58,6 +60,7 @@ class CalibrationOptions:
     update_state: bool = True
     propose_profile_update: bool = True
     apply_profile_update: bool = True
+    ai_review: bool = False
 
 
 class BaseCalibration(ABC, Generic[P, M]):
@@ -164,6 +167,7 @@ class BaseCalibration(ABC, Generic[P, M]):
         loaded = False
         raw_data_saved = False
         figures_saved = False
+        ai_review_saved = False
         profile_update_proposed = False
 
         try:
@@ -192,6 +196,8 @@ class BaseCalibration(ABC, Generic[P, M]):
                     self.plot_data()
                 if self.options.save_figures:
                     figures_saved = self.save_figures()
+                if self.options.ai_review:
+                    ai_review_saved = self.save_ai_review()
                 if self.options.update_state:
                     self.update_state()
                 if self.options.propose_profile_update:
@@ -206,6 +212,7 @@ class BaseCalibration(ABC, Generic[P, M]):
             loaded=loaded,
             raw_data_saved=raw_data_saved,
             figures_saved=figures_saved,
+            ai_review_saved=ai_review_saved,
             profile_update_proposed=profile_update_proposed,
             outcomes=dict(self.outcomes),
         )
@@ -422,6 +429,34 @@ class BaseCalibration(ABC, Generic[P, M]):
             return False
         figures_directory = self.saver.save_figures(run_directory, figures)
         self.log(f"Calibration figures saved to {figures_directory}")
+        return True
+
+    def save_ai_review(self) -> bool:
+        """Review saved figures with the configured NVIDIA Ising calibration endpoint."""
+        run_directory = self.namespace.get("calibration_run_directory")
+        if run_directory is None:
+            self.log("AI review skipped because no calibration run directory was saved.")
+            return False
+        try:
+            from calibration_ai import CalibrationAIReviewer
+
+            review = CalibrationAIReviewer().review_run(run_directory)
+        except Exception as error:
+            self.log(f"AI review failed: {error}")
+            return False
+
+        self.namespace["ai_review"] = review.json_path
+        self.log(f"AI calibration review saved to {review.json_path}")
+        try:
+            payload = json.loads(review.json_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return True
+        status = payload.get("pass_fail", "unknown")
+        summary = payload.get("summary")
+        if summary:
+            self.log(f"AI review: {status} - {summary}")
+        else:
+            self.log(f"AI review: {status}")
         return True
 
     def profile_updates(self) -> Mapping[str, Any]:

@@ -483,8 +483,9 @@ if __name__ == "__main__":
     parameters.num_shots = 5000
 
     options = CalibrationOptions()
+    options.ai_review = True
 
-    machine = create_machine(qubit="q9")
+    machine = create_machine(qubit="q1")
 
     calibration = IqBlobs(
         parameters=parameters,
