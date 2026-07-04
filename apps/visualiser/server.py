@@ -501,6 +501,27 @@ def open_result_folder(raw_path: str) -> dict[str, str]:
     return {"opened": relative(path)}
 
 
+def run_ai_review(raw_path: str) -> dict[str, Any]:
+    path = resolve_project_path(raw_path)
+    if not path.is_dir():
+        raise FileNotFoundError("Experiment directory does not exist or cannot be read.")
+    if not contains_file_with_extension(path / "figures", {".png", ".jpg", ".jpeg"}):
+        raise FileNotFoundError("This experiment does not contain saved PNG/JPEG figures to review.")
+
+    from calibration_ai import CalibrationAIReviewer
+
+    review = CalibrationAIReviewer().review_run(path)
+    payload, error = read_json(review.json_path)
+    return {
+        "path": relative(path),
+        "ai_review": relative(review.json_path),
+        "markdown": relative(review.markdown_path),
+        "figures": [item.relative_to(path).as_posix() for item in review.figure_paths],
+        "review": payload,
+        "error": error,
+    }
+
+
 def matching_calibration_assets(path: Path, experiment_type: str, date: str | None) -> dict[str, Any]:
     scripts = []
     scan_manifest_path = path / "scan.json"
@@ -835,6 +856,21 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
         except Exception as exc:  # Keep a malformed experiment from taking down the browser.
             self.send_json({"error": f"Could not process request: {exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def do_POST(self) -> None:  # noqa: N802
+        parsed = urllib.parse.urlparse(self.path)
+        query = urllib.parse.parse_qs(parsed.query)
+        try:
+            if parsed.path == "/api/ai-review":
+                self.send_json(run_ai_review(query.get("path", [""])[0]))
+                return
+            self.send_json({"error": "Unknown endpoint."}, HTTPStatus.NOT_FOUND)
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.FORBIDDEN)
+        except FileNotFoundError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
+        except Exception as exc:
+            self.send_json({"error": f"Could not run AI review: {exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def serve_download(self, filename: str, body: bytes, content_type: str) -> None:
         self.send_response(HTTPStatus.OK)

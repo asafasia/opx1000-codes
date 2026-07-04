@@ -21,6 +21,18 @@ async function api(url) {
   return value;
 }
 
+async function apiPost(url) {
+  const response = await fetch(url, { method: "POST" });
+  const contentType = response.headers.get("Content-Type") || "";
+  if (!contentType.includes("application/json")) {
+    const text = await response.text();
+    throw new Error(text.trim() || `Expected JSON from ${url}, got ${contentType || "an unknown response type"}.`);
+  }
+  const value = await response.json();
+  if (!response.ok) throw new Error(value.error || `Request failed (${response.status})`);
+  return value;
+}
+
 async function loadDates() {
   setStatus("Indexing archive");
   try {
@@ -277,7 +289,37 @@ function renderFigures() {
   const figure = figures[index];
   const selectors = figures.map((item, itemIndex) => `<button class="qubit-figure-tab ${itemIndex === index ? "active" : ""}" data-figure-index="${itemIndex}">${escapeHtml(figureLabel(item, itemIndex))}</button>`).join("");
   return `<div class="fit-tab-panel"><div class="figure-toolbar"><div><span class="section-label">Qubit / Figure</span><div class="qubit-figure-tabs">${selectors}</div></div><a href="${figure.url}" target="_blank">Open original</a></div>
-    <article class="focused-figure"><div class="focused-figure-stage figure-stage" data-src="${figure.url}" data-name="${escapeHtml(figure.relative)}"><img src="${figure.url}" alt="${escapeHtml(figure.name)}"></div><div class="focused-figure-caption"><strong>${escapeHtml(figureLabel(figure, index))}</strong><span>${escapeHtml(figure.relative)}</span></div></article></div>`;
+    <article class="focused-figure"><div class="focused-figure-stage figure-stage" data-src="${figure.url}" data-name="${escapeHtml(figure.relative)}"><img src="${figure.url}" alt="${escapeHtml(figure.name)}"></div><div class="focused-figure-caption"><strong>${escapeHtml(figureLabel(figure, index))}</strong><span>${escapeHtml(figure.relative)}</span></div></article>
+    ${aiReviewPanel()}</div>`;
+}
+
+function aiReviewData() {
+  const json = state.detail?.metadata?.find(item => item.relative === "ai_review.json")?.value;
+  const markdown = state.detail?.text?.find(item => item.relative === "ai_review.md")?.value;
+  return { json, markdown };
+}
+
+function aiReviewPanel() {
+  const { json, markdown } = aiReviewData();
+  const status = json?.pass_fail || "not reviewed";
+  const confidence = json?.confidence != null ? `Confidence ${escapeHtml(json.confidence)}` : "No AI review yet";
+  const summary = json?.summary || "Run the AI reviewer on the saved figures for this experiment.";
+  const observations = Array.isArray(json?.observations) && json.observations.length
+    ? `<ul>${json.observations.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+    : "";
+  const action = json?.recommended_next_action ? `<p class="ai-review-action">${escapeHtml(json.recommended_next_action)}</p>` : "";
+  const raw = !json && markdown ? `<pre class="text-view">${escapeHtml(markdown)}</pre>` : "";
+  return `<section class="ai-review-panel">
+    <div class="ai-review-head">
+      <div><span class="section-label">AI Review</span><h3>${escapeHtml(status)}</h3><p>${confidence}</p></div>
+      <button id="aiReviewButton" class="hero-button" title="Review this run's saved figures with NVIDIA Ising Calibration">Run AI Review</button>
+    </div>
+    <p class="ai-review-summary">${escapeHtml(summary)}</p>
+    ${observations}
+    ${action}
+    ${raw}
+    <div id="aiReviewError" class="error-panel hidden"></div>
+  </section>`;
 }
 
 function setFigureIndex(index) {
@@ -365,6 +407,35 @@ function bindFigures() {
   document.querySelectorAll("[data-figure-index]").forEach(button => button.onclick = () => {
     setFigureIndex(Number(button.dataset.figureIndex));
   });
+  const aiButton = $("aiReviewButton");
+  if (aiButton) aiButton.onclick = runSelectedAIReview;
+}
+
+async function runSelectedAIReview() {
+  if (!state.selected?.id) return;
+  const button = $("aiReviewButton");
+  const errorPanel = $("aiReviewError");
+  button.disabled = true;
+  button.textContent = "Reviewing...";
+  if (errorPanel) errorPanel.classList.add("hidden");
+  setStatus("Running AI review");
+  try {
+    await apiPost(`/api/ai-review?path=${encodeURIComponent(state.selected.id)}`);
+    state.detail = await api(`/api/experiment?path=${encodeURIComponent(state.selected.id)}`);
+    renderTab();
+    setStatus("AI review saved");
+  } catch (error) {
+    if (errorPanel) {
+      errorPanel.textContent = error.message;
+      errorPanel.classList.remove("hidden");
+    }
+    setStatus("AI review failed");
+  } finally {
+    if ($("aiReviewButton")) {
+      $("aiReviewButton").disabled = false;
+      $("aiReviewButton").textContent = "Run AI Review";
+    }
+  }
 }
 
 function filenameFromDisposition(disposition, fallback) {

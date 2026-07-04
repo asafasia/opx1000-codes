@@ -4,6 +4,7 @@ import io
 import json
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -216,6 +217,43 @@ class VisualiserServerTests(unittest.TestCase):
                 "data/calibrations/2026-06-18/04b_power_rabi/12-00-00-000000",
             )
             startfile.assert_called_once_with(run)
+
+    def test_run_ai_review_reviews_saved_figures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "data" / "calibrations" / "2026-07-04" / "07_iq_blobs" / "12-00-00-000000"
+            figures = run / "figures"
+            figures.mkdir(parents=True)
+            (figures / "iq.png").write_bytes(b"not really a png")
+            (run / "metadata.json").write_text('{"experiment_name": "07_iq_blobs"}\n', encoding="utf-8")
+            review_json = run / "ai_review.json"
+            review_md = run / "ai_review.md"
+
+            test_case = self
+
+            class FakeReviewer:
+                def review_run(self, path):
+                    test_case.assertEqual(Path(path), run)
+                    review_json.write_text(
+                        '{"summary": "Looks useful.", "pass_fail": "pass"}\n',
+                        encoding="utf-8",
+                    )
+                    review_md.write_text("# AI Calibration Review\n", encoding="utf-8")
+                    return SimpleNamespace(
+                        json_path=review_json,
+                        markdown_path=review_md,
+                        figure_paths=(figures / "iq.png",),
+                    )
+
+            with patch.object(server, "PROJECT_ROOT", root), patch(
+                "calibration_ai.CalibrationAIReviewer",
+                return_value=FakeReviewer(),
+            ):
+                result = server.run_ai_review(run.relative_to(root).as_posix())
+
+            self.assertEqual(result["review"]["pass_fail"], "pass")
+            self.assertEqual(result["figures"], ["figures/iq.png"])
+            self.assertEqual(result["ai_review"], "data/calibrations/2026-07-04/07_iq_blobs/12-00-00-000000/ai_review.json")
 
     def test_parameter_scan_detail_links_scan_manifest_scripts(self):
         with tempfile.TemporaryDirectory() as directory:

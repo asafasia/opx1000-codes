@@ -197,6 +197,19 @@ select { padding: 8px 9px; margin-top: 7px; }
 .focused-figure-stage img { width: 100%; height: 100%; object-fit: contain; }
 .focused-figure-caption { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; border-top: 1px solid var(--line); font-size: 10px; }
 .focused-figure-caption span { color: var(--muted); }
+.ai-review-panel {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 6px;
+  padding: 10px;
+}
+.ai-review-head { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.ai-review-head h3 { margin: 3px 0 0; font-size: 14px; font-weight: 600; text-transform: capitalize; }
+.ai-review-head p { margin: 1px 0 0; color: var(--muted); font-size: 10px; }
+.ai-review-summary { margin: 9px 0 0; color: #46535b; font-size: 12px; }
+.ai-review-panel ul { margin: 8px 0 0; padding-left: 18px; color: #46535b; font-size: 11px; }
+.ai-review-action { margin: 8px 0 0; color: var(--accent); font-size: 11px; }
 .plot-toolbar { display: flex; align-items: end; gap: 12px; margin-bottom: 10px; }
 .plot-toolbar label { min-width: 260px; }
 .plot-toolbar select { margin-top: 5px; }

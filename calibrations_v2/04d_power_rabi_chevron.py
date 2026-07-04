@@ -266,11 +266,11 @@ if __name__ == "__main__":
 
     parameters.operation = "saturation"
     parameters.frequency_span_in_mhz = 500
-    parameters.frequency_step_in_mhz = 2
+    parameters.frequency_step_in_mhz = 1
     parameters.min_amp_factor = 0
-    parameters.amp_factor_step = 0.05
+    parameters.amp_factor_step = 0.025
     parameters.max_amp_factor = 1
-    parameters.num_shots = 20
+    parameters.num_shots = 40
     parameters.use_state_discrimination = False
 
     options = CalibrationOptions()
