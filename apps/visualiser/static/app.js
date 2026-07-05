@@ -1,4 +1,4 @@
-const state = { experiments: [], filtered: [], selected: null, detail: null, calibrationType: null, qubit: "all", runFilter: "all", tab: "overview", figureIndex: 0, plotData: null, plotResult: 0, plotHeatmap: 0, plotSlice: null, plotTranspose: false, trendData: null, trendSeries: 0 };
+const state = { experiments: [], filtered: [], selected: null, detail: null, calibrationType: null, qubit: "all", runFilter: "all", tab: "overview", figureIndex: 0, pulseQubit: null, plotData: null, plotResult: 0, plotHeatmap: 0, plotSlice: null, plotTranspose: false, trendData: null, trendSeries: 0 };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[c]));
 const formatBytes = n => n == null ? "unavailable" : n < 1024 ? `${n} B` : n < 1048576 ? `${(n/1024).toFixed(1)} KB` : `${(n/1048576).toFixed(1)} MB`;
@@ -170,6 +170,7 @@ async function selectExperiment(id) {
   state.selected = state.experiments.find(e => e.id === id);
   state.tab = "overview";
   state.figureIndex = 0;
+  state.pulseQubit = null;
   state.plotData = null;
   state.plotResult = 0;
   state.plotHeatmap = 0;
@@ -246,11 +247,12 @@ async function renderTab() {
       return;
     }
   }
-  const renderers = { overview: renderOverview, figures: renderFigures, interactive: renderInteractivePlot, trends: renderParameterTrends, data: renderData, profile: renderProfile, calibrations: renderCalibrations };
+  const renderers = { overview: renderOverview, figures: renderFigures, interactive: renderInteractivePlot, trends: renderParameterTrends, data: renderData, profile: renderProfile, connectivity: renderConnectivity, calibrations: renderCalibrations };
   const renderer = renderers[state.tab] || renderOverview;
   $("tabContent").innerHTML = renderer();
   bindFigures();
   if (state.tab === "data") bindDownloads();
+  if (state.tab === "connectivity") bindConnectivity();
   if (state.tab === "interactive") bindInteractivePlot();
   if (state.tab === "trends") bindParameterTrends();
 }
@@ -260,6 +262,7 @@ const card = (item, body) => `<article class="data-card"><div class="card-head">
 const jsonCard = item => card(item, item.error ? `<pre class="text-view">${escapeHtml(item.error)}</pre>` : `<pre class="json-view">${escapeHtml(JSON.stringify(item.value, null, 2))}</pre>`);
 const textCard = item => card(item, `<pre class="text-view">${escapeHtml(item.error || item.value || "Empty file")}</pre>`);
 const artifactRows = items => `<div class="artifact-list">${items.map(i => `<div class="artifact"><a href="${i.url}" target="_blank">${escapeHtml(i.relative || i.name)}</a><span>${formatBytes(i.size)} | ${escapeHtml(i.extension || "file")}</span></div>`).join("") || `<p class="mono">No files in this section.</p>`}</div>`;
+const profileJson = name => state.detail?.metadata?.find(item => item.relative === `profile/${name}`)?.value;
 
 function renderOverview() {
   const d = state.detail;
@@ -393,6 +396,82 @@ function renderProfile() {
   const d = state.detail;
   const profileItems = d.metadata.filter(item => item.relative === "profile/profile.json" || item.relative.startsWith("profile/"));
   return section("Profile Snapshot", `${profileItems.length} JSON files`, `<div class="card-grid">${profileItems.map(jsonCard).join("") || `<p class="mono">No profile snapshot was saved for this run.</p>`}</div>`);
+}
+
+function qubitSort(values) {
+  return [...values].sort((a, b) => {
+    const an = Number(String(a).replace(/^q/i, ""));
+    const bn = Number(String(b).replace(/^q/i, ""));
+    if (Number.isFinite(an) && Number.isFinite(bn)) return an - bn;
+    return String(a).localeCompare(String(b), undefined, { numeric: true });
+  });
+}
+
+function compactValue(value) {
+  if (value == null) return "not set";
+  if (typeof value === "number") return Number.isInteger(value) ? String(value) : value.toPrecision(6);
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "object") return Object.entries(value).map(([key, child]) => `${key}: ${compactValue(child)}`).join(", ");
+  return String(value);
+}
+
+function connectionLabel(connection) {
+  if (!connection || typeof connection !== "object") return "not wired";
+  const controller = connection.controller || "controller";
+  const fem = connection.fem != null ? ` FEM ${connection.fem}` : "";
+  const port = connection.port != null ? ` port ${connection.port}` : "";
+  return `${controller}${fem}${port}`;
+}
+
+function pulseRows(pulses) {
+  const entries = Object.entries(pulses || {});
+  if (!entries.length) return `<p class="mono">No pulses found for this qubit.</p>`;
+  return `<div class="pulse-list">${entries.map(([name, pulse]) => {
+    const fields = ["target", "type", "amplitude", "length_ns", "sigma_ns", "beta", "detuning_hz", "axis_angle_rad", "digital_marker"]
+      .filter(key => pulse?.[key] != null)
+      .map(key => `<span><strong>${escapeHtml(key)}</strong>${escapeHtml(compactValue(pulse[key]))}</span>`)
+      .join("");
+    return `<article class="pulse-card"><div><strong>${escapeHtml(name)}</strong><small>${escapeHtml(pulse?.target || "pulse")}</small></div><div class="pulse-fields">${fields}</div></article>`;
+  }).join("")}</div>`;
+}
+
+function renderConnectivity() {
+  const connectivity = profileJson("connectivity.json");
+  const pulses = profileJson("pulses.json")?.pulses || {};
+  const qubits = profileJson("qubits.json")?.qubits || {};
+  const connections = connectivity?.connections || {};
+  const qubitNames = qubitSort(new Set([...Object.keys(connections), ...Object.keys(pulses), ...Object.keys(qubits)]));
+  if (!qubitNames.length) return section("Connectivity", "0 qubits", `<p class="mono">No profile connectivity, qubits, or pulses were saved for this run.</p>`);
+  if (!qubitNames.includes(state.pulseQubit)) state.pulseQubit = qubitNames[0];
+  const selected = state.pulseQubit;
+  const conn = connections[selected] || {};
+  const qubit = qubits[selected] || {};
+  const tabs = qubitNames.map(name => `<button class="qubit-figure-tab ${name === selected ? "active" : ""}" data-pulse-qubit="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("");
+  const connectionRows = ["xy_output", "resonator_output", "resonator_input"].map(key =>
+    `<tr><td>${escapeHtml(key)}</td><td>${escapeHtml(connectionLabel(conn[key]))}</td></tr>`
+  ).join("");
+  const operationRows = Object.entries(qubit.operations || {}).map(([operation, pulse]) =>
+    `<tr><td>${escapeHtml(operation)}</td><td>${escapeHtml(String(pulse))}</td></tr>`
+  ).join("");
+  const frequencyRows = Object.entries(qubit.frequencies_hz || {}).map(([name, value]) =>
+    `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(compactValue(value))}</td></tr>`
+  ).join("");
+  return `<div class="fit-tab-panel connectivity-panel">
+    <div class="figure-toolbar"><div><span class="section-label">Qubit Pulses</span><div class="qubit-figure-tabs">${tabs}</div></div></div>
+    <div class="connectivity-grid">
+      <section class="data-card"><div class="card-head"><strong>${escapeHtml(selected)} connectivity</strong><span class="mono">${escapeHtml(connectivity?.network?.cluster_name || connectivity?.network?.host || "profile")}</span></div><div class="table-wrap"><table>${connectionRows}</table></div></section>
+      <section class="data-card"><div class="card-head"><strong>${escapeHtml(selected)} operations</strong><span class="mono">${Object.keys(qubit.operations || {}).length} mapped</span></div><div class="table-wrap"><table>${operationRows || `<tr><td>No operations</td><td>not set</td></tr>`}</table></div></section>
+      <section class="data-card"><div class="card-head"><strong>${escapeHtml(selected)} frequencies</strong><span class="mono">Hz</span></div><div class="table-wrap"><table>${frequencyRows || `<tr><td>No frequencies</td><td>not set</td></tr>`}</table></div></section>
+      <section class="data-card pulse-section"><div class="card-head"><strong>${escapeHtml(selected)} pulses</strong><span class="mono">${Object.keys(pulses[selected] || {}).length} pulses</span></div>${pulseRows(pulses[selected])}</section>
+    </div>
+  </div>`;
+}
+
+function bindConnectivity() {
+  document.querySelectorAll("[data-pulse-qubit]").forEach(button => button.onclick = () => {
+    state.pulseQubit = button.dataset.pulseQubit;
+    renderTab();
+  });
 }
 
 function renderCalibrations() {

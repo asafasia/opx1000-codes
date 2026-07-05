@@ -3,7 +3,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from profiles import Profile, ProfileError, clear_active_profile, current_profile_name, load_profile
-from profiles.loader import _read_json
+from profiles.loader import MW_FEM_MAX_IF_HZ, _read_json
 from quam_config import CreateMachine, create_machine
 from quam_config.create_machine_from_profile import create_machine_from_profile
 from quam_config.my_quam import apply_temporary_mw_fem_lo_mode_bugfix
@@ -15,7 +15,7 @@ class SingleQubitProfileTests(unittest.TestCase):
 
         self.assertEqual(
             {path.name for path in profile_directory.glob("*.json")},
-            {"profile.json", "connectivity.json", "qubits.json", "pulses.json"},
+            {"profile.json", "connectivity.json", "qubits.json", "pulses.json", "metrics.json"},
         )
         manifest = _read_json(profile_directory / "profile.json")
         self.assertNotIn("base_profile", manifest)
@@ -47,6 +47,14 @@ class SingleQubitProfileTests(unittest.TestCase):
         self.assertEqual(set(fem["inputs"]), {"1"})
         self.assertEqual(fem["outputs"]["3"]["lo_frequency_hz"], 4_000_000_000)
         self.assertEqual(fem["outputs"]["1"]["lo_frequency_hz"], 6_900_000_000)
+
+    def test_single_qubit_profile_validates_against_per_qubit_los(self):
+        profile = load_profile("single_qubit", qubit="q11")
+        connection = profile["connectivity"]["connections"]["q11"]
+        fem = profile["connectivity"]["controllers"]["con1"]["fems"]["7"]
+
+        self.assertEqual(connection["resonator_output"]["port"], 1)
+        self.assertEqual(fem["outputs"]["1"]["lo_frequency_hz"], 7_700_000_000)
 
     def test_single_qubit_profile_can_be_loaded_without_selection_for_editing(self):
         profile = load_profile("single_qubit")
@@ -97,10 +105,13 @@ class SingleQubitProfileTests(unittest.TestCase):
                 resonator_lo = fem["outputs"][
                     str(connection["resonator_output"]["port"])
                 ]["lo_frequency_hz"]
-                self.assertLessEqual(abs(frequencies["qubit_f01"] - xy_lo), 50_000_000)
+                self.assertLessEqual(
+                    abs(frequencies["qubit_f01"] - xy_lo),
+                    MW_FEM_MAX_IF_HZ,
+                )
                 self.assertLessEqual(
                     abs(frequencies["resonator"] - resonator_lo),
-                    50_000_000,
+                    MW_FEM_MAX_IF_HZ,
                 )
 
     def test_single_qubit_profile_builds_one_qubit_machine(self):

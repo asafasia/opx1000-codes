@@ -355,6 +355,6 @@ if __name__ == "__main__":
     calibration = ReadoutPowerOptimization(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q3"),
+        machine=create_machine(qubit="q12"),
     )
     calibration.run()

@@ -192,6 +192,17 @@ select { padding: 8px 9px; margin-top: 7px; }
 .qubit-figure-tabs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .qubit-figure-tab { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 5px; padding: 6px 12px; cursor: pointer; }
 .qubit-figure-tab.active { color: var(--accent); background: var(--accent-soft); border-color: #b7d4de; font-weight: 600; }
+.connectivity-panel { overflow: auto; }
+.connectivity-grid { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 10px; padding-bottom: 10px; }
+.pulse-section { grid-column: 1 / -1; }
+.pulse-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; padding: 10px; }
+.pulse-card { border: 1px solid var(--line); border-radius: 5px; padding: 9px; background: var(--panel); min-width: 0; }
+.pulse-card > div:first-child { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 8px; }
+.pulse-card strong { font-size: 11px; font-weight: 600; }
+.pulse-card small { color: var(--muted); font-size: 10px; }
+.pulse-fields { display: flex; flex-wrap: wrap; gap: 5px; }
+.pulse-fields span { display: inline-flex; gap: 5px; align-items: center; max-width: 100%; color: var(--muted); background: var(--panel-muted); border-radius: 4px; padding: 3px 6px; font-size: 10px; }
+.pulse-fields span strong { color: var(--text); font-size: 10px; }
 .focused-figure { flex: 1; min-height: 0; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; }
 .focused-figure-stage { flex: 1; min-height: 0; height: auto; }
 .focused-figure-stage img { width: 100%; height: 100%; object-fit: contain; }
@@ -249,6 +260,7 @@ tr:first-child { position: sticky; top: 0; background: var(--panel-muted); color
 @media (max-width: 900px) {
   .shell { grid-template-columns: 260px 1fr; }
   .figure-grid, .card-grid { grid-template-columns: 1fr; }
+  .connectivity-grid { grid-template-columns: 1fr; }
   .figure-stage { height: 360px; }
 }
 

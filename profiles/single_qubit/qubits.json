@@ -197,9 +197,9 @@
         2
       ],
       "frequencies_hz": {
-        "qubit_f01": 3967200000.0,
+        "qubit_f01": 3946350000.0,
         "qubit_f12": null,
-        "resonator": 7176300000.0,
+        "resonator": 7174800000.0,
         "resonator_bare": null
       },
       "transmon": {
@@ -213,10 +213,10 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0.0,
-        "rus_exit_threshold": 0.0,
+        "threshold": -0.0003796833553468566,
+        "rus_exit_threshold": -0.0003796833553468566,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 0.0,
+        "integration_weights_angle_rad": -2.9865827711165482,
         "use_kernel": false,
         "gef_frequency_shift_hz": 0
       },
@@ -349,9 +349,9 @@
         0
       ],
       "frequencies_hz": {
-        "qubit_f01": 4446800000.0,
+        "qubit_f01": 4410580000.0,
         "qubit_f12": null,
-        "resonator": 7585480000.0,
+        "resonator": 7585280000.0,
         "resonator_bare": null
       },
       "transmon": {
@@ -365,10 +365,10 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 9.493856096641864e-05,
-        "rus_exit_threshold": 9.493856096641864e-05,
+        "threshold": 0.0001127426819696308,
+        "rus_exit_threshold": 0.0001127426819696308,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 2.8418476523244647,
+        "integration_weights_angle_rad": 2.67605213116964,
         "use_kernel": false,
         "gef_frequency_shift_hz": 0
       },
@@ -425,9 +425,9 @@
         -1
       ],
       "frequencies_hz": {
-        "qubit_f01": 4341600000.0,
+        "qubit_f01": 4350379521.496815,
         "qubit_f12": null,
-        "resonator": 7774600000.0,
+        "resonator": 7774200000.0,
         "resonator_bare": null
       },
       "transmon": {
@@ -441,10 +441,10 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0.0,
-        "rus_exit_threshold": 0.0,
+        "threshold": 0.0009774359905630825,
+        "rus_exit_threshold": 0.0009774359905630825,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 0.0,
+        "integration_weights_angle_rad": 0.3802753816728558,
         "use_kernel": false,
         "gef_frequency_shift_hz": 0
       },

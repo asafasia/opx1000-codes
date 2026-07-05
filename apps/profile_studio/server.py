@@ -24,6 +24,11 @@ EDITABLE_FILES = {
     "connectivity": "connectivity.json",
 }
 MAX_REQUEST_BYTES = 8 * 1024 * 1024
+DEFAULT_PORT = 8893
+
+
+class ProfileStudioServer(ThreadingHTTPServer):
+    allow_reuse_address = False
 
 
 def digest(text: str) -> str:
@@ -187,9 +192,9 @@ class ProfileStudioHandler(SimpleHTTPRequestHandler):
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the local device profile editor.")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", default=8766, type=int)
+    parser.add_argument("--port", default=DEFAULT_PORT, type=int)
     args = parser.parse_args()
-    server = ThreadingHTTPServer((args.host, args.port), ProfileStudioHandler)
+    server = ProfileStudioServer((args.host, args.port), ProfileStudioHandler)
     print(f"Profile Studio: http://{args.host}:{args.port}")
     print(f"Profiles root: {PROFILES_ROOT}")
     try:

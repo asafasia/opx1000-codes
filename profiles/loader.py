@@ -181,7 +181,37 @@ def _validate_shared_lo_output_pairs(connectivity: dict[str, Any]) -> None:
                 )
 
 
-def _validate_connectivity(connectivity: dict[str, Any], qubits_document: dict[str, Any]) -> None:
+def _connection_lo_frequency(
+    connection: dict[str, Any],
+    output_name: str,
+    port: dict[str, Any],
+    qubit_name: str,
+) -> float:
+    lo_frequencies = connection.get("lo_frequencies_hz")
+    _require(
+        isinstance(lo_frequencies, dict),
+        f"Qubit {qubit_name!r} has no lo_frequencies_hz",
+    )
+    lo_frequency = lo_frequencies.get(output_name)
+    _require(
+        isinstance(lo_frequency, (int, float)) and lo_frequency > 0,
+        f"Qubit {qubit_name!r} needs positive lo_frequencies_hz.{output_name}",
+    )
+    minimum, maximum = MW_FEM_BAND_RANGES_HZ[port["band"]]
+    _require(
+        minimum <= lo_frequency <= maximum,
+        f"Qubit {qubit_name!r} lo_frequencies_hz.{output_name} {lo_frequency} Hz "
+        f"is outside band {port['band']} range [{minimum:g}, {maximum:g}] Hz",
+    )
+    return lo_frequency
+
+
+def _validate_connectivity(
+    connectivity: dict[str, Any],
+    qubits_document: dict[str, Any],
+    *,
+    use_connection_los: bool = False,
+) -> None:
     connections = connectivity.get("connections")
     qubits = qubits_document.get("qubits")
     _require(isinstance(connections, dict), "connectivity.json must define connections")
@@ -211,15 +241,30 @@ def _validate_connectivity(connectivity: dict[str, Any], qubits_document: dict[s
             resonator_input["band"] == resonator_output["band"],
             f"Qubit {qubit_name!r} resonator input and output bands do not match",
         )
-        _require(
-            abs(frequencies["qubit_f01"] - xy_output["lo_frequency_hz"]) <= MW_FEM_MAX_IF_HZ,
-            f"Qubit {qubit_name!r} qubit IF exceeds {MW_FEM_MAX_IF_HZ / 1e6:g} MHz: "
-            f"RF={frequencies['qubit_f01']} Hz, connectivity XY LO={xy_output['lo_frequency_hz']} Hz",
+        xy_lo_frequency = (
+            _connection_lo_frequency(connection, "xy_output", xy_output, qubit_name)
+            if use_connection_los
+            else xy_output["lo_frequency_hz"]
+        )
+        resonator_lo_frequency = (
+            _connection_lo_frequency(
+                connection,
+                "resonator_output",
+                resonator_output,
+                qubit_name,
+            )
+            if use_connection_los
+            else resonator_output["lo_frequency_hz"]
         )
         _require(
-            abs(frequencies["resonator"] - resonator_output["lo_frequency_hz"]) <= MW_FEM_MAX_IF_HZ,
+            abs(frequencies["qubit_f01"] - xy_lo_frequency) <= MW_FEM_MAX_IF_HZ,
+            f"Qubit {qubit_name!r} qubit IF exceeds {MW_FEM_MAX_IF_HZ / 1e6:g} MHz: "
+            f"RF={frequencies['qubit_f01']} Hz, connectivity XY LO={xy_lo_frequency} Hz",
+        )
+        _require(
+            abs(frequencies["resonator"] - resonator_lo_frequency) <= MW_FEM_MAX_IF_HZ,
             f"Qubit {qubit_name!r} resonator IF exceeds {MW_FEM_MAX_IF_HZ / 1e6:g} MHz: "
-            f"RF={frequencies['resonator']} Hz, connectivity output LO={resonator_output['lo_frequency_hz']} Hz",
+            f"RF={frequencies['resonator']} Hz, connectivity output LO={resonator_lo_frequency} Hz",
         )
 
 
@@ -319,7 +364,11 @@ def validate_profile(profile: dict[str, Any]) -> None:
     _validate_qubits(qubits, pulses)
     if metrics is not None:
         _validate_metrics(metrics, qubits)
-    _validate_connectivity(connectivity, qubits)
+    _validate_connectivity(
+        connectivity,
+        qubits,
+        use_connection_los=manifest.get("build_mode") == "single_qubit",
+    )
 
     active_qubits = manifest.get("active_qubits")
     _require(isinstance(active_qubits, list) and active_qubits, "profile.json must define active_qubits")

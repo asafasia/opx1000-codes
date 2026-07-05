@@ -10,7 +10,11 @@ Run from the project root:
 python apps/profile_studio/server.py
 ```
 
-Then open <http://127.0.0.1:8766>.
+Then open <http://127.0.0.1:8893>.
+
+Profile Studio uses `8893` by default. If that port is already in use, stop the
+old Profile Studio process before starting a new one, or pass an explicit
+temporary `--port`.
 
 Profile Studio edits only the four known JSON files inside an existing,
 complete profile directory. Saves are atomic, must contain valid JSON, and are

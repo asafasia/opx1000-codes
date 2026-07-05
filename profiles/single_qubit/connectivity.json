@@ -299,12 +299,12 @@
       "resonator_output": {
         "controller": "con1",
         "fem": 7,
-        "port": 8
+        "port": 1
       },
       "resonator_input": {
         "controller": "con1",
         "fem": 7,
-        "port": 2
+        "port": 1
       }
     },
     "q12": {
@@ -320,12 +320,12 @@
       "resonator_output": {
         "controller": "con1",
         "fem": 7,
-        "port": 8
+        "port": 1
       },
       "resonator_input": {
         "controller": "con1",
         "fem": 7,
-        "port": 2
+        "port": 1
       }
     }
   }

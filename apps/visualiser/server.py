@@ -40,6 +40,7 @@ MAX_FILES = 600
 MAX_PLOT_POINTS = 5000
 MAX_PLOT_TRACES = 32
 MAX_HEATMAP_AXIS = 400
+DEFAULT_PORT = 8892
 
 
 def safe_iterdir(path: Path) -> tuple[list[Path], str | None]:
@@ -898,7 +899,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the local data review dashboard.")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", default=8765, type=int)
+    parser.add_argument("--port", default=DEFAULT_PORT, type=int)
     args = parser.parse_args()
     server = ThreadingHTTPServer((args.host, args.port), DashboardHandler)
     print(f"Data Review Dashboard: http://{args.host}:{args.port}")

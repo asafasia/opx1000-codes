@@ -315,7 +315,7 @@ if __name__ == "__main__":
     parameters = Parameters()
     parameters.reset_type = "thermal"
     parameters.use_state_discrimination = False
-    parameters.num_shots = 1000
+    parameters.num_shots = 1200
     parameters.transition = "ge"
     parameters.pi_repetitions = 4
     parameters.operation = "x180"

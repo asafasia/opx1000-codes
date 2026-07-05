@@ -226,7 +226,7 @@ Start the read-only experiment browser:
 python apps/visualiser/server.py
 ```
 
-Open <http://127.0.0.1:8765>.
+Open <http://127.0.0.1:8892>.
 
 Start the live parameter-scan control app:
 
@@ -244,7 +244,7 @@ Start the profile editor:
 python apps/profile_studio/server.py
 ```
 
-Open <http://127.0.0.1:8766>.
+Open <http://127.0.0.1:8893>.
 
 ## Tests
 
