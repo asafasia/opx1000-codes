@@ -1,5 +1,6 @@
-from typing import List
+from typing import List, Optional
 import matplotlib.pyplot as plt
+import numpy as np
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -8,9 +9,37 @@ from qualang_tools.units import unit
 from qualibration_libs.plotting import QubitGrid, grid_iter
 from qualibration_libs.analysis import lorentzian_dip
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
-from utils.plotting_settings import FIGURE_SIZE, qubit_grid_locations
+from utils.plotting_settings import (
+    FIGURE_SIZE,
+    CalibrationPlot,
+    add_calibration_parameter_box,
+    format_readout_parameter_lines,
+    qubit_grid_locations,
+)
+from utils.rabi_amplitude import qubit_amplitude_to_rabi_frequency_hz
 
 u = unit(coerce_to_integer=True)
+
+
+def _frequency_to_hz(frequency: float) -> float:
+    """Accept GHz-style inputs such as 6.875 or explicit Hz inputs."""
+    frequency = float(frequency)
+    if abs(frequency) < 100:
+        return frequency * u.GHz
+    return frequency
+
+
+def _full_frequency_axis(selected: xr.Dataset, qubit: AnyTransmon) -> np.ndarray:
+    if "full_freq" in selected.coords:
+        return np.asarray(selected.full_freq.values, dtype=float)
+    return np.asarray(selected.detuning.values, dtype=float) + float(qubit.resonator.RF_frequency)
+
+
+def _nearest_frequency_index(selected: xr.Dataset, qubit: AnyTransmon, frequency_hz: float) -> int:
+    frequencies = _full_frequency_axis(selected, qubit)
+    if frequencies.size == 0:
+        raise ValueError("Cannot select a frequency from an empty detuning sweep.")
+    return int(np.nanargmin(np.abs(frequencies - frequency_hz)))
 
 
 def _add_detuning_axis(ax, current_frequency_ghz: float):
@@ -24,6 +53,79 @@ def _add_detuning_axis(ax, current_frequency_ghz: float):
     )
     detuning_axis.set_xlabel("Detuning from current resonance [MHz]")
     return detuning_axis
+
+
+def _operation_name(qubit_operation: str) -> str:
+    return "x180" if qubit_operation == "x180_const" else qubit_operation
+
+
+def _format_qubit_drive_line(
+    qubit,
+    qubit_operation: str,
+    saturation_amplitude_factor: float,
+    saturation_lead_time_in_ns: Optional[int],
+) -> str:
+    operation = _operation_name(qubit_operation)
+    operations = getattr(getattr(qubit, "xy", None), "operations", {})
+    pulse = operations.get(operation) if hasattr(operations, "get") else None
+    parts = [
+        f"{qubit.name}: driven operation={qubit_operation}",
+        f"amplitude factor={saturation_amplitude_factor:g}",
+    ]
+    if saturation_lead_time_in_ns is not None and qubit_operation == "saturation":
+        parts.append(f"lead time={float(saturation_lead_time_in_ns):g} ns")
+    if pulse is not None:
+        length = getattr(pulse, "length", None)
+        configured_amplitude = getattr(pulse, "amplitude", None)
+        if length is not None:
+            parts.append(f"drive length={float(length):g} ns")
+        if configured_amplitude is not None:
+            played_amplitude = float(configured_amplitude) * saturation_amplitude_factor
+            rabi_frequency_part = ""
+            try:
+                rabi_frequency_mhz = (
+                    qubit_amplitude_to_rabi_frequency_hz(played_amplitude, qubit) / u.MHz
+                )
+                rabi_frequency_part = f", {float(rabi_frequency_mhz):.3f} MHz"
+            except (AttributeError, KeyError, TypeError, ValueError):
+                pass
+            parts.append(
+                f"drive amp={1e3 * played_amplitude:.3f} mV{rabi_frequency_part} "
+                f"(configured {1e3 * float(configured_amplitude):.3f} mV)"
+            )
+    return " | ".join(parts)
+
+
+def _resonator_parameter_lines(
+    ds: xr.Dataset,
+    qubits: List[AnyTransmon],
+    qubit_operation: str,
+    saturation_amplitude_factor: float,
+    saturation_lead_time_in_ns: Optional[int],
+) -> list[str]:
+    lines = ["Parameters"]
+    if "detuning" in ds.coords:
+        detuning = np.asarray(ds.detuning.values, dtype=float)
+        if detuning.size:
+            span_mhz = (float(np.nanmax(detuning)) - float(np.nanmin(detuning))) / u.MHz
+            if detuning.size > 1:
+                step_mhz = abs(float(detuning[1] - detuning[0])) / u.MHz
+                lines.append(f"frequency span={span_mhz:g} MHz, step={step_mhz:g} MHz")
+            else:
+                lines.append(f"frequency span={span_mhz:g} MHz")
+    if "n_runs" in ds.sizes:
+        lines.append(f"num shots={ds.sizes['n_runs']}")
+    lines.extend(format_readout_parameter_lines(qubits))
+    lines.extend(
+        _format_qubit_drive_line(
+            qubit,
+            qubit_operation,
+            saturation_amplitude_factor,
+            saturation_lead_time_in_ns,
+        )
+        for qubit in qubits
+    )
+    return lines
 
 
 def plot_raw_phase(ds: xr.Dataset, qubits: List[AnyTransmon]) -> Figure:
@@ -62,7 +164,13 @@ def plot_raw_phase(ds: xr.Dataset, qubits: List[AnyTransmon]) -> Figure:
     return grid.fig
 
 
-def plot_raw_amplitude(ds: xr.Dataset, qubits: List[AnyTransmon]):
+def plot_raw_amplitude(
+    ds: xr.Dataset,
+    qubits: List[AnyTransmon],
+    qubit_operation: str = "saturation",
+    saturation_amplitude_factor: float = 1.0,
+    saturation_lead_time_in_ns: Optional[int] = None,
+):
     """
     Plot mean resonator responses and normalized shot-cloud separation.
 
@@ -162,7 +270,17 @@ def plot_raw_amplitude(ds: xr.Dataset, qubits: List[AnyTransmon]):
                 axes[row, column].set_visible(False)
 
     fig.suptitle("Resonator spectroscopy")
-    fig.tight_layout()
+    parameter_lines = _resonator_parameter_lines(
+        ds,
+        qubits,
+        qubit_operation,
+        saturation_amplitude_factor,
+        saturation_lead_time_in_ns,
+    )
+    add_calibration_parameter_box(fig, parameter_lines, gid="resonator_spectroscopy_parameters")
+    calibration_plot = CalibrationPlot(fig)
+    calibration_plot.add_timestamp()
+    calibration_plot.tight_layout_for_parameters(len(parameter_lines))
     return fig
 
 
@@ -221,4 +339,87 @@ def plot_iq_response(ds: xr.Dataset, qubits: List[AnyTransmon]) -> Figure:
     grid.fig.suptitle("Resonator spectroscopy: ground and mixed-state IQ response")
     grid.fig.set_size_inches(*FIGURE_SIZE)
     grid.fig.tight_layout()
+    return grid.fig
+
+
+def plot_iq_blobs_for_frequency(
+    ds: xr.Dataset,
+    qubits: List[AnyTransmon],
+    frequency: float,
+) -> Figure:
+    """Plot shot-level resonator IQ clouds at the nearest point to ``frequency``.
+
+    ``frequency`` may be passed in GHz, for example ``6.875``, or in Hz, for
+    example ``6_875_000_000``.
+    """
+    frequency_hz = _frequency_to_hz(frequency)
+    grid = QubitGrid(ds, qubit_grid_locations(qubits))
+    selected_summaries = []
+
+    for ax, qubit_ref in grid_iter(grid):
+        qubit_name = qubit_ref["qubit"]
+        qubit = next(q for q in qubits if q.name == qubit_name)
+        selected = ds.sel(qubit=qubit_name)
+        frequency_index = _nearest_frequency_index(selected, qubit, frequency_hz)
+        point = selected.isel(detuning=frequency_index)
+        frequencies = _full_frequency_axis(selected, qubit)
+        selected_frequency_hz = float(frequencies[frequency_index])
+        selected_detuning_hz = float(point.detuning.values)
+        selected_summaries.append(
+            f"{qubit_name}: index={frequency_index}, "
+            f"freq={selected_frequency_hz / u.GHz:.6f} GHz, "
+            f"detuning={selected_detuning_hz / u.MHz:.3f} MHz"
+        )
+
+        ax.plot(
+            point.Ig / u.mV,
+            point.Qg / u.mV,
+            ".",
+            alpha=0.4,
+            markersize=3,
+            label="Ground",
+        )
+        ax.plot(
+            point.Im / u.mV,
+            point.Qm / u.mV,
+            ".",
+            alpha=0.4,
+            markersize=3,
+            label="Driven",
+        )
+        ax.plot(
+            float(point.Ig.mean(dim="n_runs")) / u.mV,
+            float(point.Qg.mean(dim="n_runs")) / u.mV,
+            "o",
+            color="tab:blue",
+            markeredgecolor="black",
+            label="Ground center",
+        )
+        ax.plot(
+            float(point.Im.mean(dim="n_runs")) / u.mV,
+            float(point.Qm.mean(dim="n_runs")) / u.mV,
+            "o",
+            color="tab:orange",
+            markeredgecolor="black",
+            label="Driven center",
+        )
+        ax.set_xlabel("I [mV]")
+        ax.set_ylabel("Q [mV]")
+        ax.axis("equal")
+        ax.set_title(
+            f"{qubit_name}: nearest to {frequency_hz / u.GHz:.6f} GHz\n"
+            f"index {frequency_index}, {selected_frequency_hz / u.GHz:.6f} GHz"
+        )
+        ax.legend(fontsize="small")
+
+    grid.fig.suptitle("Resonator spectroscopy IQ blobs at selected frequency")
+    grid.fig.set_size_inches(1.15 * FIGURE_SIZE[0], 1.15 * FIGURE_SIZE[1])
+    add_calibration_parameter_box(
+        grid.fig,
+        ["Selected frequency", *selected_summaries],
+        gid="resonator_spectroscopy_frequency_iq_parameters",
+    )
+    calibration_plot = CalibrationPlot(grid.fig)
+    calibration_plot.add_timestamp()
+    calibration_plot.tight_layout_for_parameters(len(selected_summaries) + 1)
     return grid.fig

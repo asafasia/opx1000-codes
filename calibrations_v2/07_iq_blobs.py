@@ -479,13 +479,13 @@ if __name__ == "__main__":
 
     parameters.qubit_operation = "x180_const"
     parameters.states = ["g", "e"]
-    parameters.reset_type = "active"
+    parameters.reset_type = "thermal"
     parameters.num_shots = 5000
 
     options = CalibrationOptions()
     options.ai_review = True
 
-    machine = create_machine(qubit="q1")
+    machine = create_machine(qubit="q3")
 
     calibration = IqBlobs(
         parameters=parameters,

@@ -25,6 +25,7 @@ from calibration_utils.resonator_spectroscopy import (
     process_raw_dataset,
     fit_raw_data,
     log_fitted_results,
+    plot_iq_blobs_for_frequency,
     plot_raw_amplitude,
 )
 from calibration_io import CalibrationSaver, current_profile_name
@@ -283,6 +284,9 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
             node.results["ds_raw"],
             node.namespace["qubits"],
             figure_name="amplitude",
+            qubit_operation=node.parameters.qubit_operation,
+            saturation_amplitude_factor=node.parameters.saturation_amplitude_factor,
+            saturation_lead_time_in_ns=node.parameters.saturation_lead_time_in_ns,
         )
         plt.show()
         node.results["figures"] = figures
@@ -292,6 +296,37 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
                 node.results["figures"],
             )
             node.log(f"Calibration figures saved to {figures_directory}")
+
+    def plot_for_freq(self, frequency: float):
+        """Plot shot-level IQ blobs at the nearest resonator-sweep frequency."""
+        node = self
+        if "ds_raw" not in node.results:
+            raise ValueError(
+                "No resonator spectroscopy data loaded. Run or load data first."
+            )
+        if "qubits" not in node.namespace:
+            node.namespace["qubits"] = get_qubits(node)
+        if "full_freq" not in node.results["ds_raw"].coords:
+            node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
+
+        figure = plot_iq_blobs_for_frequency(
+            node.results["ds_raw"],
+            node.namespace["qubits"],
+            frequency,
+        )
+        plt.show()
+        node.results.setdefault("figures", {})["frequency_iq_blobs"] = figure
+        if "calibration_run_directory" in node.namespace:
+            figures_directory = CalibrationSaver().save_figures(
+                node.namespace["calibration_run_directory"],
+                {"frequency_iq_blobs": figure},
+            )
+            node.log(f"Frequency IQ-blob figure saved to {figures_directory}")
+        return figure
+
+    def _plot_for_freq(self, frequency: float):
+        """Backward-compatible notebook helper for plotting one frequency point."""
+        return self.plot_for_freq(frequency)
 
     def propose_profile_update(self):
         node = self
@@ -314,15 +349,25 @@ if __name__ == "__main__":
     parameters = Parameters()
 
     parameters.qubit_operation = "saturation"
-    parameters.num_shots = 200
-    parameters.frequency_span_in_mhz = 30
-    parameters.frequency_step_in_mhz = 0.3
+    parameters.num_shots = 5000
+    parameters.frequency_span_in_mhz = 20
+    parameters.frequency_step_in_mhz = 1
 
     options = CalibrationOptions()
+    options.ai_review = True
 
     calibration = ResonatorSpectroscopy(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q4"),
+        machine=create_machine(qubit="q3"),
     )
     calibration.run()
+
+    # %%
+
+    calibration._plot_for_freq(
+        frequency=calibration.results["fit_results"]["q3"]["frequency"]
+    )
+
+
+# %%

@@ -12,6 +12,7 @@ from utils.plotting_settings import (
     CalibrationPlot,
     add_calibration_parameter_box,
 )
+from utils.rabi_amplitude import qubit_amplitude_to_rabi_frequency_hz
 
 u = unit(coerce_to_integer=True)
 
@@ -140,8 +141,16 @@ def _spectroscopy_parameter_lines(
             pulse_parts.append(f"pulse length={float(played_length):g} ns")
         if configured_amplitude is not None:
             played_amplitude = float(configured_amplitude) * operation_amplitude_factor
+            rabi_frequency_part = ""
+            try:
+                rabi_frequency_mhz = (
+                    qubit_amplitude_to_rabi_frequency_hz(played_amplitude, qubit) / u.MHz
+                )
+                rabi_frequency_part = f", {float(rabi_frequency_mhz):.3f} MHz"
+            except (AttributeError, KeyError, TypeError, ValueError):
+                pass
             pulse_parts.append(
-                f"pulse amp={1e3 * played_amplitude:.3f} mV "
+                f"pulse amp={1e3 * played_amplitude:.3f} mV{rabi_frequency_part} "
                 f"(configured {1e3 * float(configured_amplitude):.3f} mV)"
             )
         lines.append(" | ".join(pulse_parts))
