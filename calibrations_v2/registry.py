@@ -128,6 +128,13 @@ CALIBRATIONS: dict[str, CalibrationEntry] = {
         "ReadoutPowerOptimization",
         parameters_module="calibration_utils.readout_power_optimization.parameters",
     ),
+    "readout-frequency-amplitude": CalibrationEntry(
+        "readout-frequency-amplitude",
+        "calibrations_v2.08c_readout_frequency_amplitude_optimization",
+        "ReadoutFrequencyAmplitudeOptimization",
+        "2D readout optimization over frequency and amplitude.",
+        "calibration_utils.readout_frequency_amplitude_optimization.parameters",
+    ),
     "drag": CalibrationEntry(
         "drag",
         "calibrations_v2.10b_drag_calibration_180_minus_180",

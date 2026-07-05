@@ -17,7 +17,6 @@ import xarray as xr
 from qm.qua import *
 from qualang_tools.multi_user import qm_session
 from qualang_tools.results import progress_counter
-from qualang_tools.units import unit
 from quam_config import Quam, create_machine
 from calibration_io import CalibrationSaver, current_profile_name
 from utils.plotting_settings import plot_per_qubit
@@ -119,8 +118,6 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
         Create the sweep axes and generate the QUA program from the pulse sequence and the
         node parameters.
         """
-        # Class containing tools to help handle units and conversions.
-        u = unit(coerce_to_integer=True)
         # Get the active qubits from the node and organize them by batches
         node.namespace["qubits"] = qubits = get_qubits(node)
         num_qubits = len(qubits)
@@ -138,8 +135,6 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
             raise ValueError('states must be either ["g", "e"] or ["g", "e", "f"].')
         if node.parameters.pi_repetitions < 1:
             raise ValueError("pi_repetitions must be a positive integer.")
-        if node.parameters.xy_to_readout_delay_in_ns < 0:
-            raise ValueError("xy_to_readout_delay_in_ns cannot be negative.")
         for qubit in qubits:
             if qua_qubit_operation not in qubit.xy.operations:
                 raise ValueError(
@@ -183,17 +178,6 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
 
             for multiplexed_qubits in qubits.batch():
                 # Acquire the ground and prepared clouds in independent shot loops.
-                if "f" in states:
-                    for qubit in multiplexed_qubits.values():
-                        shift = (
-                            qubit.resonator.GEF_frequency_shift
-                            if qubit.resonator.GEF_frequency_shift is not None
-                            else 0
-                        )
-                        qubit.resonator.update_frequency(
-                            qubit.resonator.intermediate_frequency + shift
-                        )
-
                 with for_(n, 0, n < n_runs, n + 1):
                     save(n, n_st)
                     for qubit in multiplexed_qubits.values():
@@ -208,7 +192,6 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
 
                         save(I_g[i], I_g_st[i])
                         save(Q_g[i], Q_g_st[i])
-                        qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
                     align()
 
                 with for_(n, 0, n < n_runs, n + 1):
@@ -231,17 +214,11 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                                 qua_qubit_operation,
                                 amplitude_scale=node.parameters.qubit_amplitude_factor,
                             )
-                    # Synchronize XY and resonator timelines, then delay readout explicitly.
                     align()
-                    for qubit in multiplexed_qubits.values():
-                        qubit.resonator.wait(
-                            node.parameters.xy_to_readout_delay_in_ns * u.ns
-                        )
                     for i, qubit in multiplexed_qubits.items():
                         qubit.resonator.measure(operation, qua_vars=(I_e[i], Q_e[i]))
                         save(I_e[i], I_e_st[i])
                         save(Q_e[i], Q_e_st[i])
-                        qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
                     align()
 
                 if "f" in states:
@@ -265,17 +242,12 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                                 qubit.xy.name, qubit.xy.intermediate_frequency
                             )
                         align()
-                        for qubit in multiplexed_qubits.values():
-                            qubit.resonator.wait(
-                                node.parameters.xy_to_readout_delay_in_ns * u.ns
-                            )
                         for i, qubit in multiplexed_qubits.items():
                             qubit.resonator.measure(
                                 operation, qua_vars=(I_f[i], Q_f[i])
                             )
                             save(I_f[i], I_f_st[i])
                             save(Q_f[i], Q_f_st[i])
-                            qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)
                         align()
 
             with stream_processing():
@@ -477,10 +449,10 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
-    parameters.qubit_operation = "x180_const"
+    parameters.qubit_operation = "x180"
     parameters.states = ["g", "e"]
     parameters.reset_type = "thermal"
-    parameters.num_shots = 5000
+    parameters.num_shots = 10000
 
     options = CalibrationOptions()
     options.ai_review = True

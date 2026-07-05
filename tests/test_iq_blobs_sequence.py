@@ -9,24 +9,20 @@ class IQBlobsSequenceTests(unittest.TestCase):
             "with stream_processing()", 1
         )[0]
 
-        delay_position = prepared_block.index("node.parameters.xy_to_readout_delay_in_ns * u.ns")
+        align_position = prepared_block.index("align()")
         measure_position = prepared_block.index("qubit.resonator.measure")
-        self.assertIn("align()", prepared_block[:delay_position])
-        self.assertIn("for qubit in multiplexed_qubits.values():", prepared_block[:delay_position])
-        self.assertLess(delay_position, measure_position)
+        self.assertIn("for qubit in multiplexed_qubits.values():", prepared_block[:align_position])
+        self.assertLess(align_position, measure_position)
         self.assertNotIn("qubit.align()", prepared_block)
 
-    def test_explicit_delay_is_after_xy_alignment_and_before_readout(self):
+    def test_prepared_readout_has_no_extra_timing_delay(self):
         source = (Path(__file__).parent.parent / "calibrations_v2" / "07_iq_blobs.py").read_text()
         prepared_block = source.split("with for_(n, 0, n < n_runs, n + 1):", 2)[2].split(
             "with stream_processing()", 1
         )[0]
-        align_position = prepared_block.index("# Synchronize XY and resonator timelines")
-        delay_position = prepared_block.index("node.parameters.xy_to_readout_delay_in_ns * u.ns")
-        measure_position = prepared_block.index("qubit.resonator.measure")
 
-        self.assertLess(align_position, delay_position)
-        self.assertLess(delay_position, measure_position)
+        self.assertNotIn("xy_to_readout_delay_in_ns", prepared_block)
+        self.assertNotIn("qubit.resonator.wait", prepared_block)
 
     def test_ground_and_prepared_clouds_use_independent_shot_loops(self):
         source = (Path(__file__).parent.parent / "calibrations_v2" / "07_iq_blobs.py").read_text()
@@ -36,7 +32,8 @@ class IQBlobsSequenceTests(unittest.TestCase):
 
         self.assertEqual(acquisition_block.count("with for_(n, 0, n < n_runs, n + 1):"), 3)
         self.assertIn('if "f" in states:', acquisition_block)
-        self.assertIn("qubit.resonator.wait(qubit.resonator.depletion_time * u.ns)", acquisition_block)
+        self.assertNotIn("GEF_frequency_shift", acquisition_block)
+        self.assertNotIn("qubit.resonator.wait", acquisition_block)
 
     def test_successful_fit_updates_profile_angle_and_threshold(self):
         source = (Path(__file__).parent.parent / "calibrations_v2" / "07_iq_blobs.py").read_text()

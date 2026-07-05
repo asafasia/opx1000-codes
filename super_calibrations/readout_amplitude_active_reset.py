@@ -74,8 +74,6 @@ class NodeSpecificParameters(RunnableParameters):
     """Amplitude factor applied to the selected qubit operation."""
     pi_repetitions: int = 1
     """Number of x180_const pulses used for excited-state preparation."""
-    xy_to_readout_delay_in_ns: int = 100
-    """Delay between the prepared-state XY pulse and readout."""
     save_inner_raw_data: bool = False
     """Save every inner IQ-blob run in addition to the aggregate super-calibration run."""
 
@@ -314,7 +312,6 @@ class ReadoutAmplitudeActiveReset(BaseCalibration[Parameters, Quam]):
             "qubit_operation",
             "qubit_amplitude_factor",
             "pi_repetitions",
-            "xy_to_readout_delay_in_ns",
             "simulate",
             "timeout",
         ):

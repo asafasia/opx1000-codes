@@ -9,6 +9,12 @@ The durable hardware facts live under `docs/`; the executable device
 configuration lives under `profiles/`; generated experiment output is written
 under `data/` and is intentionally not tracked by git.
 
+## TODO
+
+- [ ] Verify weight work.
+- [ ] Connect the QDevil for flux.
+- [ ] Calibrate all qubits.
+
 ## Repository Layout
 
 ```text

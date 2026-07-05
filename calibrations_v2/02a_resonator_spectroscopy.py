@@ -144,6 +144,12 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
                     # Complete ground-state resonator spectroscopy scan.
                     with for_(*from_array(df, dfs)):
                         for i, qubit in multiplexed_qubits.items():
+                            qubit.reset(
+                                "thermal",
+                                node.parameters.simulate,
+                                # log_callable=node.log,
+                            )
+
                             rr = qubit.resonator
                             # Update the resonator frequencies for all resonators
                             rr.update_frequency(df + rr.intermediate_frequency)
@@ -154,13 +160,17 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
 
                             save(Ig[i], Ig_st[i])
                             save(Qg[i], Qg_st[i])
-                            qubit.wait(25000)
 
                         align()
 
                     # Complete the driven-state resonator spectroscopy scan.
                     with for_(*from_array(df, dfs)):
                         for i, qubit in multiplexed_qubits.items():
+                            qubit.reset(
+                                "thermal",
+                                node.parameters.simulate,
+                            )
+
                             rr = qubit.resonator
                             rr.update_frequency(df + rr.intermediate_frequency)
                             if selected_operation == "saturation":
@@ -183,7 +193,6 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
                             save(Im[i], Im_st[i])
                             save(Qm[i], Qm_st[i])
                             # qubit.reset_qubit_thermal()
-                            qubit.wait(25000)
 
                         align()
 
@@ -314,6 +323,7 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
             node.namespace["qubits"],
             frequency,
         )
+        plt.gca().set_aspect("equal", adjustable="box")
         plt.show()
         node.results.setdefault("figures", {})["frequency_iq_blobs"] = figure
         if "calibration_run_directory" in node.namespace:
@@ -349,9 +359,9 @@ if __name__ == "__main__":
     parameters = Parameters()
 
     parameters.qubit_operation = "saturation"
-    parameters.num_shots = 5000
+    parameters.num_shots = 200
     parameters.frequency_span_in_mhz = 20
-    parameters.frequency_step_in_mhz = 1
+    parameters.frequency_step_in_mhz = 0.1
 
     options = CalibrationOptions()
     options.ai_review = True
@@ -359,15 +369,15 @@ if __name__ == "__main__":
     calibration = ResonatorSpectroscopy(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q3"),
+        machine=create_machine(qubit="q7"),
     )
     calibration.run()
 
     # %%
 
-    calibration._plot_for_freq(
-        frequency=calibration.results["fit_results"]["q3"]["frequency"]
-    )
+    # calibration._plot_for_freq(
+    #     frequency=calibration.results["fit_results"]["q3"]["frequency"]
+    # )
 
 
 # %%

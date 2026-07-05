@@ -2,9 +2,10 @@
 
 _Author: Kevin Villegas Rosales_
 
-_Important note: The code in this folder is the exact code that we used
-to run the experiment, so it is tailored for the specific software environment
-and set up. Thus, this is code is for inspirational purposes._
+_Historical note: the discriminator helper classes in this folder are the
+original experiment code. The runnable training and benchmark entry points have
+been refactored to use the repository's current QuAM machine/profile flow, so
+they build the same generated config used by the other calibration experiments._
 
 ## The goal
 
@@ -38,12 +39,35 @@ calculates the optimal weights.
 
 ### Step 1: Training
 
-This steps performs measurements of analog signals when the qubit is in the ground and excited
+This step performs measurements of analog signals when the qubit is in the ground and excited
 state. Once the analog signals are saved in the client PC, demodulation from `IF` to baseband
 is performed with functions defined inside of `StateDiscriminator.py`, and then the optimal weights
-are derived from `|g> - |e>` time traces. The program that we
-specifically used for training was `IQ_blobs_opt_weights_train.py` and `configuration.py`.
-Here we will show some results from the training.
+are derived from `|g> - |e>` time traces. The original experiment used
+`IQ_blobs_opt_weights_train.py` together with a local `configuration.py`; the
+current script now gets its config from the generated machine. Here we will
+show some results from the training.
+
+In the current repository, `IQ_blobs_opt_weights_train.py` is a wrapper around
+`calibrations_v2.10d_readout_weights_optimization.ReadoutWeightsOptimization`.
+It creates the machine with `quam_config.create_machine`, executes sliced
+readout measurements, and writes the optimized profile kernel to:
+
+```text
+profiles/<profile>/kernels/<qubit>_readout_kernel.npz
+```
+
+Example:
+
+```powershell
+$env:PYTHONPATH=(Get-Location).Path
+& 'C:\Users\owner\miniconda3\envs\opx1000_env\python.exe' `
+  'Projects\Use Case 2 - Optimized readout with optimal weights\IQ_blobs_opt_weights_train.py' `
+  --profile single_qubit --qubit q1 --num-shots 100
+```
+
+To make the selected profile use the saved kernel, set
+`qubits.json.qubits.<qubit>.readout.use_kernel` to `true` or run the training
+script with `--propose-profile-update` / `--apply-profile-update`.
 
 The image below was generated using the analysis tool [`two_state_discriminator`](https://github.com/qua-platform/py-qua-tools/tree/main/qualang_tools/analysis).
 In the *original data* subplot we can see the IQ blobs from the `|g> (blue)` and `|e> (orange)` demodulated
@@ -81,9 +105,21 @@ and `smearing` parameters in the configuration.
 
 ### Step 2: Benchmarking
 
-Having calibrated the optimal weights in the `IQ_blobs_opt_weigths_train.py`, now we focus on
-`IQ_blobs_opt_weights_benchmark.py` to use the macro `discriminator.measure_state()` that is 
-part of `TwoStateDiscriminator.py`.
+Having calibrated the optimal weights in `IQ_blobs_opt_weights_train.py`, now we
+focus on `IQ_blobs_opt_weights_benchmark.py`. In the historical code this used
+the macro `discriminator.measure_state()` from `TwoStateDiscriminator.py`. In
+the current repository, the benchmark script wraps
+`calibrations_v2.07_iq_blobs.IqBlobs`, so the selected machine/profile decides
+whether the generated config contains flat or optimized readout weights.
+
+Example:
+
+```powershell
+$env:PYTHONPATH=(Get-Location).Path
+& 'C:\Users\owner\miniconda3\envs\opx1000_env\python.exe' `
+  'Projects\Use Case 2 - Optimized readout with optimal weights\IQ_blobs_opt_weights_benchmark.py' `
+  --profile single_qubit --qubit q1 --num-shots 20000
+```
 
 In the *Original Data* subplot we can see the result of FPGA demodulation with optimal 
 weights and observe that the blobs are already projected along the `I-axis`. In *1D Histogram*
@@ -100,4 +136,3 @@ by minimizing the noise in the time when there is no discrimination between `|g>
 states.
 
 ![opt_w](IQblobs_opt_weights.png)
-

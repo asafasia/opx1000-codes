@@ -27,7 +27,7 @@
         "rus_exit_threshold": -0.0001524813839369896,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": -12.894156663864356,
-        "use_kernel": false,
+        "use_kernel": true,
         "gef_frequency_shift_hz": -810000.0
       },
       "operations": {
@@ -85,7 +85,7 @@
       "frequencies_hz": {
         "qubit_f01": 3934700000.0,
         "qubit_f12": null,
-        "resonator": 6874900000.0,
+        "resonator": 6874400000.0,
         "resonator_bare": null
       },
       "transmon": {
@@ -237,7 +237,7 @@
       "frequencies_hz": {
         "qubit_f01": 4136600000.0,
         "qubit_f12": null,
-        "resonator": 7267300000.0,
+        "resonator": 7270000000.0,
         "resonator_bare": null
       },
       "transmon": {

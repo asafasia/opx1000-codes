@@ -272,6 +272,26 @@ class WiringProfileTests(unittest.TestCase):
 
         self.assertEqual(weights, [[1.0, 40], [-0.25, 40]])
 
+    def test_readout_kernel_reaches_generated_config(self):
+        machine = create_machine_from_profile("single_qubit", save=False, qubit="q1")
+        pulse = machine.qubits["q1"].resonator.operations["readout"]
+
+        self.assertEqual(len(pulse.integration_weights), 50)
+        self.assertEqual(pulse.integration_weights[0][1], 40)
+
+        config = machine.generate_config()
+        readout_pulse = config["pulses"]["q1.resonator.readout.pulse"]
+        self.assertEqual(
+            readout_pulse["integration_weights"]["iw1"],
+            "q1.resonator.readout.iw1",
+        )
+        cosine_weights = config["integration_weights"]["q1.resonator.readout.iw1"][
+            "cosine"
+        ]
+
+        self.assertEqual(len(cosine_weights), 50)
+        self.assertNotEqual(cosine_weights, [(1.0, 2000)])
+
     def test_readout_use_kernel_true_requires_matching_kernel_length(self):
         profile = load_profile("main")
         qubit_name = profile["manifest"]["active_qubits"][0]
