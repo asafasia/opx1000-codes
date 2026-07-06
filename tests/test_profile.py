@@ -189,6 +189,38 @@ class ProfileTests(unittest.TestCase):
             with self.assertRaisesRegex(ProfileError, "amplitude is too high"):
                 Profile("main", root=root).load()
 
+    def test_profile_accepts_optional_gef_centers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_profile(root)
+            qubits_path = root / "main" / "qubits.json"
+            qubits = json.loads(qubits_path.read_text())
+            qubits["qubits"]["q1"]["readout"]["gef_centers"] = [
+                [0.1, 0.2],
+                [0.3, 0.4],
+                [0.5, 0.6],
+            ]
+            qubits_path.write_text(json.dumps(qubits) + "\n", encoding="utf-8")
+
+            documents = Profile("main", root=root).load()
+
+            self.assertEqual(
+                documents["qubits"]["qubits"]["q1"]["readout"]["gef_centers"],
+                [[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]],
+            )
+
+    def test_profile_rejects_bad_gef_centers_shape(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_profile(root)
+            qubits_path = root / "main" / "qubits.json"
+            qubits = json.loads(qubits_path.read_text())
+            qubits["qubits"]["q1"]["readout"]["gef_centers"] = [[0.1, 0.2]]
+            qubits_path.write_text(json.dumps(qubits) + "\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ProfileError, "readout.gef_centers"):
+                Profile("main", root=root).load()
+
 
 if __name__ == "__main__":
     unittest.main()

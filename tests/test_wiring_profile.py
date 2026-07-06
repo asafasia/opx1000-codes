@@ -209,6 +209,16 @@ class WiringProfileTests(unittest.TestCase):
         self.assertEqual(resonator.smearing, readout["smearing_ns"])
         self.assertEqual(resonator.depletion_time, readout["depletion_time_ns"])
 
+    def test_active_gef_reset_compatibility_aliases_are_applied(self):
+        machine = create_machine_from_profile("single_qubit", save=False, qubit="q1")
+        qubit = machine.qubits["q1"]
+
+        self.assertIs(qubit.rr, qubit.resonator)
+        self.assertEqual(
+            qubit.resonator.res_deplete_time,
+            qubit.resonator.depletion_time,
+        )
+
     def test_constant_readout_integration_weights_and_angle_are_applied(self):
         machine = create_machine_from_profile("main", save=False)
         profile = load_profile("main")

@@ -249,6 +249,9 @@ def apply_profile(
             "gef_frequency_shift_hz",
             0,
         )
+        qubit.resonator.gef_centers = readout.get("gef_centers")
+        qubit.rr = qubit.resonator
+        qubit.resonator.res_deplete_time = qubit.resonator.depletion_time
 
         qubit.resonator.opx_output.upconverter_frequency = rr_output["lo_frequency_hz"]
         qubit.resonator.opx_output.band = rr_output["band"]

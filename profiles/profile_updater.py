@@ -41,7 +41,9 @@ def _write_json(path: Path, data: Mapping[str, Any]) -> None:
 
 def _get_nested(document: Mapping[str, Any], keys: list[str]) -> Any:
     value: Any = document
-    for key in keys:
+    for index, key in enumerate(keys):
+        if index == len(keys) - 1 and isinstance(value, Mapping) and key not in value:
+            return None
         value = value[key]
     return value
 

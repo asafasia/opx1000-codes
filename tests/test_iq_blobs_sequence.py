@@ -11,7 +11,8 @@ class IQBlobsSequenceTests(unittest.TestCase):
 
         align_position = prepared_block.index("align()")
         measure_position = prepared_block.index("qubit.resonator.measure")
-        self.assertIn("for qubit in multiplexed_qubits.values():", prepared_block[:align_position])
+        self.assertIn("for i, qubit in multiplexed_qubits.items():", prepared_block[:align_position])
+        self.assertIn("reset_qubit(qubit, i)", prepared_block[:align_position])
         self.assertLess(align_position, measure_position)
         self.assertNotIn("qubit.align()", prepared_block)
 
@@ -36,6 +37,32 @@ class IQBlobsSequenceTests(unittest.TestCase):
         self.assertIn('if "f" in states:', acquisition_block)
         self.assertNotIn("GEF_frequency_shift", acquisition_block)
         self.assertNotIn("qubit.resonator.wait", acquisition_block)
+
+    def test_f_state_active_reset_uses_bounded_gef_reset(self):
+        source = (Path(__file__).parent.parent / "calibrations_v2" / "07_iq_blobs.py").read_text()
+
+        self.assertIn('use_gef_active_reset = "f" in states and reset_type == "active"', source)
+        self.assertIn("active_gef_reset_attempts", source)
+        self.assertIn("qubit.readout_state_gef(reset_state[qubit_index])", source)
+        self.assertIn("reset_attempt < node.parameters.active_gef_reset_attempts", source)
+        self.assertIn("with if_(reset_state[qubit_index] == 1):", source)
+        self.assertIn("with if_(reset_state[qubit_index] == 2):", source)
+        self.assertNotIn('qubit.reset(\n                        "active_gef"', source)
+        self.assertIn('(operation == "readout_GEF" or use_gef_active_reset)', source)
+        self.assertIn("length=readout_op.length", source)
+        self.assertIn("integration_weights=_copy_integration_weights(", source)
+        self.assertNotIn("deepcopy(readout_op.integration_weights)", source)
+        self.assertNotIn("round(readout_op.length * 1.5 / 4)", source)
+        self.assertIn("active_gef reset requires qubit.resonator.gef_centers", source)
+        self.assertIn("Run IQ blobs with states ['g', 'e', 'f'] and reset_type='thermal' first.", source)
+
+    def test_three_state_fit_updates_gef_centers(self):
+        source = (Path(__file__).parent.parent / "calibrations_v2" / "07_iq_blobs.py").read_text()
+
+        self.assertIn('state_labels == ["g", "e", "f"]', source)
+        self.assertIn("q.resonator.gef_centers =", source)
+        self.assertIn("centers * operation.length / 2**12", source)
+        self.assertIn("readout.gef_centers", source)
 
     def test_successful_fit_updates_profile_angle_and_threshold(self):
         source = (Path(__file__).parent.parent / "calibrations_v2" / "07_iq_blobs.py").read_text()

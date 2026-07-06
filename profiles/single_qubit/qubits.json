@@ -28,7 +28,21 @@
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": -12.635475048558503,
         "use_kernel": true,
-        "gef_frequency_shift_hz": -810000.0
+        "gef_frequency_shift_hz": -810000.0,
+        "gef_centers": [
+          [
+            -0.00043384384177625173,
+            1.5505123883485793e-06
+          ],
+          [
+            -4.2138450592756265e-05,
+            8.741557598114011e-07
+          ],
+          [
+            1.1330069229006767e-05,
+            -8.770411536097526e-05
+          ]
+        ]
       },
       "operations": {
         "x180": "x180_const",

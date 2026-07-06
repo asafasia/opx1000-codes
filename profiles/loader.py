@@ -315,6 +315,21 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
             or isinstance(readout["gef_frequency_shift_hz"], (int, float)),
             f"Qubit {name!r} readout.gef_frequency_shift_hz must be numeric",
         )
+        gef_centers = readout.get("gef_centers")
+        _require(
+            gef_centers is None
+            or (
+                isinstance(gef_centers, list)
+                and len(gef_centers) == 3
+                and all(
+                    isinstance(center, list)
+                    and len(center) == 2
+                    and all(isinstance(value, (int, float)) for value in center)
+                    for center in gef_centers
+                )
+            ),
+            f"Qubit {name!r} readout.gef_centers must be null or a 3x2 numeric list",
+        )
         _require(
             isinstance(transmon.get("thermalization_time_ns"), int)
             and transmon["thermalization_time_ns"] > 0,

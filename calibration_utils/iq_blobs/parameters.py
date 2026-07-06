@@ -17,6 +17,8 @@ class NodeSpecificParameters(RunnableParameters):
     """Amplitude factor applied to the selected qubit operation."""
     pi_repetitions: int = 1
     """Number of x180_const pulses used to prepare the excited-state blob. Default is 1."""
+    active_gef_reset_attempts: int = 2
+    """Maximum GEF active-reset attempts when reset_type is active and f is acquired."""
 
 
 class Parameters(

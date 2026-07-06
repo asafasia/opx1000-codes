@@ -18,7 +18,7 @@ class ProfileUpdaterTests(unittest.TestCase):
         self.single_qubit_profile = self.root / "profiles" / "single_qubit"
         self.single_qubit_profile.mkdir(parents=True)
         (self.profile / "qubits.json").write_text(
-            '{"qubits":{"q1":{"frequencies_hz":{"resonator":7470000000}}}}\n',
+            '{"qubits":{"q1":{"frequencies_hz":{"resonator":7470000000},"readout":{}}}}\n',
             encoding="utf-8",
         )
         (self.single_qubit_profile / "qubits.json").write_text(
@@ -56,6 +56,21 @@ class ProfileUpdaterTests(unittest.TestCase):
         self.assertEqual(document["qubits"]["q1"]["frequencies_hz"]["resonator"], 7471000000)
         self.assertTrue((proposal / "profile_before_update" / "qubits.json").is_file())
         self.assertEqual(json.loads((proposal / "proposal.json").read_text())["status"], "applied")
+
+    def test_confirm_can_add_missing_leaf_field(self):
+        centers = [[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]]
+        proposal = self.updater.stage(
+            "iq_blobs",
+            {"qubits.json.qubits.q1.readout.gef_centers": centers},
+        )
+
+        with patch("builtins.input", return_value="yes"):
+            self.assertTrue(self.updater.confirm_and_apply(proposal))
+
+        document = json.loads((self.profile / "qubits.json").read_text())
+        self.assertEqual(document["qubits"]["q1"]["readout"]["gef_centers"], centers)
+        proposal_document = json.loads((proposal / "proposal.json").read_text())
+        self.assertIsNone(proposal_document["changes"][0]["old"])
 
     def test_stage_rejects_path_traversal(self):
         with self.assertRaises(ValueError):
