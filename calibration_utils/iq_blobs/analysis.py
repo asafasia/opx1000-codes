@@ -23,6 +23,17 @@ STATE_SPECS = (
 )
 
 
+def _available_state_specs(ds: xr.Dataset):
+    return [spec for spec in STATE_SPECS if spec[1] in ds and spec[2] in ds]
+
+
+def _primary_state_pair(ds: xr.Dataset):
+    state_specs = _available_state_specs(ds)
+    if len(state_specs) < 2:
+        raise ValueError("IQ blobs requires at least two acquired states.")
+    return state_specs[0], state_specs[1]
+
+
 def _kde_density_region(i_values, q_values, probability=KDE_PROBABILITY, grid_size=KDE_GRID_SIZE):
     """Return a fast binned-KDE grid and highest-density region."""
     points = np.vstack((np.asarray(i_values, dtype=float), np.asarray(q_values, dtype=float)))
@@ -69,7 +80,7 @@ def _empty_kde_region():
 
 def _add_kde_regions(ds_fit: xr.Dataset, qubits) -> xr.Dataset:
     """Add 95% KDE regions in the acquired IQ coordinates."""
-    state_specs = [spec for spec in STATE_SPECS if spec[1] in ds_fit and spec[2] in ds_fit]
+    state_specs = _available_state_specs(ds_fit)
     results = []
     for qubit in qubits:
         selected = ds_fit.sel(qubit=qubit.name)
@@ -172,16 +183,22 @@ def log_blob_diagnostics(ds: xr.Dataset, log_callable=None):
 
     for qubit in ds.qubit.values:
         selected = ds.sel(qubit=qubit)
-        ground_width = float(np.sqrt(selected.Ig.var() + selected.Qg.var()))
-        prepared_width = float(np.sqrt(selected.Ie.var() + selected.Qe.var()))
-        width_ratio = prepared_width / ground_width if ground_width else np.nan
+        first_spec, second_spec = _primary_state_pair(selected)
+        first_label, first_i, first_q, _, first_name = first_spec
+        second_label, second_i, second_q, _, second_name = second_spec
+        first_width = float(np.sqrt(selected[first_i].var() + selected[first_q].var()))
+        second_width = float(np.sqrt(selected[second_i].var() + selected[second_q].var()))
+        width_ratio = second_width / first_width if first_width else np.nan
         center_separation = float(
-            np.hypot(selected.Ie.mean() - selected.Ig.mean(), selected.Qe.mean() - selected.Qg.mean())
+            np.hypot(
+                selected[second_i].mean() - selected[first_i].mean(),
+                selected[second_q].mean() - selected[first_q].mean(),
+            )
         )
-        pooled_width = np.sqrt((ground_width**2 + prepared_width**2) / 2)
+        pooled_width = np.sqrt((first_width**2 + second_width**2) / 2)
         separation_to_width = center_separation / pooled_width if pooled_width else np.nan
-        prepared_points = np.column_stack((selected.Ie.values, selected.Qe.values))
-        prepared_unique_fraction = len(np.unique(prepared_points, axis=0)) / len(prepared_points)
+        second_points = np.column_stack((selected[second_i].values, selected[second_q].values))
+        second_unique_fraction = len(np.unique(second_points, axis=0)) / len(second_points)
         warnings = []
         if not 0.5 <= width_ratio <= 2:
             warnings.append("strongly asymmetric blob widths")
@@ -189,11 +206,11 @@ def log_blob_diagnostics(ds: xr.Dataset, log_callable=None):
             warnings.append("blob separation is smaller than measurement noise")
         warning = f" | WARNING: {', '.join(warnings)}" if warnings else ""
         log_callable(
-            f"Blob diagnostics for {qubit}: ground width={ground_width * 1e3:.3f} mV | "
-            f"prepared width={prepared_width * 1e3:.3f} mV | "
+            f"Blob diagnostics for {qubit}: {first_name} width={first_width * 1e3:.3f} mV | "
+            f"{second_name} width={second_width * 1e3:.3f} mV | "
             f"width ratio={width_ratio:.3f} | center separation={center_separation * 1e3:.3f} mV | "
             f"separation/width={separation_to_width:.3f} | "
-            f"prepared unique fraction={prepared_unique_fraction:.3f}{warning}"
+            f"{second_label} unique fraction={second_unique_fraction:.3f}{warning}"
         )
 
 
@@ -211,9 +228,11 @@ def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
         dask="parallelized",  # This allows for parallel processing
         output_dtypes=[float],  # Specify the output data type
     )
-    iq_list = ["Ig", "Qg", "Ie", "Qe"]
-    if "If" in ds and "Qf" in ds:
-        iq_list.extend(["If", "Qf"])
+    iq_list = [
+        variable
+        for _state, i_name, q_name, _fit_name, _label in _available_state_specs(ds)
+        for variable in (i_name, q_name)
+    ]
     ds = convert_IQ_to_V(ds, node.namespace["qubits"], IQ_list=iq_list)
     return ds
 
@@ -236,49 +255,55 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     """
     ds_fit = ds
     # Rotate the axis connecting the two blob means onto +I, independently for
-    # each qubit. This also guarantees that the excited-state mean is above the
+    # each qubit. This also guarantees that the second-state mean is above the
     # discrimination threshold.
-    delta_i = ds_fit.Ie.mean(dim="n_runs") - ds_fit.Ig.mean(dim="n_runs")
-    delta_q = ds_fit.Qe.mean(dim="n_runs") - ds_fit.Qg.mean(dim="n_runs")
+    first_spec, second_spec = _primary_state_pair(ds_fit)
+    first_label, first_i, first_q, _, _ = first_spec
+    second_label, second_i, second_q, _, _ = second_spec
+    pair_name = f"{first_label}{second_label}"
+    delta_i = ds_fit[second_i].mean(dim="n_runs") - ds_fit[first_i].mean(dim="n_runs")
+    delta_q = ds_fit[second_q].mean(dim="n_runs") - ds_fit[first_q].mean(dim="n_runs")
     angle = np.arctan2(-delta_q, delta_i)
     C = np.cos(angle)
     S = np.sin(angle)
     ds_fit = ds_fit.assign({"iw_angle": xr.DataArray(angle, coords=dict(qubit=ds_fit.qubit.data))})
 
-    ds_fit = ds_fit.assign({"Ig_rot": ds_fit.Ig * C - ds_fit.Qg * S})
-    ds_fit = ds_fit.assign({"Qg_rot": ds_fit.Ig * S + ds_fit.Qg * C})
-    ds_fit = ds_fit.assign({"Ie_rot": ds_fit.Ie * C - ds_fit.Qe * S})
-    ds_fit = ds_fit.assign({"Qe_rot": ds_fit.Ie * S + ds_fit.Qe * C})
-    if "If" in ds_fit and "Qf" in ds_fit:
-        ds_fit = ds_fit.assign({"If_rot": ds_fit.If * C - ds_fit.Qf * S})
-        ds_fit = ds_fit.assign({"Qf_rot": ds_fit.If * S + ds_fit.Qf * C})
+    for _state, i_name, q_name, _fit_name, _label in _available_state_specs(ds_fit):
+        ds_fit = ds_fit.assign({f"{i_name}_rot": ds_fit[i_name] * C - ds_fit[q_name] * S})
+        ds_fit = ds_fit.assign({f"{q_name}_rot": ds_fit[i_name] * S + ds_fit[q_name] * C})
     ds_fit = _add_kde_regions(ds_fit, node.namespace["qubits"])
 
     threshold = []
-    gg, ge, eg, ee = [], [], [], []
+    first_first, first_second, second_first, second_second = [], [], [], []
     for q in node.namespace["qubits"]:
-        ground = np.asarray(ds_fit.Ig_rot.sel(qubit=q.name), dtype=float)
-        prepared = np.asarray(ds_fit.Ie_rot.sel(qubit=q.name), dtype=float)
-        fitted_threshold = _optimal_threshold(ground, prepared)
+        first_state = np.asarray(ds_fit[f"{first_i}_rot"].sel(qubit=q.name), dtype=float)
+        second_state = np.asarray(ds_fit[f"{second_i}_rot"].sel(qubit=q.name), dtype=float)
+        fitted_threshold = _optimal_threshold(first_state, second_state)
         threshold.append(fitted_threshold)
-        gg.append(np.mean(ground < fitted_threshold))
-        ge.append(np.mean(ground > fitted_threshold))
-        eg.append(np.mean(prepared < fitted_threshold))
-        ee.append(np.mean(prepared > fitted_threshold))
+        first_first.append(np.mean(first_state < fitted_threshold))
+        first_second.append(np.mean(first_state > fitted_threshold))
+        second_first.append(np.mean(second_state < fitted_threshold))
+        second_second.append(np.mean(second_state > fitted_threshold))
     ds_fit = ds_fit.assign({"ge_threshold": xr.DataArray(threshold, coords=dict(qubit=ds_fit.qubit.data))})
+    ds_fit = ds_fit.assign({"primary_threshold_pair": xr.DataArray(pair_name)})
     # Active-reset exit and standard state-discrimination use the same threshold.
     ds_fit = ds_fit.assign({"rus_threshold": ds_fit.ge_threshold.copy()})
-    ds_fit = ds_fit.assign({"gg": xr.DataArray(gg, coords=dict(qubit=ds_fit.qubit.data))})
-    ds_fit = ds_fit.assign({"ge": xr.DataArray(ge, coords=dict(qubit=ds_fit.qubit.data))})
-    ds_fit = ds_fit.assign({"eg": xr.DataArray(eg, coords=dict(qubit=ds_fit.qubit.data))})
-    ds_fit = ds_fit.assign({"ee": xr.DataArray(ee, coords=dict(qubit=ds_fit.qubit.data))})
+    ds_fit = ds_fit.assign({"gg": xr.DataArray(first_first, coords=dict(qubit=ds_fit.qubit.data))})
+    ds_fit = ds_fit.assign({"ge": xr.DataArray(first_second, coords=dict(qubit=ds_fit.qubit.data))})
+    ds_fit = ds_fit.assign({"eg": xr.DataArray(second_first, coords=dict(qubit=ds_fit.qubit.data))})
+    ds_fit = ds_fit.assign({"ee": xr.DataArray(second_second, coords=dict(qubit=ds_fit.qubit.data))})
     ds_fit = ds_fit.assign(
         {"readout_fidelity": xr.DataArray(100 * (ds_fit.gg + ds_fit.ee) / 2, coords=dict(qubit=ds_fit.qubit.data))}
     )
     fidelity_matrices = np.stack(
         [
-            np.asarray([[gg_value, ge_value], [eg_value, ee_value]], dtype=float)
-            for gg_value, ge_value, eg_value, ee_value in zip(gg, ge, eg, ee)
+            np.asarray([[ff_value, fs_value], [sf_value, ss_value]], dtype=float)
+            for ff_value, fs_value, sf_value, ss_value in zip(
+                first_first,
+                first_second,
+                second_first,
+                second_second,
+            )
         ]
     )
     n_runs = int(ds_fit.sizes["n_runs"])
@@ -305,8 +330,8 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
                 dims=("qubit", "fidelity_prepared_state", "fidelity_measured_state"),
                 coords={
                     "qubit": ds_fit.qubit.data,
-                    "fidelity_prepared_state": ["g", "e"],
-                    "fidelity_measured_state": ["g", "e"],
+                    "fidelity_prepared_state": [first_label, second_label],
+                    "fidelity_measured_state": [first_label, second_label],
                 },
             )
         }
@@ -318,19 +343,23 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
                 dims=("qubit", "fidelity_prepared_state", "fidelity_measured_state"),
                 coords={
                     "qubit": ds_fit.qubit.data,
-                    "fidelity_prepared_state": ["g", "e"],
-                    "fidelity_measured_state": ["g", "e"],
+                    "fidelity_prepared_state": [first_label, second_label],
+                    "fidelity_measured_state": [first_label, second_label],
                 },
             )
         }
     )
     center_separation = np.hypot(
-        ds_fit.Ie.mean(dim="n_runs") - ds_fit.Ig.mean(dim="n_runs"),
-        ds_fit.Qe.mean(dim="n_runs") - ds_fit.Qg.mean(dim="n_runs"),
+        ds_fit[second_i].mean(dim="n_runs") - ds_fit[first_i].mean(dim="n_runs"),
+        ds_fit[second_q].mean(dim="n_runs") - ds_fit[first_q].mean(dim="n_runs"),
     )
-    ground_width = np.sqrt(ds_fit.Ig.var(dim="n_runs") + ds_fit.Qg.var(dim="n_runs"))
-    prepared_width = np.sqrt(ds_fit.Ie.var(dim="n_runs") + ds_fit.Qe.var(dim="n_runs"))
-    pooled_width = np.sqrt((ground_width**2 + prepared_width**2) / 2)
+    first_width = np.sqrt(
+        ds_fit[first_i].var(dim="n_runs") + ds_fit[first_q].var(dim="n_runs")
+    )
+    second_width = np.sqrt(
+        ds_fit[second_i].var(dim="n_runs") + ds_fit[second_q].var(dim="n_runs")
+    )
+    pooled_width = np.sqrt((first_width**2 + second_width**2) / 2)
     ds_fit = ds_fit.assign({"center_separation": center_separation})
     ds_fit = ds_fit.assign({"separation_to_width": center_separation / pooled_width})
     ds_fit = _add_state_centers_and_confusion(ds_fit)

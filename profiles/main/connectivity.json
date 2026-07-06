@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "network": {
-    "host": "192.168.88.253",
+    "host": "192.168.88.249",
     "port": null,
     "cluster_name": "katz_cluster"
   },

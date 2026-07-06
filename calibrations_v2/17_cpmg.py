@@ -294,9 +294,9 @@ if __name__ == "__main__":
     parameters.reset_type = "active"
     parameters.min_wait_time_in_ns = 512
     parameters.max_wait_time_in_ns = 50_000
-    parameters.wait_time_num_points = 200
+    parameters.wait_time_num_points = 1300
     parameters.log_or_linear_sweep = "linear"
-    parameters.n_pi_values = [1, 2, 4, 8]
+    parameters.n_pi_values = [1, 100]
 
     options = CalibrationOptions()
 

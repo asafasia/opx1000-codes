@@ -31,7 +31,7 @@ from calibration_utils.T1 import (
     log_fitted_results,
     plot_raw_data_with_fit,
 )
-from calibration_utils.analysis_base import BaseAnalysis
+from calibration_utils.analysis_base import FunctionalAnalysis
 
 if __package__ in {None, ""}:
     from calibrations_v2.core import BaseCalibration, CalibrationOptions
@@ -71,19 +71,6 @@ State update:
 # %% {Save_results}
 
 
-class T1Analysis(BaseAnalysis):
-    """Shared analysis adapter for T1 calibration data."""
-
-    def process(self, ds):
-        return process_raw_dataset(ds, self.node)
-
-    def fit(self, ds):
-        return fit_raw_data(ds, self.node)
-
-    def log(self, result):
-        log_fitted_results(result.ds_fit, log_callable=self.node.log)
-
-
 class T1(BaseCalibration[Parameters, Quam]):
     """v2 class migration for ``calibrations/05_T1.py``."""
 
@@ -102,7 +89,15 @@ class T1(BaseCalibration[Parameters, Quam]):
         )
 
     def create_analysis(self):
-        return T1Analysis(self)
+        return FunctionalAnalysis(
+            self,
+            process=lambda ds: process_raw_dataset(ds, self),
+            fit=lambda ds: fit_raw_data(ds, self),
+            log=lambda result: log_fitted_results(
+                result.ds_fit,
+                log_callable=self.log,
+            ),
+        )
 
     def create_qua_program(self):
         node = self
@@ -154,7 +149,7 @@ class T1(BaseCalibration[Parameters, Quam]):
                         for i, qubit in multiplexed_qubits.items():
                             # Per-qubit timing: π pulse completes before the shared idle wait begins on this qubit.
                             qubit.align()
-                            qubit.xy.play("x180")
+                            # qubit.xy.play("x180")
                             qubit.align()
                             qubit.resonator.wait(t)
                         # No readout until all qubits have finished manipulation + wait for this idle_time step.

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import numpy as np
 import xarray as xr
 
-from calibration_utils.analysis_base import AnalysisResult, BaseAnalysis
+from calibration_utils.analysis_base import AnalysisResult, BaseAnalysis, FunctionalAnalysis
 
 
 @dataclass
@@ -59,6 +59,32 @@ class AnalysisBaseTests(unittest.TestCase):
         self.assertEqual(result.fit_results["q1"], {"value": 3.0, "success": True})
         self.assertEqual(result.outcomes, {"q1": "successful", "q2": "failed"})
         self.assertEqual(result.summary["num_successful"], 1)
+
+    def test_functional_analysis_uses_callables_without_subclass_boilerplate(self):
+        dataset = xr.Dataset(
+            data_vars={"signal": ("x", np.array([1.0, 2.0]))},
+            coords={"x": np.array([10, 20])},
+        )
+        logged = []
+
+        analysis = FunctionalAnalysis(
+            node=object(),
+            process=lambda ds: ds.assign(processed=("x", ds.signal.values * 3)),
+            fit=lambda ds: (
+                ds.assign(fit=("x", ds.processed.values + 1)),
+                {"q1": {"value": np.float64(7.0), "success": False}},
+            ),
+            outcomes=lambda fit_results: {"q1": "usable"},
+            log=lambda result: logged.append(result.fit_results["q1"]["value"]),
+        )
+
+        result = analysis.run(dataset)
+
+        self.assertIn("processed", result.ds_processed)
+        self.assertIn("fit", result.ds_fit)
+        self.assertEqual(result.fit_results["q1"]["value"], 7.0)
+        self.assertEqual(result.outcomes, {"q1": "usable"})
+        self.assertEqual(logged, [7.0])
 
 
 if __name__ == "__main__":

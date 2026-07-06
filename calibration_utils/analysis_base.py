@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 import numpy as np
 
@@ -136,3 +136,46 @@ class BaseAnalysis(ABC):
 
     def log(self, result: AnalysisResult) -> None:
         """Optional logging hook for concrete analyses."""
+
+
+class FunctionalAnalysis(BaseAnalysis):
+    """Small adapter for calibrations that only need process/fit/log callables."""
+
+    def __init__(
+        self,
+        node: Any,
+        *,
+        fit: Callable[[Any], tuple[Any, Mapping[str, Any]]],
+        process: Callable[[Any], Any] | None = None,
+        log: Callable[[AnalysisResult], None] | None = None,
+        outcomes: Callable[[Mapping[str, Any]], Mapping[str, str]] | None = None,
+        summary: Callable[[Any, Mapping[str, Any]], Mapping[str, Any]] | None = None,
+    ) -> None:
+        super().__init__(node)
+        self._fit = fit
+        self._process = process
+        self._log = log
+        self._outcomes = outcomes
+        self._summary = summary
+
+    def process(self, ds: Any) -> Any:
+        if self._process is None:
+            return ds
+        return self._process(ds)
+
+    def fit(self, ds: Any) -> tuple[Any, Mapping[str, Any]]:
+        return self._fit(ds)
+
+    def outcomes(self, fit_results: Mapping[str, Any]) -> dict[str, str]:
+        if self._outcomes is None:
+            return super().outcomes(fit_results)
+        return dict(self._outcomes(fit_results))
+
+    def summary(self, ds_fit: Any, fit_results: Mapping[str, Any]) -> dict[str, Any]:
+        if self._summary is None:
+            return super().summary(ds_fit, fit_results)
+        return dict(self._summary(ds_fit, fit_results))
+
+    def log(self, result: AnalysisResult) -> None:
+        if self._log is not None:
+            self._log(result)

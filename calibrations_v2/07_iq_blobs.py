@@ -28,7 +28,7 @@ from calibration_utils.iq_blobs import (
     log_fitted_results,
     plot_iq_blobs_dashboard,
 )
-from calibration_utils.analysis_base import BaseAnalysis
+from calibration_utils.analysis_base import FunctionalAnalysis
 from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
@@ -78,20 +78,6 @@ State update:
 # %% {Save_results}
 
 
-class IqBlobsAnalysis(BaseAnalysis):
-    """Shared analysis adapter for IQ-blob calibration data."""
-
-    def process(self, ds):
-        # IQ blobs currently save voltage-scaled ds_raw during execution/load.
-        return ds
-
-    def fit(self, ds):
-        return fit_raw_data(ds, self.node)
-
-    def log(self, result):
-        log_fitted_results(result.fit_results, log_callable=self.node.log)
-
-
 class IqBlobs(BaseCalibration[Parameters, Quam]):
     """v2 class migration for ``calibrations/07_iq_blobs.py``."""
 
@@ -110,7 +96,15 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
         )
 
     def create_analysis(self):
-        return IqBlobsAnalysis(self)
+        return FunctionalAnalysis(
+            self,
+            # IQ blobs currently save voltage-scaled ds_raw during execution/load.
+            fit=lambda ds: fit_raw_data(ds, self),
+            log=lambda result: log_fitted_results(
+                result.fit_results,
+                log_callable=self.log,
+            ),
+        )
 
     def create_qua_program(self):
         node = self
@@ -131,19 +125,31 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
             if selected_qubit_operation == "x180_const"
             else selected_qubit_operation
         )
-        if states not in (["g", "e"], ["g", "e", "f"]):
-            raise ValueError('states must be either ["g", "e"] or ["g", "e", "f"].')
+        valid_states = {"g", "e", "f"}
+        if (
+            len(states) not in (2, 3)
+            or len(set(states)) != len(states)
+            or set(states) - valid_states
+        ):
+            raise ValueError(
+                'states must be a unique two-state pair from ["g", "e", "f"] or ["g", "e", "f"].'
+            )
         if node.parameters.pi_repetitions < 1:
             raise ValueError("pi_repetitions must be a positive integer.")
         for qubit in qubits:
-            if qua_qubit_operation not in qubit.xy.operations:
+            if "e" in states and qua_qubit_operation not in qubit.xy.operations:
                 raise ValueError(
                     f"{qubit.name} does not define qubit operation {qua_qubit_operation!r}."
                 )
-            if "f" in states and "EF_x180" not in qubit.xy.operations:
-                raise ValueError(
-                    f"{qubit.name} does not define qubit operation 'EF_x180'."
-                )
+            if "f" in states:
+                if "x180" not in qubit.xy.operations:
+                    raise ValueError(
+                        f"{qubit.name} does not define qubit operation 'x180'."
+                    )
+                if "EF_x180" not in qubit.xy.operations:
+                    raise ValueError(
+                        f"{qubit.name} does not define qubit operation 'EF_x180'."
+                    )
             if (
                 operation == "readout_GEF"
                 and "readout_GEF" not in qubit.resonator.operations
@@ -177,52 +183,64 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                 I_f, I_f_st, Q_f, Q_f_st, _, _ = node.machine.declare_qua_variables()
 
             for multiplexed_qubits in qubits.batch():
-                # Acquire the ground and prepared clouds in independent shot loops.
-                with for_(n, 0, n < n_runs, n + 1):
-                    save(n, n_st)
-                    for qubit in multiplexed_qubits.values():
-                        qubit.reset(
-                            node.parameters.reset_type,
-                            node.parameters.simulate,
-                            # log_callable=node.log,
-                        )
-                    align()
-                    for i, qubit in multiplexed_qubits.items():
-                        qubit.resonator.measure(operation, qua_vars=(I_g[i], Q_g[i]))
-
-                        save(I_g[i], I_g_st[i])
-                        save(Q_g[i], Q_g_st[i])
-                    align()
-
-                with for_(n, 0, n < n_runs, n + 1):
-                    for qubit in multiplexed_qubits.values():
-                        qubit.reset(
-                            node.parameters.reset_type,
-                            node.parameters.simulate,
-                            # log_callable=node.log,
-                        )
-                    align()
-
-                    for qubit in multiplexed_qubits.values():
-                        repetitions = (
-                            node.parameters.pi_repetitions
-                            if selected_qubit_operation == "x180_const"
-                            else 1
-                        )
-                        for _ in range(repetitions):
-                            qubit.xy.play(
-                                qua_qubit_operation,
-                                amplitude_scale=node.parameters.qubit_amplitude_factor,
+                save_n_state = states[0]
+                # Acquire the selected clouds in independent shot loops.
+                if "g" in states:
+                    with for_(n, 0, n < n_runs, n + 1):
+                        if save_n_state == "g":
+                            save(n, n_st)
+                        for qubit in multiplexed_qubits.values():
+                            qubit.reset(
+                                node.parameters.reset_type,
+                                node.parameters.simulate,
+                                # log_callable=node.log,
                             )
-                    align()
-                    for i, qubit in multiplexed_qubits.items():
-                        qubit.resonator.measure(operation, qua_vars=(I_e[i], Q_e[i]))
-                        save(I_e[i], I_e_st[i])
-                        save(Q_e[i], Q_e_st[i])
-                    align()
+                        align()
+                        for i, qubit in multiplexed_qubits.items():
+                            qubit.resonator.measure(
+                                operation, qua_vars=(I_g[i], Q_g[i])
+                            )
+
+                            save(I_g[i], I_g_st[i])
+                            save(Q_g[i], Q_g_st[i])
+                        align()
+
+                if "e" in states:
+                    with for_(n, 0, n < n_runs, n + 1):
+                        if save_n_state == "e":
+                            save(n, n_st)
+                        for qubit in multiplexed_qubits.values():
+                            qubit.reset(
+                                node.parameters.reset_type,
+                                node.parameters.simulate,
+                                # log_callable=node.log,
+                            )
+                        align()
+
+                        for qubit in multiplexed_qubits.values():
+                            repetitions = (
+                                node.parameters.pi_repetitions
+                                if selected_qubit_operation == "x180_const"
+                                else 1
+                            )
+                            for _ in range(repetitions):
+                                qubit.xy.play(
+                                    qua_qubit_operation,
+                                    amplitude_scale=node.parameters.qubit_amplitude_factor,
+                                )
+                        align()
+                        for i, qubit in multiplexed_qubits.items():
+                            qubit.resonator.measure(
+                                operation, qua_vars=(I_e[i], Q_e[i])
+                            )
+                            save(I_e[i], I_e_st[i])
+                            save(Q_e[i], Q_e_st[i])
+                        align()
 
                 if "f" in states:
                     with for_(n, 0, n < n_runs, n + 1):
+                        if save_n_state == "f":
+                            save(n, n_st)
                         for qubit in multiplexed_qubits.values():
                             qubit.reset(
                                 node.parameters.reset_type,
@@ -253,10 +271,12 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
             with stream_processing():
                 n_st.save("n")
                 for i in range(num_qubits):
-                    I_g_st[i].buffer(n_runs).save(f"Ig{i + 1}")
-                    Q_g_st[i].buffer(n_runs).save(f"Qg{i + 1}")
-                    I_e_st[i].buffer(n_runs).save(f"Ie{i + 1}")
-                    Q_e_st[i].buffer(n_runs).save(f"Qe{i + 1}")
+                    if "g" in states:
+                        I_g_st[i].buffer(n_runs).save(f"Ig{i + 1}")
+                        Q_g_st[i].buffer(n_runs).save(f"Qg{i + 1}")
+                    if "e" in states:
+                        I_e_st[i].buffer(n_runs).save(f"Ie{i + 1}")
+                        Q_e_st[i].buffer(n_runs).save(f"Qe{i + 1}")
                     if "f" in states:
                         I_f_st[i].buffer(n_runs).save(f"If{i + 1}")
                         Q_f_st[i].buffer(n_runs).save(f"Qf{i + 1}")
@@ -379,6 +399,12 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                     node.log(
                         f"{q.name} failed IQ-blob quality checks; its fitted parameters can still be reviewed."
                     )
+                if fit_result.get("state_labels") != ["g", "e"]:
+                    node.log(
+                        f"Skipping {q.name} readout state update because acquired states "
+                        f"were {fit_result.get('state_labels')}, not ['g', 'e']."
+                    )
+                    continue
                 operation = q.resonator.operations[node.parameters.operation]
                 operation.integration_weights_angle -= float(fit_result["iw_angle"])
                 # Convert the thresholds back to demod units
@@ -409,6 +435,12 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
         )
         for q in node.namespace["qubits"]:
             fit_result = node.results["fit_results"][q.name]
+            if fit_result.get("state_labels") != ["g", "e"]:
+                node.log(
+                    f"Profile update skipped for {q.name}: acquired states "
+                    f"were {fit_result.get('state_labels')}, not ['g', 'e']."
+                )
+                continue
             if not all(
                 np.isfinite(fit_result[name])
                 for name in ("iw_angle", "ge_threshold", "rus_threshold")
@@ -450,14 +482,14 @@ if __name__ == "__main__":
     parameters = Parameters()
 
     parameters.qubit_operation = "x180"
-    parameters.states = ["g", "e"]
+    parameters.states = ["g", "f"]
     parameters.reset_type = "thermal"
     parameters.num_shots = 10000
 
     options = CalibrationOptions()
     # options.ai_review = True
 
-    machine = create_machine(qubit="q12")
+    machine = create_machine(qubit="q1")
 
     calibration = IqBlobs(
         parameters=parameters,

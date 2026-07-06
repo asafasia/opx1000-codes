@@ -230,6 +230,59 @@ class IQBlobsPlottingTests(unittest.TestCase):
         self.assertNotIn("RUS Threshold", labels)
         self.assertNotIn("Threshold", labels)
 
+    def test_gf_dashboard_draws_ground_and_f_clouds(self):
+        runs = np.arange(4)
+        raw = xr.Dataset(
+            {
+                "Ig": (("qubit", "n_runs"), [[-2e-3, -2e-3, -2e-3, -2e-3]]),
+                "Qg": (("qubit", "n_runs"), [[0.0, 0.0, 0.0, 0.0]]),
+                "If": (("qubit", "n_runs"), [[2e-3, 2e-3, 2e-3, 2e-3]]),
+                "Qf": (("qubit", "n_runs"), [[0.0, 0.0, 0.0, 0.0]]),
+            },
+            coords={"qubit": ["q1"], "n_runs": runs},
+        )
+        fit = xr.Dataset(
+            {
+                "Ig_rot": (("qubit", "n_runs"), [[-2e-3, -2e-3, -2e-3, -2e-3]]),
+                "If_rot": (("qubit", "n_runs"), [[2e-3, 2e-3, 2e-3, 2e-3]]),
+                "rus_threshold": ("qubit", [0.0]),
+                "ge_threshold": ("qubit", [0.0]),
+                "success": ("qubit", [True]),
+                "separation_to_width": ("qubit", [3.0]),
+                "readout_fidelity": ("qubit", [95.0]),
+                "iw_angle": ("qubit", [0.0]),
+                "state_confusion_matrix": (
+                    ("qubit", "prepared_state", "measured_state"),
+                    [np.eye(2)],
+                ),
+                "threshold_line_midpoint": (
+                    ("qubit", "threshold", "IQ"),
+                    [[[0.0, 0.0]]],
+                ),
+                "threshold_line_normal": (
+                    ("qubit", "threshold", "IQ"),
+                    [[[4e-3, 0.0]]],
+                ),
+            },
+            coords={
+                "qubit": ["q1"],
+                "n_runs": runs,
+                "prepared_state": ["g", "f"],
+                "measured_state": ["g", "f"],
+                "threshold": ["gf"],
+                "IQ": ["I", "Q"],
+            },
+        )
+
+        fig = plot_iq_blobs_dashboard(raw, [SimpleNamespace(name="q1")], fit)
+        labels = {line.get_label() for line in fig.axes[0].lines}
+
+        self.assertIn("Ground", labels)
+        self.assertIn("F", labels)
+        self.assertIn("GF threshold", labels)
+        self.assertNotIn("Prepared", labels)
+        self.assertNotIn("Threshold", labels)
+
     def test_large_thresholds_do_not_expand_blob_or_histogram_limits(self):
         raw = xr.Dataset(
             {

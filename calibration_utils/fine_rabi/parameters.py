@@ -3,15 +3,17 @@ from typing import Literal
 import numpy as np
 from qualibrate import NodeParameters
 from qualibrate.core.parameters import RunnableParameters
-from qualibration_libs.parameters import CommonNodeParameters, QubitsExperimentNodeParameters
-
+from qualibration_libs.parameters import (
+    CommonNodeParameters,
+    QubitsExperimentNodeParameters,
+)
 
 RotationType = Literal["PI", "PI_HALF"]
 AmpFactorSpacing = Literal["uniform", "center_dense"]
 
 
 class NodeSpecificParameters(RunnableParameters):
-    rotation_type: RotationType = "PI" 
+    rotation_type: RotationType = "PI"
     """Rotation to calibrate: PI uses x180 pairs, PI_HALF uses x90 quartets."""
     use_state_discrimination: bool = True
     """Measure discriminated state instead of raw I/Q. Default is True."""
@@ -19,9 +21,9 @@ class NodeSpecificParameters(RunnableParameters):
     """Number of averages for every amplitude and repetition point."""
     max_repetition_groups: int = 40
     """Maximum number of complete gate groups in the train."""
-    min_amp_factor: float = 0.8
+    min_amp_factor: float = 0.9
     """Minimum pulse amplitude scaling factor."""
-    max_amp_factor: float = 1.2
+    max_amp_factor: float = 1.1
     """Maximum pulse amplitude scaling factor, inclusive when on the step grid."""
     amp_factor_step: float = 0.01
     """Step size for the amplitude scaling factor."""
@@ -45,8 +47,17 @@ class Parameters(
         if self.amp_factor_step <= 0:
             raise ValueError("amp_factor_step must be positive.")
         if self.max_amp_factor < self.min_amp_factor:
-            raise ValueError("max_amp_factor must be greater than or equal to min_amp_factor.")
-        count = int(np.floor((self.max_amp_factor - self.min_amp_factor) / self.amp_factor_step)) + 1
+            raise ValueError(
+                "max_amp_factor must be greater than or equal to min_amp_factor."
+            )
+        count = (
+            int(
+                np.floor(
+                    (self.max_amp_factor - self.min_amp_factor) / self.amp_factor_step
+                )
+            )
+            + 1
+        )
         if self.amp_factor_spacing == "uniform":
             amps = self.min_amp_factor + self.amp_factor_step * np.arange(count)
             if amps.size == 0 or not np.isclose(amps[-1], self.max_amp_factor):
@@ -107,7 +118,9 @@ def _center_dense_amp_factors(
 
     left_span = center - minimum
     right_span = maximum - center
-    left_count = max(2, int(round((total_count - 1) * left_span / (maximum - minimum))) + 1)
+    left_count = max(
+        2, int(round((total_count - 1) * left_span / (maximum - minimum))) + 1
+    )
     right_count = max(2, total_count - left_count + 1)
 
     left_t = np.linspace(1, 0, left_count)

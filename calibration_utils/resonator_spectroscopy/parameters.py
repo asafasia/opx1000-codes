@@ -18,6 +18,8 @@ class NodeSpecificParameters(RunnableParameters):
     """Amplitude scale applied to the selected qubit operation."""
     saturation_lead_time_in_ns: int = 10_000
     """Lead time before readout when qubit_operation is saturation."""
+    states: list[Literal["g", "e", "f"]] = ["g", "e"]
+    """Prepared resonator spectroscopy states. Use any two-state pair or ['g', 'e', 'f'] for GEF optimization."""
 
 
 class Parameters(

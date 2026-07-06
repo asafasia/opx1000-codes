@@ -92,6 +92,17 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
         num_qubits = len(qubits)
         # Extract the sweep parameters and axes from the node parameters
         n_runs = node.parameters.num_shots
+        states = list(node.parameters.states)
+        valid_states = {"g", "e", "f"}
+        if (
+            len(states) not in (2, 3)
+            or len(set(states)) != len(states)
+            or set(states) - valid_states
+        ):
+            raise ValueError(
+                "Resonator spectroscopy states must be a unique two-state pair from ['g', 'e', 'f'] or ['g', 'e', 'f']."
+            )
+        use_f_state = "f" in states
         selected_operation = node.parameters.qubit_operation
         qua_operation = (
             "x180" if selected_operation == "x180_const" else selected_operation
@@ -101,11 +112,24 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
         step = node.parameters.frequency_step_in_mhz * u.MHz
         dfs = np.arange(-span / 2, +span / 2, step)
         for qubit in qubits:
-            if qua_operation not in qubit.xy.operations:
+            if "e" in states and qua_operation not in qubit.xy.operations:
                 raise ValueError(
                     f"{qubit.name} does not define qubit operation {qua_operation!r}."
                 )
-            if selected_operation == "saturation":
+            if use_f_state:
+                if "x180" not in qubit.xy.operations:
+                    raise ValueError(
+                        f"{qubit.name} does not define qubit operation 'x180'."
+                    )
+                if "EF_x180" not in qubit.xy.operations:
+                    raise ValueError(
+                        f"{qubit.name} does not define qubit operation 'EF_x180'."
+                    )
+                if getattr(qubit, "anharmonicity", None) is None:
+                    raise ValueError(
+                        f"{qubit.name} does not define anharmonicity required to prepare |f>."
+                    )
+            if "e" in states and selected_operation == "saturation":
                 saturation_length = qubit.xy.operations["saturation"].length
                 readout_length = qubit.resonator.operations["readout"].length
                 required_length = (
@@ -131,6 +155,7 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
         with program() as node.namespace["qua_program"]:
             Ig, Ig_st, Qg, Qg_st, n, n_st = node.machine.declare_qua_variables()
             Im, Im_st, Qm, Qm_st, _, _ = node.machine.declare_qua_variables()
+            If, If_st, Qf, Qf_st, _, _ = node.machine.declare_qua_variables()
             df = declare(int)  # QUA variable for the readout frequency
 
             for multiplexed_qubits in qubits.batch():
@@ -141,68 +166,104 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
                 with for_(n, 0, n < n_runs, n + 1):
                     save(n, n_st)
 
-                    # Complete ground-state resonator spectroscopy scan.
-                    with for_(*from_array(df, dfs)):
-                        for i, qubit in multiplexed_qubits.items():
-                            qubit.reset(
-                                "thermal",
-                                node.parameters.simulate,
-                                # log_callable=node.log,
-                            )
-
-                            rr = qubit.resonator
-                            # Update the resonator frequencies for all resonators
-                            rr.update_frequency(df + rr.intermediate_frequency)
-                            # Measure the resonator
-                            rr.measure("readout", qua_vars=(Ig[i], Qg[i]))
-                            # wait for the resonator to deplete
-                            # rr.wait(rr.depletion_time * u.ns)
-
-                            save(Ig[i], Ig_st[i])
-                            save(Qg[i], Qg_st[i])
-
-                        align()
-
-                    # Complete the driven-state resonator spectroscopy scan.
-                    with for_(*from_array(df, dfs)):
-                        for i, qubit in multiplexed_qubits.items():
-                            qubit.reset(
-                                "thermal",
-                                node.parameters.simulate,
-                            )
-
-                            rr = qubit.resonator
-                            rr.update_frequency(df + rr.intermediate_frequency)
-                            if selected_operation == "saturation":
-                                align(qubit.xy.name, rr.name)
-                                qubit.xy.play(
-                                    qua_operation,
-                                    amplitude_scale=node.parameters.saturation_amplitude_factor,
+                    if "g" in states:
+                        # Complete ground-state resonator spectroscopy scan.
+                        with for_(*from_array(df, dfs)):
+                            for i, qubit in multiplexed_qubits.items():
+                                qubit.reset(
+                                    "thermal",
+                                    node.parameters.simulate,
+                                    # log_callable=node.log,
                                 )
-                                rr.wait(
-                                    node.parameters.saturation_lead_time_in_ns * u.ns
+
+                                rr = qubit.resonator
+                                # Update the resonator frequencies for all resonators
+                                rr.update_frequency(df + rr.intermediate_frequency)
+                                # Measure the resonator
+                                rr.measure("readout", qua_vars=(Ig[i], Qg[i]))
+                                # wait for the resonator to deplete
+                                # rr.wait(rr.depletion_time * u.ns)
+
+                                save(Ig[i], Ig_st[i])
+                                save(Qg[i], Qg_st[i])
+
+                            align()
+
+                    if "e" in states:
+                        # Complete the driven-state resonator spectroscopy scan.
+                        with for_(*from_array(df, dfs)):
+                            for i, qubit in multiplexed_qubits.items():
+                                qubit.reset(
+                                    "thermal",
+                                    node.parameters.simulate,
                                 )
-                            else:
-                                qubit.xy.play(
-                                    qua_operation,
-                                    amplitude_scale=node.parameters.saturation_amplitude_factor,
+
+                                rr = qubit.resonator
+                                rr.update_frequency(df + rr.intermediate_frequency)
+                                if selected_operation == "saturation":
+                                    align(qubit.xy.name, rr.name)
+                                    qubit.xy.play(
+                                        qua_operation,
+                                        amplitude_scale=node.parameters.saturation_amplitude_factor,
+                                    )
+                                    rr.wait(
+                                        node.parameters.saturation_lead_time_in_ns
+                                        * u.ns
+                                    )
+                                else:
+                                    qubit.xy.play(
+                                        qua_operation,
+                                        amplitude_scale=node.parameters.saturation_amplitude_factor,
+                                    )
+                                    qubit.align()
+                                rr.measure("readout", qua_vars=(Im[i], Qm[i]))
+                                # rr.wait(rr.depletion_time * u.ns)
+                                save(Im[i], Im_st[i])
+                                save(Qm[i], Qm_st[i])
+                                # qubit.reset_qubit_thermal()
+
+                            align()
+
+                    if use_f_state:
+                        # Complete the f-state resonator spectroscopy scan.
+                        with for_(*from_array(df, dfs)):
+                            for i, qubit in multiplexed_qubits.items():
+                                qubit.reset(
+                                    "thermal",
+                                    node.parameters.simulate,
+                                )
+
+                                rr = qubit.resonator
+                                rr.update_frequency(df + rr.intermediate_frequency)
+                                qubit.xy.play("x180")
+                                update_frequency(
+                                    qubit.xy.name,
+                                    qubit.xy.intermediate_frequency
+                                    - qubit.anharmonicity,
+                                )
+                                qubit.xy.play("EF_x180")
+                                update_frequency(
+                                    qubit.xy.name, qubit.xy.intermediate_frequency
                                 )
                                 qubit.align()
-                            rr.measure("readout", qua_vars=(Im[i], Qm[i]))
-                            # rr.wait(rr.depletion_time * u.ns)
-                            save(Im[i], Im_st[i])
-                            save(Qm[i], Qm_st[i])
-                            # qubit.reset_qubit_thermal()
+                                rr.measure("readout", qua_vars=(If[i], Qf[i]))
+                                save(If[i], If_st[i])
+                                save(Qf[i], Qf_st[i])
 
-                        align()
+                            align()
 
             with stream_processing():
                 n_st.save("n")
                 for i in range(num_qubits):
-                    Ig_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Ig{i + 1}")
-                    Qg_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Qg{i + 1}")
-                    Im_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Im{i + 1}")
-                    Qm_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Qm{i + 1}")
+                    if "g" in states:
+                        Ig_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Ig{i + 1}")
+                        Qg_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Qg{i + 1}")
+                    if "e" in states:
+                        Im_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Im{i + 1}")
+                        Qm_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Qm{i + 1}")
+                    if use_f_state:
+                        If_st[i].buffer(len(dfs)).buffer(n_runs).save(f"If{i + 1}")
+                        Qf_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Qf{i + 1}")
 
         return node.namespace.get("qua_program")
 
@@ -359,9 +420,10 @@ if __name__ == "__main__":
     parameters = Parameters()
 
     parameters.qubit_operation = "saturation"
-    parameters.num_shots = 500
+    parameters.num_shots = 200
     parameters.frequency_span_in_mhz = 20
-    parameters.frequency_step_in_mhz = 0.2
+    parameters.frequency_step_in_mhz = 0.1
+    parameters.states = ["g", "f"]
 
     options = CalibrationOptions()
     # options.ai_review = True
@@ -375,9 +437,9 @@ if __name__ == "__main__":
 
     # %%
 
-    # calibration._plot_for_freq(
-    #     frequency=calibration.results["fit_results"]["q3"]["frequency"]
-    # )
+    calibration._plot_for_freq(
+        frequency=calibration.results["fit_results"]["q1"]["frequency"]
+    )
 
 
 # %%

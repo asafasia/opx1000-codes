@@ -141,6 +141,28 @@ class IQBlobsAnalysisTests(unittest.TestCase):
             atol=0.02,
         )
 
+    def test_gf_clouds_fit_without_excited_state(self):
+        rng = np.random.default_rng(11)
+        runs = 1000
+        ds = xr.Dataset(
+            {
+                "Ig": (("qubit", "n_runs"), rng.normal(-6e-5, 2e-6, (1, runs))),
+                "Qg": (("qubit", "n_runs"), rng.normal(0, 2e-6, (1, runs))),
+                "If": (("qubit", "n_runs"), rng.normal(6e-5, 2e-6, (1, runs))),
+                "Qf": (("qubit", "n_runs"), rng.normal(0, 2e-6, (1, runs))),
+            },
+            coords={"qubit": ["q1"], "n_runs": np.arange(runs)},
+        )
+
+        fit, results = fit_raw_data(ds, self.make_node())
+
+        self.assertTrue(results["q1"].success)
+        self.assertEqual(results["q1"].state_labels, ["g", "f"])
+        self.assertEqual(results["q1"].threshold_pairs, ["gf"])
+        self.assertEqual(list(fit.fidelity_prepared_state.values), ["g", "f"])
+        self.assertIn("If_rot", fit)
+        self.assertNotIn("Ie_rot", fit)
+
     def test_kde_regions_enclose_95_percent_of_each_blob(self):
         rng = np.random.default_rng(7)
         runs = 500

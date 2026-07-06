@@ -59,6 +59,30 @@ def _operation_name(qubit_operation: str) -> str:
     return "x180" if qubit_operation == "x180_const" else qubit_operation
 
 
+def _state_response_variables() -> dict[str, tuple[str, str, str, str, str]]:
+    return {
+        "g": ("Ig", "Qg", "ground_IQ_abs", "ground_phase", "Ground"),
+        "e": ("Im", "Qm", "mixed_IQ_abs", "mixed_phase", "Driven"),
+        "f": ("If", "Qf", "f_IQ_abs", "f_phase", "F"),
+    }
+
+
+def _available_states(ds: xr.Dataset) -> list[str]:
+    return [
+        state
+        for state, (i_name, q_name, *_rest) in _state_response_variables().items()
+        if {i_name, q_name}.issubset(ds.data_vars)
+    ]
+
+
+def _available_processed_states(ds: xr.Dataset) -> list[str]:
+    return [
+        state
+        for state, (_i_name, _q_name, iq_abs_name, _phase_name, _label) in _state_response_variables().items()
+        if iq_abs_name in ds.data_vars
+    ]
+
+
 def _format_qubit_drive_line(
     qubit,
     qubit_operation: str,
@@ -152,8 +176,9 @@ def plot_raw_phase(ds: xr.Dataset, qubits: List[AnyTransmon]) -> Figure:
     grid = QubitGrid(ds, qubit_grid_locations(qubits))
     for ax1, qubit in grid_iter(grid):
         selected = ds.assign_coords(full_freq_GHz=ds.full_freq / u.GHz).loc[qubit]
-        selected.ground_phase.plot(ax=ax1, x="full_freq_GHz", label="Ground")
-        selected.mixed_phase.plot(ax=ax1, x="full_freq_GHz", label="Driven")
+        for state in _available_processed_states(selected):
+            _i_name, _q_name, _iq_abs_name, phase_name, label = _state_response_variables()[state]
+            selected[phase_name].plot(ax=ax1, x="full_freq_GHz", label=label)
         ax1.set_xlabel("RF frequency [GHz]")
         ax1.set_ylabel("phase [rad]")
         ax1.legend()
@@ -213,8 +238,6 @@ def plot_raw_amplitude(
         used_axes.update({(2 * row, column), (2 * row + 1, column)})
 
         selected = ds.assign_coords(full_freq_GHz=ds.full_freq / u.GHz).sel(qubit=qubit.name)
-        ground = selected.ground_IQ_abs / u.mV
-        mixed = selected.mixed_IQ_abs / u.mV
         separation = selected.IQ_separation
         max_separation_index = int(separation.argmax(dim="detuning").values)
         max_separation_frequency_ghz = float(
@@ -226,8 +249,11 @@ def plot_raw_amplitude(
         )
         current_frequency_label = f"Current resonance: {current_frequency_ghz:.6f} GHz"
 
-        ground.plot(ax=spectrum_ax, x="full_freq_GHz", label="Ground")
-        mixed.plot(ax=spectrum_ax, x="full_freq_GHz", label="Driven")
+        for state in _available_processed_states(selected):
+            _i_name, _q_name, iq_abs_name, _phase_name, label = _state_response_variables()[state]
+            (selected[iq_abs_name] / u.mV).plot(
+                ax=spectrum_ax, x="full_freq_GHz", label=label
+            )
         spectrum_ax.axvline(
             current_frequency_ghz,
             color="black",
@@ -246,6 +272,20 @@ def plot_raw_amplitude(
         spectrum_ax.legend()
 
         separation.plot(ax=difference_ax, x="full_freq_GHz", color="tab:blue")
+        state_pairs = (
+            set(str(value) for value in selected.pairwise_IQ_separation.state_pair.values)
+            if "pairwise_IQ_separation" in selected.data_vars
+            else set()
+        )
+        if len(state_pairs) > 1:
+            for state_pair in selected.pairwise_IQ_separation.state_pair.values:
+                selected.pairwise_IQ_separation.sel(state_pair=state_pair).plot(
+                    ax=difference_ax,
+                    x="full_freq_GHz",
+                    linestyle=":",
+                    alpha=0.6,
+                    label=f"{state_pair} separation",
+                )
         difference_ax.axvline(
             current_frequency_ghz,
             color="black",
@@ -315,12 +355,13 @@ def plot_individual_amplitude_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str
         fitted_data = None
 
     selected = ds.assign_coords(full_freq_GHz=ds.full_freq / u.GHz).loc[qubit]
-    (selected.ground_IQ_abs / u.mV).plot(ax=ax, x="full_freq_GHz", label="Ground")
-    (selected.mixed_IQ_abs / u.mV).plot(ax=ax, x="full_freq_GHz", label="Driven")
+    for state in _available_processed_states(selected):
+        _i_name, _q_name, iq_abs_name, _phase_name, label = _state_response_variables()[state]
+        (selected[iq_abs_name] / u.mV).plot(ax=ax, x="full_freq_GHz", label=label)
     ax.set_xlabel("RF frequency [GHz]")
     ax.set_ylabel(r"$R=\sqrt{I^2 + Q^2}$ [mV]")
     if fitted_data is not None:
-        ax.plot(ds.full_freq.loc[qubit] / u.GHz, fitted_data / u.mV, "k--", label="Ground fit")
+        ax.plot(ds.full_freq.loc[qubit] / u.GHz, fitted_data / u.mV, "k--", label="Fit")
     ax.legend()
 
 
@@ -329,8 +370,15 @@ def plot_iq_response(ds: xr.Dataset, qubits: List[AnyTransmon]) -> Figure:
     grid = QubitGrid(ds, qubit_grid_locations(qubits))
     for ax, qubit in grid_iter(grid):
         selected = ds.loc[qubit]
-        ax.plot(selected.Ig / u.mV, selected.Qg / u.mV, ".-", label="Ground", markersize=3)
-        ax.plot(selected.Im / u.mV, selected.Qm / u.mV, ".-", label="Driven", markersize=3)
+        for state in _available_states(selected):
+            i_name, q_name, _iq_abs_name, _phase_name, label = _state_response_variables()[state]
+            ax.plot(
+                selected[i_name] / u.mV,
+                selected[q_name] / u.mV,
+                ".-",
+                label=label,
+                markersize=3,
+            )
         ax.set_xlabel("I [mV]")
         ax.set_ylabel("Q [mV]")
         ax.axis("equal")
@@ -371,38 +419,25 @@ def plot_iq_blobs_for_frequency(
             f"detuning={selected_detuning_hz / u.MHz:.3f} MHz"
         )
 
-        ax.plot(
-            point.Ig / u.mV,
-            point.Qg / u.mV,
-            ".",
-            alpha=0.4,
-            markersize=3,
-            label="Ground",
-        )
-        ax.plot(
-            point.Im / u.mV,
-            point.Qm / u.mV,
-            ".",
-            alpha=0.4,
-            markersize=3,
-            label="Driven",
-        )
-        ax.plot(
-            float(point.Ig.mean(dim="n_runs")) / u.mV,
-            float(point.Qg.mean(dim="n_runs")) / u.mV,
-            "o",
-            color="tab:blue",
-            markeredgecolor="black",
-            label="Ground center",
-        )
-        ax.plot(
-            float(point.Im.mean(dim="n_runs")) / u.mV,
-            float(point.Qm.mean(dim="n_runs")) / u.mV,
-            "o",
-            color="tab:orange",
-            markeredgecolor="black",
-            label="Driven center",
-        )
+        colors = {"g": "tab:blue", "e": "tab:orange", "f": "tab:green"}
+        for state in _available_states(point):
+            i_name, q_name, _iq_abs_name, _phase_name, label = _state_response_variables()[state]
+            ax.plot(
+                point[i_name] / u.mV,
+                point[q_name] / u.mV,
+                ".",
+                alpha=0.4,
+                markersize=3,
+                label=label,
+            )
+            ax.plot(
+                float(point[i_name].mean(dim="n_runs")) / u.mV,
+                float(point[q_name].mean(dim="n_runs")) / u.mV,
+                "o",
+                color=colors[state],
+                markeredgecolor="black",
+                label=f"{label} center",
+            )
         ax.set_xlabel("I [mV]")
         ax.set_ylabel("Q [mV]")
         ax.axis("equal")

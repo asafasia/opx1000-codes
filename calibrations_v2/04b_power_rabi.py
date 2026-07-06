@@ -18,7 +18,7 @@ import xarray as xr
 from qm.qua import *
 from qualang_tools.loops import from_array
 
-from calibration_utils.analysis_base import BaseAnalysis
+from calibration_utils.analysis_base import FunctionalAnalysis
 from calibration_utils.power_rabi import (
     Parameters,
     fit_raw_data,
@@ -118,7 +118,22 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
         )
 
     def create_analysis(self):
-        return PowerRabiAnalysis(self)
+        return FunctionalAnalysis(
+            self,
+            process=lambda ds: process_raw_dataset(
+                self._validate_readout_dataset(ds),
+                self,
+            ),
+            fit=lambda ds: fit_raw_data(ds, self),
+            log=lambda result: log_fitted_results(
+                result.fit_results,
+                log_callable=self.log,
+            ),
+        )
+
+    def _validate_readout_dataset(self, ds: xr.Dataset) -> xr.Dataset:
+        validate_readout_dataset(ds, self.parameters.use_state_discrimination)
+        return ds
 
     def create_qua_program(self):
         """Create the sweep axes and generate the QUA program."""
@@ -293,31 +308,14 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
             Q_st[i].buffer(len(amps)).buffer(len(n_pi_vec)).average().save(f"Q{i + 1}")
 
 
-class PowerRabiAnalysis(BaseAnalysis):
-    """Shared analysis adapter for Power Rabi calibration data."""
-
-    def process(self, ds):
-        validate_readout_dataset(
-            ds,
-            self.node.parameters.use_state_discrimination,
-        )
-        return process_raw_dataset(ds, self.node)
-
-    def fit(self, ds):
-        return fit_raw_data(ds, self.node)
-
-    def log(self, result):
-        log_fitted_results(result.fit_results, log_callable=self.node.log)
-
-
 if __name__ == "__main__":
 
     parameters = Parameters()
     parameters.reset_type = "thermal"
     parameters.use_state_discrimination = False
-    parameters.num_shots = 1200
-    parameters.transition = "ge"
-    parameters.pi_repetitions = 4
+    parameters.num_shots = 200
+    parameters.transition = "ef"
+    parameters.pi_repetitions = 10
     parameters.operation = "x180"
 
     options = CalibrationOptions()
@@ -325,7 +323,7 @@ if __name__ == "__main__":
     power_rabi = PowerRabi(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q3"),
+        machine=create_machine(qubit="q1"),
         auto_connect=True,
     )
     power_rabi.run()

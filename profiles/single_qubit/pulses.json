@@ -5,14 +5,14 @@
       "x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.16159438040874263,
+        "amplitude": 0.15127819777954318,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
       "EF_x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.027452222862919075,
+        "amplitude": 0.025827745375323802,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -43,7 +43,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.08,
+        "amplitude": 0.1,
         "length_ns": 2000,
         "digital_marker": "ON",
         "integration_weights": [
@@ -96,7 +96,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.08421052631578946,
+        "amplitude": 0.1,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [
@@ -111,7 +111,7 @@
       "x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.010819742169842357,
+        "amplitude": 0.10302983145345697,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -149,7 +149,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.2,
+        "amplitude": 0.07,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [
@@ -164,7 +164,7 @@
       "x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.025867171351632755,
+        "amplitude": 0.1372643382943379,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -202,7 +202,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.14,
+        "amplitude": 0.1,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [
@@ -467,7 +467,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.19999999999999998,
+        "amplitude": 0.1,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [
@@ -520,7 +520,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.1275,
+        "amplitude": 0.07,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [
@@ -573,7 +573,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.15,
+        "amplitude": 0.1,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [
@@ -588,7 +588,7 @@
       "x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.5710495572536151,
+        "amplitude": 0.5359753188148806,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -626,7 +626,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.1894736842105263,
+        "amplitude": 0.12,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [

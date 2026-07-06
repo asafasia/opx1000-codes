@@ -26,11 +26,13 @@ class IQBlobsSequenceTests(unittest.TestCase):
 
     def test_ground_and_prepared_clouds_use_independent_shot_loops(self):
         source = (Path(__file__).parent.parent / "calibrations_v2" / "07_iq_blobs.py").read_text()
-        acquisition_block = source.split("# Acquire the ground and prepared clouds", 1)[1].split(
+        acquisition_block = source.split("# Acquire the selected clouds", 1)[1].split(
             "with stream_processing()", 1
         )[0]
 
         self.assertEqual(acquisition_block.count("with for_(n, 0, n < n_runs, n + 1):"), 3)
+        self.assertIn('if "g" in states:', acquisition_block)
+        self.assertIn('if "e" in states:', acquisition_block)
         self.assertIn('if "f" in states:', acquisition_block)
         self.assertNotIn("GEF_frequency_shift", acquisition_block)
         self.assertNotIn("qubit.resonator.wait", acquisition_block)

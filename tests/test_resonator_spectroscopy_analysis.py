@@ -43,14 +43,81 @@ class ResonatorSpectroscopyAnalysisTests(unittest.TestCase):
     def test_acquisition_preserves_shots_without_stream_averaging(self):
         source = (
             Path(__file__).resolve().parents[1]
-            / "calibrations"
+            / "calibrations_v2"
             / "02a_resonator_spectroscopy.py"
         ).read_text(encoding="utf-8")
         stream_processing = source.split("with stream_processing():", 1)[1]
 
         self.assertNotIn(".average()", stream_processing)
         self.assertIn('.buffer(len(dfs)).buffer(n_runs).save(f"Ig{i + 1}")', stream_processing)
-        self.assertIn('"n_runs": xr.DataArray(np.arange(n_runs)', source)
+        self.assertIn('"n_runs": xr.DataArray(', source)
+        self.assertIn('np.arange(n_runs), attrs={"long_name": "shot index"}', source)
+
+    def test_gef_acquisition_preserves_shots_and_prepares_f_state(self):
+        source = (
+            Path(__file__).resolve().parents[1]
+            / "calibrations_v2"
+            / "02a_resonator_spectroscopy.py"
+        ).read_text(encoding="utf-8")
+        stream_processing = source.split("with stream_processing():", 1)[1]
+
+        self.assertIn("unique two-state pair", source)
+        self.assertIn('qubit.xy.play("EF_x180")', source)
+        self.assertIn("- qubit.anharmonicity", source)
+        self.assertIn('if "g" in states:', source)
+        self.assertIn('if "e" in states:', source)
+        self.assertIn('.buffer(len(dfs)).buffer(n_runs).save(f"If{i + 1}")', stream_processing)
+        self.assertIn('.buffer(len(dfs)).buffer(n_runs).save(f"Qf{i + 1}")', stream_processing)
+
+    def test_three_state_separation_uses_best_worst_pair(self):
+        ds = xr.Dataset(
+            {
+                "Ig": (("qubit", "n_runs", "detuning"), [[[-0.5, -0.5], [0.5, 0.5]]]),
+                "Qg": (("qubit", "n_runs", "detuning"), [[[0.0, 0.0], [0.0, 0.0]]]),
+                "Im": (("qubit", "n_runs", "detuning"), [[[9.5, 3.5], [10.5, 4.5]]]),
+                "Qm": (("qubit", "n_runs", "detuning"), [[[0.0, 0.0], [0.0, 0.0]]]),
+                "If": (("qubit", "n_runs", "detuning"), [[[10.5, 7.5], [11.5, 8.5]]]),
+                "Qf": (("qubit", "n_runs", "detuning"), [[[0.0, 0.0], [0.0, 0.0]]]),
+            },
+            coords={"qubit": ["q9"], "n_runs": [0, 1], "detuning": [0, 1]},
+        )
+
+        separation = calculate_iq_separation(ds)
+
+        self.assertAlmostEqual(float(separation.sel(qubit="q9", detuning=0)), 2.0)
+        self.assertAlmostEqual(float(separation.sel(qubit="q9", detuning=1)), 8.0)
+
+    def test_gf_pair_separation_uses_gf_only(self):
+        ds = xr.Dataset(
+            {
+                "Ig": (("qubit", "n_runs", "detuning"), [[[-0.5, -0.5], [0.5, 0.5]]]),
+                "Qg": (("qubit", "n_runs", "detuning"), [[[0.0, 0.0], [0.0, 0.0]]]),
+                "If": (("qubit", "n_runs", "detuning"), [[[1.5, 5.5], [2.5, 6.5]]]),
+                "Qf": (("qubit", "n_runs", "detuning"), [[[0.0, 0.0], [0.0, 0.0]]]),
+            },
+            coords={"qubit": ["q9"], "n_runs": [0, 1], "detuning": [0, 1]},
+        )
+
+        separation = calculate_iq_separation(ds)
+
+        self.assertAlmostEqual(float(separation.sel(qubit="q9", detuning=0)), 4.0)
+        self.assertAlmostEqual(float(separation.sel(qubit="q9", detuning=1)), 12.0)
+
+    def test_ef_pair_separation_uses_ef_only(self):
+        ds = xr.Dataset(
+            {
+                "Im": (("qubit", "n_runs", "detuning"), [[[-0.5, -0.5], [0.5, 0.5]]]),
+                "Qm": (("qubit", "n_runs", "detuning"), [[[0.0, 0.0], [0.0, 0.0]]]),
+                "If": (("qubit", "n_runs", "detuning"), [[[2.5, 7.5], [3.5, 8.5]]]),
+                "Qf": (("qubit", "n_runs", "detuning"), [[[0.0, 0.0], [0.0, 0.0]]]),
+            },
+            coords={"qubit": ["q9"], "n_runs": [0, 1], "detuning": [0, 1]},
+        )
+
+        separation = calculate_iq_separation(ds)
+
+        self.assertAlmostEqual(float(separation.sel(qubit="q9", detuning=0)), 6.0)
+        self.assertAlmostEqual(float(separation.sel(qubit="q9", detuning=1)), 16.0)
 
     def test_selected_frequency_follows_maximum_separation(self):
         fit = xr.Dataset(

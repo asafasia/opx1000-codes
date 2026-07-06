@@ -20,20 +20,73 @@ class FitParameters:
 
 def calculate_iq_separation(ds: xr.Dataset) -> xr.DataArray:
     """Return IQ-center distance divided by the pooled shot-cloud width."""
-    ground_I = ds.Ig.mean(dim="n_runs")
-    ground_Q = ds.Qg.mean(dim="n_runs")
-    mixed_I = ds.Im.mean(dim="n_runs")
-    mixed_Q = ds.Qm.mean(dim="n_runs")
-    center_distance = np.hypot(mixed_I - ground_I, mixed_Q - ground_Q)
-    ground_width = np.sqrt(ds.Ig.var(dim="n_runs") + ds.Qg.var(dim="n_runs"))
-    mixed_width = np.sqrt(ds.Im.var(dim="n_runs") + ds.Qm.var(dim="n_runs"))
-    pooled_width = np.sqrt((ground_width**2 + mixed_width**2) / 2)
-    separation = xr.where(pooled_width > 0, center_distance / pooled_width, np.nan)
+    pair_separations = _calculate_pairwise_iq_separations(ds)
+    if pair_separations.sizes["state_pair"] > 1:
+        separation = pair_separations.min(dim="state_pair")
+    else:
+        separation = pair_separations.isel(state_pair=0)
     separation.attrs = {
         "long_name": "IQ center separation / pooled standard deviation",
         "units": "",
     }
     return separation
+
+
+def _calculate_pairwise_iq_separations(ds: xr.Dataset) -> xr.DataArray:
+    states = _available_states(ds)
+    if len(states) < 2:
+        raise ValueError("Resonator spectroscopy requires at least two measured states.")
+    pairs = [
+        (f"{first}{second}", first, second)
+        for first_index, first in enumerate(states)
+        for second in states[first_index + 1 :]
+    ]
+
+    separations = []
+    for pair_name, first, second in pairs:
+        first_I, first_Q = _state_iq(ds, first)
+        second_I, second_Q = _state_iq(ds, second)
+        center_distance = np.hypot(
+            second_I.mean(dim="n_runs") - first_I.mean(dim="n_runs"),
+            second_Q.mean(dim="n_runs") - first_Q.mean(dim="n_runs"),
+        )
+        first_width = np.sqrt(first_I.var(dim="n_runs") + first_Q.var(dim="n_runs"))
+        second_width = np.sqrt(second_I.var(dim="n_runs") + second_Q.var(dim="n_runs"))
+        pooled_width = np.sqrt((first_width**2 + second_width**2) / 2)
+        separations.append(
+            xr.where(pooled_width > 0, center_distance / pooled_width, np.nan)
+            .expand_dims(state_pair=[pair_name])
+        )
+
+    pair_separations = xr.concat(separations, dim="state_pair")
+    pair_separations.attrs = {
+        "long_name": "pairwise IQ center separation / pooled standard deviation",
+        "units": "",
+    }
+    return pair_separations
+
+
+def _state_iq(ds: xr.Dataset, state: str) -> tuple[xr.DataArray, xr.DataArray]:
+    state_variables = {
+        "g": ("Ig", "Qg"),
+        "e": ("Im", "Qm"),
+        "f": ("If", "Qf"),
+    }
+    i_name, q_name = state_variables[state]
+    return ds[i_name], ds[q_name]
+
+
+def _available_states(ds: xr.Dataset) -> list[str]:
+    state_variables = {
+        "g": ("Ig", "Qg"),
+        "e": ("Im", "Qm"),
+        "f": ("If", "Qf"),
+    }
+    return [
+        state
+        for state, variables in state_variables.items()
+        if set(variables).issubset(ds.data_vars)
+    ]
 
 
 def log_fitted_results(fit_results: Dict, log_callable=None):
@@ -62,30 +115,39 @@ def log_fitted_results(fit_results: Dict, log_callable=None):
 
 
 def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
-    ds = convert_IQ_to_V(ds, node.namespace["qubits"], IQ_list=["Ig", "Qg", "Im", "Qm"])
+    state_labels = {"g": "ground", "e": "mixed", "f": "f"}
+    states = _available_states(ds)
+    iq_list = [
+        variable
+        for state in states
+        for variable in {
+            "g": ("Ig", "Qg"),
+            "e": ("Im", "Qm"),
+            "f": ("If", "Qf"),
+        }[state]
+    ]
+    ds = convert_IQ_to_V(ds, node.namespace["qubits"], IQ_list=iq_list)
     if "n_runs" not in ds.dims:
         raise ValueError(
             "Resonator spectroscopy requires individual shots along the 'n_runs' dimension."
         )
 
-    ground_I = ds.Ig.mean(dim="n_runs")
-    ground_Q = ds.Qg.mean(dim="n_runs")
-    mixed_I = ds.Im.mean(dim="n_runs")
-    mixed_Q = ds.Qm.mean(dim="n_runs")
-    ground = add_amplitude_and_phase(
-        xr.Dataset({"I": ground_I, "Q": ground_Q}),
-        "detuning",
-        subtract_slope_flag=True,
-    )
-    mixed = add_amplitude_and_phase(
-        xr.Dataset({"I": mixed_I, "Q": mixed_Q}),
-        "detuning",
-        subtract_slope_flag=True,
-    )
-    ds["ground_IQ_abs"] = ground.IQ_abs
-    ds["ground_phase"] = ground.phase
-    ds["mixed_IQ_abs"] = mixed.IQ_abs
-    ds["mixed_phase"] = mixed.phase
+    for state in states:
+        label = state_labels[state]
+        state_I, state_Q = _state_iq(ds, state)
+        state_data = add_amplitude_and_phase(
+            xr.Dataset(
+                {
+                    "I": state_I.mean(dim="n_runs"),
+                    "Q": state_Q.mean(dim="n_runs"),
+                }
+            ),
+            "detuning",
+            subtract_slope_flag=True,
+        )
+        ds[f"{label}_IQ_abs"] = state_data.IQ_abs
+        ds[f"{label}_phase"] = state_data.phase
+    ds["pairwise_IQ_separation"] = _calculate_pairwise_iq_separations(ds)
     ds["IQ_separation"] = calculate_iq_separation(ds)
     full_freq = np.array([ds.detuning + q.resonator.RF_frequency for q in node.namespace["qubits"]])
     ds = ds.assign_coords(full_freq=(["qubit", "detuning"], full_freq))
@@ -109,11 +171,18 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     xr.Dataset
         Dataset containing the fit results.
     """
-    # Fit the resonator line
-    fit_results = peaks_dips(ds.ground_IQ_abs, "detuning")
+    fit_source = _fit_source_iq_abs(ds)
+    fit_results = peaks_dips(fit_source, "detuning")
     # Extract the relevant fitted parameters
     fit_data, fit_results = _extract_relevant_fit_parameters(fit_results, ds, node)
     return fit_data, fit_results
+
+
+def _fit_source_iq_abs(ds: xr.Dataset) -> xr.DataArray:
+    for variable in ("ground_IQ_abs", "mixed_IQ_abs", "f_IQ_abs"):
+        if variable in ds.data_vars:
+            return ds[variable]
+    raise ValueError("Resonator spectroscopy data does not contain a fitted state response.")
 
 
 def _extract_relevant_fit_parameters(
