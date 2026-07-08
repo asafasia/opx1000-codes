@@ -29,4 +29,4 @@ class SimulationParameters:
     x180_length_in_ns: float = 40.0
     t1_in_us: float | None = None
     t2_in_us: float | None = None
-    output_dir: Path = Path("Projects/echo-lorentzian-qutip-simulation/output")
+    output_dir: Path = Path("Projects/shaped_pulse_spectroscopy/simulation/qutip/output")

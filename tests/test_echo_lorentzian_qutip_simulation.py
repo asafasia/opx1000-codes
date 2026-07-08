@@ -7,7 +7,9 @@ import numpy as np
 
 
 REPOSITORY_ROOT = Path(__file__).parent.parent
-PROJECT_ROOT = REPOSITORY_ROOT / "Projects" / "echo-lorentzian-qutip-simulation"
+PROJECT_ROOT = (
+    REPOSITORY_ROOT / "Projects" / "shaped_pulse_spectroscopy" / "simulation" / "qutip"
+)
 
 
 def load_project_module(name: str):

@@ -1,4 +1,17 @@
+"""Legacy node-style echo-Lorentzian frequency-versus-amplitude sweep."""
+
 # %% {Imports}
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = PROJECT_ROOT.parent.parent
+for path in (PROJECT_ROOT, REPOSITORY_ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
@@ -17,8 +30,12 @@ from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
 from utils.simulation import simulate_and_plot
 
-from lorentzian import install_lorentzian_operation, plot_raw_data, process_raw_dataset
-from parameters import Parameters
+from shaped_pulse_spectroscopy.lorentzian import (
+    install_lorentzian_operation,
+    plot_raw_data,
+    process_raw_dataset,
+)
+from shaped_pulse_spectroscopy.parameters import Parameters
 
 description = """
         ECHO LORENTZIAN - FREQUENCY VS AMPLITUDE

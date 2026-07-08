@@ -13,11 +13,13 @@ import xarray as xr
 
 
 REPOSITORY_ROOT = Path(__file__).parent.parent
-PROJECT_ROOT = REPOSITORY_ROOT / "Projects" / "echo-lorentizan"
+PROJECT_ROOT = REPOSITORY_ROOT / "Projects" / "shaped_pulse_spectroscopy"
+PACKAGE_ROOT = PROJECT_ROOT / "shaped_pulse_spectroscopy"
+EXPERIMENTS_ROOT = PROJECT_ROOT / "experiments"
 
 
 def load_project_module(name: str):
-    spec = importlib.util.spec_from_file_location(name, PROJECT_ROOT / f"{name}.py")
+    spec = importlib.util.spec_from_file_location(name, PACKAGE_ROOT / f"{name}.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -40,7 +42,7 @@ def make_plot_qubit(name="q7", t1=None, t2_ramsey=None):
     )
 
 
-class EchoLorentizanTests(unittest.TestCase):
+class ShapedPulseSpectroscopyTests(unittest.TestCase):
     def test_lorentzian_envelope_is_centered_and_user_length(self):
         waveform = lorentzian.lorentzian_envelope(
             length_ns=9,
@@ -246,10 +248,14 @@ class EchoLorentizanTests(unittest.TestCase):
         self.assertTrue(np.isnan(float(processed.gaussian_fwhm_hz.values[0, 0])))
 
     def test_sequence_installs_waveform_pulse_and_sweeps_detuning_and_amplitude(self):
-        source = (PROJECT_ROOT / "echo_lorentzian_sweep.py").read_text()
-        v2_source = (PROJECT_ROOT / "echo_lorentzian_v2.py").read_text()
-        amplitude_source = (PROJECT_ROOT / "echo_lorentzian_amplitude_v2.py").read_text()
-        fixed_source = (PROJECT_ROOT / "echo_lorentzian_fixed_amplitude_v2.py").read_text()
+        source = (EXPERIMENTS_ROOT / "echo_lorentzian_sweep.py").read_text()
+        v2_source = (EXPERIMENTS_ROOT / "echo_lorentzian_v2.py").read_text()
+        amplitude_source = (
+            EXPERIMENTS_ROOT / "echo_lorentzian_amplitude_v2.py"
+        ).read_text()
+        fixed_source = (
+            EXPERIMENTS_ROOT / "echo_lorentzian_fixed_amplitude_v2.py"
+        ).read_text()
 
         self.assertIn("install_lorentzian_operation(node)", source)
         self.assertIn("class EchoLorentzian(BaseCalibration", v2_source)
@@ -269,7 +275,9 @@ class EchoLorentizanTests(unittest.TestCase):
         self.assertIn('"amp_prefactor": xr.DataArray(', source)
 
     def test_fixed_amplitude_set_loops_over_echo_modes_and_rabi_amplitudes(self):
-        source = (PROJECT_ROOT / "echo_lorentzian_fixed_amplitude_set.py").read_text()
+        source = (
+            EXPERIMENTS_ROOT / "echo_lorentzian_fixed_amplitude_set.py"
+        ).read_text()
 
         self.assertIn("EchoLorentzianFixedAmplitude", source)
         self.assertIn("default=[2.32, 4.64, 7.58, 11.45]", source)
@@ -288,7 +296,7 @@ class EchoLorentizanTests(unittest.TestCase):
         self.assertIn("1 / (2 * np.pi * t2_seconds)", source)
 
     def test_cutoff_sweep_uses_ten_log_points_and_summarizes_fit_signal(self):
-        source = (PROJECT_ROOT / "echo_lorentzian_cutoff_sweep.py").read_text()
+        source = (EXPERIMENTS_ROOT / "echo_lorentzian_cutoff_sweep.py").read_text()
 
         self.assertIn("np.geomspace(", source)
         self.assertIn("0.99", source)

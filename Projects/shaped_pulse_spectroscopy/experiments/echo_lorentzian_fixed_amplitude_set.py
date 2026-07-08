@@ -8,7 +8,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = PROJECT_ROOT.parent.parent
 for path in (PROJECT_ROOT, REPOSITORY_ROOT):
     if str(path) not in sys.path:
@@ -18,9 +18,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from calibrations_v2.base import CalibrationOptions
-from echo_lorentzian_fixed_amplitude_v2 import EchoLorentzianFixedAmplitude
-from lorentzian import _t2_seconds
-from parameters import Parameters
+from experiments.echo_lorentzian_fixed_amplitude_v2 import EchoLorentzianFixedAmplitude
+from shaped_pulse_spectroscopy.lorentzian import _t2_seconds
+from shaped_pulse_spectroscopy.parameters import Parameters
 from quam_config import create_machine
 
 

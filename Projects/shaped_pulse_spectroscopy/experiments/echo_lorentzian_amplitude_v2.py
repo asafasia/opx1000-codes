@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = PROJECT_ROOT.parent.parent
 for path in (PROJECT_ROOT, REPOSITORY_ROOT):
     if str(path) not in sys.path:
@@ -19,12 +19,12 @@ from qm.qua import *
 from qualang_tools.loops import from_array
 
 from calibrations_v2.base import BaseCalibration, CalibrationOptions
-from lorentzian import (
+from shaped_pulse_spectroscopy.lorentzian import (
     install_lorentzian_operation,
     plot_amplitude_sweep,
     process_amplitude_dataset,
 )
-from parameters import Parameters
+from shaped_pulse_spectroscopy.parameters import Parameters
 from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
 

@@ -1,8 +1,12 @@
-# Echo Lorentizan
+# Shaped Pulse Spectroscopy
 
 This project is a frequency-versus-amplitude 2D sweep that mirrors the power
 Rabi chevron, but the qubit drive operation is a user-length Lorentzian-like
 waveform instead of a square, cosine, or DRAG pulse.
+
+Reusable waveform, analysis, and plotting helpers live in
+`shaped_pulse_spectroscopy/`. Runnable lab entrypoints live in `experiments/`.
+The PC-only QuTiP simulator lives in `simulation/qutip/`.
 
 The standard Lorentzian pulse envelope is
 
@@ -72,25 +76,25 @@ FWHM edges as paired markers on the heatmap.
 Run the sweep with:
 
 ```powershell
-python Projects\echo-lorentizan\echo_lorentzian_sweep.py
+python Projects\shaped_pulse_spectroscopy\experiments\echo_lorentzian_sweep.py
 ```
 
-The class-based v2 version lives in the same project folder and can be run with:
+The class-based v2 version can be run with:
 
 ```powershell
-python Projects\echo-lorentizan\echo_lorentzian_v2.py
+python Projects\shaped_pulse_spectroscopy\experiments\echo_lorentzian_v2.py
 ```
 
 For fixed-amplitude detuning spectroscopy, run one selected Rabi amplitude with:
 
 ```powershell
-python Projects\echo-lorentizan\echo_lorentzian_fixed_amplitude_v2.py
+python Projects\shaped_pulse_spectroscopy\experiments\echo_lorentzian_fixed_amplitude_v2.py
 ```
 
 or loop over the plotted amplitudes for both no-echo and echo with:
 
 ```powershell
-python Projects\echo-lorentizan\echo_lorentzian_fixed_amplitude_set.py
+python Projects\shaped_pulse_spectroscopy\experiments\echo_lorentzian_fixed_amplitude_set.py
 ```
 
 The set runner defaults to `cutoff=0.005`, `20 us` pulse/template length,
@@ -103,13 +107,13 @@ The minimalist amplitude-only version keeps detuning at zero and sweeps only
 the Lorentzian amplitude:
 
 ```powershell
-python Projects\echo-lorentizan\echo_lorentzian_amplitude_v2.py
+python Projects\shaped_pulse_spectroscopy\experiments\echo_lorentzian_amplitude_v2.py
 ```
 
 To sweep the root-Lorentzian cutoff itself, run:
 
 ```powershell
-python Projects\echo-lorentizan\echo_lorentzian_cutoff_sweep.py
+python Projects\shaped_pulse_spectroscopy\experiments\echo_lorentzian_cutoff_sweep.py
 ```
 
 This runs ten log-spaced cutoff values from `1e-4` to `0.99`. For each cutoff it

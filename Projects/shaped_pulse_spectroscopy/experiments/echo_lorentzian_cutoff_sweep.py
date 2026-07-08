@@ -18,7 +18,7 @@ QM_LOGGER_NAMES = ("qm", "qm.grpc", "qm.jobs", "qm.api")
 for _logger_name in QM_LOGGER_NAMES:
     logging.getLogger(_logger_name).setLevel(logging.WARNING)
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = PROJECT_ROOT.parent.parent
 for path in (PROJECT_ROOT, REPOSITORY_ROOT):
     if str(path) not in sys.path:
@@ -29,9 +29,9 @@ import numpy as np
 import xarray as xr
 
 from calibrations_v2.base import CalibrationOptions
-from echo_lorentzian_v2 import EchoLorentzian
-from lorentzian import _t2_seconds, plot_raw_data
-from parameters import Parameters
+from experiments.echo_lorentzian_v2 import EchoLorentzian
+from shaped_pulse_spectroscopy.lorentzian import _t2_seconds, plot_raw_data
+from shaped_pulse_spectroscopy.parameters import Parameters
 from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
 from utils.rabi_amplitude import amplitude_to_rabi_frequency_hz
