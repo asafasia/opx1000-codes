@@ -70,7 +70,8 @@ def select_full_scale_power_dbm(power_in_dbm: float, max_amplitude: float) -> in
     compatible_powers = [
         int(full_scale_power)
         for full_scale_power in allowed_full_scale_powers
-        if calculate_voltage_scaling_factor(full_scale_power, power_in_dbm) <= max_amplitude
+        if calculate_voltage_scaling_factor(full_scale_power, power_in_dbm)
+        <= max_amplitude
     ]
     if not compatible_powers:
         raise ValueError(
@@ -92,6 +93,7 @@ def select_full_scale_power_dbm(power_in_dbm: float, max_amplitude: float) -> in
 # %% {Update_state}
 # %% {Save_results}
 
+
 class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
     """v2 class migration for ``calibrations/02b_resonator_spectroscopy_vs_power.py``."""
 
@@ -108,6 +110,7 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
             machine=machine,
             **kwargs,
         )
+
     def create_qua_program(self):
         node = self
         """Create the sweep axes and generate the QUA program from the pulse sequence and the node parameters."""
@@ -118,12 +121,16 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
         num_qubits = len(qubits)
         # Update the readout power to match the desired range, this change will be reverted at the end of the node.
         node.namespace["tracked_resonators"] = []
-        node.namespace["full_scale_power_dbm"] = full_scale_power_dbm = select_full_scale_power_dbm(
-            node.parameters.max_power_dbm,
-            node.parameters.max_amp,
+        node.namespace["full_scale_power_dbm"] = full_scale_power_dbm = (
+            select_full_scale_power_dbm(
+                node.parameters.max_power_dbm,
+                node.parameters.max_amp,
+            )
         )
         for i, qubit in enumerate(qubits):
-            with tracked_updates(qubit.resonator, auto_revert=False, dont_assign_to_none=True) as resonator:
+            with tracked_updates(
+                qubit.resonator, auto_revert=False, dont_assign_to_none=True
+            ) as resonator:
                 resonator.set_output_power(
                     power_in_dbm=node.parameters.max_power_dbm,
                     full_scale_power_dbm=full_scale_power_dbm,
@@ -134,7 +141,9 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
         # Extract the sweep parameters and axes from the node parameters
         n_avg = node.parameters.num_shots
         # The readout amplitude sweep (as a pre-factor of the readout amplitude) - must be within [-2; 2)
-        amp_min = calculate_voltage_scaling_factor(node.parameters.max_power_dbm, node.parameters.min_power_dbm)
+        amp_min = calculate_voltage_scaling_factor(
+            node.parameters.max_power_dbm, node.parameters.min_power_dbm
+        )
         amps = np.geomspace(amp_min, 1, node.parameters.num_power_points)
         power_dbm = np.linspace(
             node.parameters.min_power_dbm,
@@ -149,8 +158,12 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
         # Register the sweep axes to be added to the dataset when fetching data
         node.namespace["sweep_axes"] = {
             "qubit": xr.DataArray(qubits.get_names()),
-            "detuning": xr.DataArray(dfs, attrs={"long_name": "readout frequency", "units": "Hz"}),
-            "power": xr.DataArray(power_dbm, attrs={"long_name": "readout power", "units": "dBm"}),
+            "detuning": xr.DataArray(
+                dfs, attrs={"long_name": "readout frequency", "units": "Hz"}
+            ),
+            "power": xr.DataArray(
+                power_dbm, attrs={"long_name": "readout power", "units": "dBm"}
+            ),
         }
 
         # The QUA program stored in the node namespace to be transfer to the simulation and execution run_actions
@@ -169,7 +182,9 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
 
                 with for_(n, 0, n < n_avg, n + 1):  # QUA for_ loop for averaging
                     save(n, n_st)
-                    with for_(*from_array(df, dfs)):  # QUA for_ loop for sweeping the frequency
+                    with for_(
+                        *from_array(df, dfs)
+                    ):  # QUA for_ loop for sweeping the frequency
                         for i, qubit in multiplexed_qubits.items():
                             rr = qubit.resonator
                             # Update the resonator frequencies for all resonators
@@ -178,7 +193,9 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
                             # with for_(*from_array(a, amps)):
                             with for_each_(a, amps):
                                 # readout the resonator
-                                rr.measure("readout", qua_vars=(I[i], Q[i]), amplitude_scale=a)
+                                rr.measure(
+                                    "readout", qua_vars=(I[i], Q[i]), amplitude_scale=a
+                                )
                                 # wait for the resonator to deplete
                                 rr.wait(rr.depletion_time * u.ns)
                                 # save data
@@ -188,11 +205,15 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
             with stream_processing():
                 n_st.save("n")
                 for i in range(num_qubits):
-                    I_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(f"I{i + 1}")
-                    Q_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(f"Q{i + 1}")
-
+                    I_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(
+                        f"I{i + 1}"
+                    )
+                    Q_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(
+                        f"Q{i + 1}"
+                    )
 
         return node.namespace.get("qua_program")
+
     def simulate_qua_program(self):
         node = self
         """Connect to the QOP and simulate the QUA program"""
@@ -201,10 +222,15 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
         # Get the config from the machine
         config = node.machine.generate_config()
         # Simulate the QUA program, generate the waveform report and plot the simulated samples
-        samples, fig, wf_report = simulate_and_plot(qmm, config, node.namespace["qua_program"], node.parameters)
+        samples, fig, wf_report = simulate_and_plot(
+            qmm, config, node.namespace["qua_program"], node.parameters
+        )
         # Store the figure, waveform report and simulated samples
-        node.results["simulation"] = {"figure": fig, "wf_report": wf_report, "samples": samples}
-
+        node.results["simulation"] = {
+            "figure": fig,
+            "wf_report": wf_report,
+            "samples": samples,
+        }
 
     def execute_qua_program(self):
         node = self
@@ -230,7 +256,6 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
         # Register the raw dataset
         node.results["ds_raw"] = dataset
 
-
     def save_raw_results(self):
         node = self
         """Save the acquired vectors and a snapshot of the selected profile."""
@@ -243,7 +268,6 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
         node.namespace["calibration_run_directory"] = output_directory
         node.log(f"Raw calibration results saved to {output_directory}")
 
-
     def load_data(self):
         node = self
         """Load a previously acquired dataset."""
@@ -253,7 +277,6 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
         node.namespace["qubits"] = get_qubits(node)
-
 
     def analyse_data(self):
         node = self
@@ -269,7 +292,6 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
             qubit_name: ("successful" if fit_result["success"] else "failed")
             for qubit_name, fit_result in node.results["fit_results"].items()
         }
-
 
     def plot_data(self):
         node = self
@@ -289,7 +311,6 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
                 node.results["figures"],
             )
             node.log(f"Calibration figures saved to {figures_directory}")
-
 
     def update_state(self):
         node = self
@@ -315,10 +336,12 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
                     max_amplitude=node.parameters.max_amp,
                 )
                 # Update the readout frequency for the given flux point
-                q.resonator.f_01 += node.results["fit_results"][q.name]["frequency_shift"]
-                q.resonator.RF_frequency += node.results["fit_results"][q.name]["frequency_shift"]
-
-
+                q.resonator.f_01 += node.results["fit_results"][q.name][
+                    "frequency_shift"
+                ]
+                q.resonator.RF_frequency += node.results["fit_results"][q.name][
+                    "frequency_shift"
+                ]
 
 
 if __name__ == "__main__":
@@ -329,6 +352,6 @@ if __name__ == "__main__":
     calibration = ResonatorSpectroscopyVsPower(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

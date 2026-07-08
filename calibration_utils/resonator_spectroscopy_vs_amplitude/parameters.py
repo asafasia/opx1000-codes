@@ -1,6 +1,9 @@
 from qualibrate import NodeParameters
 from qualibrate.core.parameters import RunnableParameters
-from qualibration_libs.parameters import QubitsExperimentNodeParameters, CommonNodeParameters
+from qualibration_libs.parameters import (
+    QubitsExperimentNodeParameters,
+    CommonNodeParameters,
+)
 
 
 class NodeSpecificParameters(RunnableParameters):
@@ -10,13 +13,13 @@ class NodeSpecificParameters(RunnableParameters):
     """Span of frequencies to sweep in MHz. Default is 15 MHz."""
     frequency_step_in_mhz: float = 0.1
     """Step size for frequency sweep in MHz. Default is 0.1 MHz."""
-    max_power_dbm: int = -25
-    """Maximum power level in dBm. Default is -25 dBm."""
+    max_power_dbm: int = -5
+    """Maximum power level in dBm. Default is -15 dBm."""
     min_power_dbm: int = -50
     """Minimum power level in dBm. Default is -50 dBm."""
     num_power_points: int = 100
     """Number of points of the readout power axis. Default is 100."""
-    max_amp: float = 0.1
+    max_amp: float = 0.8
     """Maximum readout amplitude for the experiment. Default is 0.1."""
     derivative_crossing_threshold_in_hz_per_dbm: int = -50_000
     """Threshold for derivative crossing in Hz/dBm. Default is -50000 Hz/dBm."""

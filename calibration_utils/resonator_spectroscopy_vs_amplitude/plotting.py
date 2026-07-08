@@ -40,7 +40,20 @@ def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.D
 
     grid.fig.suptitle("Resonator spectroscopy vs power")
     grid.fig.set_size_inches(*FIGURE_SIZE)
-    grid.fig.tight_layout()
+    handles_by_label = {}
+    for ax in grid.fig.axes:
+        handles, labels = ax.get_legend_handles_labels()
+        handles_by_label.update(
+            (label, handle) for handle, label in zip(handles, labels) if label
+        )
+    if handles_by_label:
+        grid.fig.legend(
+            handles_by_label.values(),
+            handles_by_label.keys(),
+            loc="lower center",
+            ncol=min(3, len(handles_by_label)),
+        )
+    grid.fig.tight_layout(rect=(0, 0.08, 1, 0.96) if handles_by_label else None)
     return grid.fig
 
 
@@ -72,9 +85,14 @@ def plot_individual_raw_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str,
     )
     ax.set_ylabel("Power (dBm)")
     ax2 = ax.twiny()
-    ds.assign_coords(detuning_MHz=ds.detuning / u.MHz).loc[qubit].IQ_abs_norm.plot(
-        ax=ax2, add_colorbar=False, x="detuning_MHz", y="power", robust=True
+    heatmap = (
+        ds.assign_coords(detuning_MHz=ds.detuning / u.MHz)
+        .loc[qubit]
+        .IQ_abs_norm.plot(
+            ax=ax2, add_colorbar=True, x="detuning_MHz", y="power", robust=True
+        )
     )
+    heatmap.colorbar.set_label("Normalized |IQ|")
     ax2.set_xlabel("Detuning [MHz]")
     # Plot the resonance frequency for each amplitude
     ax2.plot(
@@ -82,6 +100,7 @@ def plot_individual_raw_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str,
         fit.power,
         color="orange",
         linewidth=0.5,
+        label="Fitted resonance",
     )
     # Plot where the optimum readout power was found
     if fit.success:
@@ -89,11 +108,13 @@ def plot_individual_raw_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str,
             y=fit.optimal_power,
             color="g",
             linestyle="-",
+            label="Optimal power",
         )
         ax2.axvline(
             x=fit.freq_shift * 1e-6,
             color="blue",
             linestyle="--",
+            label="Optimal frequency shift",
         )
     # ax3 = ax.twinx()
     # ds.assign_coords(readout_amp=ds.detuning / u.MHz).loc[qubit].IQ_abs_norm.plot(

@@ -578,7 +578,7 @@ if __name__ == "__main__":
     options = CalibrationOptions()
     # options.ai_review = True
 
-    machine = create_machine(qubit="q1")
+    machine = create_machine(qubit="q3")
 
     calibration = IqBlobs(
         parameters=parameters,

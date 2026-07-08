@@ -429,14 +429,14 @@
       "x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.1295355187404484,
+        "amplitude": 0.3507472663057987,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
       "EF_x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.04515900089612916,
+        "amplitude": 0.03904628897405954,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -482,7 +482,7 @@
       "x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.030025224176432816,
+        "amplitude": 0.08651898852906073,
         "length_ns": 40,
         "axis_angle_rad": 0
       },

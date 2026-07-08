@@ -45,7 +45,7 @@
             "6": {
               "band": 1,
               "lo_frequency_hz": 4200000000,
-              "full_scale_power_dbm": 0,
+              "full_scale_power_dbm": -10,
               "sampling_rate_hz": 1000000000
             },
             "7": {
