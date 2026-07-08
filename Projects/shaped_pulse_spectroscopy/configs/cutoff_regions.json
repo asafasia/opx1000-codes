@@ -1,0 +1,61 @@
+{
+  "high_cutoff": {
+    "description": "Effective square-pulse-like regime; expect broad linewidths.",
+    "cutoffs": [0.1, 0.2, 0.5, 0.99],
+    "defaults": {
+      "num_shots": 60,
+      "pulse_length_ns": 20000,
+      "template_length_ns": 20000,
+      "peak_amplitude": 0.2,
+      "min_amp_factor": 0.0,
+      "max_amp_factor": 1.0,
+      "amp_factor_step": 0.04,
+      "echo": true
+    },
+    "domains": [
+      {"name": "domain_100mhz", "span_mhz": 100.0, "step_mhz": 0.2},
+      {"name": "domain_10mhz", "span_mhz": 10.0, "step_mhz": 0.02},
+      {"name": "domain_1mhz", "span_mhz": 1.0, "step_mhz": 0.002}
+    ]
+  },
+  "medium_cutoff": {
+    "description": "Mixed regime; broad and narrow linewidths are both possible.",
+    "cutoffs": [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1],
+    "defaults": {
+      "num_shots": 60,
+      "pulse_length_ns": 20000,
+      "template_length_ns": 20000,
+      "peak_amplitude": 0.2,
+      "min_amp_factor": 0.0,
+      "max_amp_factor": 1.0,
+      "amp_factor_step": 0.04,
+      "echo": true
+    },
+    "domains": [
+      {"name": "domain_100mhz", "span_mhz": 100.0, "step_mhz": 0.2},
+      {"name": "domain_10mhz", "span_mhz": 10.0, "step_mhz": 0.02},
+      {"name": "domain_1mhz", "span_mhz": 1.0, "step_mhz": 0.002},
+      {"name": "domain_0p1mhz", "span_mhz": 0.1, "step_mhz": 0.0002}
+    ]
+  },
+  "small_cutoff": {
+    "description": "Very small cutoff regime; expect potentially narrow features.",
+    "cutoffs": [0.0005, 0.0007, 0.001],
+    "defaults": {
+      "num_shots": 60,
+      "pulse_length_ns": 20000,
+      "template_length_ns": 20000,
+      "peak_amplitude": 0.2,
+      "min_amp_factor": 0.0,
+      "max_amp_factor": 1.0,
+      "amp_factor_step": 0.04,
+      "echo": true
+    },
+    "domains": [
+      {"name": "domain_10mhz", "span_mhz": 10.0, "step_mhz": 0.02},
+      {"name": "domain_1mhz", "span_mhz": 1.0, "step_mhz": 0.002},
+      {"name": "domain_0p1mhz", "span_mhz": 0.1, "step_mhz": 0.0002},
+      {"name": "domain_0p01mhz", "span_mhz": 0.01, "step_mhz": 0.00002}
+    ]
+  }
+}

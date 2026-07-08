@@ -16,6 +16,7 @@ REPOSITORY_ROOT = Path(__file__).parent.parent
 PROJECT_ROOT = REPOSITORY_ROOT / "Projects" / "shaped_pulse_spectroscopy"
 PACKAGE_ROOT = PROJECT_ROOT / "shaped_pulse_spectroscopy"
 EXPERIMENTS_ROOT = PROJECT_ROOT / "experiments"
+SCRIPTS_ROOT = PROJECT_ROOT / "scripts"
 
 
 def load_project_module(name: str):
@@ -248,16 +249,14 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertTrue(np.isnan(float(processed.gaussian_fwhm_hz.values[0, 0])))
 
     def test_sequence_installs_waveform_pulse_and_sweeps_detuning_and_amplitude(self):
-        source = (EXPERIMENTS_ROOT / "echo_lorentzian_sweep.py").read_text()
-        v2_source = (EXPERIMENTS_ROOT / "echo_lorentzian_v2.py").read_text()
+        v2_source = (EXPERIMENTS_ROOT / "detuning_amplitude_sweep.py").read_text()
         amplitude_source = (
-            EXPERIMENTS_ROOT / "echo_lorentzian_amplitude_v2.py"
+            EXPERIMENTS_ROOT / "amplitude_sweep.py"
         ).read_text()
         fixed_source = (
-            EXPERIMENTS_ROOT / "echo_lorentzian_fixed_amplitude_v2.py"
+            EXPERIMENTS_ROOT / "fixed_amplitude_spectroscopy.py"
         ).read_text()
 
-        self.assertIn("install_lorentzian_operation(node)", source)
         self.assertIn("class EchoLorentzian(BaseCalibration", v2_source)
         self.assertIn("install_lorentzian_operation(self)", v2_source)
         self.assertIn("class EchoLorentzianAmplitude(BaseCalibration", amplitude_source)
@@ -266,17 +265,57 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertIn("rabi_frequency_hz_to_amplitude", fixed_source)
         self.assertIn("with for_(*from_array(a, amps)):", amplitude_source)
         self.assertNotIn("with for_(*from_array(df, dfs)):", amplitude_source)
-        self.assertIn("with for_(*from_array(df, dfs)):", source)
-        self.assertIn("with for_(*from_array(a, amps)):", source)
-        self.assertIn("duration=play_duration", source)
+        self.assertIn("with for_(*from_array(df, dfs)):", v2_source)
+        self.assertIn("with for_(*from_array(a, amps)):", v2_source)
         self.assertIn("duration=play_duration", v2_source)
         self.assertIn("duration=play_duration", amplitude_source)
-        self.assertIn('"detuning": xr.DataArray(', source)
-        self.assertIn('"amp_prefactor": xr.DataArray(', source)
+        self.assertIn('"detuning": xr.DataArray(', v2_source)
+        self.assertIn('"amp_prefactor": xr.DataArray(', v2_source)
+
+    def test_clean_script_wrappers_dispatch_to_experiment_modules(self):
+        expected_modules = {
+            "run_2d_sweep.py": "experiments.detuning_amplitude_sweep",
+            "run_amplitude_sweep.py": "experiments.amplitude_sweep",
+            "run_fixed_amplitude.py": "experiments.fixed_amplitude_spectroscopy",
+            "run_fixed_amplitude_set.py": "experiments.fixed_amplitude_batch",
+            "run_cutoff_sweep.py": "experiments.cutoff_optimization",
+        }
+
+        for script_name, module_name in expected_modules.items():
+            source = (SCRIPTS_ROOT / script_name).read_text()
+            self.assertIn("runpy.run_module", source)
+            self.assertIn(module_name, source)
+
+    def test_cutoff_campaign_scripts_define_regions_and_domains(self):
+        config_path = PROJECT_ROOT / "configs" / "cutoff_regions.json"
+        config_text = config_path.read_text()
+        scripts_root = SCRIPTS_ROOT / "cutoff_scans"
+
+        for region_name in ("high_cutoff", "medium_cutoff", "small_cutoff"):
+            self.assertIn(region_name, config_text)
+
+        self.assertIn("domain_100mhz", config_text)
+        self.assertIn("domain_0p01mhz", config_text)
+        self.assertIn("--execute", (scripts_root / "common.py").read_text())
+        self.assertIn(
+            "run_region_from_args", (scripts_root / "run_region.py").read_text()
+        )
+        self.assertIn(
+            "run_domain_from_args", (scripts_root / "run_domain.py").read_text()
+        )
+        self.assertIn(
+            "high_cutoff", (scripts_root / "run_high_cutoff.py").read_text()
+        )
+        self.assertIn(
+            "medium_cutoff", (scripts_root / "run_medium_cutoff.py").read_text()
+        )
+        self.assertIn(
+            "small_cutoff", (scripts_root / "run_small_cutoff.py").read_text()
+        )
 
     def test_fixed_amplitude_set_loops_over_echo_modes_and_rabi_amplitudes(self):
         source = (
-            EXPERIMENTS_ROOT / "echo_lorentzian_fixed_amplitude_set.py"
+            EXPERIMENTS_ROOT / "fixed_amplitude_batch.py"
         ).read_text()
 
         self.assertIn("EchoLorentzianFixedAmplitude", source)
@@ -296,7 +335,7 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertIn("1 / (2 * np.pi * t2_seconds)", source)
 
     def test_cutoff_sweep_uses_ten_log_points_and_summarizes_fit_signal(self):
-        source = (EXPERIMENTS_ROOT / "echo_lorentzian_cutoff_sweep.py").read_text()
+        source = (EXPERIMENTS_ROOT / "cutoff_optimization.py").read_text()
 
         self.assertIn("np.geomspace(", source)
         self.assertIn("0.99", source)

@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from calibrations_v2.base import CalibrationOptions
-from experiments.echo_lorentzian_fixed_amplitude_v2 import EchoLorentzianFixedAmplitude
+from experiments.fixed_amplitude_spectroscopy import EchoLorentzianFixedAmplitude
 from shaped_pulse_spectroscopy.lorentzian import _t2_seconds
 from shaped_pulse_spectroscopy.parameters import Parameters
 from quam_config import create_machine

@@ -29,7 +29,7 @@ import numpy as np
 import xarray as xr
 
 from calibrations_v2.base import CalibrationOptions
-from experiments.echo_lorentzian_v2 import EchoLorentzian
+from experiments.detuning_amplitude_sweep import EchoLorentzian
 from shaped_pulse_spectroscopy.lorentzian import _t2_seconds, plot_raw_data
 from shaped_pulse_spectroscopy.parameters import Parameters
 from quam_config import Quam, create_machine
@@ -53,6 +53,7 @@ def run_cutoff_sweep(
     qubit: str | None = None,
     cutoffs: Iterable[float] = DEFAULT_CUTOFFS,
     output_root: Path = REPOSITORY_ROOT / "data" / "echo_lorentzian_cutoff_sweep",
+    output_dir: Path | None = None,
     options: CalibrationOptions | None = None,
     auto_connect: bool = True,
 ) -> dict[str, Any]:
@@ -60,7 +61,10 @@ def run_cutoff_sweep(
     base_parameters = base_parameters or Parameters()
     base_parameters.pulse_shape = "root_lorentzian"
     cutoffs = list(cutoffs)
-    output_dir = _new_output_dir(output_root)
+    if output_dir is None:
+        output_dir = _new_output_dir(output_root)
+    else:
+        output_dir.mkdir(parents=True, exist_ok=False)
     full_records: list[dict[str, Any]] = []
     best_records: list[dict[str, Any]] = []
     run_summaries: list[dict[str, Any]] = []

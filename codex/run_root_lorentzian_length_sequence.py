@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROJECT_ROOT = REPO_ROOT / "Projects" / "echo-lorentizan"
+PROJECT_ROOT = REPO_ROOT / "Projects" / "shaped_pulse_spectroscopy"
 for path in (PROJECT_ROOT, REPO_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
@@ -80,7 +80,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def make_parameters(args: argparse.Namespace, length_us: float):
-    from parameters import Parameters
+    from shaped_pulse_spectroscopy.parameters import Parameters
 
     length_ns = int(round(length_us * 1000))
     template_ns = int(round(min(length_us, args.max_template_length_us) * 1000))
@@ -105,7 +105,7 @@ def make_parameters(args: argparse.Namespace, length_us: float):
 
 def run_one(args: argparse.Namespace, length_us: float) -> Path:
     from calibrations_v2.base import CalibrationOptions
-    from echo_lorentzian_v2 import EchoLorentzian
+    from experiments.detuning_amplitude_sweep import EchoLorentzian
     from quam_config import create_machine
 
     parameters = make_parameters(args, length_us)

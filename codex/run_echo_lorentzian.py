@@ -12,14 +12,14 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROJECT_ROOT = REPO_ROOT / "Projects" / "echo-lorentizan"
+PROJECT_ROOT = REPO_ROOT / "Projects" / "shaped_pulse_spectroscopy"
 for path in (PROJECT_ROOT, REPO_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
 from calibrations_v2.base import CalibrationOptions
-from echo_lorentzian_v2 import EchoLorentzian
-from parameters import Parameters
+from experiments.detuning_amplitude_sweep import EchoLorentzian
+from shaped_pulse_spectroscopy.parameters import Parameters
 from quam_config import create_machine
 
 
