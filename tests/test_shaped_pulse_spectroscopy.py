@@ -222,6 +222,72 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
             np.all(processed.gaussian_fit_r_squared.sel(qubit="q7").values > 0.99)
         )
 
+    def test_analysis_fits_positive_peak_and_negative_dip_separately(self):
+        detuning = np.linspace(-4e6, 4e6, 161)
+        broad_sigma = 1.2e6
+        narrow_sigma = 0.25e6
+        state = (
+            0.35
+            + 0.35 * np.exp(-0.5 * ((detuning - 1.5e6) / broad_sigma) ** 2)
+            - 0.5 * np.exp(-0.5 * (detuning / narrow_sigma) ** 2)
+        )
+        ds = xr.Dataset(
+            {
+                "state": (
+                    ("qubit", "detuning", "amp_prefactor"),
+                    state[np.newaxis, :, np.newaxis],
+                )
+            },
+            coords={
+                "qubit": ["q7"],
+                "detuning": detuning,
+                "amp_prefactor": [1.0],
+            },
+        )
+
+        processed = lorentzian.add_gaussian_fwhm_analysis(
+            ds,
+            use_state_discrimination=True,
+        )
+
+        positive_fwhm = float(processed.gaussian_positive_fwhm_hz.values[0, 0])
+        negative_fwhm = float(processed.gaussian_negative_fwhm_hz.values[0, 0])
+        selected_fwhm = float(processed.gaussian_fwhm_hz.values[0, 0])
+        self.assertGreater(float(processed.gaussian_positive_fit_amplitude.values[0, 0]), 0)
+        self.assertLess(float(processed.gaussian_negative_fit_amplitude.values[0, 0]), 0)
+        self.assertLess(negative_fwhm, positive_fwhm)
+        self.assertAlmostEqual(selected_fwhm, negative_fwhm)
+
+    def test_gaussian_fwhm_scans_initial_widths_for_best_r_squared(self):
+        detuning = np.linspace(-4e6, 4e6, 161)
+        sigma = 0.35e6
+        state = 0.2 + 0.35 * np.exp(-0.5 * (detuning / sigma) ** 2)
+        ds = xr.Dataset(
+            {
+                "state": (
+                    ("qubit", "detuning", "amp_prefactor"),
+                    state[np.newaxis, :, np.newaxis],
+                )
+            },
+            coords={
+                "qubit": ["q7"],
+                "detuning": detuning,
+                "amp_prefactor": [1.0],
+            },
+        )
+
+        processed = lorentzian.add_gaussian_fwhm_analysis(
+            ds,
+            use_state_discrimination=True,
+        )
+
+        center = float(processed.gaussian_positive_center_hz.values[0, 0])
+        width = float(processed.gaussian_positive_fwhm_hz.values[0, 0])
+        score = float(processed.gaussian_positive_fit_r_squared.values[0, 0])
+        self.assertAlmostEqual(center, 0.0, delta=0.2e6)
+        self.assertAlmostEqual(width, 2 * np.sqrt(2 * np.log(2)) * sigma, delta=0.1e6)
+        self.assertGreater(score, 0.99)
+
     def test_gaussian_fwhm_rejects_high_detuning_center(self):
         detuning = np.linspace(-4e6, 4e6, 81)
         sigma = 0.5e6
@@ -248,6 +314,40 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertTrue(np.isnan(float(processed.gaussian_center_hz.values[0, 0])))
         self.assertTrue(np.isnan(float(processed.gaussian_fwhm_hz.values[0, 0])))
 
+    def test_gaussian_fwhm_rejects_low_snr_off_resonance_peak(self):
+        """A weak side lobe must not be reported as a peak beside a real dip."""
+        detuning = np.linspace(-4e6, 4e6, 161)
+        rng = np.random.default_rng(7)
+        state = (
+            0.5
+            - 0.45 * np.exp(-0.5 * (detuning / 0.35e6) ** 2)
+            + 0.03 * np.exp(-0.5 * ((detuning - 1.8e6) / 0.08e6) ** 2)
+            + rng.normal(0, 0.015, size=detuning.size)
+        )
+        ds = xr.Dataset(
+            {
+                "state": (
+                    ("qubit", "detuning", "amp_prefactor"),
+                    state[np.newaxis, :, np.newaxis],
+                )
+            },
+            coords={
+                "qubit": ["q7"],
+                "detuning": detuning,
+                "amp_prefactor": [1.0],
+            },
+        )
+
+        processed = lorentzian.add_gaussian_fwhm_analysis(
+            ds,
+            use_state_discrimination=True,
+        )
+
+        self.assertTrue(
+            np.isnan(float(processed.gaussian_positive_fwhm_hz.values[0, 0]))
+        )
+        self.assertLess(float(processed.gaussian_negative_fit_amplitude.values[0, 0]), 0)
+
     def test_sequence_installs_waveform_pulse_and_sweeps_detuning_and_amplitude(self):
         v2_source = (EXPERIMENTS_ROOT / "detuning_amplitude_sweep.py").read_text()
         amplitude_source = (
@@ -265,7 +365,8 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertIn("rabi_frequency_hz_to_amplitude", fixed_source)
         self.assertIn("with for_(*from_array(a, amps)):", amplitude_source)
         self.assertNotIn("with for_(*from_array(df, dfs)):", amplitude_source)
-        self.assertIn("with for_(*from_array(df, dfs)):", v2_source)
+        self.assertIn("for_each_(df, dfs.tolist())", v2_source)
+        self.assertIn("else for_(*from_array(df, dfs))", v2_source)
         self.assertIn("with for_(*from_array(a, amps)):", v2_source)
         self.assertIn("duration=play_duration", v2_source)
         self.assertIn("duration=play_duration", amplitude_source)
@@ -295,7 +396,9 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
             self.assertIn(region_name, config_text)
 
         self.assertIn("domain_100mhz", config_text)
-        self.assertIn("domain_0p01mhz", config_text)
+        self.assertIn("domain_1mhz", config_text)
+        self.assertIn('"points": 100', config_text)
+        self.assertIn('"points": 200', config_text)
         self.assertIn("--execute", (scripts_root / "common.py").read_text())
         self.assertIn(
             "run_region_from_args", (scripts_root / "run_region.py").read_text()
@@ -368,9 +471,10 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertIn("t2_fwhm_limit_hz", source)
         self.assertIn("fwhm_t2_units", source)
         self.assertIn("1 / (np.pi * float(t2_s))", source)
-        self.assertIn("rabi_frequency_mhz", source)
+        self.assertIn("full_amp_v", source)
         self.assertIn("amplitude_to_rabi_frequency_hz", source)
-        self.assertIn('Rabi frequency [MHz]', source)
+        self.assertIn('set_yscale("log")', source)
+        self.assertIn("Full pulse amplitude [V]", source)
         self.assertIn("fwhm_over_signal", source)
         self.assertIn("FWHM / (1/(pi*T2))", source)
         self.assertIn("FWHM / (signal * 1/(pi*T2))", source)
@@ -455,6 +559,22 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         waveform = lorentzian.install_lorentzian_operation(node)
 
         self.assertLess(max(abs(sample) for sample in waveform) * 0.99, 1.0)
+
+    def test_amplitude_prefactors_support_log_spacing(self):
+        parameters = SimpleNamespace(
+            min_amp_factor=0.1 / 15,
+            max_amp_factor=1.0,
+            amp_factor_step=0.1,
+            amp_factor_points=200,
+            amp_factor_spacing="log",
+        )
+
+        amps = lorentzian.amplitude_prefactors(parameters)
+
+        self.assertEqual(len(amps), 200)
+        self.assertAlmostEqual(float(amps[0]), 0.1 / 15)
+        self.assertAlmostEqual(float(amps[-1]), 1.0)
+        np.testing.assert_allclose(np.diff(np.log(amps)), np.diff(np.log(amps))[0])
 
     def test_lorentzian_safety_limit_rejects_samples_at_one_volt(self):
         qubit = SimpleNamespace(
@@ -634,7 +754,7 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
             if legend is not None
             for text in legend.get_texts()
         )
-        self.assertIn("Gaussian FWHM", legend_text)
+        self.assertIn("Positive Gaussian FWHM", legend_text)
         plt.close(figure)
 
     def test_lorentzian_plot_handles_single_fixed_amplitude(self):

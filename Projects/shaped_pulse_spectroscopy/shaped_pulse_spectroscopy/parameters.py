@@ -33,6 +33,10 @@ class NodeSpecificParameters(RunnableParameters):
     """Exclusive maximum Lorentzian-amplitude prefactor."""
     amp_factor_step: float = 0.03
     """Lorentzian-amplitude prefactor step."""
+    amp_factor_points: int | None = None
+    """Optional exact number of amplitude prefactors, including both endpoints."""
+    amp_factor_spacing: str = "linear"
+    """Amplitude prefactor spacing: 'linear' or 'log'."""
     fixed_amp_factor: float | None = None
     """Single Lorentzian-amplitude prefactor for fixed-amplitude spectroscopy."""
     fixed_rabi_frequency_mhz: float | None = None
@@ -41,6 +45,8 @@ class NodeSpecificParameters(RunnableParameters):
     """Total qubit-frequency span in MHz."""
     frequency_step_in_mhz: float = 2
     """Qubit-frequency step in MHz."""
+    frequency_points: int | None = None
+    """Optional exact number of detuning points, including both span endpoints."""
 
 
 class Parameters(

@@ -122,6 +122,7 @@ class CalibrationSaver:
         results: Mapping[str, Any] | Any,
         profile_name: str | Profile | None = None,
         parameters: Any | None = None,
+        extra_metadata: Mapping[str, Any] | None = None,
         now: datetime | None = None,
     ) -> Path:
         """Save arrays and return the newly created run directory."""
@@ -162,6 +163,8 @@ class CalibrationSaver:
                 "results": _array_metadata(result_arrays),
                 "parameters": "parameters.json" if serialized_parameters is not None else None,
             }
+            if extra_metadata:
+                metadata.update(_to_jsonable(extra_metadata))
             with (temporary_directory / "metadata.json").open("w", encoding="utf-8") as file:
                 json.dump(metadata, file, indent=2)
                 file.write("\n")
@@ -179,6 +182,7 @@ class CalibrationSaver:
         dataset: Any,
         profile_name: str | Profile | None = None,
         parameters: Any | None = None,
+        extra_metadata: Mapping[str, Any] | None = None,
         now: datetime | None = None,
     ) -> Path:
         """Save all xarray coordinates as sweeps and data variables as results."""
@@ -190,6 +194,7 @@ class CalibrationSaver:
             results,
             profile_name=profile_name,
             parameters=parameters,
+            extra_metadata=extra_metadata,
             now=now,
         )
 

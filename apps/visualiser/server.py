@@ -182,7 +182,7 @@ def experiment_summary(path: Path, kind: str, experiment_type: str) -> dict[str,
         "status": "available" if stat else "unreadable",
         "qubits": qubits,
         "has_data": has_data,
-        "has_figures": contains_file_with_extension(path / "figures", IMAGE_EXTENSIONS),
+        "has_figures": contains_file_with_extension(path, IMAGE_EXTENSIONS),
         "has_parameters": safe_stat(path / "parameters.json") is not None,
         "has_profile_update": kind == "calibration" and has_matching_profile_update(path, experiment_type),
     }
@@ -232,17 +232,58 @@ def general_experiments(date: str) -> tuple[list[dict[str, Any]], list[str]]:
         return [], [f"Could not read data directory: {error}"]
     ignored = {"calibrations", "calibration_updates", "parameter_scans"}
     for category in (p for p in roots if p.is_dir() and p.name not in ignored):
-        children, child_error = safe_iterdir(category)
+        run_dirs, scan_errors = collect_general_experiment_dirs(category)
+        errors.extend(scan_errors)
+        for run in run_dirs:
+            if date_for_path(run) == date:
+                results.append(experiment_summary(run, "general", category.name))
+    return results, errors
+
+
+def is_general_experiment_dir(path: Path) -> bool:
+    if safe_stat(path / "manifest.json") is not None:
+        return True
+    if safe_stat(path / "sweep.npz") is not None or safe_stat(path / "results.npz") is not None:
+        return True
+    children, _ = safe_iterdir(path)
+    return any(
+        child.is_file()
+        and child.suffix.lower() in IMAGE_EXTENSIONS | {".csv", ".json", ".npz"}
+        for child in children
+    )
+
+
+def collect_general_experiment_dirs(root: Path, max_depth: int = 5) -> tuple[list[Path], list[str]]:
+    results: list[Path] = []
+    errors: list[str] = []
+
+    def visit(path: Path, depth: int) -> None:
+        if path.name.lower() in {"figures", "individual_figures"}:
+            return
+        if is_general_experiment_dir(path):
+            results.append(path)
+            return
+        if depth >= max_depth:
+            if date_for_path(path) is not None:
+                results.append(path)
+            return
+        children, child_error = safe_iterdir(path)
         if child_error:
-            errors.append(f"{relative(category)}: {child_error}")
-            continue
-        run_dirs = [p for p in children if p.is_dir() and not p.name.startswith(".")]
-        if run_dirs:
-            for run in run_dirs:
-                if date_for_path(run) == date:
-                    results.append(experiment_summary(run, "general", category.name))
-        elif date_for_path(category) == date:
-            results.append(experiment_summary(category, "general", category.name))
+            errors.append(f"{relative(path)}: {child_error}")
+            return
+        child_dirs = [
+            child
+            for child in sorted(children, key=lambda item: item.name.lower())
+            if child.is_dir() and not child.name.startswith(".")
+        ]
+        if not child_dirs:
+            if date_for_path(path) is not None:
+                results.append(path)
+            return
+        for child in child_dirs:
+            visit(child, depth + 1)
+
+    visit(root, 0)
     return results, errors
 
 

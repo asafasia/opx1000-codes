@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -111,6 +112,11 @@ class CalibrationsV2BaseTests(unittest.TestCase):
             parameters = calibration.namespace["calibration_run_directory"] / "parameters.json"
             self.assertTrue(parameters.is_file())
             self.assertIn('"num_shots": 3', parameters.read_text(encoding="utf-8"))
+            metadata = calibration.namespace["calibration_run_directory"] / "metadata.json"
+            saved_metadata = json.loads(metadata.read_text(encoding="utf-8"))
+            self.assertIn("run_started_at", saved_metadata)
+            self.assertIn("run_finished_at", saved_metadata)
+            self.assertGreaterEqual(saved_metadata["run_duration_s"], 0)
 
     def test_run_saves_managed_analysis_result_with_raw_data(self):
         with tempfile.TemporaryDirectory() as directory:

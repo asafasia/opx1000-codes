@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from typing import Any, Iterable, Mapping
 
 from .registry import CALIBRATIONS, CalibrationEntry, get_entry
+from .results_db import CalibrationResultsDatabase
 
 
 @dataclass
@@ -183,6 +184,44 @@ def describe_entry(entry: CalibrationEntry) -> None:
         print(f"  {name}: {default!r} ({annotation})")
 
 
+def record_run_in_database(
+    calibration: Any,
+    status: Any,
+    *,
+    profile_name: str | None,
+    selected_qubit: str | None,
+) -> int:
+    """Persist small, searchable provenance without duplicating raw data."""
+    run_directory = calibration.namespace.get("calibration_run_directory")
+    figures_path = Path(run_directory) / "figures" if run_directory and status.figures_saved else None
+    database = CalibrationResultsDatabase()
+    run_id = database.record_run(
+        calibration_name=status.name,
+        status="completed",
+        mode=status.mode,
+        profile_name=profile_name,
+        selected_qubit=selected_qubit,
+        raw_data_path=run_directory,
+        figures_path=figures_path,
+        parameters=public_parameter_values(calibration.parameters),
+        outcomes=status.outcomes,
+    )
+    proposal_directory = calibration.namespace.get("profile_update_proposal")
+    proposal_path = Path(proposal_directory) / "proposal.json" if proposal_directory else None
+    if proposal_path and proposal_path.is_file():
+        proposal = json.loads(proposal_path.read_text(encoding="utf-8"))
+        proposal_state = "applied" if proposal.get("status") == "applied" else "proposed"
+        for change in proposal.get("changes", []):
+            database.record_profile_update(
+                run_id,
+                field_path=change["path"],
+                previous_value=change.get("old"),
+                proposed_value=change["new"],
+                state=proposal_state,
+            )
+    return run_id
+
+
 def run_entry(
     entry: CalibrationEntry,
     *,
@@ -249,6 +288,12 @@ def run_entry(
         auto_connect=auto_connect,
     )
     status = calibration.run()
+    results_database_run_id = record_run_in_database(
+        calibration,
+        status,
+        profile_name=profile_name,
+        selected_qubit=qubit,
+    )
     summary = {
         "name": status.name,
         "mode": status.mode,
@@ -260,6 +305,7 @@ def run_entry(
         "run_directory": calibration.namespace.get("calibration_run_directory"),
         "ai_review": calibration.namespace.get("ai_review"),
         "profile_update_proposal": calibration.namespace.get("profile_update_proposal"),
+        "results_database_run_id": results_database_run_id,
     }
     print(json.dumps(summary, indent=2, default=_json_default))
     return 0

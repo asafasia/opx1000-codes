@@ -28,6 +28,10 @@ MIN_GAUSSIAN_FWHM_R_SQUARED = 0.1
 MAX_GAUSSIAN_CENTER_FRACTION_OF_SPAN = 0.5
 MAX_GAUSSIAN_FWHM_FRACTION_OF_SPAN = 0.3
 MAX_WAVEFORM_SAMPLE_V = 1.0
+GAUSSIAN_FIT_CANDIDATES = 5
+MIN_POLARITY_PROMINENCE_FRACTION = 0.05
+GAUSSIAN_INITIAL_FWHM_GUESSES = 24
+MIN_FIT_SIGNAL_TO_NOISE = 3.5
 
 
 def lorentzian_envelope(
@@ -160,11 +164,7 @@ def apply_echo_phase_jump(waveform: list[float]) -> list[float]:
 def install_lorentzian_operation(node: QualibrationNode) -> list[float]:
     """Install the selected waveform as a temporary qubit XY operation."""
     waveform = build_waveform(node.parameters)
-    sweep_factors = np.arange(
-        node.parameters.min_amp_factor,
-        node.parameters.max_amp_factor,
-        node.parameters.amp_factor_step,
-    )
+    sweep_factors = amplitude_prefactors(node.parameters)
     if sweep_factors.size == 0:
         raise ValueError("Amplitude sweep is empty.")
     max_factor = float(np.max(np.abs(sweep_factors)))
@@ -188,6 +188,43 @@ def install_lorentzian_operation(node: QualibrationNode) -> list[float]:
             waveform_Q=[0.0] * len(waveform),
         )
     return waveform
+
+
+def amplitude_prefactors(parameters) -> np.ndarray:
+    """Return the Lorentzian amplitude prefactors for a sweep."""
+    spacing = getattr(parameters, "amp_factor_spacing", "linear")
+    points = getattr(parameters, "amp_factor_points", None)
+    if points is not None:
+        points = int(points)
+        if points <= 0:
+            raise ValueError("amp_factor_points must be positive.")
+        if spacing == "log":
+            if parameters.min_amp_factor <= 0 or parameters.max_amp_factor <= 0:
+                raise ValueError(
+                    "Log-spaced amplitude prefactors require positive min/max factors."
+                )
+            return np.geomspace(
+                parameters.min_amp_factor,
+                parameters.max_amp_factor,
+                points,
+            )
+        if spacing != "linear":
+            raise ValueError("amp_factor_spacing must be 'linear' or 'log'.")
+        return np.linspace(
+            parameters.min_amp_factor,
+            parameters.max_amp_factor,
+            points,
+            dtype=float,
+        )
+    if spacing != "linear":
+        raise ValueError("amp_factor_spacing requires amp_factor_points.")
+
+    return np.arange(
+        parameters.min_amp_factor,
+        parameters.max_amp_factor,
+        parameters.amp_factor_step,
+        dtype=float,
+    )
 
 
 def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode) -> xr.Dataset:
@@ -234,6 +271,14 @@ def add_gaussian_fwhm_analysis(
     fwhm = np.full(shape, np.nan, dtype=float)
     fit_amplitudes = np.full(shape, np.nan, dtype=float)
     r_squared = np.full(shape, np.nan, dtype=float)
+    positive_centers = np.full(shape, np.nan, dtype=float)
+    positive_fwhm = np.full(shape, np.nan, dtype=float)
+    positive_amplitudes = np.full(shape, np.nan, dtype=float)
+    positive_r_squared = np.full(shape, np.nan, dtype=float)
+    negative_centers = np.full(shape, np.nan, dtype=float)
+    negative_fwhm = np.full(shape, np.nan, dtype=float)
+    negative_amplitudes = np.full(shape, np.nan, dtype=float)
+    negative_r_squared = np.full(shape, np.nan, dtype=float)
 
     detuning = np.asarray(ds.detuning.values, dtype=float)
     for qubit_index, qubit_name in enumerate(qubits):
@@ -244,17 +289,43 @@ def add_gaussian_fwhm_analysis(
                 trace,
                 use_state_discrimination=use_state_discrimination,
             )
-            center, width, fit_amplitude, score = _fit_gaussian_center_fwhm(
+            positive = _fit_gaussian_center_fwhm(
                 detuning,
                 signal,
+                polarity="positive",
+            )
+            negative = _fit_gaussian_center_fwhm(
+                detuning,
+                signal,
+                polarity="negative",
+            )
+            center, width, fit_amplitude, score = _select_min_fwhm_fit(
+                positive,
+                negative,
             )
             centers[qubit_index, amp_index] = center
             fwhm[qubit_index, amp_index] = width
             fit_amplitudes[qubit_index, amp_index] = fit_amplitude
             r_squared[qubit_index, amp_index] = score
+            (
+                positive_centers[qubit_index, amp_index],
+                positive_fwhm[qubit_index, amp_index],
+                positive_amplitudes[qubit_index, amp_index],
+                positive_r_squared[qubit_index, amp_index],
+            ) = positive
+            (
+                negative_centers[qubit_index, amp_index],
+                negative_fwhm[qubit_index, amp_index],
+                negative_amplitudes[qubit_index, amp_index],
+                negative_r_squared[qubit_index, amp_index],
+            ) = negative
 
     left = centers - fwhm / 2
     right = centers + fwhm / 2
+    positive_left = positive_centers - positive_fwhm / 2
+    positive_right = positive_centers + positive_fwhm / 2
+    negative_left = negative_centers - negative_fwhm / 2
+    negative_right = negative_centers + negative_fwhm / 2
     ds = ds.assign(
         gaussian_center_hz=(["qubit", "amp_prefactor"], centers),
         gaussian_fwhm_hz=(["qubit", "amp_prefactor"], fwhm),
@@ -266,6 +337,38 @@ def add_gaussian_fwhm_analysis(
             np.abs(fit_amplitudes),
         ),
         gaussian_fit_r_squared=(["qubit", "amp_prefactor"], r_squared),
+        gaussian_positive_center_hz=(["qubit", "amp_prefactor"], positive_centers),
+        gaussian_positive_fwhm_hz=(["qubit", "amp_prefactor"], positive_fwhm),
+        gaussian_positive_fwhm_left_hz=(["qubit", "amp_prefactor"], positive_left),
+        gaussian_positive_fwhm_right_hz=(["qubit", "amp_prefactor"], positive_right),
+        gaussian_positive_fit_amplitude=(
+            ["qubit", "amp_prefactor"],
+            positive_amplitudes,
+        ),
+        gaussian_positive_fit_abs_amplitude=(
+            ["qubit", "amp_prefactor"],
+            np.abs(positive_amplitudes),
+        ),
+        gaussian_positive_fit_r_squared=(
+            ["qubit", "amp_prefactor"],
+            positive_r_squared,
+        ),
+        gaussian_negative_center_hz=(["qubit", "amp_prefactor"], negative_centers),
+        gaussian_negative_fwhm_hz=(["qubit", "amp_prefactor"], negative_fwhm),
+        gaussian_negative_fwhm_left_hz=(["qubit", "amp_prefactor"], negative_left),
+        gaussian_negative_fwhm_right_hz=(["qubit", "amp_prefactor"], negative_right),
+        gaussian_negative_fit_amplitude=(
+            ["qubit", "amp_prefactor"],
+            negative_amplitudes,
+        ),
+        gaussian_negative_fit_abs_amplitude=(
+            ["qubit", "amp_prefactor"],
+            np.abs(negative_amplitudes),
+        ),
+        gaussian_negative_fit_r_squared=(
+            ["qubit", "amp_prefactor"],
+            negative_r_squared,
+        ),
     )
     ds.gaussian_center_hz.attrs = {
         "long_name": "Gaussian center detuning",
@@ -292,7 +395,37 @@ def add_gaussian_fwhm_analysis(
     ds.gaussian_fit_r_squared.attrs = {
         "long_name": "Gaussian fit R squared",
     }
+    _set_polarity_fit_attrs(ds, "positive", "Positive Gaussian")
+    _set_polarity_fit_attrs(ds, "negative", "Negative Gaussian")
     return ds
+
+
+def _set_polarity_fit_attrs(ds: xr.Dataset, polarity: str, label: str) -> None:
+    ds[f"gaussian_{polarity}_center_hz"].attrs = {
+        "long_name": f"{label} center detuning",
+        "units": "Hz",
+    }
+    ds[f"gaussian_{polarity}_fwhm_hz"].attrs = {
+        "long_name": f"{label} FWHM",
+        "units": "Hz",
+    }
+    ds[f"gaussian_{polarity}_fwhm_left_hz"].attrs = {
+        "long_name": f"{label} FWHM left edge",
+        "units": "Hz",
+    }
+    ds[f"gaussian_{polarity}_fwhm_right_hz"].attrs = {
+        "long_name": f"{label} FWHM right edge",
+        "units": "Hz",
+    }
+    ds[f"gaussian_{polarity}_fit_amplitude"].attrs = {
+        "long_name": f"{label} signed fit amplitude",
+    }
+    ds[f"gaussian_{polarity}_fit_abs_amplitude"].attrs = {
+        "long_name": f"{label} absolute fit amplitude",
+    }
+    ds[f"gaussian_{polarity}_fit_r_squared"].attrs = {
+        "long_name": f"{label} fit R squared",
+    }
 
 
 def _spectroscopy_trace_for_fwhm(
@@ -309,7 +442,10 @@ def _spectroscopy_trace_for_fwhm(
 
 
 def _fit_gaussian_center_fwhm(
-    x: np.ndarray, y: np.ndarray
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    polarity: str | None = None,
 ) -> tuple[float, float, float, float]:
     finite = np.isfinite(x) & np.isfinite(y)
     x = np.asarray(x[finite], dtype=float)
@@ -319,34 +455,220 @@ def _fit_gaussian_center_fwhm(
 
     from scipy.optimize import curve_fit
 
-    baseline = float(np.median(y))
-    peak_delta = float(np.max(y) - baseline)
-    dip_delta = float(baseline - np.min(y))
-    is_peak = peak_delta >= dip_delta
-    amplitude = peak_delta if is_peak else -dip_delta
-    center = float(x[np.argmax(y) if is_peak else np.argmin(y)])
-    sigma = float(np.ptp(x) / 6)
-    if sigma <= 0:
+    baseline = _robust_linear_baseline(x, y)
+    residual = y - baseline
+    noise_scale = _robust_noise_scale(residual)
+    peak_delta = float(np.max(residual))
+    dip_delta = float(-np.min(residual))
+    if polarity is None:
+        positive = _fit_gaussian_center_fwhm(x, y, polarity="positive")
+        negative = _fit_gaussian_center_fwhm(x, y, polarity="negative")
+        return _select_min_fwhm_fit(positive, negative)
+
+    if polarity not in {"positive", "negative"}:
+        raise ValueError("polarity must be 'positive', 'negative', or None.")
+
+    is_peak = polarity == "positive"
+    if is_peak and peak_delta <= 0:
+        return np.nan, np.nan, np.nan, np.nan
+    if not is_peak and dip_delta <= 0:
+        return np.nan, np.nan, np.nan, np.nan
+    polarity_delta = peak_delta if is_peak else dip_delta
+    if polarity_delta < MIN_POLARITY_PROMINENCE_FRACTION * float(np.ptp(y)):
         return np.nan, np.nan, np.nan, np.nan
 
-    try:
-        fit_offset, fit_amplitude, fit_center, fit_sigma = curve_fit(
-            _gaussian,
-            x,
-            y,
-            p0=[baseline, amplitude, center, sigma],
-            maxfev=10000,
-        )[0]
-    except (RuntimeError, ValueError, FloatingPointError):
-        return np.nan, np.nan, np.nan, np.nan
+    fits = []
+    for center, amplitude in _gaussian_initial_candidates(
+        x,
+        residual,
+        is_peak=is_peak,
+        noise_scale=noise_scale,
+    ):
+        for sigma in _gaussian_sigma_guesses(x):
+            fit_x, fit_y = _gaussian_fit_window(x, y, center, sigma, is_peak=is_peak)
+            if fit_x.size < 5 or np.ptp(fit_y) <= 0:
+                continue
+            fit_baseline = float(np.median(fit_y))
+            fit_amplitude = _initial_signed_amplitude(
+                fit_x,
+                fit_y,
+                fit_baseline,
+                center,
+                is_peak=is_peak,
+            )
+            if not np.isfinite(fit_amplitude) or fit_amplitude == 0:
+                continue
+            try:
+                fit = _fit_gaussian_attempt(
+                    curve_fit,
+                    fit_x,
+                    fit_y,
+                    baseline=fit_baseline,
+                    amplitude=fit_amplitude,
+                    center=center,
+                    sigma=sigma,
+                    is_peak=is_peak,
+                )
+            except (RuntimeError, ValueError, FloatingPointError):
+                continue
+            if _is_valid_gaussian_fit(x, fit) and _has_sufficient_fit_snr(
+                fit,
+                noise_scale,
+            ):
+                fits.append(fit)
 
+    if fits:
+        return max(fits, key=_gaussian_fit_quality)
+    return np.nan, np.nan, np.nan, np.nan
+
+
+def _gaussian_initial_candidates(
+    x: np.ndarray,
+    residual: np.ndarray,
+    is_peak: bool,
+    noise_scale: float,
+) -> list[tuple[float, float]]:
+    """Find physically resolved extrema after removing the slow baseline.
+
+    The old implementation seeded fits from any large sample.  That made a
+    random off-resonance fluctuation look like a narrow peak.  ``find_peaks``
+    gives us a prominence and spacing requirement before nonlinear fitting.
+    """
+    from scipy.signal import find_peaks
+
+    signed = residual if is_peak else -residual
+    prominence = max(
+        3 * noise_scale,
+        MIN_POLARITY_PROMINENCE_FRACTION * float(np.ptp(residual)),
+    )
+    indices, properties = find_peaks(
+        signed,
+        prominence=prominence,
+        distance=max(2, x.size // 30),
+    )
+    order = indices[np.argsort(properties["prominences"])[::-1]]
+    candidates: list[tuple[float, float]] = []
+    for index in order:
+        if signed[index] < prominence:
+            continue
+        amplitude = float(residual[index])
+        candidates.append((int(index), amplitude))
+        if len(candidates) >= GAUSSIAN_FIT_CANDIDATES:
+            break
+
+    if not candidates:
+        return []
+    return [(float(x[index]), amplitude) for index, amplitude in candidates]
+
+
+def _robust_linear_baseline(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Estimate the off-resonant baseline from the outer fifth of a sweep."""
+    edge_count = max(3, int(np.ceil(x.size * 0.2)))
+    edge_indices = np.r_[np.arange(edge_count), np.arange(x.size - edge_count, x.size)]
+    slope, offset = np.polyfit(x[edge_indices], y[edge_indices], deg=1)
+    return slope * x + offset
+
+
+def _robust_noise_scale(residual: np.ndarray) -> float:
+    """Use adjacent differences so broad spectroscopy features are not noise."""
+    differences = np.diff(residual)
+    if differences.size == 0:
+        return 0.0
+    mad = float(np.median(np.abs(differences - np.median(differences))))
+    return mad / (0.67448975 * np.sqrt(2))
+
+
+def _has_sufficient_fit_snr(
+    fit: tuple[float, float, float, float],
+    noise_scale: float,
+) -> bool:
+    if noise_scale <= np.finfo(float).eps:
+        return True
+    return bool(abs(fit[2]) >= MIN_FIT_SIGNAL_TO_NOISE * noise_scale)
+
+
+def _initial_signed_amplitude(
+    x: np.ndarray,
+    y: np.ndarray,
+    baseline: float,
+    center: float,
+    *,
+    is_peak: bool,
+) -> float:
+    index = int(np.argmin(np.abs(x - center)))
+    if is_peak:
+        return float(max(np.max(y) - baseline, y[index] - baseline))
+    return float(min(np.min(y) - baseline, y[index] - baseline))
+
+
+def _gaussian_fit_window(
+    x: np.ndarray,
+    y: np.ndarray,
+    center: float,
+    sigma: float,
+    *,
+    is_peak: bool,
+) -> tuple[np.ndarray, np.ndarray]:
+    radius = max(4 * float(sigma), 0.08 * float(np.ptp(x)))
+    mask = np.abs(x - center) <= radius
+    if np.count_nonzero(mask) < 7:
+        nearest = int(np.argmin(np.abs(x - center)))
+        left = max(0, nearest - 3)
+        right = min(x.size, nearest + 4)
+        mask = np.zeros_like(x, dtype=bool)
+        mask[left:right] = True
+    return x[mask], y[mask]
+
+
+def _gaussian_sigma_guesses(x: np.ndarray) -> list[float]:
+    span = float(np.ptp(x))
+    if span <= 0:
+        return []
+    min_fwhm = span / max(20, x.size // 4)
+    max_fwhm = MAX_GAUSSIAN_FWHM_FRACTION_OF_SPAN * span
+    if min_fwhm >= max_fwhm:
+        min_fwhm = max_fwhm / 4
+    fwhm_guesses = np.geomspace(
+        min_fwhm,
+        max_fwhm,
+        GAUSSIAN_INITIAL_FWHM_GUESSES,
+    )
+    return (fwhm_guesses / (2 * np.sqrt(2 * np.log(2)))).tolist()
+
+
+def _fit_gaussian_attempt(
+    curve_fit,
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    baseline: float,
+    amplitude: float,
+    center: float,
+    sigma: float,
+    is_peak: bool,
+) -> tuple[float, float, float, float]:
+    fit_offset, fit_slope, fit_amplitude, fit_center, fit_sigma = curve_fit(
+        _gaussian_with_linear_baseline,
+        x,
+        y,
+        p0=[baseline, 0.0, amplitude, center, sigma],
+        bounds=(
+            [-np.inf, -np.inf, 0.0 if is_peak else -np.inf, float(np.min(x)), 0.0],
+            [np.inf, np.inf, np.inf if is_peak else 0.0, float(np.max(x)), np.inf],
+        ),
+        maxfev=20000,
+    )[0]
     fit_sigma = abs(float(fit_sigma))
     fit_center = float(fit_center)
     fit_amplitude = float(fit_amplitude)
-    if not np.isfinite(fit_center) or not np.isfinite(fit_sigma) or fit_sigma <= 0:
-        return np.nan, np.nan, np.nan, np.nan
-
-    fitted = _gaussian(x, fit_offset, fit_amplitude, fit_center, fit_sigma)
+    fitted = _gaussian_with_linear_baseline(
+        x,
+        fit_offset,
+        fit_slope,
+        fit_amplitude,
+        fit_center,
+        fit_sigma,
+    )
     residual_sum_squares = float(np.sum((y - fitted) ** 2))
     total_sum_squares = float(np.sum((y - np.mean(y)) ** 2))
     r_squared = (
@@ -355,21 +677,54 @@ def _fit_gaussian_center_fwhm(
         else np.nan
     )
     fwhm = float(2 * np.sqrt(2 * np.log(2)) * fit_sigma)
-    max_allowed_center = MAX_GAUSSIAN_CENTER_FRACTION_OF_SPAN * float(np.max(np.abs(x)))
-
-    if (
-        not np.isfinite(r_squared)
-        or r_squared < MIN_GAUSSIAN_FWHM_R_SQUARED
-        or abs(fit_center) > max_allowed_center
-        or fwhm > MAX_GAUSSIAN_FWHM_FRACTION_OF_SPAN * np.ptp(x)
-    ):
-        return np.nan, np.nan, np.nan, r_squared
-
     return fit_center, fwhm, fit_amplitude, r_squared
+
+
+def _is_valid_gaussian_fit(
+    x: np.ndarray,
+    fit: tuple[float, float, float, float],
+) -> bool:
+    center, fwhm, amplitude, r_squared = fit
+    max_allowed_center = MAX_GAUSSIAN_CENTER_FRACTION_OF_SPAN * float(np.max(np.abs(x)))
+    return bool(
+        np.isfinite(center)
+        and np.isfinite(fwhm)
+        and np.isfinite(amplitude)
+        and fwhm > 0
+        and np.isfinite(r_squared)
+        and r_squared >= MIN_GAUSSIAN_FWHM_R_SQUARED
+        and abs(center) <= max_allowed_center
+        and fwhm <= MAX_GAUSSIAN_FWHM_FRACTION_OF_SPAN * np.ptp(x)
+    )
+
+
+def _gaussian_fit_quality(fit: tuple[float, float, float, float]) -> tuple[float, float]:
+    _, fwhm, amplitude, r_squared = fit
+    return float(r_squared), float(abs(amplitude) / fwhm)
+
+
+def _select_min_fwhm_fit(
+    positive: tuple[float, float, float, float],
+    negative: tuple[float, float, float, float],
+) -> tuple[float, float, float, float]:
+    candidates = [
+        fit
+        for fit in (positive, negative)
+        if np.isfinite(fit[1]) and fit[1] > 0
+    ]
+    if not candidates:
+        return np.nan, np.nan, np.nan, np.nan
+    return min(candidates, key=lambda fit: fit[1])
 
 
 def _gaussian(x, offset, amplitude, center, sigma):
     return offset + amplitude * np.exp(-0.5 * ((x - center) / sigma) ** 2)
+
+
+def _gaussian_with_linear_baseline(x, offset, slope, amplitude, center, sigma):
+    scale = np.ptp(x)
+    baseline_x = (x - np.mean(x)) / scale if scale > 0 else x * 0
+    return offset + slope * baseline_x + amplitude * np.exp(-0.5 * ((x - center) / sigma) ** 2)
 
 
 def process_amplitude_dataset(ds: xr.Dataset, node: QualibrationNode) -> xr.Dataset:
@@ -411,8 +766,11 @@ def _pulse_metadata(parameters) -> dict[str, object]:
         "min_amp_factor": getattr(parameters, "min_amp_factor", None),
         "max_amp_factor": getattr(parameters, "max_amp_factor", None),
         "amp_factor_step": getattr(parameters, "amp_factor_step", None),
+        "amp_factor_points": getattr(parameters, "amp_factor_points", None),
+        "amp_factor_spacing": getattr(parameters, "amp_factor_spacing", None),
         "frequency_span_in_mhz": getattr(parameters, "frequency_span_in_mhz", None),
         "frequency_step_in_mhz": getattr(parameters, "frequency_step_in_mhz", None),
+        "frequency_points": getattr(parameters, "frequency_points", None),
     }
 
 
@@ -767,13 +1125,35 @@ def _add_t2_limit_lines(ax, qubit: AnyTransmon) -> None:
 
 
 def _add_fwhm_markers(ax, selected: xr.Dataset) -> None:
-    required = {"gaussian_fwhm_left_hz", "gaussian_fwhm_right_hz", "rabi_frequency_MHz"}
-    if not required.issubset(set(selected.variables)):
+    if "rabi_frequency_MHz" not in selected.variables:
         return
 
     y = np.asarray(selected.rabi_frequency_MHz.values, dtype=float)
-    left = np.asarray(selected.gaussian_fwhm_left_hz.values, dtype=float) / u.MHz
-    right = np.asarray(selected.gaussian_fwhm_right_hz.values, dtype=float) / u.MHz
+    for prefix, label, color in (
+        ("gaussian_positive", "Positive Gaussian FWHM", "crimson"),
+        ("gaussian_negative", "Negative Gaussian FWHM", "cyan"),
+    ):
+        _scatter_fwhm_edges(ax, selected, y, prefix, label, color)
+
+    handles, labels = ax.get_legend_handles_labels()
+    if handles:
+        unique = dict(zip(labels, handles))
+        ax.legend(unique.values(), unique.keys(), loc="best", fontsize=8)
+
+
+def _scatter_fwhm_edges(
+    ax,
+    selected: xr.Dataset,
+    y: np.ndarray,
+    prefix: str,
+    label: str,
+    color: str,
+) -> None:
+    required = {f"{prefix}_fwhm_left_hz", f"{prefix}_fwhm_right_hz"}
+    if not required.issubset(set(selected.variables)):
+        return
+    left = np.asarray(selected[f"{prefix}_fwhm_left_hz"].values, dtype=float) / u.MHz
+    right = np.asarray(selected[f"{prefix}_fwhm_right_hz"].values, dtype=float) / u.MHz
     for x_values, marker in ((left, "<"), (right, ">")):
         finite = np.isfinite(x_values) & np.isfinite(y)
         if not np.any(finite):
@@ -784,16 +1164,11 @@ def _add_fwhm_markers(ax, selected: xr.Dataset) -> None:
             marker=marker,
             s=28,
             facecolors="none",
-            edgecolors="red",
+            edgecolors=color,
             linewidths=1.1,
-            label="Gaussian FWHM" if marker == "<" else None,
+            label=label if marker == "<" else None,
             zorder=5,
         )
-
-    handles, labels = ax.get_legend_handles_labels()
-    if handles:
-        unique = dict(zip(labels, handles))
-        ax.legend(unique.values(), unique.keys(), loc="best", fontsize=8)
 
 
 def _plot_state(ds: xr.Dataset, qubits: List[AnyTransmon]):
@@ -890,22 +1265,25 @@ def _plot_iq(ds: xr.Dataset, qubits: List[AnyTransmon]):
 
 
 def _add_single_amp_fwhm_lines(ax, selected: xr.Dataset) -> None:
-    required = {"gaussian_fwhm_left_hz", "gaussian_fwhm_right_hz"}
-    if not required.issubset(set(selected.variables)):
-        return
-    for name, label in (
-        ("gaussian_fwhm_left_hz", "Gaussian FWHM"),
-        ("gaussian_fwhm_right_hz", None),
+    for prefix, label, color in (
+        ("gaussian_positive", "Positive Gaussian FWHM", "crimson"),
+        ("gaussian_negative", "Negative Gaussian FWHM", "cyan"),
     ):
-        value = float(selected[name].isel(amp_prefactor=0) / u.MHz)
-        if np.isfinite(value):
-            ax.axvline(
-                value,
-                color="red",
-                linestyle=":",
-                linewidth=1.1,
-                label=label,
-            )
+        for name, edge_label in (
+            (f"{prefix}_fwhm_left_hz", label),
+            (f"{prefix}_fwhm_right_hz", None),
+        ):
+            if name not in selected.variables:
+                continue
+            value = float(selected[name].isel(amp_prefactor=0) / u.MHz)
+            if np.isfinite(value):
+                ax.axvline(
+                    value,
+                    color=color,
+                    linestyle=":",
+                    linewidth=1.1,
+                    label=edge_label,
+                )
     handles, labels = ax.get_legend_handles_labels()
     if handles:
         unique = dict(zip(labels, handles))

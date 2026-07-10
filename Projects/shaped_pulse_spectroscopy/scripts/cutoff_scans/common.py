@@ -8,6 +8,7 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
+import time
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -25,8 +26,10 @@ from experiments.cutoff_optimization import (
     plot_per_cutoff_traces,
     run_cutoff_sweep,
 )
+from profiles import load_profile
 from shaped_pulse_spectroscopy.parameters import Parameters
 from quam_config import create_machine
+from utils.rabi_amplitude import rabi_frequency_hz_to_amplitude
 
 
 def load_config(path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
@@ -44,9 +47,14 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--pulse-length-ns", type=int)
     parser.add_argument("--template-length-ns", type=int)
     parser.add_argument("--peak-amplitude", type=float)
+    parser.add_argument("--min-rabi-frequency-mhz", type=float)
+    parser.add_argument("--max-rabi-frequency-mhz", type=float)
     parser.add_argument("--min-amp-factor", type=float)
     parser.add_argument("--max-amp-factor", type=float)
     parser.add_argument("--amp-factor-step", type=float)
+    parser.add_argument("--amp-factor-points", type=int)
+    parser.add_argument("--amp-factor-spacing", choices=["linear", "log"])
+    parser.add_argument("--frequency-points", type=int)
     parser.add_argument("--echo", action=argparse.BooleanOptionalAction)
 
 
@@ -67,6 +75,7 @@ def domain_parser(description: str) -> argparse.ArgumentParser:
 
 
 def run_region_from_args(args: argparse.Namespace) -> int:
+    started_s = time.perf_counter()
     config = load_config(args.config)
     region = config[args.region]
     domains = region["domains"]
@@ -79,6 +88,11 @@ def run_region_from_args(args: argparse.Namespace) -> int:
     campaign_dir = campaign_output_dir(args.output_root, args.region, args.campaign_id)
     for domain in domains:
         run_domain_config(args, region, domain, campaign_dir)
+    if args.execute:
+        print(
+            f"[EXECUTE] {args.region} total duration: "
+            f"{format_duration(time.perf_counter() - started_s)}"
+        )
     return 0
 
 
@@ -136,9 +150,14 @@ def build_parameters(
         "pulse_length_ns": args.pulse_length_ns,
         "template_length_ns": args.template_length_ns,
         "peak_amplitude": args.peak_amplitude,
+        "min_rabi_frequency_mhz": args.min_rabi_frequency_mhz,
+        "max_rabi_frequency_mhz": args.max_rabi_frequency_mhz,
         "min_amp_factor": args.min_amp_factor,
         "max_amp_factor": args.max_amp_factor,
         "amp_factor_step": args.amp_factor_step,
+        "amp_factor_points": args.amp_factor_points,
+        "amp_factor_spacing": args.amp_factor_spacing,
+        "frequency_points": args.frequency_points,
         "echo": args.echo,
     }
     defaults.update({key: value for key, value in overrides.items() if value is not None})
@@ -153,14 +172,61 @@ def build_parameters(
     parameters.waveform_template_length_in_ns = int(
         defaults.get("template_length_ns", parameters.lorentzian_length_in_ns)
     )
-    parameters.lorentzian_peak_amplitude = float(defaults.get("peak_amplitude", 0.2))
+    parameters.lorentzian_peak_amplitude = peak_amplitude_for(args, defaults)
     parameters.min_amp_factor = float(defaults.get("min_amp_factor", 0.0))
     parameters.max_amp_factor = float(defaults.get("max_amp_factor", 1.0))
+    if defaults.get("min_rabi_frequency_mhz") is not None:
+        max_rabi_mhz = defaults.get("max_rabi_frequency_mhz")
+        if max_rabi_mhz is None:
+            max_rabi_mhz = max_rabi_frequency_mhz(args.qubit, parameters)
+        parameters.min_amp_factor = float(defaults["min_rabi_frequency_mhz"]) / float(
+            max_rabi_mhz
+        ) * parameters.max_amp_factor
     parameters.amp_factor_step = float(defaults.get("amp_factor_step", 0.04))
+    parameters.amp_factor_points = optional_int(defaults.get("amp_factor_points"))
+    parameters.amp_factor_spacing = str(defaults.get("amp_factor_spacing", "linear"))
     parameters.frequency_span_in_mhz = float(domain["span_mhz"])
     parameters.frequency_step_in_mhz = float(domain["step_mhz"])
+    frequency_points = defaults.get("frequency_points")
+    if frequency_points is None:
+        frequency_points = domain.get("points")
+    parameters.frequency_points = optional_int(frequency_points)
+    if parameters.frequency_points is not None and parameters.frequency_points > 1:
+        parameters.frequency_step_in_mhz = (
+            parameters.frequency_span_in_mhz / (parameters.frequency_points - 1)
+        )
     parameters.simulate = bool(args.simulate)
     return parameters
+
+
+def optional_int(value: Any) -> int | None:
+    return None if value is None else int(value)
+
+
+def peak_amplitude_for(args: argparse.Namespace, defaults: dict[str, Any]) -> float:
+    max_rabi_mhz = defaults.get("max_rabi_frequency_mhz")
+    if max_rabi_mhz is None:
+        return float(defaults.get("peak_amplitude", 0.2))
+
+    profile = load_machine_profile(args.qubit)
+    qubit_config = profile["qubits"]["qubits"][args.qubit]
+    pulse_name = qubit_config["operations"]["x180"]
+    pulse = profile["pulses"]["pulses"][args.qubit][pulse_name]
+    max_amp_factor = float(defaults.get("max_amp_factor", 1.0))
+    if max_amp_factor == 0:
+        raise ValueError("max_amp_factor must be non-zero when using max_rabi_frequency_mhz.")
+    return float(
+        rabi_frequency_hz_to_amplitude(
+            float(max_rabi_mhz) * 1e6,
+            float(pulse["amplitude"]),
+            float(pulse["length_ns"]),
+        )
+        / max_amp_factor
+    )
+
+
+def load_machine_profile(qubit_name: str) -> dict[str, Any]:
+    return load_profile("single_qubit", qubit=qubit_name)
 
 
 def print_plan(
@@ -177,11 +243,65 @@ def print_plan(
     print(f"  qubit: {args.qubit}")
     print(f"  cutoffs: {cutoffs}")
     print(f"  detuning span/step MHz: {parameters.frequency_span_in_mhz:g} / {parameters.frequency_step_in_mhz:g}")
+    if parameters.frequency_points is not None:
+        print(f"  detuning points: {parameters.frequency_points}")
     print(f"  shots: {parameters.num_shots}")
+    if parameters.amp_factor_points is not None:
+        print(f"  amplitude points: {parameters.amp_factor_points}")
+    print(
+        f"  amplitude spacing / Rabi MHz range: {parameters.amp_factor_spacing} / "
+        f"{min_rabi_frequency_mhz(args.qubit, parameters):g}.."
+        f"{max_rabi_frequency_mhz(args.qubit, parameters):g}"
+    )
+    print(
+        f"  peak amplitude / max Rabi MHz: {parameters.lorentzian_peak_amplitude:g} / "
+        f"{max_rabi_frequency_mhz(args.qubit, parameters):g}"
+    )
     print(f"  pulse/template ns: {parameters.lorentzian_length_in_ns} / {parameters.waveform_template_length_in_ns}")
     print(f"  output: {output_dir}")
     if not args.execute:
         print("  add --execute to run this hardware/simulation scan")
+
+
+def max_rabi_frequency_mhz(qubit_name: str, parameters: Parameters) -> float:
+    profile = load_machine_profile(qubit_name)
+    qubit_config = profile["qubits"]["qubits"][qubit_name]
+    pulse_name = qubit_config["operations"]["x180"]
+    pulse = profile["pulses"]["pulses"][qubit_name][pulse_name]
+    pi_amp_hz = 1 / (2 * float(pulse["length_ns"]) * 1e-9)
+    return (
+        parameters.lorentzian_peak_amplitude
+        * parameters.max_amp_factor
+        / float(pulse["amplitude"])
+        * pi_amp_hz
+        / 1e6
+    )
+
+
+def min_rabi_frequency_mhz(qubit_name: str, parameters: Parameters) -> float:
+    profile = load_machine_profile(qubit_name)
+    qubit_config = profile["qubits"]["qubits"][qubit_name]
+    pulse_name = qubit_config["operations"]["x180"]
+    pulse = profile["pulses"]["pulses"][qubit_name][pulse_name]
+    pi_amp_hz = 1 / (2 * float(pulse["length_ns"]) * 1e-9)
+    return (
+        parameters.lorentzian_peak_amplitude
+        * parameters.min_amp_factor
+        / float(pulse["amplitude"])
+        * pi_amp_hz
+        / 1e6
+    )
+
+
+def format_duration(seconds: float) -> str:
+    seconds = max(0.0, float(seconds))
+    minutes, remainder = divmod(seconds, 60)
+    hours, minutes = divmod(int(minutes), 60)
+    if hours:
+        return f"{hours:d}h {minutes:02d}m {remainder:05.2f}s"
+    if minutes:
+        return f"{minutes:d}m {remainder:05.2f}s"
+    return f"{remainder:.2f}s"
 
 
 def read_records(path: Path) -> list[dict[str, Any]]:

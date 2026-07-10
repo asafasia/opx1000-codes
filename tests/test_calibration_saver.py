@@ -86,6 +86,25 @@ class CalibrationSaverTests(unittest.TestCase):
             metadata = json.loads((run_directory / "metadata.json").read_text(encoding="utf-8"))
             self.assertEqual(metadata["parameters"], "parameters.json")
 
+    def test_save_writes_extra_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            profile = root / "profiles" / "main"
+            profile.mkdir(parents=True)
+            (profile / "profile.json").write_text('{"name": "main"}\n', encoding="utf-8")
+            saver = CalibrationSaver(root / "data" / "calibrations", root / "profiles")
+
+            run_directory = saver.save(
+                "iq_blobs",
+                sweep={"shot": [0]},
+                results={"I": [0.1]},
+                profile_name="main",
+                extra_metadata={"run_duration_s": np.float64(1.25)},
+            )
+
+            metadata = json.loads((run_directory / "metadata.json").read_text(encoding="utf-8"))
+            self.assertEqual(metadata["run_duration_s"], 1.25)
+
     def test_save_xarray_handles_object_typed_string_coordinates(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

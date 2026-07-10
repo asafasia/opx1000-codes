@@ -83,6 +83,53 @@ class VisualiserServerTests(unittest.TestCase):
             self.assertTrue(summary["has_parameters"])
             self.assertTrue(summary["has_profile_update"])
 
+    def test_general_experiments_lists_nested_domain_runs_separately(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            campaign = root / "data" / "echo_lorentzian_cutoff_sweep" / "small_cutoff" / "20260710_134026"
+            for domain in ("domain_100mhz", "domain_10mhz", "domain_1mhz"):
+                run = campaign / domain
+                run.mkdir(parents=True)
+                (run / "manifest.json").write_text('{"completed_runs": 3}\n', encoding="utf-8")
+                (run / "cutoff_sweep_summary.png").write_bytes(b"not really a png")
+
+            with patch.object(server, "PROJECT_ROOT", root), patch.object(
+                server, "DATA_ROOT", root / "data"
+            ):
+                experiments, errors = server.general_experiments("2026-07-10")
+
+            self.assertEqual(errors, [])
+            self.assertEqual(
+                sorted(item["path"] for item in experiments),
+                [
+                    "data/echo_lorentzian_cutoff_sweep/small_cutoff/20260710_134026/domain_100mhz",
+                    "data/echo_lorentzian_cutoff_sweep/small_cutoff/20260710_134026/domain_10mhz",
+                    "data/echo_lorentzian_cutoff_sweep/small_cutoff/20260710_134026/domain_1mhz",
+                ],
+            )
+            self.assertEqual({item["name"] for item in experiments}, {"domain_100mhz", "domain_10mhz", "domain_1mhz"})
+            self.assertTrue(all(item["has_figures"] for item in experiments))
+
+    def test_general_experiments_does_not_list_figure_directories_as_runs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "data" / "cutoff_sweep" / "20260710_134026" / "domain_10mhz"
+            figure_dir = run / "individual_figures"
+            figure_dir.mkdir(parents=True)
+            (run / "manifest.json").write_text("{}\n", encoding="utf-8")
+            (figure_dir / "cutoff_01_q1.png").write_bytes(b"not really a png")
+
+            with patch.object(server, "PROJECT_ROOT", root), patch.object(
+                server, "DATA_ROOT", root / "data"
+            ):
+                experiments, errors = server.general_experiments("2026-07-10")
+
+            self.assertEqual(errors, [])
+            self.assertEqual([item["path"] for item in experiments], [
+                "data/cutoff_sweep/20260710_134026/domain_10mhz"
+            ])
+            self.assertTrue(experiments[0]["has_figures"])
+
     def test_experiment_detail_omits_profile_integration_weights_preview(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -105,7 +105,8 @@ class CalibrationRunnerTests(unittest.TestCase):
 
             self.assertEqual(load_recipe(path)["parameters"]["num_shots"], 5)
 
-    def test_run_entry_instantiates_calibration_and_prints_summary(self):
+    @patch("calibrations_v2.runner.record_run_in_database", return_value=7)
+    def test_run_entry_instantiates_calibration_and_prints_summary(self, record_mock):
         entry = FakeEntry("fake", "fake_module", "FakeCalibration")
         with patch("builtins.print") as print_mock:
             exit_code = run_entry(
@@ -128,6 +129,8 @@ class CalibrationRunnerTests(unittest.TestCase):
         self.assertIn('"mode": "simulate"', printed)
         self.assertIn('"run_directory": "fake\\\\run"', printed)
         self.assertIn('"ai_review_saved": false', printed)
+        self.assertIn('"results_database_run_id": 7', printed)
+        record_mock.assert_called_once()
 
 
 if __name__ == "__main__":

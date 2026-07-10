@@ -3,19 +3,20 @@
     "description": "Effective square-pulse-like regime; expect broad linewidths.",
     "cutoffs": [0.1, 0.2, 0.5, 0.99],
     "defaults": {
-      "num_shots": 60,
+      "num_shots": 100,
       "pulse_length_ns": 20000,
       "template_length_ns": 20000,
       "peak_amplitude": 0.2,
       "min_amp_factor": 0.0,
       "max_amp_factor": 1.0,
       "amp_factor_step": 0.04,
+      "amp_factor_points": 100,
       "echo": true
     },
     "domains": [
-      {"name": "domain_100mhz", "span_mhz": 100.0, "step_mhz": 0.2},
-      {"name": "domain_10mhz", "span_mhz": 10.0, "step_mhz": 0.02},
-      {"name": "domain_1mhz", "span_mhz": 1.0, "step_mhz": 0.002}
+      {"name": "domain_100mhz", "span_mhz": 100.0, "step_mhz": 0.2, "points": 200},
+      {"name": "domain_10mhz", "span_mhz": 10.0, "step_mhz": 0.02, "points": 200},
+      {"name": "domain_1mhz", "span_mhz": 1.0, "step_mhz": 0.002, "points": 200}
     ]
   },
   "medium_cutoff": {
@@ -45,17 +46,17 @@
       "num_shots": 60,
       "pulse_length_ns": 20000,
       "template_length_ns": 20000,
-      "peak_amplitude": 0.2,
+      "max_rabi_frequency_mhz": 15.0,
       "min_amp_factor": 0.0,
       "max_amp_factor": 1.0,
-      "amp_factor_step": 0.04,
+      "amp_factor_step": 0.1,
+      "amp_factor_points": 10,
       "echo": true
     },
     "domains": [
-      {"name": "domain_10mhz", "span_mhz": 10.0, "step_mhz": 0.02},
-      {"name": "domain_1mhz", "span_mhz": 1.0, "step_mhz": 0.002},
-      {"name": "domain_0p1mhz", "span_mhz": 0.1, "step_mhz": 0.0002},
-      {"name": "domain_0p01mhz", "span_mhz": 0.01, "step_mhz": 0.00002}
+      {"name": "domain_100mhz", "span_mhz": 100.0, "step_mhz": 1.0, "points": 100},
+      {"name": "domain_10mhz", "span_mhz": 10.0, "step_mhz": 0.1, "points": 100},
+      {"name": "domain_1mhz", "span_mhz": 1.0, "step_mhz": 0.01, "points": 100}
     ]
   }
 }

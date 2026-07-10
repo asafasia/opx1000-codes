@@ -21,6 +21,7 @@ from qualang_tools.units import unit
 
 from calibrations_v2.base import BaseCalibration, CalibrationOptions
 from shaped_pulse_spectroscopy.lorentzian import (
+    amplitude_prefactors,
     install_lorentzian_operation,
     plot_raw_data,
     process_raw_dataset,
@@ -88,21 +89,30 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
         install_lorentzian_operation(self)
         play_duration = self.namespace["lorentzian_play_duration_cycles"]
 
-        amps = np.arange(
-            self.parameters.min_amp_factor,
-            self.parameters.max_amp_factor,
-            self.parameters.amp_factor_step,
-        )
+        amps = amplitude_prefactors(self.parameters)
         if amps.size == 0:
             raise ValueError("Amplitude sweep is empty.")
         if np.any(np.abs(amps) >= 2):
             raise ValueError("QUA amplitude prefactors must stay within [-2, 2).")
 
         span = int(round(self.parameters.frequency_span_in_mhz * u.MHz))
-        step = int(round(self.parameters.frequency_step_in_mhz * u.MHz))
-        if step <= 0:
-            raise ValueError("frequency_step_in_mhz must be positive.")
-        dfs = np.arange(-span // 2, span // 2 + step, step, dtype=int)
+        points = getattr(self.parameters, "frequency_points", None)
+        use_arbitrary_detunings = points is not None
+        if points is not None:
+            points = int(points)
+            if points <= 0:
+                raise ValueError("frequency_points must be positive.")
+            dfs = np.rint(np.linspace(-span / 2, span / 2, points)).astype(int)
+            if np.unique(dfs).size != dfs.size:
+                raise ValueError(
+                    "frequency_points creates duplicate integer detunings; "
+                    "increase frequency_span_in_mhz or reduce frequency_points."
+                )
+        else:
+            step = int(round(self.parameters.frequency_step_in_mhz * u.MHz))
+            if step <= 0:
+                raise ValueError("frequency_step_in_mhz must be positive.")
+            dfs = np.arange(-span // 2, span // 2 + step, step, dtype=int)
 
         self.namespace["sweep_axes"] = {
             "qubit": xr.DataArray(qubits.get_names()),
@@ -131,7 +141,12 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
 
                 with for_(n, 0, n < self.parameters.num_shots, n + 1):
                     save(n, n_st)
-                    with for_(*from_array(df, dfs)):
+                    detuning_loop = (
+                        for_each_(df, dfs.tolist())
+                        if use_arbitrary_detunings
+                        else for_(*from_array(df, dfs))
+                    )
+                    with detuning_loop:
                         with for_(*from_array(a, amps)):
                             for qubit in multiplexed_qubits.values():
                                 qubit.xy.update_frequency(

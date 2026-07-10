@@ -122,6 +122,26 @@ Run a recipe with:
 python -m calibrations_v2.runner run --recipe path/to/recipe.json
 ```
 
+## Calibration-results database
+
+Each completed command-runner calibration is registered in the local SQLite
+database at `data/calibration_results.sqlite`. It contains run provenance,
+outcomes, raw-data/figure paths, and staged profile-update records; raw arrays
+remain in the calibration run directory. Initialise it explicitly (optional;
+the runner creates it when needed) and query metric history with:
+
+```powershell
+python -m calibrations_v2.results_db init
+python -m calibrations_v2.results_db history q3 t1_ns
+```
+
+Calibration implementations can record accepted fit values after a run:
+
+```python
+database.record_metric(run_id, target_name="q3", metric_name="t1_ns",
+                       value=12345.0, uncertainty=120.0, unit="ns", accepted=True)
+```
+
 `PowerRabi` is the first concrete v2 calibration:
 
 ```python

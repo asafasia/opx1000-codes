@@ -14,6 +14,7 @@ from datetime import datetime
 import inspect
 import json
 from pathlib import Path
+import time
 from typing import Any, Callable, Generic, Iterable, Mapping, TypeVar
 
 import numpy as np
@@ -169,6 +170,7 @@ class BaseCalibration(ABC, Generic[P, M]):
         figures_saved = False
         ai_review_saved = False
         profile_update_proposed = False
+        self._start_run_timer()
 
         try:
             if self.should_load_data():
@@ -203,6 +205,7 @@ class BaseCalibration(ABC, Generic[P, M]):
                 if self.options.propose_profile_update:
                     profile_update_proposed = self._propose_profile_update_from_options()
         finally:
+            self._finish_run_timer()
             self.cleanup()
 
         return CalibrationStatus(
@@ -286,6 +289,7 @@ class BaseCalibration(ABC, Generic[P, M]):
             self.results["ds_raw"],
             profile_name=self.active_profile_name(),
             parameters=self.parameters,
+            extra_metadata=self.run_timing_metadata(),
             now=now,
         )
         self.namespace["calibration_run_directory"] = run_directory
@@ -306,6 +310,7 @@ class BaseCalibration(ABC, Generic[P, M]):
             results,
             profile_name=self.active_profile_name(),
             parameters=self.parameters,
+            extra_metadata=self.run_timing_metadata(),
             now=now,
         )
         self.namespace["calibration_run_directory"] = run_directory
@@ -506,6 +511,51 @@ class BaseCalibration(ABC, Generic[P, M]):
 
     def active_profile_name(self) -> str:
         return self.profile_name or current_profile_name()
+
+    def _start_run_timer(self) -> None:
+        now = datetime.now().astimezone()
+        self.namespace["run_started_at"] = now.isoformat()
+        self.namespace["run_timer_started_s"] = time.perf_counter()
+
+    def _finish_run_timer(self) -> None:
+        started_s = self.namespace.get("run_timer_started_s")
+        if started_s is None:
+            return
+        duration_s = time.perf_counter() - float(started_s)
+        self.namespace["run_finished_at"] = datetime.now().astimezone().isoformat()
+        self.namespace["run_duration_s"] = duration_s
+        self._update_saved_run_timing_metadata()
+
+    def run_timing_metadata(self) -> dict[str, Any]:
+        return {
+            "run_started_at": self.namespace.get("run_started_at"),
+            **(
+                {"run_finished_at": self.namespace["run_finished_at"]}
+                if "run_finished_at" in self.namespace
+                else {}
+            ),
+            **(
+                {"run_duration_s": self.namespace["run_duration_s"]}
+                if "run_duration_s" in self.namespace
+                else {}
+            ),
+        }
+
+    def _update_saved_run_timing_metadata(self) -> None:
+        run_directory = self.namespace.get("calibration_run_directory")
+        if run_directory is None:
+            return
+        metadata_path = Path(run_directory) / "metadata.json"
+        if not metadata_path.is_file():
+            return
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+        metadata.update(self.run_timing_metadata())
+        with metadata_path.open("w", encoding="utf-8") as file:
+            json.dump(metadata, file, indent=2)
+            file.write("\n")
 
     @staticmethod
     def _array_to_data_var(array: np.ndarray, coordinates: Mapping[str, np.ndarray]) -> Any:

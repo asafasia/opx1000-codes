@@ -12,6 +12,7 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
+import time
 from typing import Any, Iterable
 
 QM_LOGGER_NAMES = ("qm", "qm.grpc", "qm.jobs", "qm.api")
@@ -70,6 +71,8 @@ def run_cutoff_sweep(
     run_summaries: list[dict[str, Any]] = []
     output_paths: dict[str, Path | None] = {}
     interrupted = False
+    started_at = datetime.now().astimezone()
+    started_s = time.perf_counter()
 
     total_cutoffs = len(cutoffs)
     _show_outer_progress(0, total_cutoffs, "starting")
@@ -122,6 +125,8 @@ def run_cutoff_sweep(
         interrupted = True
         print("\nCutoff sweep interrupted; saving completed results.")
     print()
+    finished_at = datetime.now().astimezone()
+    duration_s = time.perf_counter() - started_s
 
     output_paths = _save_sweep_outputs(
         output_dir,
@@ -130,7 +135,11 @@ def run_cutoff_sweep(
         full_records,
         best_records,
         interrupted=interrupted,
+        started_at=started_at,
+        finished_at=finished_at,
+        duration_s=duration_s,
     )
+    print(f"Cutoff sweep duration: {_format_duration(duration_s)}")
     return {
         "output_dir": output_dir,
         "fit_results": full_records,
@@ -139,6 +148,9 @@ def run_cutoff_sweep(
         "fwhm_heatmap": output_paths["fwhm_heatmap"],
         "per_cutoff_traces": output_paths["per_cutoff_traces"],
         "interrupted": interrupted,
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "duration_s": duration_s,
     }
 
 
@@ -231,6 +243,9 @@ def _save_sweep_outputs(
     best_records: list[dict[str, Any]],
     *,
     interrupted: bool,
+    started_at: datetime,
+    finished_at: datetime,
+    duration_s: float,
 ) -> dict[str, Path | None]:
     _write_csv(output_dir / "cutoff_sweep_fit_results.csv", full_records)
     _write_csv(output_dir / "cutoff_sweep_best_signal.csv", best_records)
@@ -239,6 +254,9 @@ def _save_sweep_outputs(
         base_parameters,
         run_summaries,
         interrupted=interrupted,
+        started_at=started_at,
+        finished_at=finished_at,
+        duration_s=duration_s,
     )
     return {
         "summary": plot_cutoff_summary(best_records, output_dir),
@@ -297,6 +315,36 @@ def summarize_cutoff_dataset(
                     "gaussian_fit_abs_amplitude",
                 ),
                 "fit_r_squared": _data_value(point, "gaussian_fit_r_squared"),
+                "positive_fwhm_hz": _data_value(point, "gaussian_positive_fwhm_hz"),
+                "positive_fwhm_mhz": _data_value(point, "gaussian_positive_fwhm_hz")
+                * 1e-6,
+                "positive_fit_amplitude": _data_value(
+                    point,
+                    "gaussian_positive_fit_amplitude",
+                ),
+                "positive_fit_abs_amplitude": _data_value(
+                    point,
+                    "gaussian_positive_fit_abs_amplitude",
+                ),
+                "positive_fit_r_squared": _data_value(
+                    point,
+                    "gaussian_positive_fit_r_squared",
+                ),
+                "negative_fwhm_hz": _data_value(point, "gaussian_negative_fwhm_hz"),
+                "negative_fwhm_mhz": _data_value(point, "gaussian_negative_fwhm_hz")
+                * 1e-6,
+                "negative_fit_amplitude": _data_value(
+                    point,
+                    "gaussian_negative_fit_amplitude",
+                ),
+                "negative_fit_abs_amplitude": _data_value(
+                    point,
+                    "gaussian_negative_fit_abs_amplitude",
+                ),
+                "negative_fit_r_squared": _data_value(
+                    point,
+                    "gaussian_negative_fit_r_squared",
+                ),
             }
             records.append(record)
     return records
@@ -431,7 +479,8 @@ def plot_fwhm_heatmap(
         record
         for record in records
         if _is_finite_number(record["cutoff"])
-        and _is_finite_number(record["rabi_frequency_mhz"])
+        and _is_finite_number(record["full_amp_v"])
+        and float(record["full_amp_v"]) > 0
         and _is_finite_number(record["fwhm_t2_units"])
     ]
     if not valid_records:
@@ -449,15 +498,15 @@ def plot_fwhm_heatmap(
         ratio_ax = axes[2 * qubit_index + 1, 0]
         qubit_records = [record for record in valid_records if record["qubit"] == qubit]
         cutoffs = np.array(sorted({record["cutoff"] for record in qubit_records}))
-        rabi_mhz = np.array(
-            sorted({record["rabi_frequency_mhz"] for record in qubit_records})
+        amplitudes_v = np.array(
+            sorted({record["full_amp_v"] for record in qubit_records})
         )
-        fwhm = np.full((len(rabi_mhz), len(cutoffs)), np.nan, dtype=float)
-        fwhm_over_signal = np.full((len(rabi_mhz), len(cutoffs)), np.nan, dtype=float)
+        fwhm = np.full((len(amplitudes_v), len(cutoffs)), np.nan, dtype=float)
+        fwhm_over_signal = np.full((len(amplitudes_v), len(cutoffs)), np.nan, dtype=float)
         cutoff_index = {value: index for index, value in enumerate(cutoffs)}
-        rabi_index = {value: index for index, value in enumerate(rabi_mhz)}
+        amplitude_index = {value: index for index, value in enumerate(amplitudes_v)}
         for record in qubit_records:
-            row = rabi_index[record["rabi_frequency_mhz"]]
+            row = amplitude_index[record["full_amp_v"]]
             column = cutoff_index[record["cutoff"]]
             fwhm[row, column] = record["fwhm_t2_units"]
             signal = record.get("fit_abs_amplitude", np.nan)
@@ -466,28 +515,32 @@ def plot_fwhm_heatmap(
 
         image = fwhm_ax.pcolormesh(
             _cell_edges_log(cutoffs),
-            _cell_edges_linear(rabi_mhz),
+            _cell_edges_log(amplitudes_v),
             fwhm,
             shading="auto",
+            cmap="cividis",
         )
         colorbar = figure.colorbar(image, ax=fwhm_ax)
         colorbar.set_label("FWHM / (1/(pi*T2))")
         fwhm_ax.set_xscale("log")
+        fwhm_ax.set_yscale("log")
         fwhm_ax.set_xlabel("Cutoff")
-        fwhm_ax.set_ylabel("Rabi frequency [MHz]")
+        fwhm_ax.set_ylabel("Full pulse amplitude [V]")
         fwhm_ax.set_title(f"{qubit}: FWHM in T2-limit units")
 
         ratio_image = ratio_ax.pcolormesh(
             _cell_edges_log(cutoffs),
-            _cell_edges_linear(rabi_mhz),
+            _cell_edges_log(amplitudes_v),
             fwhm_over_signal,
             shading="auto",
+            cmap="cividis",
         )
         ratio_colorbar = figure.colorbar(ratio_image, ax=ratio_ax)
         ratio_colorbar.set_label("FWHM / (signal * 1/(pi*T2))")
         ratio_ax.set_xscale("log")
+        ratio_ax.set_yscale("log")
         ratio_ax.set_xlabel("Cutoff")
-        ratio_ax.set_ylabel("Rabi frequency [MHz]")
+        ratio_ax.set_ylabel("Full pulse amplitude [V]")
         ratio_ax.set_title(f"{qubit}: normalized FWHM divided by fit signal")
 
     figure.tight_layout()
@@ -610,9 +663,15 @@ def _write_manifest(
     runs: list[dict[str, Any]],
     *,
     interrupted: bool = False,
+    started_at: datetime | None = None,
+    finished_at: datetime | None = None,
+    duration_s: float | None = None,
 ) -> None:
     manifest = {
         "created_at": datetime.now().astimezone().isoformat(),
+        "run_started_at": started_at.isoformat() if started_at else None,
+        "run_finished_at": finished_at.isoformat() if finished_at else None,
+        "run_duration_s": float(duration_s) if duration_s is not None else None,
         "interrupted": bool(interrupted),
         "completed_runs": len(runs),
         "cutoffs": [run["cutoff"] for run in runs],
@@ -666,6 +725,17 @@ def _jsonable(value: Any) -> Any:
     except TypeError:
         return repr(value)
     return value
+
+
+def _format_duration(seconds: float) -> str:
+    seconds = max(0.0, float(seconds))
+    minutes, remainder = divmod(seconds, 60)
+    hours, minutes = divmod(int(minutes), 60)
+    if hours:
+        return f"{hours:d}h {minutes:02d}m {remainder:05.2f}s"
+    if minutes:
+        return f"{minutes:d}m {remainder:05.2f}s"
+    return f"{remainder:.2f}s"
 
 
 if __name__ == "__main__":
