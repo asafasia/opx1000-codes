@@ -11,8 +11,10 @@ from calibrations_v2.runner import (
     coerce_value,
     load_recipe,
     parse_assignment,
+    print_job_status,
     run_entry,
 )
+from calibrations_v2.job_status import query_qop_status
 
 
 class FakeParameters:
@@ -131,6 +133,72 @@ class CalibrationRunnerTests(unittest.TestCase):
         self.assertIn('"ai_review_saved": false', printed)
         self.assertIn('"results_database_run_id": 7', printed)
         record_mock.assert_called_once()
+
+    def test_query_qop_status_filters_active_jobs(self):
+        qmm = SimpleNamespace(
+            list_open_qms=lambda: ["qm-1"],
+            get_jobs=lambda status=(): [
+                SimpleNamespace(
+                    id="job-1",
+                    status=status[0],
+                    description="power rabi",
+                    is_simulation=False,
+                )
+            ],
+        )
+
+        status = query_qop_status(qmm)
+
+        self.assertEqual(status.open_qms, ("qm-1",))
+        self.assertTrue(status.has_active_jobs)
+        self.assertEqual(status.jobs[0].id, "job-1")
+        self.assertEqual(status.jobs[0].status, "Running")
+
+    @patch("calibrations_v2.runner.query_profile_qop_status")
+    def test_print_job_status_reports_no_jobs(self, status_mock):
+        status_mock.return_value = SimpleNamespace(
+            open_qms=(),
+            jobs=(),
+            has_active_jobs=False,
+        )
+        with patch("builtins.print") as print_mock:
+            print_job_status(
+                profile_name="main",
+                qubit=None,
+                all_jobs=False,
+                json_output=False,
+            )
+
+        printed = "\n".join(call.args[0] for call in print_mock.call_args_list)
+        self.assertIn("open_qms: 0", printed)
+        self.assertIn("active_jobs: no", printed)
+        self.assertIn("jobs: none", printed)
+
+    @patch("calibrations_v2.runner.query_profile_qop_status")
+    def test_print_job_status_supports_json(self, status_mock):
+        status_mock.return_value = SimpleNamespace(
+            to_dict=lambda: {
+                "open_qms": ["qm-1"],
+                "has_active_jobs": True,
+                "jobs": [{"id": "job-1", "status": "Running"}],
+            }
+        )
+        with patch("builtins.print") as print_mock:
+            print_job_status(
+                profile_name=None,
+                qubit="q3",
+                all_jobs=True,
+                json_output=True,
+            )
+
+        printed = print_mock.call_args.args[0]
+        self.assertIn('"open_qms": [', printed)
+        self.assertIn('"job-1"', printed)
+        status_mock.assert_called_once_with(
+            profile_name=None,
+            qubit="q3",
+            active_only=False,
+        )
 
 
 if __name__ == "__main__":

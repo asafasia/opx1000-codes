@@ -9,6 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Iterable, Mapping
 
+from .job_status import query_profile_qop_status
 from .registry import CALIBRATIONS, CalibrationEntry, get_entry
 from .results_db import CalibrationResultsDatabase
 
@@ -184,6 +185,38 @@ def describe_entry(entry: CalibrationEntry) -> None:
         print(f"  {name}: {default!r} ({annotation})")
 
 
+def print_job_status(
+    *,
+    profile_name: str | None,
+    qubit: str | None,
+    all_jobs: bool,
+    json_output: bool,
+) -> None:
+    status = query_profile_qop_status(
+        profile_name=profile_name,
+        qubit=qubit,
+        active_only=not all_jobs,
+    )
+    if json_output:
+        print(json.dumps(status.to_dict(), indent=2, default=_json_default))
+        return
+
+    print(f"open_qms: {len(status.open_qms)}")
+    for qm_id in status.open_qms:
+        print(f"  {qm_id}")
+
+    print(f"active_jobs: {'yes' if status.has_active_jobs else 'no'}")
+    if not status.jobs:
+        print("jobs: none")
+        return
+
+    print("jobs:")
+    for job in status.jobs:
+        suffix = " simulation" if job.is_simulation else ""
+        description = f" - {job.description}" if job.description else ""
+        print(f"  {job.id}: {job.status}{suffix}{description}")
+
+
 def record_run_in_database(
     calibration: Any,
     status: Any,
@@ -319,6 +352,21 @@ def build_parser() -> argparse.ArgumentParser:
     describe = subparsers.add_parser("describe", help="Show parameters for one calibration.")
     describe.add_argument("calibration", help="Friendly calibration name, for example resonator.")
 
+    jobs = subparsers.add_parser("jobs", help="Show open QMs and active QOP jobs.")
+    jobs.add_argument(
+        "--profile",
+        dest="profile_name",
+        help="Profile name passed to create_machine.",
+    )
+    jobs.add_argument("--qubit", help="Qubit name passed to create_machine.")
+    jobs.add_argument(
+        "--all",
+        dest="all_jobs",
+        action="store_true",
+        help="Include completed, canceled, and errored jobs.",
+    )
+    jobs.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+
     run = subparsers.add_parser("run", help="Run one calibration.")
     run.add_argument("calibration", nargs="?", help="Friendly calibration name.")
     run.add_argument("--recipe", type=Path, help="JSON recipe with calibration, parameters, and options.")
@@ -343,6 +391,14 @@ def main(argv: Iterable[str] | None = None) -> int:
         return 0
     if args.command == "describe":
         describe_entry(get_entry(args.calibration))
+        return 0
+    if args.command == "jobs":
+        print_job_status(
+            profile_name=args.profile_name,
+            qubit=args.qubit,
+            all_jobs=bool(args.all_jobs),
+            json_output=bool(args.json),
+        )
         return 0
 
     recipe = load_recipe(args.recipe) if args.recipe else {}

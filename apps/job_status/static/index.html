@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>QOP Job Status</title>
+    <link rel="stylesheet" href="/styles.css?v=simple">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero" aria-label="QOP job status">
+        <p class="eyebrow">QOP jobs</p>
+        <div class="live-row">
+          <span class="live-dot" id="liveDot"></span>
+          <h1 id="liveState">Checking</h1>
+        </div>
+        <p class="subline" id="connectionText">Connecting to QOP...</p>
+      </section>
+
+      <section class="job-card" aria-label="Current active job">
+        <span class="label">Current job</span>
+        <h2 id="jobTitle">No active job</h2>
+        <div class="job-meta">
+          <span id="jobStatus">-</span>
+          <span id="jobType">-</span>
+        </div>
+        <p id="jobDescription">Waiting for live job data.</p>
+      </section>
+
+      <p class="footer-line">
+        <span id="lastPoll">Last checked: -</span>
+        <span id="openQms">Open QMs: -</span>
+      </p>
+    </main>
+    <script src="/app.js?v=simple"></script>
+  </body>
+</html>

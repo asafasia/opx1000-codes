@@ -1,0 +1,165 @@
+:root {
+  color-scheme: light;
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --text: #18202a;
+  --muted: #657080;
+  --line: #d7dde5;
+  --accent: #11845b;
+  --danger: #b42318;
+  --warning: #9a6700;
+  --shadow: 0 20px 60px rgba(24, 32, 42, 0.1);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.shell {
+  width: min(780px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 9vh 0 40px;
+}
+
+.hero,
+.job-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.hero {
+  padding: clamp(28px, 6vw, 52px);
+  margin-bottom: 16px;
+}
+
+.eyebrow,
+.label {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.eyebrow {
+  color: var(--accent);
+}
+
+.live-row {
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 3vw, 24px);
+}
+
+.live-dot {
+  width: clamp(28px, 6vw, 48px);
+  height: clamp(28px, 6vw, 48px);
+  border-radius: 999px;
+  background: var(--warning);
+  box-shadow: 0 0 0 10px rgba(154, 103, 0, 0.12);
+  flex: 0 0 auto;
+}
+
+.live-dot.live {
+  background: var(--accent);
+  box-shadow: 0 0 0 10px rgba(17, 132, 91, 0.12);
+}
+
+.live-dot.offline {
+  background: var(--danger);
+  box-shadow: 0 0 0 10px rgba(180, 35, 24, 0.12);
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+h1 {
+  font-size: clamp(3rem, 8vw, 5.8rem);
+  line-height: 0.95;
+}
+
+h2 {
+  font-size: clamp(1.6rem, 4vw, 2.6rem);
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.subline {
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.job-card {
+  padding: clamp(24px, 5vw, 40px);
+}
+
+.label {
+  display: block;
+}
+
+.job-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.job-meta span {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #eef2f6;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+#jobDescription,
+.footer-line {
+  color: var(--muted);
+  font-size: 0.98rem;
+}
+
+#jobDescription {
+  margin-top: 16px;
+  overflow-wrap: anywhere;
+}
+
+.footer-line {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin: 16px 2px 0;
+}
+
+@media (max-width: 720px) {
+  .shell {
+    width: min(100vw - 20px, 780px);
+    padding-top: 24px;
+  }
+
+  .live-row,
+  .footer-line {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
