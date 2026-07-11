@@ -20,7 +20,6 @@ from quam_config import Quam
 from calibration_io import CalibrationSaver, current_profile_name
 from profiles import ProfileUpdater
 from quam_config.create_machine import create_machine
-from utils.plotting_settings import plot_per_qubit
 from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.parameters import get_qubits, get_idle_times_in_clock_cycles
 from utils.simulation import simulate_and_plot
@@ -80,6 +79,10 @@ class T1(BaseCalibration[Parameters, Quam]):
         machine: Quam | None = None,
         **kwargs,
     ) -> None:
+        if parameters.initial_state not in {"g", "e"}:
+            raise ValueError(
+                "initial_state must be either 'g' (no preparation pulse) or 'e' (x180 pulse)."
+            )
         super().__init__(
             name="05_T1",
             description=description,
@@ -145,11 +148,12 @@ class T1(BaseCalibration[Parameters, Quam]):
                         # before any manipulation starts; also keeps shared resources (e.g. TWPA sticky elements) coherent.
                         align()
 
-                        # The qubit manipulation sequence
+                        # The qubit manipulation sequence.  A ground-state trace is
+                        # deliberately left unpulsed; an excited-state trace starts with x180.
                         for i, qubit in multiplexed_qubits.items():
-                            # Per-qubit timing: π pulse completes before the shared idle wait begins on this qubit.
                             qubit.align()
-                            # qubit.xy.play("x180")
+                            if node.parameters.initial_state == "e":
+                                qubit.xy.play("x180")
                             qubit.align()
                             qubit.resonator.wait(t)
                         # No readout until all qubits have finished manipulation + wait for this idle_time step.
@@ -247,15 +251,15 @@ class T1(BaseCalibration[Parameters, Quam]):
         node.namespace["qubits"] = get_qubits(node)
 
     def plot_data(self):
+        """Plot all acquired qubits in one grid figure."""
         node = self
-        """Plot the raw and fitted data in a specific figure whose shape is given by qubit.grid_location."""
-        figures = plot_per_qubit(
-            plot_raw_data_with_fit,
-            node.results["ds_raw"],
-            node.namespace["qubits"],
-            node.results["ds_fit"],
-            figure_name="raw_fit",
-        )
+        figures = {
+            "raw_fit": plot_raw_data_with_fit(
+                node.results["ds_raw"],
+                node.namespace["qubits"],
+                node.results["ds_fit"],
+            )
+        }
         plt.show()
         node.results["figures"] = figures
         if "calibration_run_directory" in node.namespace:
@@ -306,6 +310,6 @@ if __name__ == "__main__":
     calibration = T1(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q12"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

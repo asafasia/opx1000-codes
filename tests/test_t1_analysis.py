@@ -85,6 +85,24 @@ class T1AnalysisTests(unittest.TestCase):
         self.assertEqual(ax.lines[0].get_linestyle(), "-")
         plt.close(fig)
 
+    def test_plot_skips_failed_fit_curve(self):
+        idle_time = np.arange(3.0)
+        ds = xr.Dataset(
+            {
+                "state": (("qubit", "idle_time"), [[1.0, 0.7, 0.4]]),
+                "fit_data": (("qubit", "fit_vals"), make_fit(-0.001).values),
+            },
+            coords={"qubit": ["q1"], "idle_time": idle_time, "fit_vals": FIT_VALUES},
+        ).assign_coords(tau=("qubit", [1000.0]), tau_error=("qubit", [2000.0]), success=("qubit", [False]))
+        fig, ax = plt.subplots()
+
+        plot_individual_data_with_fit(ax, ds, {"qubit": "q1"}, ds.sel(qubit="q1"))
+
+        self.assertEqual(len(ax.lines), 1)
+        self.assertEqual(ax.lines[0].get_marker(), ".")
+        self.assertEqual(ax.lines[0].get_linestyle(), "-")
+        plt.close(fig)
+
 
 if __name__ == "__main__":
     unittest.main()

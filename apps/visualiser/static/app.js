@@ -2,6 +2,7 @@ const state = { experiments: [], filtered: [], selected: null, detail: null, cal
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[c]));
 const formatBytes = n => n == null ? "unavailable" : n < 1024 ? `${n} B` : n < 1048576 ? `${(n/1024).toFixed(1)} KB` : `${(n/1048576).toFixed(1)} MB`;
+const isFiniteNumber = value => typeof value === "number" && Number.isFinite(value);
 let refreshInProgress = false;
 
 async function api(url) {
@@ -342,24 +343,47 @@ function stepFigure(direction) {
 
 function renderInteractivePlot() {
   const results = state.plotData?.results || [];
-  if (!results.length) return `<div class="error-panel">No numeric NPZ result arrays are available for plotting.</div>`;
+  const warnings = plotWarnings();
+  if (!results.length) return `${warnings}<div class="error-panel">No numeric NPZ result arrays are available for plotting.</div>`;
   const selected = results[Math.min(state.plotResult, results.length - 1)];
   const heatmaps = selected.heatmaps || [];
-  const heatmap = heatmaps[Math.min(state.plotHeatmap, heatmaps.length - 1)];
+  const finiteHeatmaps = heatmaps.filter(hasFiniteHeatmapData);
+  const heatmap = finiteHeatmaps[Math.min(state.plotHeatmap, finiteHeatmaps.length - 1)];
   const orientedHeatmap = heatmap ? orientHeatmap(heatmap, state.plotTranspose) : null;
+  const canPlotTraces = hasFiniteTraceData(selected);
+  const canPlot = Boolean(orientedHeatmap) || canPlotTraces;
   const sliceValue = orientedHeatmap ? Math.min(state.plotSlice ?? Math.floor(orientedHeatmap.y.length / 2), orientedHeatmap.y.length - 1) : 0;
-  const heatmapControl = heatmaps.length > 1 ? `<label><span class="section-label">Qubit / slice</span><select id="plotHeatmapSelect">${heatmaps.map((item, index) => `<option value="${index}" ${index === state.plotHeatmap ? "selected" : ""}>${escapeHtml(item.label)}</option>`).join("")}</select></label>` : "";
+  const heatmapControl = finiteHeatmaps.length > 1 ? `<label><span class="section-label">Qubit / slice</span><select id="plotHeatmapSelect">${finiteHeatmaps.map((item, index) => `<option value="${index}" ${index === state.plotHeatmap ? "selected" : ""}>${escapeHtml(item.label)}</option>`).join("")}</select></label>` : "";
   const plotArea = orientedHeatmap ? `<div class="heatmap-layout"><div class="heatmap-panel"><canvas id="heatmapPlot"></canvas></div><div class="slice-panel"><canvas id="slicePlot"></canvas></div></div><div class="slice-control"><span>${escapeHtml(orientedHeatmap.y_name)}</span><input id="sliceSlider" type="range" min="0" max="${orientedHeatmap.y.length - 1}" value="${sliceValue}"><strong id="sliceValue"></strong></div>`
-    : `<div class="interactive-plot-wrap"><canvas id="interactivePlot"></canvas><div id="plotTooltip" class="plot-tooltip hidden"></div></div>`;
+    : canPlotTraces
+      ? `<div class="interactive-plot-wrap"><canvas id="interactivePlot"></canvas><div id="plotTooltip" class="plot-tooltip hidden"></div></div>`
+      : `<div class="error-panel">This result array has no finite values to plot.</div>`;
   return `<div class="fit-tab-panel"><div class="plot-toolbar">
     <label><span class="section-label">Result array</span><select id="plotResultSelect">${results.map((result, index) => `<option value="${index}" ${index === state.plotResult ? "selected" : ""}>${escapeHtml(result.name)} [${result.shape.join(" x ")}]</option>`).join("")}</select></label>
     ${heatmapControl}
     <div class="plot-meta"><span>x: ${escapeHtml(orientedHeatmap?.x_name || selected.x_name)}</span>${orientedHeatmap ? `<span>y: ${escapeHtml(orientedHeatmap.y_name)}</span>` : ""}<span>${selected.traces.length} trace${selected.traces.length === 1 ? "" : "s"}</span>${selected.downsampled ? "<span>downsampled</span>" : ""}</div>
-    ${heatmap ? `<button id="transposeHeatmap" class="plot-button axis-swap-button" title="Swap x and y axes">${state.plotTranspose ? "Original axes" : "Swap axes"}</button>` : ""}
-    <button id="resetPlot" class="plot-button">Reset view</button>
+    ${orientedHeatmap ? `<button id="transposeHeatmap" class="plot-button axis-swap-button" title="Swap x and y axes">${state.plotTranspose ? "Original axes" : "Swap axes"}</button>` : ""}
+    ${canPlot ? `<button id="resetPlot" class="plot-button">Reset view</button>` : ""}
   </div>
   ${plotArea}
-  <div id="plotLegend" class="plot-legend"></div></div>`;
+  <div id="plotLegend" class="plot-legend"></div></div>${warnings}`;
+}
+
+function plotWarnings() {
+  const errors = state.plotData?.errors || [];
+  return errors.length ? `<div class="error-panel">${escapeHtml(errors.join("\n"))}</div>` : "";
+}
+
+function hasFiniteTraceData(result) {
+  return Boolean(result?.x?.some(isFiniteNumber) && result?.traces?.some(trace => trace.y?.some(isFiniteNumber)));
+}
+
+function hasFiniteHeatmapData(heatmap) {
+  return Boolean(
+    heatmap?.x?.some(isFiniteNumber)
+    && heatmap?.y?.some(isFiniteNumber)
+    && heatmap?.z?.some(row => row?.some(isFiniteNumber))
+  );
 }
 function renderParameterTrends() {
   const series = state.trendData?.series || [];
@@ -569,17 +593,18 @@ function bindInteractivePlot() {
   const canvas = $("interactivePlot");
   const result = state.plotData.results[state.plotResult];
   let plot;
-  if (result.heatmaps?.length) {
-    const heatmapIndex = Math.min(state.plotHeatmap, result.heatmaps.length - 1);
-    plot = createHeatmapPlot($("heatmapPlot"), $("slicePlot"), orientHeatmap(result.heatmaps[heatmapIndex], state.plotTranspose));
+  const finiteHeatmaps = (result.heatmaps || []).filter(hasFiniteHeatmapData);
+  if ($("heatmapPlot") && finiteHeatmaps.length) {
+    const heatmapIndex = Math.min(state.plotHeatmap, finiteHeatmaps.length - 1);
+    plot = createHeatmapPlot($("heatmapPlot"), $("slicePlot"), orientHeatmap(finiteHeatmaps[heatmapIndex], state.plotTranspose));
     $("plotHeatmapSelect") && ($("plotHeatmapSelect").onchange = event => { state.plotHeatmap = Number(event.target.value); state.plotSlice = null; renderTab(); });
-    $("transposeHeatmap").onclick = () => { state.plotTranspose = !state.plotTranspose; state.plotSlice = null; renderTab(); };
+    $("transposeHeatmap") && ($("transposeHeatmap").onclick = () => { state.plotTranspose = !state.plotTranspose; state.plotSlice = null; renderTab(); });
     $("sliceSlider").oninput = event => { state.plotSlice = Number(event.target.value); plot.setSlice(state.plotSlice); };
-  } else if (canvas) {
+  } else if (canvas && hasFiniteTraceData(result)) {
     plot = createCanvasPlot(canvas, result, $("plotTooltip"), $("plotLegend"));
   } else return;
   $("plotResultSelect").onchange = event => { state.plotResult = Number(event.target.value); state.plotHeatmap = 0; state.plotSlice = null; renderTab(); };
-  $("resetPlot").onclick = () => plot.reset();
+  $("resetPlot") && ($("resetPlot").onclick = () => plot.reset());
 }
 
 function orientHeatmap(heatmap, transpose) {
@@ -606,6 +631,10 @@ function createTrendPlot(canvas, series, legend) {
   const context = canvas.getContext("2d");
   const points = series.points.map((point, index) => ({ x: index + 1, y: point.value, label: point.timestamp, success: point.success }));
   const validY = points.map(point => point.y).filter(value => Number.isFinite(value));
+  if (!validY.length) {
+    legend.innerHTML = `<span>No finite trend values available.</span>`;
+    return {reset(){}};
+  }
   const full = { x0: 1, x1: Math.max(points.length, 2), y0: Math.min(...validY), y1: Math.max(...validY) };
   if (full.y0 === full.y1) { full.y0 -= 1; full.y1 += 1; }
   let view = {...full};
@@ -634,7 +663,7 @@ function createHeatmapPlot(heatCanvas, sliceCanvas, heatmap) {
   const heatContext = heatCanvas.getContext("2d"), sliceContext = sliceCanvas.getContext("2d");
   const slider = $("sliceSlider"), valueLabel = $("sliceValue");
   let sliceIndex = Math.min(Number(slider.value), heatmap.y.length - 1);
-  const finite = heatmap.z.flat().filter(value => value != null), zMin = Math.min(...finite), zMax = Math.max(...finite);
+  const finite = heatmap.z.flat().filter(isFiniteNumber), zMin = Math.min(...finite), zMax = Math.max(...finite);
   const color = value => {
     const t = Math.max(0, Math.min(1, (value - zMin) / (zMax - zMin || 1)));
     return `hsl(${250 - t * 250} 75% ${32 + t * 28}%)`;
@@ -643,14 +672,14 @@ function createHeatmapPlot(heatCanvas, sliceCanvas, heatmap) {
   function drawHeatmap() {
     const r=sizeCanvas(heatCanvas,heatContext), p={l:68,r:18,t:15,b:38}, pw=r.width-p.l-p.r,ph=r.height-p.t-p.b,rows=heatmap.y.length,cols=heatmap.x.length,cw=pw/cols,ch=ph/rows;
     heatContext.clearRect(0,0,r.width,r.height);
-    heatmap.z.forEach((row,yi)=>row.forEach((v,xi)=>{heatContext.fillStyle=v==null?"#eee":color(v);heatContext.fillRect(p.l+xi*cw,p.t+(rows-1-yi)*ch,cw+1,ch+1);}));
+    heatmap.z.forEach((row,yi)=>row.forEach((v,xi)=>{heatContext.fillStyle=!isFiniteNumber(v)?"#eee":color(v);heatContext.fillRect(p.l+xi*cw,p.t+(rows-1-yi)*ch,cw+1,ch+1);}));
     const lineY=p.t+(rows-1-sliceIndex+.5)*ch;heatContext.strokeStyle="#fff";heatContext.lineWidth=2;heatContext.beginPath();heatContext.moveTo(p.l,lineY);heatContext.lineTo(r.width-p.r,lineY);heatContext.stroke();heatContext.strokeStyle="#111";heatContext.lineWidth=.7;heatContext.stroke();
     heatContext.fillStyle="#68747d";heatContext.font="10px system-ui";heatContext.fillText(heatmap.x_name,r.width/2,r.height-7);heatContext.save();heatContext.translate(12,r.height/2);heatContext.rotate(-Math.PI/2);heatContext.fillText(heatmap.y_name,0,0);heatContext.restore();
   }
   function drawSlice() {
-    const r=sizeCanvas(sliceCanvas,sliceContext), p={l:68,r:18,t:12,b:35}, values=heatmap.z[sliceIndex], valid=values.filter(v=>v!=null), y0=Math.min(...valid),y1=Math.max(...valid),x0=heatmap.x[0],x1=heatmap.x[heatmap.x.length-1];
+    const r=sizeCanvas(sliceCanvas,sliceContext), p={l:68,r:18,t:12,b:35}, values=heatmap.z[sliceIndex], valid=values.filter(isFiniteNumber), finiteX=heatmap.x.filter(isFiniteNumber), y0=Math.min(...valid),y1=Math.max(...valid),x0=finiteX[0],x1=finiteX[finiteX.length-1];
     sliceContext.clearRect(0,0,r.width,r.height);sliceContext.strokeStyle="#dfe3e6";for(let i=0;i<=5;i++){let x=p.l+i*(r.width-p.l-p.r)/5;sliceContext.beginPath();sliceContext.moveTo(x,p.t);sliceContext.lineTo(x,r.height-p.b);sliceContext.stroke();}
-    sliceContext.strokeStyle="#176b87";sliceContext.lineWidth=1.5;sliceContext.beginPath();values.forEach((v,i)=>{if(v==null)return;const x=p.l+(heatmap.x[i]-x0)/(x1-x0||1)*(r.width-p.l-p.r),y=r.height-p.b-(v-y0)/(y1-y0||1)*(r.height-p.t-p.b);i?sliceContext.lineTo(x,y):sliceContext.moveTo(x,y);});sliceContext.stroke();
+    sliceContext.strokeStyle="#176b87";sliceContext.lineWidth=1.5;sliceContext.beginPath();let started=false;values.forEach((v,i)=>{if(!isFiniteNumber(v) || !isFiniteNumber(heatmap.x[i]))return;const x=p.l+(heatmap.x[i]-x0)/(x1-x0||1)*(r.width-p.l-p.r),y=r.height-p.b-(v-y0)/(y1-y0||1)*(r.height-p.t-p.b);started?sliceContext.lineTo(x,y):sliceContext.moveTo(x,y);started=true;});sliceContext.stroke();
     sliceContext.fillStyle="#68747d";sliceContext.font="10px system-ui";sliceContext.fillText(`${heatmap.x_name} spectrum at ${heatmap.y_name} = ${Number(heatmap.y[sliceIndex]).toPrecision(5)}`,p.l,r.height-8);
     valueLabel.textContent=Number(heatmap.y[sliceIndex]).toPrecision(6);
   }
@@ -663,8 +692,8 @@ function createHeatmapPlot(heatCanvas, sliceCanvas, heatmap) {
 
 function createCanvasPlot(canvas, result, tooltip, legend) {
   const colors = ["#176b87", "#b45b2a", "#6f55a5", "#25805a", "#b33e65", "#707b24"];
-  const validX = result.x.filter(value => value != null);
-  const validY = result.traces.flatMap(trace => trace.y.filter(value => value != null));
+  const validX = result.x.filter(isFiniteNumber);
+  const validY = result.traces.flatMap(trace => trace.y.filter(isFiniteNumber));
   const full = { x0: Math.min(...validX), x1: Math.max(...validX), y0: Math.min(...validY), y1: Math.max(...validY) };
   if (full.x0 === full.x1) full.x1 += 1;
   if (full.y0 === full.y1) full.y1 += 1;
@@ -682,7 +711,7 @@ function createCanvasPlot(canvas, result, tooltip, legend) {
   function draw() {
     const w=canvas.clientWidth,h=canvas.clientHeight; context.clearRect(0,0,w,h); context.strokeStyle="#dfe3e6"; context.fillStyle="#68747d"; context.font="10px system-ui";
     for(let i=0;i<=5;i++){const x=pad.l+i*(w-pad.l-pad.r)/5,y=pad.t+i*(h-pad.t-pad.b)/5;context.beginPath();context.moveTo(x,pad.t);context.lineTo(x,h-pad.b);context.moveTo(pad.l,y);context.lineTo(w-pad.r,y);context.stroke();context.fillText((view.x0+i*(view.x1-view.x0)/5).toPrecision(4),x-16,h-24);context.fillText((view.y1-i*(view.y1-view.y0)/5).toPrecision(4),8,y+3);}
-    result.traces.forEach((trace,ti)=>{context.strokeStyle=colors[ti%colors.length];context.lineWidth=1.5;context.beginPath();let started=false;trace.y.forEach((y,i)=>{const x=result.x[i];if(x==null||y==null)return;const px=sx(x,w),py=sy(y,h);started?context.lineTo(px,py):context.moveTo(px,py);started=true;});context.stroke();});
+    result.traces.forEach((trace,ti)=>{context.strokeStyle=colors[ti%colors.length];context.lineWidth=1.5;context.beginPath();let started=false;trace.y.forEach((y,i)=>{const x=result.x[i];if(!isFiniteNumber(x)||!isFiniteNumber(y))return;const px=sx(x,w),py=sy(y,h);started?context.lineTo(px,py):context.moveTo(px,py);started=true;});context.stroke();});
     context.fillStyle="#68747d"; context.fillText(result.x_name,w/2,h-7); context.save();context.translate(12,h/2);context.rotate(-Math.PI/2);context.fillText(result.name,0,0);context.restore();
   }
   canvas.onwheel=e=>{e.preventDefault();const rect=canvas.getBoundingClientRect(),mx=view.x0+(e.clientX-rect.left-pad.l)/(rect.width-pad.l-pad.r)*(view.x1-view.x0),my=view.y1-(e.clientY-rect.top-pad.t)/(rect.height-pad.t-pad.b)*(view.y1-view.y0),factor=e.deltaY>0?1.18:.84;view={x0:mx+(view.x0-mx)*factor,x1:mx+(view.x1-mx)*factor,y0:my+(view.y0-my)*factor,y1:my+(view.y1-my)*factor};draw();};

@@ -707,12 +707,30 @@ def parameter_scan_data(raw_path: str) -> dict[str, Any]:
 
 
 def _json_number(value: Any) -> float | None:
-    number = float(abs(value)) if np.iscomplexobj(value) else float(value)
+    try:
+        number = float(abs(value)) if np.iscomplexobj(value) else float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
     return number if np.isfinite(number) else None
 
 
 def _downsample(values: np.ndarray, indices: np.ndarray) -> list[float | None]:
     return [_json_number(value) for value in values.reshape(-1)[indices]]
+
+
+def _load_npz_arrays(path: Path) -> tuple[dict[str, np.ndarray], list[str]]:
+    arrays: dict[str, np.ndarray] = {}
+    errors: list[str] = []
+    try:
+        with np.load(path, allow_pickle=False) as npz_file:
+            for name in npz_file.files:
+                try:
+                    arrays[name] = np.asarray(npz_file[name])
+                except (OSError, ValueError, KeyError, TypeError) as exc:
+                    errors.append(f"{path.name}:{name}: {exc}")
+    except (OSError, ValueError, zipfile.BadZipFile) as exc:
+        errors.append(f"{path.name}: {exc}")
+    return arrays, errors
 
 
 def _matching_numeric_sweep(
@@ -736,17 +754,20 @@ def npz_plot_data(raw_path: str) -> dict[str, Any]:
     if not safe_stat(sweep_path) or not safe_stat(results_path):
         raise FileNotFoundError("This experiment does not contain both sweep.npz and results.npz.")
 
-    with np.load(sweep_path, allow_pickle=False) as sweep_file:
-        sweeps = {name: np.asarray(sweep_file[name]) for name in sweep_file.files}
-    with np.load(results_path, allow_pickle=False) as result_file:
-        results = {name: np.asarray(result_file[name]) for name in result_file.files}
+    sweeps, sweep_errors = _load_npz_arrays(sweep_path)
+    results, result_errors = _load_npz_arrays(results_path)
+    errors = sweep_errors + result_errors
 
     qubits = [str(value) for value in sweeps.get("qubit", np.array([], dtype=str)).reshape(-1)]
     plot_results: list[dict[str, Any]] = []
     for result_name, array in results.items():
         if not np.issubdtype(array.dtype, np.number) or array.ndim == 0:
+            errors.append(f"results.npz:{result_name}: skipped non-plottable array with shape {array.shape} and dtype {array.dtype}.")
             continue
         point_count = int(array.shape[-1])
+        if point_count <= 0 or array.size <= 0:
+            errors.append(f"results.npz:{result_name}: skipped empty array with shape {array.shape}.")
+            continue
         x_name = "index"
         x_values = np.arange(point_count, dtype=float)
         x_sweep = _matching_numeric_sweep(sweeps, point_count)
@@ -785,7 +806,7 @@ def npz_plot_data(raw_path: str) -> dict[str, Any]:
             y_size, x_size = int(array.shape[-2]), int(array.shape[-1])
             y_sweep = _matching_numeric_sweep(sweeps, y_size, {x_name})
             x_sweep_2d = _matching_numeric_sweep(sweeps, x_size, {y_sweep[0]} if y_sweep else set())
-            if y_sweep and x_sweep_2d:
+            if y_size > 0 and x_size > 0 and y_sweep and x_sweep_2d:
                 y_name, y_values = y_sweep
                 heat_x_name, heat_x_values = x_sweep_2d
                 x_indices = np.linspace(0, x_size - 1, min(x_size, MAX_HEATMAP_AXIS), dtype=int)
@@ -819,6 +840,7 @@ def npz_plot_data(raw_path: str) -> dict[str, Any]:
             {"name": name, "shape": list(value.shape), "dtype": str(value.dtype)}
             for name, value in sweeps.items()
         ],
+        "errors": errors,
     }
 
 

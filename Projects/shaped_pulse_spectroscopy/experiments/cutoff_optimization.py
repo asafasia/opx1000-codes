@@ -315,6 +315,7 @@ def summarize_cutoff_dataset(
                     "gaussian_fit_abs_amplitude",
                 ),
                 "fit_r_squared": _data_value(point, "gaussian_fit_r_squared"),
+                "fit_model": _string_data_value(point, "gaussian_fit_model"),
                 "positive_fwhm_hz": _data_value(point, "gaussian_positive_fwhm_hz"),
                 "positive_fwhm_mhz": _data_value(point, "gaussian_positive_fwhm_hz")
                 * 1e-6,
@@ -698,6 +699,15 @@ def _data_value(point: xr.Dataset, name: str, scale: float = 1.0) -> float:
     if name not in point:
         return np.nan
     return _finite_float(point[name].values) * scale
+
+
+def _string_data_value(point: xr.Dataset, name: str) -> str:
+    if name not in point:
+        return ""
+    array = np.asarray(point[name].values)
+    if array.size != 1:
+        array = array.reshape(-1)[:1]
+    return str(array.item())
 
 
 def _finite_float(value: Any) -> float:

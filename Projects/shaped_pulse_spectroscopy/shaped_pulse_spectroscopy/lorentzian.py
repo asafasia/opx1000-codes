@@ -27,6 +27,7 @@ u = unit(coerce_to_integer=True)
 MIN_GAUSSIAN_FWHM_R_SQUARED = 0.1
 MAX_GAUSSIAN_CENTER_FRACTION_OF_SPAN = 0.5
 MAX_GAUSSIAN_FWHM_FRACTION_OF_SPAN = 0.3
+MAX_SUPERPOSITION_COMPONENT_FWHM_FRACTION_OF_SPAN = 0.8
 MAX_WAVEFORM_SAMPLE_V = 1.0
 GAUSSIAN_FIT_CANDIDATES = 5
 MIN_POLARITY_PROMINENCE_FRACTION = 0.05
@@ -279,6 +280,7 @@ def add_gaussian_fwhm_analysis(
     negative_fwhm = np.full(shape, np.nan, dtype=float)
     negative_amplitudes = np.full(shape, np.nan, dtype=float)
     negative_r_squared = np.full(shape, np.nan, dtype=float)
+    fit_model = np.full(shape, "none", dtype=object)
 
     detuning = np.asarray(ds.detuning.values, dtype=float)
     for qubit_index, qubit_name in enumerate(qubits):
@@ -289,16 +291,22 @@ def add_gaussian_fwhm_analysis(
                 trace,
                 use_state_discrimination=use_state_discrimination,
             )
-            positive = _fit_gaussian_center_fwhm(
+            positive, negative, model = _fit_gaussian_superposition_components(
                 detuning,
                 signal,
-                polarity="positive",
             )
-            negative = _fit_gaussian_center_fwhm(
-                detuning,
-                signal,
-                polarity="negative",
-            )
+            if model == "none":
+                positive = _fit_gaussian_center_fwhm(
+                    detuning,
+                    signal,
+                    polarity="positive",
+                )
+                negative = _fit_gaussian_center_fwhm(
+                    detuning,
+                    signal,
+                    polarity="negative",
+                )
+                model = "separate"
             center, width, fit_amplitude, score = _select_min_fwhm_fit(
                 positive,
                 negative,
@@ -319,6 +327,7 @@ def add_gaussian_fwhm_analysis(
                 negative_amplitudes[qubit_index, amp_index],
                 negative_r_squared[qubit_index, amp_index],
             ) = negative
+            fit_model[qubit_index, amp_index] = model
 
     left = centers - fwhm / 2
     right = centers + fwhm / 2
@@ -337,6 +346,7 @@ def add_gaussian_fwhm_analysis(
             np.abs(fit_amplitudes),
         ),
         gaussian_fit_r_squared=(["qubit", "amp_prefactor"], r_squared),
+        gaussian_fit_model=(["qubit", "amp_prefactor"], fit_model),
         gaussian_positive_center_hz=(["qubit", "amp_prefactor"], positive_centers),
         gaussian_positive_fwhm_hz=(["qubit", "amp_prefactor"], positive_fwhm),
         gaussian_positive_fwhm_left_hz=(["qubit", "amp_prefactor"], positive_left),
@@ -394,6 +404,9 @@ def add_gaussian_fwhm_analysis(
     }
     ds.gaussian_fit_r_squared.attrs = {
         "long_name": "Gaussian fit R squared",
+    }
+    ds.gaussian_fit_model.attrs = {
+        "long_name": "Gaussian fit model source",
     }
     _set_polarity_fit_attrs(ds, "positive", "Positive Gaussian")
     _set_polarity_fit_attrs(ds, "negative", "Negative Gaussian")
@@ -520,6 +533,194 @@ def _fit_gaussian_center_fwhm(
     if fits:
         return max(fits, key=_gaussian_fit_quality)
     return np.nan, np.nan, np.nan, np.nan
+
+
+def _fit_gaussian_superposition_components(
+    x: np.ndarray,
+    y: np.ndarray,
+) -> tuple[
+    tuple[float, float, float, float],
+    tuple[float, float, float, float],
+    str,
+]:
+    finite = np.isfinite(x) & np.isfinite(y)
+    x = np.asarray(x[finite], dtype=float)
+    y = np.asarray(y[finite], dtype=float)
+    nan_fit = (np.nan, np.nan, np.nan, np.nan)
+    if x.size < 8 or np.ptp(x) <= 0 or np.ptp(y) <= 0:
+        return nan_fit, nan_fit, "none"
+
+    from scipy.optimize import curve_fit
+
+    baseline = _robust_linear_baseline(x, y)
+    residual = y - baseline
+    noise_scale = _robust_noise_scale(residual)
+    positive_candidates = _gaussian_initial_candidates(
+        x,
+        residual,
+        is_peak=True,
+        noise_scale=noise_scale,
+    )
+    negative_candidates = _gaussian_initial_candidates(
+        x,
+        residual,
+        is_peak=False,
+        noise_scale=noise_scale,
+    )
+    if not positive_candidates or not negative_candidates:
+        return nan_fit, nan_fit, "none"
+
+    sigma_guesses = _combined_gaussian_sigma_guesses(x)
+    fits = []
+    baseline_offset = float(np.median(y))
+    for positive_center, positive_amplitude in positive_candidates:
+        for negative_center, negative_amplitude in negative_candidates:
+            if abs(positive_center - negative_center) < _minimum_component_spacing(x):
+                continue
+            for positive_sigma in sigma_guesses:
+                for negative_sigma in sigma_guesses:
+                    try:
+                        params = curve_fit(
+                            _gaussian_superposition_with_linear_baseline,
+                            x,
+                            y,
+                            p0=[
+                                baseline_offset,
+                                0.0,
+                                abs(float(positive_amplitude)),
+                                float(positive_center),
+                                float(positive_sigma),
+                                -abs(float(negative_amplitude)),
+                                float(negative_center),
+                                float(negative_sigma),
+                            ],
+                            bounds=(
+                                [
+                                    -np.inf,
+                                    -np.inf,
+                                    0.0,
+                                    float(np.min(x)),
+                                    0.0,
+                                    -np.inf,
+                                    float(np.min(x)),
+                                    0.0,
+                                ],
+                                [
+                                    np.inf,
+                                    np.inf,
+                                    np.inf,
+                                    float(np.max(x)),
+                                    np.inf,
+                                    0.0,
+                                    float(np.max(x)),
+                                    np.inf,
+                                ],
+                            ),
+                            maxfev=30000,
+                        )[0]
+                    except (RuntimeError, ValueError, FloatingPointError):
+                        continue
+                    positive, negative, r_squared = _superposition_fit_components(
+                        x,
+                        y,
+                        params,
+                    )
+                    if (
+                        _is_valid_gaussian_fit(
+                            x,
+                            positive,
+                            max_fwhm_fraction=(
+                                MAX_SUPERPOSITION_COMPONENT_FWHM_FRACTION_OF_SPAN
+                            ),
+                        )
+                        and _is_valid_gaussian_fit(
+                            x,
+                            negative,
+                            max_fwhm_fraction=(
+                                MAX_SUPERPOSITION_COMPONENT_FWHM_FRACTION_OF_SPAN
+                            ),
+                        )
+                        and _has_sufficient_fit_snr(positive, noise_scale)
+                        and _has_sufficient_fit_snr(negative, noise_scale)
+                    ):
+                        fits.append((positive, negative, r_squared))
+
+    if not fits:
+        return nan_fit, nan_fit, "none"
+
+    positive, negative, _ = max(fits, key=_superposition_fit_quality)
+    return positive, negative, "superposition"
+
+
+def _combined_gaussian_sigma_guesses(x: np.ndarray) -> list[float]:
+    guesses = _gaussian_sigma_guesses(x)
+    if not guesses:
+        return []
+    indices = np.linspace(0, len(guesses) - 1, min(6, len(guesses)), dtype=int)
+    return [float(guesses[index]) for index in np.unique(indices)]
+
+
+def _minimum_component_spacing(x: np.ndarray) -> float:
+    if x.size < 2:
+        return 0.0
+    return max(float(np.median(np.diff(np.sort(x)))) * 2, 0.02 * float(np.ptp(x)))
+
+
+def _superposition_fit_components(
+    x: np.ndarray,
+    y: np.ndarray,
+    params: np.ndarray,
+) -> tuple[
+    tuple[float, float, float, float],
+    tuple[float, float, float, float],
+    float,
+]:
+    (
+        offset,
+        slope,
+        positive_amplitude,
+        positive_center,
+        positive_sigma,
+        negative_amplitude,
+        negative_center,
+        negative_sigma,
+    ) = params
+    fitted = _gaussian_superposition_with_linear_baseline(x, *params)
+    residual_sum_squares = float(np.sum((y - fitted) ** 2))
+    total_sum_squares = float(np.sum((y - np.mean(y)) ** 2))
+    r_squared = (
+        1 - residual_sum_squares / total_sum_squares
+        if total_sum_squares > 0
+        else np.nan
+    )
+    positive = (
+        float(positive_center),
+        float(2 * np.sqrt(2 * np.log(2)) * abs(positive_sigma)),
+        float(positive_amplitude),
+        r_squared,
+    )
+    negative = (
+        float(negative_center),
+        float(2 * np.sqrt(2 * np.log(2)) * abs(negative_sigma)),
+        float(negative_amplitude),
+        r_squared,
+    )
+    return positive, negative, r_squared
+
+
+def _superposition_fit_quality(
+    fit: tuple[
+        tuple[float, float, float, float],
+        tuple[float, float, float, float],
+        float,
+    ],
+) -> tuple[float, float]:
+    positive, negative, r_squared = fit
+    positive_signal_density = abs(positive[2]) / positive[1]
+    negative_signal_density = abs(negative[2]) / negative[1]
+    return float(r_squared), float(
+        min(positive_signal_density, negative_signal_density)
+    )
 
 
 def _gaussian_initial_candidates(
@@ -683,6 +884,8 @@ def _fit_gaussian_attempt(
 def _is_valid_gaussian_fit(
     x: np.ndarray,
     fit: tuple[float, float, float, float],
+    *,
+    max_fwhm_fraction: float = MAX_GAUSSIAN_FWHM_FRACTION_OF_SPAN,
 ) -> bool:
     center, fwhm, amplitude, r_squared = fit
     max_allowed_center = MAX_GAUSSIAN_CENTER_FRACTION_OF_SPAN * float(np.max(np.abs(x)))
@@ -694,7 +897,7 @@ def _is_valid_gaussian_fit(
         and np.isfinite(r_squared)
         and r_squared >= MIN_GAUSSIAN_FWHM_R_SQUARED
         and abs(center) <= max_allowed_center
-        and fwhm <= MAX_GAUSSIAN_FWHM_FRACTION_OF_SPAN * np.ptp(x)
+        and fwhm <= max_fwhm_fraction * np.ptp(x)
     )
 
 
@@ -725,6 +928,29 @@ def _gaussian_with_linear_baseline(x, offset, slope, amplitude, center, sigma):
     scale = np.ptp(x)
     baseline_x = (x - np.mean(x)) / scale if scale > 0 else x * 0
     return offset + slope * baseline_x + amplitude * np.exp(-0.5 * ((x - center) / sigma) ** 2)
+
+
+def _gaussian_superposition_with_linear_baseline(
+    x,
+    offset,
+    slope,
+    positive_amplitude,
+    positive_center,
+    positive_sigma,
+    negative_amplitude,
+    negative_center,
+    negative_sigma,
+):
+    scale = np.ptp(x)
+    baseline_x = (x - np.mean(x)) / scale if scale > 0 else x * 0
+    return (
+        offset
+        + slope * baseline_x
+        + positive_amplitude
+        * np.exp(-0.5 * ((x - positive_center) / positive_sigma) ** 2)
+        + negative_amplitude
+        * np.exp(-0.5 * ((x - negative_center) / negative_sigma) ** 2)
+    )
 
 
 def process_amplitude_dataset(ds: xr.Dataset, node: QualibrationNode) -> xr.Dataset:
@@ -1130,8 +1356,8 @@ def _add_fwhm_markers(ax, selected: xr.Dataset) -> None:
 
     y = np.asarray(selected.rabi_frequency_MHz.values, dtype=float)
     for prefix, label, color in (
-        ("gaussian_positive", "Positive Gaussian FWHM", "crimson"),
-        ("gaussian_negative", "Negative Gaussian FWHM", "cyan"),
+        ("gaussian_positive", "Up Gaussian FWHM", "crimson"),
+        ("gaussian_negative", "Down Gaussian FWHM", "cyan"),
     ):
         _scatter_fwhm_edges(ax, selected, y, prefix, label, color)
 
@@ -1266,8 +1492,8 @@ def _plot_iq(ds: xr.Dataset, qubits: List[AnyTransmon]):
 
 def _add_single_amp_fwhm_lines(ax, selected: xr.Dataset) -> None:
     for prefix, label, color in (
-        ("gaussian_positive", "Positive Gaussian FWHM", "crimson"),
-        ("gaussian_negative", "Negative Gaussian FWHM", "cyan"),
+        ("gaussian_positive", "Up Gaussian FWHM", "crimson"),
+        ("gaussian_negative", "Down Gaussian FWHM", "cyan"),
     ):
         for name, edge_label in (
             (f"{prefix}_fwhm_left_hz", label),

@@ -222,7 +222,7 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
             np.all(processed.gaussian_fit_r_squared.sel(qubit="q7").values > 0.99)
         )
 
-    def test_analysis_fits_positive_peak_and_negative_dip_separately(self):
+    def test_analysis_fits_positive_peak_and_negative_dip_as_superposition(self):
         detuning = np.linspace(-4e6, 4e6, 161)
         broad_sigma = 1.2e6
         narrow_sigma = 0.25e6
@@ -253,10 +253,39 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         positive_fwhm = float(processed.gaussian_positive_fwhm_hz.values[0, 0])
         negative_fwhm = float(processed.gaussian_negative_fwhm_hz.values[0, 0])
         selected_fwhm = float(processed.gaussian_fwhm_hz.values[0, 0])
+        fit_model = str(processed.gaussian_fit_model.values[0, 0])
         self.assertGreater(float(processed.gaussian_positive_fit_amplitude.values[0, 0]), 0)
         self.assertLess(float(processed.gaussian_negative_fit_amplitude.values[0, 0]), 0)
         self.assertLess(negative_fwhm, positive_fwhm)
         self.assertAlmostEqual(selected_fwhm, negative_fwhm)
+        self.assertEqual(fit_model, "superposition")
+
+    def test_analysis_falls_back_to_separate_fit_for_single_peak(self):
+        detuning = np.linspace(-4e6, 4e6, 161)
+        sigma = 0.35e6
+        state = 0.2 + 0.35 * np.exp(-0.5 * (detuning / sigma) ** 2)
+        ds = xr.Dataset(
+            {
+                "state": (
+                    ("qubit", "detuning", "amp_prefactor"),
+                    state[np.newaxis, :, np.newaxis],
+                )
+            },
+            coords={
+                "qubit": ["q7"],
+                "detuning": detuning,
+                "amp_prefactor": [1.0],
+            },
+        )
+
+        processed = lorentzian.add_gaussian_fwhm_analysis(
+            ds,
+            use_state_discrimination=True,
+        )
+
+        self.assertEqual(str(processed.gaussian_fit_model.values[0, 0]), "separate")
+        self.assertTrue(np.isfinite(float(processed.gaussian_positive_fwhm_hz.values[0, 0])))
+        self.assertTrue(np.isnan(float(processed.gaussian_negative_fwhm_hz.values[0, 0])))
 
     def test_gaussian_fwhm_scans_initial_widths_for_best_r_squared(self):
         detuning = np.linspace(-4e6, 4e6, 161)
@@ -754,7 +783,7 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
             if legend is not None
             for text in legend.get_texts()
         )
-        self.assertIn("Positive Gaussian FWHM", legend_text)
+        self.assertIn("Up Gaussian FWHM", legend_text)
         plt.close(figure)
 
     def test_lorentzian_plot_handles_single_fixed_amplitude(self):

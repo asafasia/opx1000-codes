@@ -1,4 +1,6 @@
 from typing import List
+
+import numpy as np
 import xarray as xr
 from matplotlib.axes import Axes
 from qualibration_libs.analysis import decay_exp
@@ -40,7 +42,7 @@ def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.D
 
 def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fit: xr.Dataset = None):
     """Plot individual qubit data on a given axis."""
-    if fit is not None:
+    if _fit_is_plottable(fit):
         fitted = decay_exp(
             ds.idle_time,
             fit.fit_data.sel(fit_vals="a"),
@@ -73,6 +75,16 @@ def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str
     ax.set_title(qubit["qubit"])
     if fit is not None:
         _add_fit_text(ax, fit)
+
+
+def _fit_is_plottable(fit: xr.Dataset | None) -> bool:
+    """Return True only when a T1 fit should be drawn as a fitted curve."""
+    if fit is None or "fit_data" not in fit:
+        return False
+    if "success" in fit and not bool(fit.success.values):
+        return False
+    required_values = fit.fit_data.sel(fit_vals=["a", "offset", "decay"]).values
+    return bool(np.isfinite(required_values).all())
 
 
 def _add_fit_text(ax, fit):

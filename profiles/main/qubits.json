@@ -27,7 +27,7 @@
         "rus_exit_threshold": -0.0002758320845562632,
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": -2.026039039513255,
-        "use_kernel": true,
+        "use_kernel": false,
         "gef_frequency_shift_hz": 0
       },
       "operations": {

@@ -335,6 +335,41 @@ class VisualiserServerTests(unittest.TestCase):
                 ["calibrations_v2/05_T1.py"],
             )
 
+    def test_npz_plot_data_reports_corrupt_results_without_crashing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "data" / "calibrations" / "2026-07-10" / "07_iq_blobs" / "12-00-00-000000"
+            run.mkdir(parents=True)
+            np.savez_compressed(run / "sweep.npz", shot=np.array([1, 2, 3]))
+            (run / "results.npz").write_bytes(b"not a real npz")
+
+            with patch.object(server, "PROJECT_ROOT", root):
+                payload = server.npz_plot_data(run.relative_to(root).as_posix())
+
+            self.assertEqual(payload["results"], [])
+            self.assertTrue(any("results.npz" in message for message in payload["errors"]))
+
+    def test_npz_plot_data_skips_empty_and_non_numeric_arrays(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "data" / "calibrations" / "2026-07-10" / "07_iq_blobs" / "12-00-00-000000"
+            run.mkdir(parents=True)
+            np.savez_compressed(run / "sweep.npz", shot=np.array([1, 2, 3]))
+            np.savez_compressed(
+                run / "results.npz",
+                empty=np.array([]),
+                label=np.array(["bad", "plot"]),
+                values=np.array([0.1, np.nan, np.inf]),
+            )
+
+            with patch.object(server, "PROJECT_ROOT", root):
+                payload = server.npz_plot_data(run.relative_to(root).as_posix())
+
+            self.assertEqual([item["name"] for item in payload["results"]], ["values"])
+            self.assertEqual(payload["results"][0]["traces"][0]["y"], [0.1, None, None])
+            self.assertTrue(any("empty" in message for message in payload["errors"]))
+            self.assertTrue(any("label" in message for message in payload["errors"]))
+
 
 if __name__ == "__main__":
     unittest.main()
