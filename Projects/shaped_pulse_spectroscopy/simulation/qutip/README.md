@@ -35,6 +35,11 @@ The output includes:
 - `parameters.json`
 - `echo_lorentzian_qutip.nc`
 - `echo_lorentzian_qutip.png`
+- `echo_lorentzian_qutip_fwhm.csv`
+
+The NetCDF and CSV use the same shared Gaussian FWHM finder as the measured
+shaped-pulse spectroscopy analysis. The plot overlays the accepted fitted FWHM
+edges, and the saved results include FWHM in Ramsey T2* limit units.
 
 For quick local testing, reduce the sweep size and pulse length:
 

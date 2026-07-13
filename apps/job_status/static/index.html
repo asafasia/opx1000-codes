@@ -4,34 +4,65 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>QOP Job Status</title>
-    <link rel="stylesheet" href="/styles.css?v=simple">
+    <link rel="stylesheet" href="/styles.css?v=hub-1">
   </head>
   <body>
-    <main class="shell">
-      <section class="hero" aria-label="QOP job status">
-        <p class="eyebrow">QOP jobs</p>
-        <div class="live-row">
-          <span class="live-dot" id="liveDot"></span>
-          <h1 id="liveState">Checking</h1>
+    <main class="dashboard">
+      <header class="header" aria-label="QOP job status">
+        <div>
+          <p class="eyebrow">QOP jobs</p>
+          <h1>Lab Monitor</h1>
+          <p class="subline" id="connectionText">Connecting to QOP...</p>
         </div>
-        <p class="subline" id="connectionText">Connecting to QOP...</p>
+        <div class="header-actions">
+          <a class="hub-link" data-hub-link href="http://127.0.0.1:8890/">← Lab Home</a>
+          <div class="status-block">
+            <span class="live-dot" id="liveDot" aria-hidden="true"></span>
+            <strong id="liveState">Checking</strong>
+          </div>
+        </div>
+      </header>
+
+      <section class="content-grid">
+        <section class="job-card" aria-label="Current active job">
+          <div class="job-heading">
+            <span class="job-orbit" id="jobGlyph" aria-hidden="true">
+              <span></span>
+            </span>
+            <span class="label">Current job</span>
+          </div>
+          <h2 id="jobTitle">No active job</h2>
+          <div class="job-meta">
+            <span id="jobStatus">-</span>
+            <span id="jobType">-</span>
+          </div>
+          <p id="jobDescription">Waiting for live job data.</p>
+        </section>
+
+        <section class="temperature-card" aria-label="Live controller temperatures">
+          <div class="section-heading">
+            <div>
+              <span class="label">Temperature scan</span>
+              <h2 id="temperatureTitle">Starting</h2>
+            </div>
+            <div class="window-control" id="temperatureWindow" aria-label="Temperature plot time range">
+              <button type="button" data-window-seconds="900" class="active">15 min</button>
+              <button type="button" data-window-seconds="3600">1 hour</button>
+              <button type="button" data-window-seconds="86400">24 hours</button>
+              <button type="button" data-window-seconds="604800">1 week</button>
+            </div>
+          </div>
+          <div id="temperatureGrid" class="temperature-grid">
+            <p class="muted">Waiting for the first temperature sample.</p>
+          </div>
+        </section>
       </section>
 
-      <section class="job-card" aria-label="Current active job">
-        <span class="label">Current job</span>
-        <h2 id="jobTitle">No active job</h2>
-        <div class="job-meta">
-          <span id="jobStatus">-</span>
-          <span id="jobType">-</span>
-        </div>
-        <p id="jobDescription">Waiting for live job data.</p>
-      </section>
-
-      <p class="footer-line">
+      <footer class="footer-line">
         <span id="lastPoll">Last checked: -</span>
         <span id="openQms">Open QMs: -</span>
-      </p>
+      </footer>
     </main>
-    <script src="/app.js?v=simple"></script>
+    <script src="/app.js?v=hub-1"></script>
   </body>
 </html>

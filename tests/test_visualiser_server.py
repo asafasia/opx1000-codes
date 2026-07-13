@@ -130,6 +130,35 @@ class VisualiserServerTests(unittest.TestCase):
             ])
             self.assertTrue(experiments[0]["has_figures"])
 
+    def test_general_experiments_ignores_temperature_logs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            temperature_run = root / "data" / "temperature_logs" / "live" / "20260711_170252"
+            temperature_run.mkdir(parents=True)
+            (temperature_run / "temperature_log_live.csv").write_text(
+                "wall_time_utc,elapsed_seconds,Chassis\n2026-07-11T14:00:00Z,0,50.0\n",
+                encoding="utf-8",
+            )
+            real_run = root / "data" / "cutoff_sweep" / "20260711_170252"
+            real_run.mkdir(parents=True)
+            (real_run / "manifest.json").write_text("{}\n", encoding="utf-8")
+
+            with patch.object(server, "PROJECT_ROOT", root), patch.object(
+                server, "DATA_ROOT", root / "data"
+            ), patch.object(
+                server, "CALIBRATION_RUN_ROOT", root / "data" / "calibrations"
+            ), patch.object(
+                server, "CALIBRATION_UPDATE_ROOT", root / "data" / "calibration_updates"
+            ), patch.object(
+                server, "PARAMETER_SCAN_ROOT", root / "data" / "parameter_scans"
+            ):
+                experiments, errors = server.general_experiments("2026-07-11")
+                dates = server.available_dates()
+
+            self.assertEqual(errors, [])
+            self.assertEqual([item["path"] for item in experiments], ["data/cutoff_sweep/20260711_170252"])
+            self.assertEqual(dates, ["2026-07-11"])
+
     def test_experiment_detail_omits_profile_integration_weights_preview(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

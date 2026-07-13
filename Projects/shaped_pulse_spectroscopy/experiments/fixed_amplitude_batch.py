@@ -19,7 +19,7 @@ import numpy as np
 
 from calibrations_v2.base import CalibrationOptions
 from experiments.fixed_amplitude_spectroscopy import EchoLorentzianFixedAmplitude
-from shaped_pulse_spectroscopy.lorentzian import _t2_seconds
+from shaped_pulse_spectroscopy.lorentzian import _t2_star_seconds
 from shaped_pulse_spectroscopy.parameters import Parameters
 from quam_config import create_machine
 
@@ -156,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
         plot_spectroscopy_traces(
             traces,
             manifest_dir,
-            t2_seconds=_t2_seconds(machine.qubits[args.qubit]),
+            t2_star_seconds=_t2_star_seconds(machine.qubits[args.qubit]),
         )
     print(f"Manifest: {manifest_path}")
     return 0
@@ -188,7 +188,7 @@ def plot_spectroscopy_traces(
     traces: list[dict[str, object]],
     output_dir: Path,
     *,
-    t2_seconds: float | None = None,
+    t2_star_seconds: float | None = None,
 ) -> dict[str, Path]:
     paths = {
         False: output_dir / "fixed_amplitude_lorentzian_no_echo.png",
@@ -212,7 +212,7 @@ def plot_spectroscopy_traces(
                 label=f"{trace['rabi_mhz']:.2f} MHz",
             )
         ax.axvline(0, color="0.45", linestyle="--", linewidth=1.1)
-        _add_t2_limit_lines(ax, t2_seconds)
+        _add_t2_star_limit_lines(ax, t2_star_seconds)
         ax.set_title(titles[echo])
         ax.set_xlabel("Detuning [MHz]")
         ax.set_ylabel(str(selected[0]["ylabel"]))
@@ -226,20 +226,20 @@ def plot_spectroscopy_traces(
     return saved_paths
 
 
-def _add_t2_limit_lines(ax, t2_seconds: float | None) -> None:
-    if t2_seconds is None:
+def _add_t2_star_limit_lines(ax, t2_star_seconds: float | None) -> None:
+    if t2_star_seconds is None:
         return
-    t2_seconds = float(t2_seconds)
-    if not np.isfinite(t2_seconds) or t2_seconds <= 0:
+    t2_star_seconds = float(t2_star_seconds)
+    if not np.isfinite(t2_star_seconds) or t2_star_seconds <= 0:
         return
-    limit_mhz = 1 / (2 * np.pi * t2_seconds) / 1e6
+    limit_mhz = 1 / (2 * np.pi * t2_star_seconds) / 1e6
     for index, detuning_mhz in enumerate((-limit_mhz, limit_mhz)):
         ax.axvline(
             detuning_mhz,
             color="0.55",
             linestyle=":",
             linewidth=1.2,
-            label="T2 limit: ±1/(2πT2)" if index == 0 else None,
+            label="T2* limit: ±1/(2πT2*)" if index == 0 else None,
         )
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -25,6 +26,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from calibrations_v2.job_status import query_profile_qop_status
+from profiles import load_profile
 from temperature_monitor.temperature_monitor import TemperatureMonitor
 
 
@@ -34,6 +36,8 @@ TEMPERATURE_LOG_ROOT = PROJECT_ROOT / "data" / "temperature_logs"
 TEMPERATURE_RETENTION_DAYS = 7
 TEMPERATURE_POLL_INTERVAL_SECONDS = 5.0
 TEMPERATURE_HISTORY_POINTS = 240
+TEMPERATURE_HISTORY_PAYLOAD_POINTS = 1200
+MIN_TEMPERATURE_WINDOW_SECONDS = 60
 
 temperature_sampler: "LiveTemperatureSampler | None" = None
 
@@ -127,21 +131,25 @@ class LiveTemperatureSampler:
         if self.monitor is not None:
             self.monitor._safe_save()
 
-    def payload(self) -> dict[str, Any]:
+    def payload(self, *, window_seconds: int | None = None) -> dict[str, Any]:
         with self._lock:
-            return {
+            payload = {
                 "connected": self.connected,
                 "error": self.error,
                 "started_at": self.started_at.isoformat() if self.started_at else None,
                 "output_dir": str(self.output_dir) if self.output_dir else None,
                 "latest": dict(self.latest_temperatures),
-                "history": list(self.history),
+                "history": [],
                 "retention_days": self.retention_days,
                 "poll_interval_seconds": self.poll_interval,
             }
+            memory_history = list(self.history)
+        payload["history"] = self._history_for_window(memory_history, window_seconds)
+        return payload
 
     def _connect(self) -> None:
         self._prune_old_logs()
+        network = load_profile("main")["connectivity"]["network"]
         monitor = TemperatureMonitor(
             controller_name="con1",
             poll_interval=self.poll_interval,
@@ -150,6 +158,8 @@ class LiveTemperatureSampler:
             include_chassis_and_crps0=True,
             save_dir=self.output_root / "live",
             register_exit_handlers=False,
+            qop_host=network["host"],
+            qop_cluster_name=network["cluster_name"],
         )
         monitor._initialize_history()
         self.monitor = monitor
@@ -216,6 +226,43 @@ class LiveTemperatureSampler:
                 ]
             )
 
+    def _history_for_window(
+        self,
+        memory_history: list[dict[str, Any]],
+        window_seconds: int | None,
+    ) -> list[dict[str, Any]]:
+        if not window_seconds:
+            return memory_history
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
+        samples = self._read_logged_history(cutoff)
+        if not samples:
+            samples = [
+                sample
+                for sample in memory_history
+                if parse_iso_datetime(sample.get("time")) >= cutoff
+            ]
+        return downsample_samples(samples, TEMPERATURE_HISTORY_PAYLOAD_POINTS)
+
+    def _read_logged_history(self, cutoff: datetime) -> list[dict[str, Any]]:
+        live_root = self.output_root / "live"
+        if not live_root.is_dir():
+            return []
+
+        samples: list[dict[str, Any]] = []
+        stale_cutoff = cutoff - timedelta(minutes=10)
+        for csv_path in sorted(live_root.glob("*/temperature_log_live.csv")):
+            try:
+                if datetime.fromtimestamp(csv_path.stat().st_mtime, timezone.utc) < stale_cutoff:
+                    continue
+            except OSError:
+                continue
+            try:
+                samples.extend(read_temperature_csv(csv_path, cutoff))
+            except (OSError, csv.Error, ValueError):
+                continue
+        samples.sort(key=lambda sample: parse_iso_datetime(sample.get("time")))
+        return samples
+
     def _prune_old_logs(self) -> None:
         now = time.time()
         if now - self._last_prune < 3600:
@@ -236,17 +283,92 @@ class LiveTemperatureSampler:
                     shutil.rmtree(path, ignore_errors=True)
 
 
-def temperature_payload() -> dict[str, Any]:
+def parse_iso_datetime(value: Any) -> datetime:
+    if not value:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    try:
+        text = str(value).replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def read_temperature_csv(csv_path: Path, cutoff: datetime) -> list[dict[str, Any]]:
+    samples: list[dict[str, Any]] = []
+    with csv_path.open("r", newline="", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+        if not reader.fieldnames:
+            return samples
+        temperature_keys = [
+            key
+            for key in reader.fieldnames
+            if key not in {"wall_time_utc", "elapsed_seconds"}
+        ]
+        for row in reader:
+            timestamp = parse_iso_datetime(row.get("wall_time_utc"))
+            if timestamp < cutoff:
+                continue
+            temperatures = {}
+            for key in temperature_keys:
+                raw_value = row.get(key)
+                if raw_value in {None, ""}:
+                    continue
+                temperatures[key] = float(raw_value)
+            if not temperatures:
+                continue
+            try:
+                elapsed_seconds = float(row.get("elapsed_seconds") or 0)
+            except ValueError:
+                elapsed_seconds = 0.0
+            samples.append(
+                {
+                    "time": timestamp.isoformat(),
+                    "elapsed_seconds": elapsed_seconds,
+                    "temperatures": temperatures,
+                }
+            )
+    return samples
+
+
+def downsample_samples(
+    samples: list[dict[str, Any]],
+    max_points: int,
+) -> list[dict[str, Any]]:
+    if len(samples) <= max_points:
+        return samples
+    step = math.ceil(len(samples) / max_points)
+    reduced = samples[::step]
+    if reduced[-1] is not samples[-1]:
+        reduced.append(samples[-1])
+    return reduced
+
+
+def parse_window_seconds(parameters: dict[str, str]) -> int | None:
+    raw_value = parameters.get("window_seconds")
+    if not raw_value:
+        return 15 * 60
+    try:
+        value = int(raw_value)
+    except ValueError:
+        return 15 * 60
+    max_seconds = TEMPERATURE_RETENTION_DAYS * 24 * 60 * 60
+    return min(max(value, MIN_TEMPERATURE_WINDOW_SECONDS), max_seconds)
+
+
+def temperature_payload(*, window_seconds: int | None = None) -> dict[str, Any]:
     if temperature_sampler is None:
         return {
             "connected": False,
             "error": "Temperature sampler is not running.",
             "latest": {},
             "history": [],
-            "recent_scans": list_temperature_scans(),
+            "window_seconds": window_seconds,
         }
-    payload = temperature_sampler.payload()
-    payload["recent_scans"] = list_temperature_scans()
+    payload = temperature_sampler.payload(window_seconds=window_seconds)
+    payload["window_seconds"] = window_seconds
     return payload
 
 
@@ -256,7 +378,11 @@ def list_temperature_scans(limit: int = 10) -> list[dict[str, Any]]:
     for root in roots:
         if not root.is_dir():
             continue
-        scans.extend(path for path in root.iterdir() if path.is_dir())
+        scans.extend(
+            path
+            for path in root.iterdir()
+            if path.is_dir() and not (root == TEMPERATURE_LOG_ROOT and path.name == "live")
+        )
     unique = sorted(set(scans), key=lambda path: path.stat().st_mtime, reverse=True)
     results = []
     for path in unique[:limit]:
@@ -279,8 +405,9 @@ def status_payload(
     profile_name: str | None = None,
     qubit: str | None = None,
     all_jobs: bool = False,
+    window_seconds: int | None = None,
 ) -> dict[str, Any]:
-    temperature = temperature_payload()
+    temperature = temperature_payload(window_seconds=window_seconds)
     try:
         jobs = jobs_payload(profile_name=profile_name, qubit=qubit, all_jobs=all_jobs)
         jobs_error = None
@@ -331,6 +458,7 @@ class JobStatusHandler(SimpleHTTPRequestHandler):
             for key, values in urllib.parse.parse_qs(query).items()
         }
         all_jobs = parameters.get("all", "").lower() in {"1", "true", "yes", "on"}
+        window_seconds = parse_window_seconds(parameters)
         try:
             if path == "/api/jobs":
                 self.send_json(
@@ -342,13 +470,14 @@ class JobStatusHandler(SimpleHTTPRequestHandler):
                 )
                 return
             if path == "/api/temperature":
-                self.send_json(temperature_payload())
+                self.send_json(temperature_payload(window_seconds=window_seconds))
                 return
             self.send_json(
                 status_payload(
                     profile_name=parameters.get("profile") or None,
                     qubit=parameters.get("qubit") or None,
                     all_jobs=all_jobs,
+                    window_seconds=window_seconds,
                 )
             )
         except Exception as exc:  # Keep the UI alive when QOP is unreachable.

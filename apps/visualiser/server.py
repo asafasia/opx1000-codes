@@ -30,6 +30,12 @@ CALIBRATION_V2_CODE_ROOT = PROJECT_ROOT / "calibrations_v2"
 CALIBRATION_RUN_ROOT = DATA_ROOT / "calibrations"
 CALIBRATION_UPDATE_ROOT = DATA_ROOT / "calibration_updates"
 PARAMETER_SCAN_ROOT = DATA_ROOT / "parameter_scans"
+IGNORED_DATA_CATEGORIES = {
+    "calibrations",
+    "calibration_updates",
+    "parameter_scans",
+    "temperature_logs",
+}
 
 DATE_RE = re.compile(r"(?P<year>20\d{2})[-_]?(?P<month>\d{2})[-_]?(?P<day>\d{2})")
 TIME_RE = re.compile(r"^\d{2}-\d{2}-\d{2}(?:-\d{6})?$")
@@ -230,8 +236,7 @@ def general_experiments(date: str) -> tuple[list[dict[str, Any]], list[str]]:
     roots, error = safe_iterdir(DATA_ROOT)
     if error:
         return [], [f"Could not read data directory: {error}"]
-    ignored = {"calibrations", "calibration_updates", "parameter_scans"}
-    for category in (p for p in roots if p.is_dir() and p.name not in ignored):
+    for category in (p for p in roots if p.is_dir() and p.name not in IGNORED_DATA_CATEGORIES):
         run_dirs, scan_errors = collect_general_experiment_dirs(category)
         errors.extend(scan_errors)
         for run in run_dirs:
@@ -294,7 +299,7 @@ def available_dates() -> list[str]:
         dates.update(filter(None, (iso_date_from_text(child.name) for child in children)))
     roots, _ = safe_iterdir(DATA_ROOT)
     for category in roots:
-        if not category.is_dir() or category.name in {"calibrations", "calibration_updates", "parameter_scans"}:
+        if not category.is_dir() or category.name in IGNORED_DATA_CATEGORIES:
             continue
         children, _ = safe_iterdir(category)
         candidates = [category, *children]

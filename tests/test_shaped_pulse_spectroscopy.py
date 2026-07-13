@@ -393,10 +393,16 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertIn("fixed_rabi_frequency_mhz", fixed_source)
         self.assertIn("rabi_frequency_hz_to_amplitude", fixed_source)
         self.assertIn("with for_(*from_array(a, amps)):", amplitude_source)
+        self.assertIn("amplitude_prefactors(self.parameters)", amplitude_source)
+        self.assertIn("--amp-factor-points", amplitude_source)
+        self.assertIn("--amp-factor-spacing", amplitude_source)
         self.assertNotIn("with for_(*from_array(df, dfs)):", amplitude_source)
         self.assertIn("for_each_(df, dfs.tolist())", v2_source)
         self.assertIn("else for_(*from_array(df, dfs))", v2_source)
         self.assertIn("with for_(*from_array(a, amps)):", v2_source)
+        self.assertIn("--amp-factor-points", v2_source)
+        self.assertIn("--amp-factor-spacing", v2_source)
+        self.assertIn("--frequency-points", v2_source)
         self.assertIn("duration=play_duration", v2_source)
         self.assertIn("duration=play_duration", amplitude_source)
         self.assertIn('"detuning": xr.DataArray(', v2_source)
@@ -408,7 +414,7 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
             "run_amplitude_sweep.py": "experiments.amplitude_sweep",
             "run_fixed_amplitude.py": "experiments.fixed_amplitude_spectroscopy",
             "run_fixed_amplitude_set.py": "experiments.fixed_amplitude_batch",
-            "run_cutoff_sweep.py": "experiments.cutoff_optimization",
+            "run_cutoff_amp_fwhm_map.py": "experiments.cutoff_amp_fwhm_map",
         }
 
         for script_name, module_name in expected_modules.items():
@@ -421,13 +427,14 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         config_text = config_path.read_text()
         scripts_root = SCRIPTS_ROOT / "cutoff_scans"
 
-        for region_name in ("high_cutoff", "medium_cutoff", "small_cutoff"):
+        for region_name in ("high_cutoff", "low_cutoff"):
             self.assertIn(region_name, config_text)
 
         self.assertIn("domain_100mhz", config_text)
         self.assertIn("domain_1mhz", config_text)
-        self.assertIn('"points": 100', config_text)
+        self.assertIn('"amp_factor_points": 100', config_text)
         self.assertIn('"points": 200', config_text)
+        self.assertIn('"amp_factor_spacing": "log"', config_text)
         self.assertIn("--execute", (scripts_root / "common.py").read_text())
         self.assertIn(
             "run_region_from_args", (scripts_root / "run_region.py").read_text()
@@ -439,10 +446,19 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
             "high_cutoff", (scripts_root / "run_high_cutoff.py").read_text()
         )
         self.assertIn(
-            "medium_cutoff", (scripts_root / "run_medium_cutoff.py").read_text()
+            "low_cutoff", (scripts_root / "run_low_cutoff.py").read_text()
         )
         self.assertIn(
-            "small_cutoff", (scripts_root / "run_small_cutoff.py").read_text()
+            "--no-echo", (scripts_root / "01_high_no_echo.py").read_text()
+        )
+        self.assertIn(
+            "--echo", (scripts_root / "02_high_echo.py").read_text()
+        )
+        self.assertIn(
+            "--no-echo", (scripts_root / "03_low_no_echo.py").read_text()
+        )
+        self.assertIn(
+            "--echo", (scripts_root / "04_low_echo.py").read_text()
         )
 
     def test_fixed_amplitude_set_loops_over_echo_modes_and_rabi_amplitudes(self):
@@ -459,15 +475,18 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertIn("frequency_step_in_mhz", source)
         self.assertIn("plot_data=False", source)
         self.assertIn("plot_spectroscopy_traces(", source)
-        self.assertIn("t2_seconds=_t2_seconds(machine.qubits[args.qubit])", source)
+        self.assertIn(
+            "t2_star_seconds=_t2_star_seconds(machine.qubits[args.qubit])",
+            source,
+        )
         self.assertIn("fixed_amplitude_lorentzian_no_echo.png", source)
         self.assertIn("fixed_amplitude_echo_lorentzian.png", source)
-        self.assertIn("_t2_seconds(machine.qubits[args.qubit])", source)
-        self.assertIn("T2 limit:", source)
-        self.assertIn("1 / (2 * np.pi * t2_seconds)", source)
+        self.assertIn("_t2_star_seconds(machine.qubits[args.qubit])", source)
+        self.assertIn("T2* limit:", source)
+        self.assertIn("1 / (2 * np.pi * t2_star_seconds)", source)
 
-    def test_cutoff_sweep_uses_ten_log_points_and_summarizes_fit_signal(self):
-        source = (EXPERIMENTS_ROOT / "cutoff_optimization.py").read_text()
+    def test_cutoff_amp_fwhm_map_uses_ten_log_points_and_summarizes_fit_signal(self):
+        source = (EXPERIMENTS_ROOT / "cutoff_amp_fwhm_map.py").read_text()
 
         self.assertIn("np.geomspace(", source)
         self.assertIn("0.99", source)
@@ -482,31 +501,34 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertIn("contextlib.redirect_stdout(stdout)", source)
         self.assertIn("contextlib.redirect_stderr(stderr)", source)
         self.assertIn("logging.disable(logging.CRITICAL)", source)
-        self.assertIn("Cutoff sweep [", source)
+        self.assertIn("Cutoff amplitude FWHM map [", source)
         self.assertIn("except KeyboardInterrupt:", source)
         self.assertIn("_save_sweep_outputs(", source)
         self.assertIn("_save_individual_figures(", source)
         self.assertIn("individual_figures", source)
         self.assertIn('"interrupted"', source)
-        self.assertIn("cutoff_sweep_fit_results.csv", source)
-        self.assertIn("cutoff_sweep_best_signal.csv", source)
-        self.assertIn("cutoff_sweep_fwhm_heatmap.png", source)
-        self.assertIn("cutoff_sweep_per_cutoff_traces.png", source)
+        self.assertIn("cutoff_amp_fwhm_map_fit_results.csv", source)
+        self.assertIn("cutoff_amp_fwhm_map_best_signal.csv", source)
+        self.assertIn("cutoff_amp_fwhm_map_fwhm_heatmap.png", source)
+        self.assertIn("cutoff_amp_fwhm_map_per_cutoff_traces.png", source)
         self.assertIn("plot_per_cutoff_traces", source)
         self.assertIn("fitted FWHM trace for each cutoff", source)
         self.assertIn("gaussian_fit_amplitude", source)
         self.assertIn("gaussian_fit_abs_amplitude", source)
         self.assertIn('ax.set_xscale("log")', source)
-        self.assertIn("t2_fwhm_limit_hz", source)
-        self.assertIn("fwhm_t2_units", source)
-        self.assertIn("1 / (np.pi * float(t2_s))", source)
+        self.assertIn("t2_star_fwhm_limit_hz", source)
+        self.assertIn("fwhm_t2_star_units", source)
+        self.assertIn("1 / (np.pi * float(t2_star_s))", source)
         self.assertIn("full_amp_v", source)
         self.assertIn("amplitude_to_rabi_frequency_hz", source)
         self.assertIn('set_yscale("log")', source)
         self.assertIn("Full pulse amplitude [V]", source)
-        self.assertIn("fwhm_over_signal", source)
-        self.assertIn("FWHM / (1/(pi*T2))", source)
-        self.assertIn("FWHM / (signal * 1/(pi*T2))", source)
+        self.assertIn("resolution_times_signal", source)
+        self.assertIn("vmin=0.1", source)
+        self.assertIn("vmax=1", source)
+        self.assertIn("LogNorm(vmin=1e-1, vmax=1, clip=True)", source)
+        self.assertIn("Resolution: (1/(pi*T2*)) / FWHM", source)
+        self.assertIn("Resolution * fit signal", source)
 
     def test_shared_operation_builder_supports_root_lorentzian(self):
         parameters = SimpleNamespace(
@@ -726,8 +748,8 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertIn("echo=True", figure_text)
         self.assertIn("0.25 cutoff", figure_text)
         self.assertIn("T1=2 us", figure_text)
-        self.assertIn("T2=1 us", figure_text)
-        self.assertIn("1/(pi*T2)=318310", figure_text)
+        self.assertIn("T2*=1 us", figure_text)
+        self.assertIn("1/(pi*T2*)=318310", figure_text)
         plt.close(figure)
 
     def test_lorentzian_plot_marks_gaussian_fwhm_edges(self):
@@ -928,7 +950,7 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
             [-expected_limit_mhz, expected_limit_mhz],
         )
         labels = [line.get_label() for line in figure.axes[0].lines]
-        self.assertIn("T2 limit: ±1/(2πT2)", labels)
+        self.assertIn("T2* limit: ±1/(2πT2*)", labels)
         plt.close(figure)
 
     def test_t2_ramsey_ns_attribute_is_interpreted_as_seconds(self):
@@ -936,8 +958,56 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         qubit.T2ramsey = None
         qubit.t2_ramsey_ns = 1e-6
 
-        self.assertAlmostEqual(lorentzian._t2_seconds(qubit), 1e-6)
-        self.assertAlmostEqual(lorentzian._t2_limit_hz(qubit), 1 / (np.pi * 1e-6))
+        self.assertAlmostEqual(lorentzian._t2_star_seconds(qubit), 1e-6)
+        self.assertAlmostEqual(
+            lorentzian._t2_star_limit_hz(qubit),
+            1 / (np.pi * 1e-6),
+        )
+
+    def test_t2_star_does_not_fall_back_to_echo_t2(self):
+        qubit = make_plot_qubit(name="q7", t2_ramsey=None)
+        qubit.T2ramsey = None
+        qubit.T2echo = 17e-6
+        profile = {
+            "metrics": {
+                "qubits": {
+                    "q7": {
+                        "coherence": {
+                            "t2_ramsey_ns": None,
+                            "t2_echo_ns": 17000,
+                        }
+                    }
+                }
+            }
+        }
+
+        with patch.object(lorentzian, "load_profile", return_value=profile):
+            self.assertIsNone(lorentzian._t2_star_seconds(qubit))
+
+    def test_inner_dataset_saves_t2_star_and_fwhm_limit(self):
+        ds = xr.Dataset(coords={"qubit": ["q1"]})
+        qubit = make_plot_qubit(name="q1", t2_ramsey=29.27e-6)
+        profile = {
+            "metrics": {
+                "qubits": {
+                    "q1": {
+                        "coherence": {
+                            "t2_ramsey_ns": 6.855588134130561e-6,
+                        }
+                    }
+                }
+            }
+        }
+
+        with patch.object(lorentzian, "load_profile", return_value=profile):
+            processed = lorentzian._add_t2_star_coordinates(ds, [qubit])
+
+        self.assertAlmostEqual(float(processed.t2_star_s.item()), 6.855588134130561e-6)
+        self.assertAlmostEqual(
+            float(processed.t2_star_fwhm_limit_hz.item()),
+            1 / (np.pi * 6.855588134130561e-6),
+        )
+        self.assertEqual(processed.t2_star_s.attrs["long_name"], "Ramsey T2*")
 
     def test_profile_metrics_override_quam_default_coherence(self):
         qubit = make_plot_qubit(name="q9", t1=1e-6, t2_ramsey=None)
@@ -960,7 +1030,10 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
             lorentzian, "load_profile", return_value=profile
         ):
             self.assertAlmostEqual(lorentzian._t1_seconds(qubit), 38.82321730255817e-6)
-            self.assertAlmostEqual(lorentzian._t2_seconds(qubit), 4.0462030446001355e-6)
+            self.assertAlmostEqual(
+                lorentzian._t2_star_seconds(qubit),
+                4.0462030446001355e-6,
+            )
 
     def test_amplitude_to_rabi_frequency_uses_square_pi_pulse(self):
         from utils.rabi_amplitude import amplitude_to_rabi_frequency_hz

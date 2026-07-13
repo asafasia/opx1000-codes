@@ -66,10 +66,12 @@ general_amp_hz = (general_amp / pi_amp) * pi_amp_hz
 ```
 
 The right y-axis shows the absolute Lorentzian peak amplitude in V. When a
-qubit has a T2 value, dashed vertical lines mark `+-1 / (2 * pi * T2)`.
+qubit has a Ramsey T2* value, dashed vertical lines mark
+`+-1 / (2 * pi * T2*)`.
 Figures include a compact parameter banner with the pulse shape, pulse length,
 cutoff or tau, echo flag, peak amplitude, sweep span/step, and square pi pulse.
-When available, the banner also includes T1, T2, and `1 / (pi * T2)` in Hz.
+When available, the banner also includes T1, Ramsey T2*, and
+`1 / (pi * T2*)` in Hz.
 For each amplitude in the 2D spectroscopy scan, analysis fits a Gaussian versus
 detuning, stores the fitted FWHM and signal amplitude, and overlays the fitted
 FWHM edges as paired markers on the heatmap.
@@ -108,16 +110,16 @@ python Projects\shaped_pulse_spectroscopy\scripts\run_amplitude_sweep.py
 To sweep the root-Lorentzian cutoff itself, run:
 
 ```powershell
-python Projects\shaped_pulse_spectroscopy\scripts\run_cutoff_sweep.py
+python Projects\shaped_pulse_spectroscopy\scripts\run_cutoff_amp_fwhm_map.py
 ```
 
 This runs ten log-spaced cutoff values from `1e-4` to `0.99`. For each cutoff it
 runs the class-based echo-Lorentzian spectroscopy experiment in memory, without
 saving the individual per-cutoff experiments. The wrapper writes only the
-combined `cutoff_sweep_fit_results.csv`, `cutoff_sweep_best_signal.csv`,
-`manifest.json`, `cutoff_sweep_summary.png`, `cutoff_sweep_fwhm_heatmap.png`,
-and `cutoff_sweep_per_cutoff_traces.png` under
-`data/echo_lorentzian_cutoff_sweep/`. Each completed cutoff also saves only its
+combined `cutoff_amp_fwhm_map_fit_results.csv`, `cutoff_amp_fwhm_map_best_signal.csv`,
+`manifest.json`, `cutoff_amp_fwhm_map_summary.png`, `cutoff_amp_fwhm_map_fwhm_heatmap.png`,
+and `cutoff_amp_fwhm_map_per_cutoff_traces.png` under
+`data/cutoff_amp_fwhm_map/`. Each completed cutoff also saves only its
 individual figure PNGs under `individual_figures/`; the full inner experiment
 data is not saved. If the sweep is interrupted, completed rows, aggregate
 figures, individual figures, and `manifest.json` are still written, with
@@ -128,8 +130,10 @@ frequency in MHz and cutoff, plus a second subplot of FWHM divided by fitted
 signal amplitude, with cutoff plotted on a log scale. The Rabi-frequency axis is
 translated from the Lorentzian peak amplitude using the qubit's square `x180`
 calibration. FWHM values in the
-summary and heatmap are normalized by the qubit's T2 FWHM limit `1 / (pi*T2)`;
-for example, `T2=6.86 us` corresponds to a `46.4 kHz` normalization unit.
+summary and heatmap are normalized by the qubit's Ramsey T2* FWHM limit
+`1 / (pi*T2*)`; for example, `T2*=6.86 us` corresponds to a `46.4 kHz`
+normalization unit. New inner datasets and aggregate CSV records save this as
+`t2_star_s`, `t2_star_fwhm_limit_hz`, and `fwhm_t2_star_units`.
 
 For long pulses, keep `lorentzian_length_in_ns` as the physical pulse duration
 and set `waveform_template_length_in_ns` to a shorter template, for example
@@ -138,7 +142,7 @@ with QUA `duration=lorentzian_length_in_ns // 4`.
 
 ## Robust Cutoff Optimization Roadmap
 
-`cutoff_optimization.py` is a key experiment. It scans the root-Lorentzian
+`cutoff_amp_fwhm_map.py` is a key experiment. It scans the root-Lorentzian
 cutoff value and, for each cutoff, runs the full 2D detuning-versus-amplitude
 sweep. For every cutoff and amplitude, the analysis extracts a spectroscopy
 trace versus detuning and estimates its FWHM.
@@ -230,7 +234,7 @@ The cutoff sweep should rank candidate cutoff values by a reliability-aware
 score. A good cutoff is not only the point with the largest fitted signal. It
 should have:
 
-- small FWHM in T2-limit units;
+- small FWHM in T2*-limit units;
 - enough signal;
 - high quality status;
 - stable behavior over nearby amplitudes;
@@ -256,10 +260,10 @@ need a follow-up scan.
 The cutoff optimization should write human-readable tables:
 
 ```text
-cutoff_sweep_fit_results.csv
-cutoff_sweep_best_points.csv
-cutoff_sweep_quality_summary.csv
-cutoff_sweep_rescan_recommendations.csv
+cutoff_amp_fwhm_map_fit_results.csv
+cutoff_amp_fwhm_map_best_points.csv
+cutoff_amp_fwhm_map_quality_summary.csv
+cutoff_amp_fwhm_map_rescan_recommendations.csv
 manifest.json
 ```
 
@@ -296,113 +300,27 @@ single reliable linewidth.
 
 ### Cutoff Regions And Scan Domains
 
-Cutoff values should be treated as different experimental regimes. A single
-detuning span is not appropriate for every cutoff, because high cutoffs behave
-closer to square pulses and can produce broad features, while very small
-cutoffs can produce much narrower features.
-
-Recommended cutoff regions:
+Use two cutoff regions:
 
 ```text
-high_cutoff:   0.1    <= cutoff <= 1
-medium_cutoff: 0.001  <= cutoff <  0.1
-small_cutoff:  0.0005 <= cutoff <  0.001
+high_cutoff: 0.99 to 0.1, 10 log cutoffs
+low_cutoff:  0.1  to 0.01, 10 log cutoffs
 ```
 
-The cutoff optimization should save results into categorized folders so the
-data remains easy to inspect and compare:
+Use the same three frequency domains for both:
 
 ```text
-data/echo_lorentzian_cutoff_sweep/
-  high_cutoff/
-    20260708_153000/
-      domain_100mhz/
-      domain_10mhz/
-      domain_1mhz/
-      region_summary.csv
-      region_summary.png
-      manifest.json
-  medium_cutoff/
-    20260708_164500/
-      domain_100mhz/
-      domain_10mhz/
-      domain_1mhz/
-      domain_0p1mhz/
-      region_summary.csv
-      region_summary.png
-      manifest.json
-  small_cutoff/
-    20260708_181000/
-      domain_10mhz/
-      domain_1mhz/
-      domain_0p1mhz/
-      domain_0p01mhz/
-      region_summary.csv
-      region_summary.png
-      manifest.json
+100 MHz, 10 MHz, 1 MHz
 ```
 
-Each `domain_*` folder should contain the outputs for one detuning-span choice:
+Default grid:
 
 ```text
-domain_10mhz/
-  cutoff_sweep_fit_results.csv
-  cutoff_sweep_best_points.csv
-  cutoff_sweep_quality_summary.csv
-  cutoff_sweep_rescan_recommendations.csv
-  cutoff_sweep_fwhm_heatmap.png
-  cutoff_sweep_signal_heatmap.png
-  cutoff_sweep_quality_heatmap.png
-  cutoff_sweep_per_cutoff_traces.png
-  individual_figures/
-  manifest.json
+200 frequency points per domain
+100 log-spaced amplitudes
+30 averages
+echo=false and echo=true
 ```
-
-The individual 2D figures saved under `individual_figures/` should always show
-the FWHM result from the fitter directly on the 2D heatmap. This makes every
-domain scan self-contained: opening the figure should show the raw 2D data,
-the detected linewidth markers, and enough metadata to understand the cutoff,
-detuning span, detuning step, pulse length, and amplitude axis.
-
-Suggested domain scans:
-
-```text
-high_cutoff:
-  purpose: effective square-pulse-like behavior; expect broad linewidths
-  cutoff range: 0.1 to 1
-  detuning spans: 100 MHz, 10 MHz, 1 MHz
-  workflow: start broad, then use narrower domains only when the feature is not clipped
-
-medium_cutoff:
-  purpose: mixed regime; both broad and narrow linewidths are possible
-  cutoff range: 0.001 to 0.1
-  detuning spans: 100 MHz, 10 MHz, 1 MHz, 0.1 MHz
-  workflow: compare domains and let quality flags decide which domain is reliable
-
-small_cutoff:
-  purpose: very small cutoff; expect potentially narrow features
-  cutoff range: 0.0005 to 0.001
-  detuning spans: 10 MHz, 1 MHz, 0.1 MHz, 0.01 MHz
-  workflow: prioritize fine resolution, but keep a wider guard scan to detect clipping
-```
-
-In the final version, `cutoff_optimization.py` should support a region/domain
-configuration such as:
-
-```text
-region = high_cutoff
-cutoffs = logspace(0.1, 1)
-domains = [
-  {span_mhz: 100, step_mhz: 0.2},
-  {span_mhz: 10,  step_mhz: 0.02},
-  {span_mhz: 1,   step_mhz: 0.002},
-]
-```
-
-The analysis should then decide which domain produced the most trustworthy FWHM
-for each cutoff and amplitude. Broad scans protect against clipped features;
-fine scans protect against unresolved narrow features. The final summary should
-record both the selected FWHM and the domain that produced it.
 
 Cutoff-region campaign scripts live under:
 
@@ -414,8 +332,16 @@ Preset region commands:
 
 ```powershell
 python Projects\shaped_pulse_spectroscopy\scripts\cutoff_scans\run_high_cutoff.py
-python Projects\shaped_pulse_spectroscopy\scripts\cutoff_scans\run_medium_cutoff.py
-python Projects\shaped_pulse_spectroscopy\scripts\cutoff_scans\run_small_cutoff.py
+python Projects\shaped_pulse_spectroscopy\scripts\cutoff_scans\run_low_cutoff.py
+```
+
+Numbered queue:
+
+```powershell
+python Projects\shaped_pulse_spectroscopy\scripts\cutoff_scans\01_high_no_echo.py --qubit q1
+python Projects\shaped_pulse_spectroscopy\scripts\cutoff_scans\02_high_echo.py --qubit q1
+python Projects\shaped_pulse_spectroscopy\scripts\cutoff_scans\03_low_no_echo.py --qubit q1
+python Projects\shaped_pulse_spectroscopy\scripts\cutoff_scans\04_low_echo.py --qubit q1
 ```
 
 By default these commands only print the planned scan. Add `--execute` to run
@@ -432,11 +358,18 @@ python Projects\shaped_pulse_spectroscopy\scripts\cutoff_scans\run_region.py --r
 python Projects\shaped_pulse_spectroscopy\scripts\cutoff_scans\run_domain.py --region high_cutoff --domain domain_10mhz --qubit q1
 ```
 
+Advice:
+
+- Run no-echo first as the baseline.
+- Use `100 MHz` to detect clipping, `10 MHz` for the main comparison, and `1 MHz` only for centered narrow features.
+- If the best cutoff differs between echo modes, rerun only the interesting cutoff/domain with more shots.
+- Keep the log amplitude minimum positive; the config uses `0.01`.
+
 Existing campaign folders can be summarized or replotted without rerunning:
 
 ```powershell
-python Projects\shaped_pulse_spectroscopy\scripts\cutoff_scans\build_region_summary.py data\echo_lorentzian_cutoff_sweep\high_cutoff\20260708_153000
-python Projects\shaped_pulse_spectroscopy\scripts\cutoff_scans\replot_region.py data\echo_lorentzian_cutoff_sweep\high_cutoff\20260708_153000
+python Projects\shaped_pulse_spectroscopy\scripts\cutoff_scans\build_region_summary.py data\cutoff_amp_fwhm_map\high_cutoff\20260708_153000
+python Projects\shaped_pulse_spectroscopy\scripts\cutoff_scans\replot_region.py data\cutoff_amp_fwhm_map\high_cutoff\20260708_153000
 ```
 
 The region/domain definitions live in:

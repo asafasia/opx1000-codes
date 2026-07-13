@@ -1,14 +1,19 @@
 :root {
   color-scheme: light;
-  --bg: #f4f6f8;
+  --bg: #e9eef4;
   --surface: #ffffff;
+  --surface-soft: #f8fafc;
   --text: #18202a;
   --muted: #657080;
-  --line: #d7dde5;
-  --accent: #11845b;
+  --line: #dbe2ea;
+  --accent: #0f766e;
+  --accent-soft: #e4f5f1;
   --danger: #b42318;
+  --danger-soft: #fdebea;
   --warning: #9a6700;
-  --shadow: 0 20px 60px rgba(24, 32, 42, 0.1);
+  --warning-soft: #fff4db;
+  --ink-soft: #eef4f7;
+  --shadow: 0 32px 90px rgba(24, 32, 42, 0.14);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -19,32 +24,37 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0) 360px),
+    radial-gradient(circle at 18% 0%, rgba(15, 118, 110, 0.08), transparent 280px),
+    var(--bg);
   color: var(--text);
 }
 
-.shell {
-  width: min(780px, calc(100vw - 32px));
-  margin: 0 auto;
-  padding: 9vh 0 40px;
-}
-
-.hero,
-.job-card {
-  background: var(--surface);
+.dashboard {
+  width: min(1040px, calc(100vw - 32px));
+  margin: 40px auto;
+  overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 18px;
+  background: var(--surface);
   box-shadow: var(--shadow);
 }
 
-.hero {
-  padding: clamp(28px, 6vw, 52px);
-  margin-bottom: 16px;
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 32px 38px 28px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #ffffff, #fbfcfd);
 }
 
 .eyebrow,
 .label {
-  margin: 0 0 12px;
+  display: block;
+  margin: 0 0 10px;
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 800;
@@ -56,31 +66,6 @@ body {
   color: var(--accent);
 }
 
-.live-row {
-  display: flex;
-  align-items: center;
-  gap: clamp(14px, 3vw, 24px);
-}
-
-.live-dot {
-  width: clamp(28px, 6vw, 48px);
-  height: clamp(28px, 6vw, 48px);
-  border-radius: 999px;
-  background: var(--warning);
-  box-shadow: 0 0 0 10px rgba(154, 103, 0, 0.12);
-  flex: 0 0 auto;
-}
-
-.live-dot.live {
-  background: var(--accent);
-  box-shadow: 0 0 0 10px rgba(17, 132, 91, 0.12);
-}
-
-.live-dot.offline {
-  background: var(--danger);
-  box-shadow: 0 0 0 10px rgba(180, 35, 24, 0.12);
-}
-
 h1,
 h2,
 p {
@@ -89,28 +74,155 @@ p {
 }
 
 h1 {
-  font-size: clamp(3rem, 8vw, 5.8rem);
-  line-height: 0.95;
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1;
 }
 
 h2 {
-  font-size: clamp(1.6rem, 4vw, 2.6rem);
+  font-size: clamp(1.25rem, 3vw, 2rem);
   line-height: 1.08;
   overflow-wrap: anywhere;
 }
 
 .subline {
-  margin-top: 18px;
+  margin-top: 10px;
   color: var(--muted);
-  font-size: 1.05rem;
+  font-size: 1rem;
+}
+
+.header-actions { display: flex; align-items: center; gap: 12px; }
+.hub-link { display: inline-flex; align-items: center; min-height: 42px; padding: 0 15px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); background: var(--surface-soft); font-size: .82rem; font-weight: 750; text-decoration: none; white-space: nowrap; }
+.hub-link:hover { border-color: #bfcbd3; background: var(--ink-soft); }
+
+.status-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  padding: 8px 14px;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+.live-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  background: var(--warning);
+  box-shadow: 0 0 0 5px var(--warning-soft);
+  flex: 0 0 auto;
+}
+
+.live-dot.live {
+  background: var(--accent);
+  box-shadow: 0 0 0 5px var(--accent-soft);
+}
+
+.live-dot.offline {
+  background: var(--danger);
+  box-shadow: 0 0 0 5px var(--danger-soft);
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.78fr) minmax(470px, 1.62fr);
+  align-items: stretch;
+}
+
+.job-card,
+.temperature-card {
+  min-height: 100%;
+  padding: 32px 38px;
 }
 
 .job-card {
-  padding: clamp(24px, 5vw, 40px);
+  border-right: 1px solid var(--line);
+  background: linear-gradient(180deg, #fff, #fbfcfd);
 }
 
-.label {
-  display: block;
+.job-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.job-heading .label {
+  margin: 0;
+}
+
+.job-orbit {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  flex: 0 0 auto;
+}
+
+.job-orbit::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: 999px;
+  background: #cbd5df;
+}
+
+.job-orbit span {
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin-left: -3.5px;
+  border-radius: 999px;
+  background: var(--accent);
+  transform-origin: 3.5px 14px;
+}
+
+.job-orbit.running span {
+  animation: orbit 1.6s linear infinite;
+}
+
+.job-orbit.running::before {
+  background: var(--accent-soft);
+}
+
+.job-orbit.waiting span {
+  background: #94a3b8;
+  animation: breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes breathe {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+
+.section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.section-heading h2 {
+  margin-top: 8px;
 }
 
 .job-meta {
@@ -124,16 +236,127 @@ h2 {
   display: inline-flex;
   min-height: 30px;
   align-items: center;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 4px 10px;
-  background: #eef2f6;
+  background: var(--surface-soft);
   color: var(--muted);
+  padding: 4px 10px;
   font-size: 0.86rem;
   font-weight: 750;
 }
 
+.window-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  padding: 3px;
+  white-space: nowrap;
+}
+
+.window-control button {
+  min-height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 760;
+  padding: 4px 9px;
+}
+
+.window-control button.active {
+  background: var(--text);
+  color: #fff;
+}
+
+.window-control button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.temperature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.temperature-sensor {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: linear-gradient(180deg, #fff, var(--surface-soft));
+  padding: 14px 14px 12px;
+}
+
+.sensor-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sensor-name {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.sensor-value {
+  font-size: 1.25rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.sparkline {
+  margin-top: 10px;
+}
+
+.sparkline svg {
+  display: block;
+  width: 100%;
+  height: 92px;
+}
+
+.grid-line {
+  fill: none;
+  stroke: #d7dee7;
+  stroke-width: 1;
+}
+
+.trend-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+}
+
+.axis-line {
+  fill: none;
+  stroke: #bcc8d6;
+  stroke-width: 1;
+}
+
+.axis-label {
+  fill: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.empty-line {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 #jobDescription,
-.footer-line {
+.footer-line,
+.muted {
   color: var(--muted);
   font-size: 0.98rem;
 }
@@ -148,18 +371,58 @@ h2 {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 10px 18px;
-  margin: 16px 2px 0;
+  margin: 0;
+  padding: 16px 36px;
+  border-top: 1px solid var(--line);
+  background: #fbfcfd;
 }
 
 @media (max-width: 720px) {
-  .shell {
-    width: min(100vw - 20px, 780px);
-    padding-top: 24px;
+  .dashboard {
+    width: min(100vw - 16px, 1040px);
+    margin: 16px auto;
   }
 
-  .live-row,
+  .header {
+    flex-direction: column;
+    padding: 24px;
+  }
+
+  .header-actions { width: 100%; justify-content: space-between; }
+
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .job-card,
+  .temperature-card {
+    padding: 24px;
+  }
+
+  .job-card {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .section-heading,
   .footer-line {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .window-control {
+    flex-wrap: wrap;
+    border-radius: 14px;
+    white-space: normal;
+  }
+
+  .temperature-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .temperature-grid {
+    grid-template-columns: 1fr;
   }
 }

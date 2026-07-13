@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Data Review Dashboard</title>
   <link rel="icon" type="image/png" href="Q.png">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=hub-1">
 </head>
 <body>
   <header class="topbar">
@@ -15,6 +15,7 @@
       <h1>Data Review Dashboard</h1>
     </div>
     <div class="top-actions">
+      <a class="hub-link" data-hub-link href="http://127.0.0.1:8890/">← Lab Home</a>
       <span class="status-dot"></span><span id="statusText">Connecting</span>
       <button id="refreshButton" class="icon-button" title="Refresh live data">R</button>
     </div>
@@ -87,6 +88,6 @@
     <div class="lightbox-bar"><span id="lightboxName"></span><span>Scroll to zoom | drag to pan</span><button id="closeLightbox">X</button></div>
     <div id="lightboxStage" class="lightbox-stage"><img id="lightboxImage" alt=""></div>
   </div>
-  <script src="app.js"></script>
+  <script src="app.js?v=hub-1"></script>
 </body>
 </html>

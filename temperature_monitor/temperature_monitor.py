@@ -28,6 +28,8 @@ class TemperatureMonitor:
         include_chassis_and_crps0=False,
         save_dir=Path("data") / "temperature_logs",
         register_exit_handlers=True,
+        qop_host=None,
+        qop_cluster_name=None,
     ):
         self.controller_name = controller_name
         self.poll_interval = poll_interval
@@ -42,8 +44,8 @@ class TemperatureMonitor:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.qmm = QuantumMachinesManager(
-            host=qop_ip,
-            cluster_name=cluster_name,
+            host=qop_host or qop_ip,
+            cluster_name=qop_cluster_name or cluster_name,
             log_level=0,
         )
 

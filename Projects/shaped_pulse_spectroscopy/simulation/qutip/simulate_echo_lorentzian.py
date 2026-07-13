@@ -8,9 +8,11 @@ solves a driven two-level qubit Hamiltonian for each detuning/amplitude point.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 from dataclasses import asdict
 from pathlib import Path
+import sys
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -23,6 +25,12 @@ except ImportError:  # pragma: no cover - exercised only when running the CLI.
     qutip = None
 
 from parameters import SimulationParameters
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from shaped_pulse_spectroscopy.fwhm import add_gaussian_fwhm_analysis
 
 
 def lorentzian_envelope(
@@ -148,19 +156,53 @@ def amplitude_to_rabi_frequency_hz(
 
 
 def sweep_axes(parameters: SimulationParameters) -> tuple[np.ndarray, np.ndarray]:
-    amps = np.arange(
-        parameters.min_amp_factor,
-        parameters.max_amp_factor,
-        parameters.amp_factor_step,
-    )
+    if parameters.amp_factor_points is not None:
+        if parameters.amp_factor_points < 1:
+            raise ValueError("amp_factor_points must be positive.")
+        if parameters.amp_factor_spacing == "log":
+            if parameters.min_amp_factor <= 0 or parameters.max_amp_factor <= 0:
+                raise ValueError("Log-spaced amplitudes require positive min/max factors.")
+            amps = np.geomspace(
+                parameters.min_amp_factor,
+                parameters.max_amp_factor,
+                parameters.amp_factor_points,
+            )
+        elif parameters.amp_factor_spacing == "linear":
+            amps = np.linspace(
+                parameters.min_amp_factor,
+                parameters.max_amp_factor,
+                parameters.amp_factor_points,
+            )
+        else:
+            raise ValueError("amp_factor_spacing must be 'linear' or 'log'.")
+    else:
+        amps = np.arange(
+            parameters.min_amp_factor,
+            parameters.max_amp_factor,
+            parameters.amp_factor_step,
+        )
     if amps.size == 0:
         raise ValueError("Amplitude sweep is empty.")
 
     span_hz = round(parameters.frequency_span_in_mhz * 1e6)
-    step_hz = round(parameters.frequency_step_in_mhz * 1e6)
-    if step_hz <= 0:
-        raise ValueError("frequency_step_in_mhz must be positive.")
-    detunings = np.arange(-span_hz // 2, span_hz // 2 + step_hz, step_hz, dtype=float)
+    if parameters.frequency_points is not None:
+        if parameters.frequency_points < 2:
+            raise ValueError("frequency_points must be at least 2.")
+        detunings = np.linspace(
+            -span_hz / 2,
+            span_hz / 2,
+            parameters.frequency_points,
+        )
+    else:
+        step_hz = round(parameters.frequency_step_in_mhz * 1e6)
+        if step_hz <= 0:
+            raise ValueError("frequency_step_in_mhz must be positive.")
+        detunings = np.arange(
+            -span_hz // 2,
+            span_hz // 2 + step_hz,
+            step_hz,
+            dtype=float,
+        )
     return detunings, amps
 
 
@@ -171,15 +213,32 @@ def collapse_operators(parameters: SimulationParameters) -> list[Any]:
     c_ops = []
     if parameters.t1_in_us is not None and parameters.t1_in_us > 0:
         t1_s = parameters.t1_in_us * 1e-6
-        c_ops.append(np.sqrt(1 / t1_s) * qutip.sigmam())
+        c_ops.append(np.sqrt(1 / t1_s) * qutip.destroy(2))
 
-    if parameters.t2_in_us is not None and parameters.t2_in_us > 0:
-        t2_s = parameters.t2_in_us * 1e-6
+    if parameters.t2_star_in_us is not None and parameters.t2_star_in_us > 0:
+        t2_star_s = parameters.t2_star_in_us * 1e-6
         gamma_1 = 0 if parameters.t1_in_us is None else 1 / (parameters.t1_in_us * 1e-6)
-        gamma_phi = max(1 / t2_s - gamma_1 / 2, 0)
+        gamma_phi = max(1 / t2_star_s - gamma_1 / 2, 0)
         if gamma_phi > 0:
-            c_ops.append(np.sqrt(gamma_phi / 2) * qutip.sigmaz())
+            c_ops.append(np.sqrt(2 * gamma_phi) * qutip.num(2))
     return c_ops
+
+
+def simulation_time_axis(parameters: SimulationParameters) -> np.ndarray:
+    """Return the centered time grid used by the reference simulator."""
+    if parameters.num_time_points < 2:
+        raise ValueError("num_time_points must be at least 2.")
+    half_length_s = parameters.lorentzian_length_in_ns * 1e-9 / 2
+    return np.linspace(-half_length_s, half_length_s, parameters.num_time_points)
+
+
+def waveform_on_time_axis(
+    waveform_v: np.ndarray,
+    tlist_s: np.ndarray,
+) -> np.ndarray:
+    """Interpolate the experiment waveform onto the solver's centered grid."""
+    source_times_s = np.linspace(tlist_s[0], tlist_s[-1], len(waveform_v))
+    return np.interp(tlist_s, source_times_s, waveform_v)
 
 
 def simulate_point(
@@ -191,16 +250,18 @@ def simulate_point(
     if qutip is None:
         raise_qutip_missing()
 
-    tlist_s = np.arange(len(waveform_v), dtype=float) * 1e-9
+    tlist_s = simulation_time_axis(parameters)
+    solver_waveform_v = waveform_on_time_axis(waveform_v, tlist_s)
     rabi_hz = amplitude_to_rabi_frequency_hz(
-        waveform_v * amp_prefactor,
+        solver_waveform_v * amp_prefactor,
         parameters.x180_amplitude,
         parameters.x180_length_in_ns,
     )
     omega_rad_s = 2 * np.pi * rabi_hz
 
-    h0 = np.pi * detuning_hz * qutip.sigmaz()
-    h_drive = 0.5 * qutip.sigmax()
+    annihilation = qutip.destroy(2)
+    h0 = 2 * np.pi * detuning_hz * qutip.num(2)
+    h_drive = 0.5 * (annihilation + annihilation.dag())
     hamiltonian = [h0, [h_drive, omega_rad_s]]
     psi0 = qutip.basis(2, 0)
     result = qutip.mesolve(
@@ -208,9 +269,10 @@ def simulate_point(
         psi0,
         tlist_s,
         c_ops=collapse_operators(parameters),
-        e_ops=[qutip.basis(2, 1) * qutip.basis(2, 1).dag()],
+        e_ops=[qutip.sigmax(), qutip.sigmay(), qutip.sigmaz()],
     )
-    return float(np.real(result.expect[0][-1]))
+    final_z = float(np.real(result.expect[2][-1]))
+    return (1 - final_z) / 2
 
 
 def simulate_grid(parameters: SimulationParameters) -> xr.Dataset:
@@ -255,10 +317,27 @@ def simulate_grid(parameters: SimulationParameters) -> xr.Dataset:
     ds.full_amp.attrs = {"long_name": "Lorentzian peak amplitude", "units": "V"}
     ds.rabi_frequency_hz.attrs = {"long_name": "Rabi frequency", "units": "Hz"}
     ds.state.attrs = {"long_name": "simulated excited-state population"}
-    return ds
+    if parameters.t2_star_in_us is not None and parameters.t2_star_in_us > 0:
+        t2_star_s = parameters.t2_star_in_us * 1e-6
+        ds = ds.assign_coords(
+            t2_star_s=("qubit", [t2_star_s]),
+            t2_star_fwhm_limit_hz=("qubit", [1 / (np.pi * t2_star_s)]),
+        )
+        ds.t2_star_s.attrs = {"long_name": "Ramsey T2*", "units": "s"}
+        ds.t2_star_fwhm_limit_hz.attrs = {
+            "long_name": "Ramsey T2* FWHM limit 1/(pi*T2*)",
+            "units": "Hz",
+        }
+    return add_gaussian_fwhm_analysis(ds, use_state_discrimination=True)
 
 
-def plot_dataset(ds: xr.Dataset, output_dir: Path) -> Path:
+def plot_dataset(
+    ds: xr.Dataset,
+    output_dir: Path,
+    *,
+    filename: str = "echo_lorentzian_qutip.png",
+    title: str = "QuTiP echo-Lorentzian simulation",
+) -> Path:
     selected = ds.isel(qubit=0).assign_coords(
         detuning_MHz=ds.detuning / 1e6,
         rabi_frequency_MHz=ds.rabi_frequency_hz.isel(qubit=0) / 1e6,
@@ -272,14 +351,50 @@ def plot_dataset(ds: xr.Dataset, output_dir: Path) -> Path:
         cbar_kwargs={"label": "Excited-state population"},
     )
     plotted.colorbar.set_label("Excited-state population")
-    ax.set_title("QuTiP echo-Lorentzian simulation")
+    if "t2_star_s" in selected.coords:
+        t2_star_s = float(selected.t2_star_s)
+        if np.isfinite(t2_star_s) and t2_star_s > 0:
+            t2_star_half_width_mhz = 1 / (2 * np.pi * t2_star_s) / 1e6
+            for index, detuning_mhz in enumerate(
+                (-t2_star_half_width_mhz, t2_star_half_width_mhz)
+            ):
+                ax.axvline(
+                    detuning_mhz,
+                    color="0.45",
+                    linestyle=":",
+                    linewidth=1.4,
+                    label="T2* limit: +/- 1/(2*pi*T2*)" if index == 0 else None,
+                )
+    if "gaussian_fwhm_left_hz" in selected:
+        valid = np.isfinite(selected.gaussian_fwhm_hz)
+        rabi_mhz = selected.rabi_frequency_MHz.where(valid)
+        ax.scatter(
+            selected.gaussian_fwhm_left_hz.where(valid) / 1e6,
+            rabi_mhz,
+            marker="|",
+            s=55,
+            linewidths=1.5,
+            color="white",
+            label="Experimental-data FWHM fit",
+        )
+        ax.scatter(
+            selected.gaussian_fwhm_right_hz.where(valid) / 1e6,
+            rabi_mhz,
+            marker="|",
+            s=55,
+            linewidths=1.5,
+            color="white",
+        )
+        if bool(valid.any()):
+            ax.legend(loc="best")
+    ax.set_title(title)
     ax.set_xlabel("Detuning [MHz]")
     ax.set_ylabel("Rabi frequency [MHz]")
     ax.grid(alpha=0.25)
     figure.tight_layout()
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    path = output_dir / "echo_lorentzian_qutip.png"
+    path = output_dir / filename
     figure.savefig(path, dpi=160)
     plt.close(figure)
     return path
@@ -296,6 +411,54 @@ def save_parameters(parameters: SimulationParameters, output_dir: Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / "parameters.json"
     path.write_text(json.dumps(serializable_parameters(parameters), indent=2))
+    return path
+
+
+def save_fwhm_results(ds: xr.Dataset, output_dir: Path) -> Path:
+    """Save the shared experimental-style FWHM results as a flat CSV."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / "echo_lorentzian_qutip_fwhm.csv"
+    fields = [
+        "qubit",
+        "amp_prefactor",
+        "rabi_frequency_mhz",
+        "gaussian_center_hz",
+        "gaussian_fwhm_hz",
+        "gaussian_fwhm_t2_star_units",
+        "gaussian_fit_amplitude",
+        "gaussian_fit_abs_amplitude",
+        "gaussian_fit_r_squared",
+        "gaussian_fit_model",
+    ]
+    with path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=fields)
+        writer.writeheader()
+        for qubit in ds.qubit.values:
+            selected = ds.sel(qubit=qubit)
+            for amp_index, amp_prefactor in enumerate(ds.amp_prefactor.values):
+                point = selected.isel(amp_prefactor=amp_index)
+                writer.writerow(
+                    {
+                        "qubit": str(qubit),
+                        "amp_prefactor": float(amp_prefactor),
+                        "rabi_frequency_mhz": float(point.rabi_frequency_hz) / 1e6,
+                        "gaussian_center_hz": float(point.gaussian_center_hz),
+                        "gaussian_fwhm_hz": float(point.gaussian_fwhm_hz),
+                        "gaussian_fwhm_t2_star_units": float(
+                            point.gaussian_fwhm_t2_star_units
+                        ),
+                        "gaussian_fit_amplitude": float(
+                            point.gaussian_fit_amplitude
+                        ),
+                        "gaussian_fit_abs_amplitude": float(
+                            point.gaussian_fit_abs_amplitude
+                        ),
+                        "gaussian_fit_r_squared": float(
+                            point.gaussian_fit_r_squared
+                        ),
+                        "gaussian_fit_model": str(point.gaussian_fit_model.item()),
+                    }
+                )
     return path
 
 
@@ -324,14 +487,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-amp-factor", type=float)
     parser.add_argument("--max-amp-factor", type=float)
     parser.add_argument("--amp-factor-step", type=float)
+    parser.add_argument("--amp-factor-points", type=int)
+    parser.add_argument(
+        "--amp-factor-spacing",
+        choices=["linear", "log"],
+    )
     parser.add_argument("--frequency-span-in-mhz", type=float)
     parser.add_argument("--frequency-step-in-mhz", type=float)
+    parser.add_argument("--frequency-points", type=int)
     parser.add_argument("--qubit-name")
     parser.add_argument("--rf-frequency-hz", type=float)
     parser.add_argument("--x180-amplitude", type=float)
     parser.add_argument("--x180-length-in-ns", type=float)
     parser.add_argument("--t1-in-us", type=float)
-    parser.add_argument("--t2-in-us", type=float)
+    parser.add_argument(
+        "--t2-star-in-us",
+        "--t2-in-us",
+        dest="t2_star_in_us",
+        type=float,
+        help="Ramsey T2* in microseconds (--t2-in-us is a compatibility alias).",
+    )
+    parser.add_argument("--num-time-points", type=int)
     parser.add_argument("--output-dir", type=Path)
     return parser.parse_args()
 
@@ -352,9 +528,11 @@ def main() -> None:
     ds = simulate_grid(parameters)
     parameter_path = save_parameters(parameters, parameters.output_dir)
     dataset_path = save_dataset(ds, parameters.output_dir)
+    fwhm_path = save_fwhm_results(ds, parameters.output_dir)
     figure_path = plot_dataset(ds, parameters.output_dir)
     print(f"Saved parameters: {parameter_path}")
     print(f"Saved dataset: {dataset_path}")
+    print(f"Saved FWHM results: {fwhm_path}")
     print(f"Saved figure: {figure_path}")
 
 

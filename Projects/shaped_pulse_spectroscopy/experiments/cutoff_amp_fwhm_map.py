@@ -1,4 +1,4 @@
-"""Sweep root-Lorentzian cutoff and summarize fitted linewidth and signal."""
+"""Map fitted FWHM over root-Lorentzian cutoff and pulse amplitude."""
 
 from __future__ import annotations
 
@@ -26,12 +26,13 @@ for path in (PROJECT_ROOT, REPOSITORY_ROOT):
         sys.path.insert(0, str(path))
 
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 import numpy as np
 import xarray as xr
 
 from calibrations_v2.base import CalibrationOptions
 from experiments.detuning_amplitude_sweep import EchoLorentzian
-from shaped_pulse_spectroscopy.lorentzian import _t2_seconds, plot_raw_data
+from shaped_pulse_spectroscopy.lorentzian import _t2_star_seconds, plot_raw_data
 from shaped_pulse_spectroscopy.parameters import Parameters
 from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
@@ -47,13 +48,13 @@ def cutoff_points(num_points: int = 10) -> np.ndarray:
     return np.geomspace(2e-3, 0.99, num_points)
 
 
-def run_cutoff_sweep(
+def run_cutoff_amp_fwhm_map(
     base_parameters: Parameters | None = None,
     *,
     machine: Quam | None = None,
     qubit: str | None = None,
     cutoffs: Iterable[float] = DEFAULT_CUTOFFS,
-    output_root: Path = REPOSITORY_ROOT / "data" / "echo_lorentzian_cutoff_sweep",
+    output_root: Path = REPOSITORY_ROOT / "data" / "cutoff_amp_fwhm_map",
     output_dir: Path | None = None,
     options: CalibrationOptions | None = None,
     auto_connect: bool = True,
@@ -123,7 +124,7 @@ def run_cutoff_sweep(
             )
     except KeyboardInterrupt:
         interrupted = True
-        print("\nCutoff sweep interrupted; saving completed results.")
+        print("\nCutoff amplitude FWHM map interrupted; saving completed results.")
     print()
     finished_at = datetime.now().astimezone()
     duration_s = time.perf_counter() - started_s
@@ -139,7 +140,7 @@ def run_cutoff_sweep(
         finished_at=finished_at,
         duration_s=duration_s,
     )
-    print(f"Cutoff sweep duration: {_format_duration(duration_s)}")
+    print(f"Cutoff amplitude FWHM map duration: {_format_duration(duration_s)}")
     return {
         "output_dir": output_dir,
         "fit_results": full_records,
@@ -200,7 +201,7 @@ def _show_outer_progress(completed: int, total: int, label: str) -> None:
     bar = "#" * filled + "." * (width - filled)
     percent = 100 * fraction
     print(
-        f"\rCutoff sweep [{bar}] {percent:5.1f}% ({completed}/{total}) {label}",
+        f"\rCutoff amplitude FWHM map [{bar}] {percent:5.1f}% ({completed}/{total}) {label}",
         end="",
         flush=True,
     )
@@ -247,8 +248,8 @@ def _save_sweep_outputs(
     finished_at: datetime,
     duration_s: float,
 ) -> dict[str, Path | None]:
-    _write_csv(output_dir / "cutoff_sweep_fit_results.csv", full_records)
-    _write_csv(output_dir / "cutoff_sweep_best_signal.csv", best_records)
+    _write_csv(output_dir / "cutoff_amp_fwhm_map_fit_results.csv", full_records)
+    _write_csv(output_dir / "cutoff_amp_fwhm_map_best_signal.csv", best_records)
     _write_manifest(
         output_dir,
         base_parameters,
@@ -287,8 +288,8 @@ def summarize_cutoff_dataset(
     for qubit in ds.qubit.values:
         selected = ds.sel(qubit=qubit)
         qubit_object = qubits_by_name.get(str(qubit))
-        t2_s = _record_t2_seconds(qubit_object)
-        t2_limit_hz = _t2_fwhm_limit_hz(t2_s)
+        t2_star_s = _record_t2_star_seconds(qubit_object)
+        t2_star_limit_hz = _t2_star_fwhm_limit_hz(t2_star_s)
         for amp_prefactor in ds.amp_prefactor.values:
             point = selected.sel(amp_prefactor=amp_prefactor)
             fwhm_hz = _data_value(point, "gaussian_fwhm_hz")
@@ -306,9 +307,12 @@ def summarize_cutoff_dataset(
                 "gaussian_center_hz": _data_value(point, "gaussian_center_hz"),
                 "fwhm_hz": fwhm_hz,
                 "fwhm_mhz": fwhm_hz * 1e-6,
-                "t2_s": t2_s,
-                "t2_fwhm_limit_hz": t2_limit_hz,
-                "fwhm_t2_units": _normalized_fwhm(fwhm_hz, t2_limit_hz),
+                "t2_star_s": t2_star_s,
+                "t2_star_fwhm_limit_hz": t2_star_limit_hz,
+                "fwhm_t2_star_units": _normalized_fwhm(
+                    fwhm_hz,
+                    t2_star_limit_hz,
+                ),
                 "fit_amplitude": _data_value(point, "gaussian_fit_amplitude"),
                 "fit_abs_amplitude": _data_value(
                     point,
@@ -374,10 +378,10 @@ def _qubits_by_name(qubits: Any | None) -> dict[str, Any]:
     }
 
 
-def _record_t2_seconds(qubit: Any | None) -> float:
+def _record_t2_star_seconds(qubit: Any | None) -> float:
     if qubit is None:
         return np.nan
-    value = _t2_seconds(qubit)
+    value = _t2_star_seconds(qubit)
     return float(value) if value is not None and np.isfinite(value) else np.nan
 
 
@@ -396,10 +400,10 @@ def _rabi_frequency_mhz(full_amp_v: float, qubit: Any | None) -> float:
     return float(rabi_hz) * 1e-6 if np.isfinite(rabi_hz) else np.nan
 
 
-def _t2_fwhm_limit_hz(t2_s: float) -> float:
-    if not _is_finite_number(t2_s) or float(t2_s) <= 0:
+def _t2_star_fwhm_limit_hz(t2_star_s: float) -> float:
+    if not _is_finite_number(t2_star_s) or float(t2_star_s) <= 0:
         return np.nan
-    return 1 / (np.pi * float(t2_s))
+    return 1 / (np.pi * float(t2_star_s))
 
 
 def _normalized_fwhm(fwhm_hz: float, t2_limit_hz: float) -> float:
@@ -410,6 +414,11 @@ def _normalized_fwhm(fwhm_hz: float, t2_limit_hz: float) -> float:
     ):
         return np.nan
     return float(fwhm_hz) / float(t2_limit_hz)
+
+
+def _fwhm_t2_star_units(record: dict[str, Any]) -> float:
+    """Read new T2*-named records and legacy T2 records when replotting."""
+    return record.get("fwhm_t2_star_units", record.get("fwhm_t2_units", np.nan))
 
 
 def _individual_run_options(options: CalibrationOptions | None) -> CalibrationOptions:
@@ -445,7 +454,7 @@ def plot_cutoff_summary(
         cutoffs = [record["cutoff"] for record in qubit_records]
         axes[0].plot(
             cutoffs,
-            [record["fwhm_t2_units"] for record in qubit_records],
+            [_fwhm_t2_star_units(record) for record in qubit_records],
             marker="o",
             label=qubit,
         )
@@ -456,7 +465,7 @@ def plot_cutoff_summary(
             label=qubit,
         )
 
-    axes[0].set_ylabel("FWHM / (1/(pi*T2))")
+    axes[0].set_ylabel("FWHM / (1/(pi*T2*))")
     axes[1].set_ylabel("Fit signal amplitude")
     axes[1].set_xlabel("Cutoff")
     for axis in axes:
@@ -465,7 +474,7 @@ def plot_cutoff_summary(
         axis.legend(loc="best")
     figure.tight_layout()
     output_dir.mkdir(parents=True, exist_ok=True)
-    figure_path = output_dir / "cutoff_sweep_summary.png"
+    figure_path = output_dir / "cutoff_amp_fwhm_map_summary.png"
     figure.savefig(figure_path, dpi=150)
     plt.close(figure)
     return figure_path
@@ -475,17 +484,21 @@ def plot_fwhm_heatmap(
     records: list[dict[str, Any]],
     output_dir: Path,
 ) -> Path | None:
-    """Plot FWHM and FWHM/signal as functions of amplitude and cutoff."""
+    """Plot reciprocal FWHM resolution and resolution-times-signal maps."""
     valid_records = [
         record
         for record in records
         if _is_finite_number(record["cutoff"])
         and _is_finite_number(record["full_amp_v"])
         and float(record["full_amp_v"]) > 0
-        and _is_finite_number(record["fwhm_t2_units"])
+        and _is_finite_number(_fwhm_t2_star_units(record))
+        and float(_fwhm_t2_star_units(record)) > 0
     ]
     if not valid_records:
         return None
+
+    resolution_cmap = plt.get_cmap("viridis").with_extremes(bad="white")
+    score_cmap = plt.get_cmap("magma").with_extremes(bad="white")
 
     qubits = sorted({record["qubit"] for record in valid_records})
     figure, axes = plt.subplots(
@@ -502,51 +515,57 @@ def plot_fwhm_heatmap(
         amplitudes_v = np.array(
             sorted({record["full_amp_v"] for record in qubit_records})
         )
-        fwhm = np.full((len(amplitudes_v), len(cutoffs)), np.nan, dtype=float)
-        fwhm_over_signal = np.full((len(amplitudes_v), len(cutoffs)), np.nan, dtype=float)
+        resolution = np.full((len(amplitudes_v), len(cutoffs)), np.nan, dtype=float)
+        resolution_times_signal = np.full(
+            (len(amplitudes_v), len(cutoffs)), np.nan, dtype=float
+        )
         cutoff_index = {value: index for index, value in enumerate(cutoffs)}
         amplitude_index = {value: index for index, value in enumerate(amplitudes_v)}
         for record in qubit_records:
             row = amplitude_index[record["full_amp_v"]]
             column = cutoff_index[record["cutoff"]]
-            fwhm[row, column] = record["fwhm_t2_units"]
+            point_resolution = 1.0 / float(_fwhm_t2_star_units(record))
+            resolution[row, column] = point_resolution
             signal = record.get("fit_abs_amplitude", np.nan)
             if _is_finite_number(signal) and float(signal) > 0:
-                fwhm_over_signal[row, column] = record["fwhm_t2_units"] / float(signal)
+                resolution_times_signal[row, column] = point_resolution * float(signal)
 
         image = fwhm_ax.pcolormesh(
             _cell_edges_log(cutoffs),
             _cell_edges_log(amplitudes_v),
-            fwhm,
+            resolution,
             shading="auto",
-            cmap="cividis",
+            cmap=resolution_cmap,
+            vmin=0.1,
+            vmax=1,
         )
         colorbar = figure.colorbar(image, ax=fwhm_ax)
-        colorbar.set_label("FWHM / (1/(pi*T2))")
+        colorbar.set_label("Resolution: (1/(pi*T2*)) / FWHM")
         fwhm_ax.set_xscale("log")
         fwhm_ax.set_yscale("log")
         fwhm_ax.set_xlabel("Cutoff")
         fwhm_ax.set_ylabel("Full pulse amplitude [V]")
-        fwhm_ax.set_title(f"{qubit}: FWHM in T2-limit units")
+        fwhm_ax.set_title(f"{qubit}: reciprocal FWHM resolution")
 
         ratio_image = ratio_ax.pcolormesh(
             _cell_edges_log(cutoffs),
             _cell_edges_log(amplitudes_v),
-            fwhm_over_signal,
+            resolution_times_signal,
             shading="auto",
-            cmap="cividis",
+            cmap=score_cmap,
+            norm=LogNorm(vmin=1e-1, vmax=1, clip=True),
         )
         ratio_colorbar = figure.colorbar(ratio_image, ax=ratio_ax)
-        ratio_colorbar.set_label("FWHM / (signal * 1/(pi*T2))")
+        ratio_colorbar.set_label("Resolution * fit signal")
         ratio_ax.set_xscale("log")
         ratio_ax.set_yscale("log")
         ratio_ax.set_xlabel("Cutoff")
         ratio_ax.set_ylabel("Full pulse amplitude [V]")
-        ratio_ax.set_title(f"{qubit}: normalized FWHM divided by fit signal")
+        ratio_ax.set_title(f"{qubit}: resolution multiplied by fit signal")
 
     figure.tight_layout()
     output_dir.mkdir(parents=True, exist_ok=True)
-    figure_path = output_dir / "cutoff_sweep_fwhm_heatmap.png"
+    figure_path = output_dir / "cutoff_amp_fwhm_map_fwhm_heatmap.png"
     figure.savefig(figure_path, dpi=150)
     plt.close(figure)
     return figure_path
@@ -588,7 +607,7 @@ def plot_per_cutoff_traces(
             x = [record["rabi_frequency_mhz"] for record in cutoff_records]
             fwhm_ax.plot(
                 x,
-                [record["fwhm_t2_units"] for record in cutoff_records],
+                [_fwhm_t2_star_units(record) for record in cutoff_records],
                 marker="o",
                 linewidth=1.2,
                 markersize=3,
@@ -606,7 +625,7 @@ def plot_per_cutoff_traces(
             )
 
         fwhm_ax.set_title(f"{qubit}: fitted FWHM trace for each cutoff")
-        fwhm_ax.set_ylabel("FWHM / (1/(pi*T2))")
+        fwhm_ax.set_ylabel("FWHM / (1/(pi*T2*))")
         signal_ax.set_title(f"{qubit}: fitted signal trace for each cutoff")
         signal_ax.set_ylabel("Fit signal amplitude")
         signal_ax.set_xlabel("Rabi frequency [MHz]")
@@ -616,7 +635,7 @@ def plot_per_cutoff_traces(
 
     figure.tight_layout()
     output_dir.mkdir(parents=True, exist_ok=True)
-    figure_path = output_dir / "cutoff_sweep_per_cutoff_traces.png"
+    figure_path = output_dir / "cutoff_amp_fwhm_map_per_cutoff_traces.png"
     figure.savefig(figure_path, dpi=150)
     plt.close(figure)
     return figure_path
@@ -764,10 +783,10 @@ if __name__ == "__main__":
     parameters.frequency_span_in_mhz = 5
     parameters.frequency_step_in_mhz = 0.005
 
-    result = run_cutoff_sweep(
+    result = run_cutoff_amp_fwhm_map(
         parameters,
         machine=create_machine(qubit="q1"),
         qubit="q1",
         cutoffs=cutoff_points(20),
     )
-    print(f"Cutoff sweep results saved to {result['output_dir']}")
+    print(f"Cutoff amplitude FWHM map results saved to {result['output_dir']}")

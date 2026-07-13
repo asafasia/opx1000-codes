@@ -1,4 +1,5 @@
 const state = { experiments: [], selectedSeries: 0, lastStatus: null };
+document.querySelectorAll("[data-hub-link]").forEach(link => { link.href = `${location.protocol}//${location.hostname}:8890/`; });
 const $ = id => document.getElementById(id);
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[c]));
 const fmt = value => value == null || !Number.isFinite(Number(value)) ? "--" : Number(value).toPrecision(5);

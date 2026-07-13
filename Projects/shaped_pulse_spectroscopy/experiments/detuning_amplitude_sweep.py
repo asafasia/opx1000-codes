@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 from typing import Any
@@ -226,26 +227,56 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=DESCRIPTION)
+    parser.add_argument("--qubit", default="q1")
+    parser.add_argument("--simulate", action="store_true")
+    parser.add_argument("--num-shots", type=int, default=40)
+    parser.add_argument("--pulse-shape", default="root_lorentzian")
+    parser.add_argument("--cutoff", type=float, default=0.999)
+    parser.add_argument("--echo", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--pulse-length-ns", type=int, default=60000)
+    parser.add_argument("--template-length-ns", type=int, default=60000)
+    parser.add_argument("--peak-amplitude", type=float, default=0.2)
+    parser.add_argument("--min-amp-factor", type=float, default=0.0)
+    parser.add_argument("--max-amp-factor", type=float, default=1.0)
+    parser.add_argument("--amp-factor-step", type=float, default=0.01)
+    parser.add_argument("--amp-factor-points", type=int)
+    parser.add_argument(
+        "--amp-factor-spacing",
+        choices=["linear", "log"],
+        default="linear",
+    )
+    parser.add_argument("--frequency-span-mhz", type=float, default=100)
+    parser.add_argument("--frequency-step-mhz", type=float, default=0.1)
+    parser.add_argument("--frequency-points", type=int)
+    args = parser.parse_args()
+
     parameters = Parameters()
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
-    parameters.pulse_shape = "root_lorentzian"
-    parameters.echo = True
-    parameters.cutoff = 0.999
-    parameters.num_shots = 40
-    parameters.lorentzian_length_in_ns = 60000
-    parameters.waveform_template_length_in_ns = 60000
-    parameters.lorentzian_peak_amplitude = 0.2
-    parameters.amp_factor_step = 0.01
-    parameters.frequency_span_in_mhz = 100
-    parameters.frequency_step_in_mhz = 0.1
+    parameters.simulate = args.simulate
+    parameters.pulse_shape = args.pulse_shape
+    parameters.echo = args.echo
+    parameters.cutoff = args.cutoff
+    parameters.num_shots = args.num_shots
+    parameters.lorentzian_length_in_ns = args.pulse_length_ns
+    parameters.waveform_template_length_in_ns = args.template_length_ns
+    parameters.lorentzian_peak_amplitude = args.peak_amplitude
+    parameters.min_amp_factor = args.min_amp_factor
+    parameters.max_amp_factor = args.max_amp_factor
+    parameters.amp_factor_step = args.amp_factor_step
+    parameters.amp_factor_points = args.amp_factor_points
+    parameters.amp_factor_spacing = args.amp_factor_spacing
+    parameters.frequency_span_in_mhz = args.frequency_span_mhz
+    parameters.frequency_step_in_mhz = args.frequency_step_mhz
+    parameters.frequency_points = args.frequency_points
 
     options = CalibrationOptions()
 
     calibration = EchoLorentzian(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
-        auto_connect=True,
+        machine=create_machine(qubit=args.qubit),
+        auto_connect=not args.simulate,
     )
     calibration.run()

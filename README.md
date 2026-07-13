@@ -220,6 +220,14 @@ usual per-experiment raw data and figures as well.
 
 ## Local Tools
 
+Start the unified lab home screen (it launches and links all four local apps):
+
+```powershell
+python apps/super_app/server.py
+```
+
+Open <http://127.0.0.1:8890>.
+
 Start the read-only experiment browser:
 
 ```powershell

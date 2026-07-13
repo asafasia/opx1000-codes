@@ -1,4 +1,4 @@
-"""Run the shaped-pulse cutoff sweep summary experiment."""
+"""Run the shaped-pulse cutoff amplitude FWHM map experiment."""
 
 from __future__ import annotations
 
@@ -12,4 +12,4 @@ for path in (PROJECT_ROOT, REPOSITORY_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-runpy.run_module("experiments.cutoff_optimization", run_name="__main__")
+runpy.run_module("experiments.cutoff_amp_fwhm_map", run_name="__main__")

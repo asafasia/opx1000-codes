@@ -14,17 +14,17 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 REPOSITORY_ROOT = PROJECT_ROOT.parent.parent
 DEFAULT_CONFIG = PROJECT_ROOT / "configs" / "cutoff_regions.json"
-DEFAULT_OUTPUT_ROOT = REPOSITORY_ROOT / "data" / "echo_lorentzian_cutoff_sweep"
+DEFAULT_OUTPUT_ROOT = REPOSITORY_ROOT / "data" / "cutoff_amp_fwhm_map"
 for path in (PROJECT_ROOT, REPOSITORY_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
 from calibrations_v2.base import CalibrationOptions
-from experiments.cutoff_optimization import (
+from experiments.cutoff_amp_fwhm_map import (
     plot_cutoff_summary,
     plot_fwhm_heatmap,
     plot_per_cutoff_traces,
-    run_cutoff_sweep,
+    run_cutoff_amp_fwhm_map,
 )
 from profiles import load_profile
 from shaped_pulse_spectroscopy.parameters import Parameters
@@ -128,7 +128,7 @@ def run_domain_config(
     if not args.execute:
         return
 
-    run_cutoff_sweep(
+    run_cutoff_amp_fwhm_map(
         parameters,
         machine=create_machine(qubit=args.qubit),
         qubit=args.qubit,
@@ -347,8 +347,8 @@ def collect_domain_records(region_dir: Path, filename: str) -> list[dict[str, An
 
 
 def build_region_summary(region_dir: Path) -> None:
-    fit_records = collect_domain_records(region_dir, "cutoff_sweep_fit_results.csv")
-    best_records = collect_domain_records(region_dir, "cutoff_sweep_best_signal.csv")
+    fit_records = collect_domain_records(region_dir, "cutoff_amp_fwhm_map_fit_results.csv")
+    best_records = collect_domain_records(region_dir, "cutoff_amp_fwhm_map_best_signal.csv")
     write_records(region_dir / "region_fit_results.csv", fit_records)
     write_records(region_dir / "region_best_signal.csv", best_records)
 
@@ -357,9 +357,9 @@ def replot_region(region_dir: Path) -> None:
     fit_records = read_records(region_dir / "region_fit_results.csv")
     best_records = read_records(region_dir / "region_best_signal.csv")
     if not fit_records:
-        fit_records = collect_domain_records(region_dir, "cutoff_sweep_fit_results.csv")
+        fit_records = collect_domain_records(region_dir, "cutoff_amp_fwhm_map_fit_results.csv")
     if not best_records:
-        best_records = collect_domain_records(region_dir, "cutoff_sweep_best_signal.csv")
+        best_records = collect_domain_records(region_dir, "cutoff_amp_fwhm_map_best_signal.csv")
     fit_records = [coerce_record_numbers(record) for record in fit_records]
     best_records = [coerce_record_numbers(record) for record in best_records]
     plot_cutoff_summary(best_records, region_dir)

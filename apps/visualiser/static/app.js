@@ -1,4 +1,5 @@
 const state = { experiments: [], filtered: [], selected: null, detail: null, calibrationType: null, qubit: "all", runFilter: "all", tab: "overview", figureIndex: 0, pulseQubit: null, plotData: null, plotResult: 0, plotHeatmap: 0, plotSlice: null, plotTranspose: false, trendData: null, trendSeries: 0 };
+document.querySelectorAll("[data-hub-link]").forEach(link => { link.href = `${location.protocol}//${location.hostname}:8890/`; });
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[c]));
 const formatBytes = n => n == null ? "unavailable" : n < 1024 ? `${n} B` : n < 1048576 ? `${(n/1024).toFixed(1)} KB` : `${(n/1048576).toFixed(1)} MB`;

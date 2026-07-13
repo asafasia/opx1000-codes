@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#101a22">
+    <title>OPX1000 Repository Wiki</title>
+    <link rel="stylesheet" href="/wiki.css?v=1">
+  </head>
+  <body>
+    <div class="wiki-shell">
+      <aside class="sidebar" id="sidebar">
+        <header class="wiki-brand">
+          <a href="/" aria-label="Back to Lab Home">←</a>
+          <div>
+            <span>OPX1000</span>
+            <strong>Repository Wiki</strong>
+          </div>
+        </header>
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg>
+          <input id="searchInput" type="search" placeholder="Search all documentation" autocomplete="off">
+          <kbd>/</kbd>
+        </div>
+        <div class="index-summary">
+          <span id="documentCount">Loading documents…</span>
+          <button id="refreshWiki" type="button">Refresh</button>
+        </div>
+        <nav id="documentNav" aria-label="Markdown documents"></nav>
+      </aside>
+
+      <main class="reader">
+        <header class="reader-topbar">
+          <button class="menu-button" id="menuButton" type="button" aria-label="Open document list">☰</button>
+          <div class="breadcrumb" id="breadcrumb">Repository documentation</div>
+          <a class="home-link" href="/">Lab Home</a>
+        </header>
+        <article class="document" id="document">
+          <div class="empty-state">
+            <p>Repository knowledge, in one place</p>
+            <h1>Choose a document</h1>
+            <span>Select any Markdown file from the index to start reading.</span>
+          </div>
+        </article>
+      </main>
+    </div>
+    <div class="scrim" id="scrim"></div>
+    <script src="/wiki.js?v=1"></script>
+  </body>
+</html>
+

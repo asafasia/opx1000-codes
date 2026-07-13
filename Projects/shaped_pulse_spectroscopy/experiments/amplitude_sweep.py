@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,7 @@ from qualang_tools.loops import from_array
 
 from calibrations_v2.base import BaseCalibration, CalibrationOptions
 from shaped_pulse_spectroscopy.lorentzian import (
+    amplitude_prefactors,
     install_lorentzian_operation,
     plot_amplitude_sweep,
     process_amplitude_dataset,
@@ -82,11 +84,7 @@ class EchoLorentzianAmplitude(BaseCalibration[Parameters, Quam]):
         install_lorentzian_operation(self)
         play_duration = self.namespace["lorentzian_play_duration_cycles"]
 
-        amps = np.arange(
-            self.parameters.min_amp_factor,
-            self.parameters.max_amp_factor,
-            self.parameters.amp_factor_step,
-        )
+        amps = amplitude_prefactors(self.parameters)
         if amps.size == 0:
             raise ValueError("Amplitude sweep is empty.")
         if np.any(np.abs(amps) >= 2):
@@ -182,26 +180,50 @@ class EchoLorentzianAmplitude(BaseCalibration[Parameters, Quam]):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=DESCRIPTION)
+    parser.add_argument("--qubit", default="q9")
+    parser.add_argument("--simulate", action="store_true")
+    parser.add_argument("--num-shots", type=int, default=1000)
+    parser.add_argument("--pulse-shape", default="root_lorentzian")
+    parser.add_argument("--cutoff", type=float, default=0.01)
+    parser.add_argument("--echo", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--pulse-length-ns", type=int, default=30000)
+    parser.add_argument("--template-length-ns", type=int, default=2000)
+    parser.add_argument("--peak-amplitude", type=float, default=0.5)
+    parser.add_argument("--min-amp-factor", type=float, default=0.0)
+    parser.add_argument("--max-amp-factor", type=float, default=1.0)
+    parser.add_argument("--amp-factor-step", type=float, default=0.05)
+    parser.add_argument("--amp-factor-points", type=int)
+    parser.add_argument(
+        "--amp-factor-spacing",
+        choices=["linear", "log"],
+        default="linear",
+    )
+    args = parser.parse_args()
+
     parameters = Parameters()
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
-    parameters.pulse_shape = "root_lorentzian"
-    parameters.echo = False
-    parameters.cutoff = 0.01
-    parameters.num_shots = 1000
-    parameters.lorentzian_length_in_ns = 30000
-    parameters.waveform_template_length_in_ns = 2000
-    parameters.lorentzian_peak_amplitude = 0.5
-    parameters.min_amp_factor = 0.0
-    parameters.max_amp_factor = 1.0
-    parameters.amp_factor_step = 0.05
+    parameters.simulate = args.simulate
+    parameters.pulse_shape = args.pulse_shape
+    parameters.echo = args.echo
+    parameters.cutoff = args.cutoff
+    parameters.num_shots = args.num_shots
+    parameters.lorentzian_length_in_ns = args.pulse_length_ns
+    parameters.waveform_template_length_in_ns = args.template_length_ns
+    parameters.lorentzian_peak_amplitude = args.peak_amplitude
+    parameters.min_amp_factor = args.min_amp_factor
+    parameters.max_amp_factor = args.max_amp_factor
+    parameters.amp_factor_step = args.amp_factor_step
+    parameters.amp_factor_points = args.amp_factor_points
+    parameters.amp_factor_spacing = args.amp_factor_spacing
 
     options = CalibrationOptions()
 
     calibration = EchoLorentzianAmplitude(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
-        auto_connect=True,
+        machine=create_machine(qubit=args.qubit),
+        auto_connect=not args.simulate,
     )
     calibration.run()

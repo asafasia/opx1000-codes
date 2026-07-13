@@ -1,4 +1,4 @@
-"""Run or plan the medium-cutoff campaign."""
+"""Plan or run high-cutoff scans with echo enabled."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from common import region_parser, run_region_from_args
 
 def main() -> int:
     parser = region_parser(__doc__ or "")
-    args = parser.parse_args(["--region", "medium_cutoff", *sys.argv[1:]])
+    args = parser.parse_args(["--region", "high_cutoff", "--echo", *sys.argv[1:]])
     return run_region_from_args(args)
 
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 @dataclass
 class SimulationParameters:
-    """Parameters matching the echo-Lorentzian experiment, plus simulator knobs."""
+    """q1 defaults for the echo-Lorentzian experiment, plus simulator knobs."""
 
     num_shots: int = 100
     operation: str = "lorentzian"
@@ -14,19 +14,23 @@ class SimulationParameters:
     lorentzian_length_in_ns: int = 40
     waveform_template_length_in_ns: int | None = None
     lorentzian_tau_in_ns: float = 8.0
-    lorentzian_peak_amplitude: float = 0.1
+    lorentzian_peak_amplitude: float = 0.15127819777954318
     cutoff: float = 0.2
     echo: bool = False
     min_amp_factor: float = 0.0
     max_amp_factor: float = 1.0
     amp_factor_step: float = 0.03
+    amp_factor_points: int | None = None
+    amp_factor_spacing: str = "linear"
     frequency_span_in_mhz: float = 850
     frequency_step_in_mhz: float = 2
+    frequency_points: int | None = None
 
-    qubit_name: str = "q_sim"
-    rf_frequency_hz: float = 4.1e9
-    x180_amplitude: float = 0.1
+    qubit_name: str = "q1"
+    rf_frequency_hz: float = 4267100311.915768
+    x180_amplitude: float = 0.15127819777954318
     x180_length_in_ns: float = 40.0
-    t1_in_us: float | None = None
-    t2_in_us: float | None = None
+    t1_in_us: float | None = 30.87
+    t2_star_in_us: float | None = 6.855588134130561
+    num_time_points: int = 1000
     output_dir: Path = Path("Projects/shaped_pulse_spectroscopy/simulation/qutip/output")
