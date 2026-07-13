@@ -20,7 +20,7 @@ from qm.qua import *
 from qualang_tools.loops import from_array
 from qualang_tools.units import unit
 
-from calibrations_v2.base import BaseCalibration, CalibrationOptions
+from calibrations.base import BaseCalibration, CalibrationOptions
 from shaped_pulse_spectroscopy.lorentzian import (
     amplitude_prefactors,
     install_lorentzian_operation,
@@ -57,7 +57,7 @@ def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> 
 
 
 class EchoLorentzian(BaseCalibration[Parameters, Quam]):
-    """Echo-Lorentzian calibration implemented with the v2 base lifecycle."""
+    """Echo-Lorentzian calibration implemented with the class-based calibration lifecycle."""
 
     def __init__(
         self,

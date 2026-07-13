@@ -4,8 +4,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from calibrations_v2.registry import CalibrationEntry, get_entry
-from calibrations_v2.runner import (
+from calibrations.registry import CalibrationEntry, get_entry
+from calibrations.runner import (
     build_options,
     build_parameters,
     coerce_value,
@@ -14,7 +14,7 @@ from calibrations_v2.runner import (
     print_job_status,
     run_entry,
 )
-from calibrations_v2.job_status import query_qop_status
+from calibrations.job_status import query_qop_status
 
 
 class FakeParameters:
@@ -107,7 +107,7 @@ class CalibrationRunnerTests(unittest.TestCase):
 
             self.assertEqual(load_recipe(path)["parameters"]["num_shots"], 5)
 
-    @patch("calibrations_v2.runner.record_run_in_database", return_value=7)
+    @patch("calibrations.runner.record_run_in_database", return_value=7)
     def test_run_entry_instantiates_calibration_and_prints_summary(self, record_mock):
         entry = FakeEntry("fake", "fake_module", "FakeCalibration")
         with patch("builtins.print") as print_mock:
@@ -154,7 +154,7 @@ class CalibrationRunnerTests(unittest.TestCase):
         self.assertEqual(status.jobs[0].id, "job-1")
         self.assertEqual(status.jobs[0].status, "Running")
 
-    @patch("calibrations_v2.runner.query_profile_qop_status")
+    @patch("calibrations.runner.query_profile_qop_status")
     def test_print_job_status_reports_no_jobs(self, status_mock):
         status_mock.return_value = SimpleNamespace(
             open_qms=(),
@@ -174,7 +174,7 @@ class CalibrationRunnerTests(unittest.TestCase):
         self.assertIn("active_jobs: no", printed)
         self.assertIn("jobs: none", printed)
 
-    @patch("calibrations_v2.runner.query_profile_qop_status")
+    @patch("calibrations.runner.query_profile_qop_status")
     def test_print_job_status_supports_json(self, status_mock):
         status_mock.return_value = SimpleNamespace(
             to_dict=lambda: {

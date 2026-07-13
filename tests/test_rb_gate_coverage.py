@@ -12,7 +12,7 @@ class RBGateCoverageTests(unittest.TestCase):
     def test_generated_machine_contains_every_gate_used_by_rb(self):
         source = (
             Path(__file__).parent.parent
-            / "calibrations_v2"
+            / "calibrations"
             / "11a_single_qubit_randomized_benchmarking.py"
         ).read_text(encoding="utf-8")
         rb_gates = set(re.findall(r'qubit\.xy\.play\("([^"]+)"', source))
@@ -27,8 +27,8 @@ class RBGateCoverageTests(unittest.TestCase):
             {"y180", "x90", "-x90", "y90", "-y90"},
         )
 
-    def test_v2_rb_can_bind_logical_gates_to_drag_family(self):
-        rb_module = import_module("calibrations_v2.11a_single_qubit_randomized_benchmarking")
+    def test_rb_can_bind_logical_gates_to_drag_family(self):
+        rb_module = import_module("calibrations.11a_single_qubit_randomized_benchmarking")
 
         @dataclass
         class Pulse:
@@ -53,8 +53,8 @@ class RBGateCoverageTests(unittest.TestCase):
         self.assertAlmostEqual(qubit.xy.operations["x90"].alpha, 0.7)
         self.assertIsNot(qubit.xy.operations["x180"], qubit.xy.operations["x180_drag"])
 
-    def test_v2_rb_accepts_cos_alias(self):
-        rb_module = import_module("calibrations_v2.11a_single_qubit_randomized_benchmarking")
+    def test_rb_accepts_cos_alias(self):
+        rb_module = import_module("calibrations.11a_single_qubit_randomized_benchmarking")
 
         @dataclass
         class Pulse:
@@ -75,7 +75,7 @@ class RBGateCoverageTests(unittest.TestCase):
         self.assertAlmostEqual(qubit.xy.operations["x90"].amplitude, 0.1)
 
     def test_rb_identity_wait_respects_qua_minimum_wait(self):
-        rb_module = import_module("calibrations_v2.11a_single_qubit_randomized_benchmarking")
+        rb_module = import_module("calibrations.11a_single_qubit_randomized_benchmarking")
 
         @dataclass
         class Pulse:
@@ -88,7 +88,7 @@ class RBGateCoverageTests(unittest.TestCase):
     def test_rb_sequence_uses_minimum_safe_identity_wait_helper(self):
         source = (
             Path(__file__).parent.parent
-            / "calibrations_v2"
+            / "calibrations"
             / "11a_single_qubit_randomized_benchmarking.py"
         ).read_text(encoding="utf-8")
 

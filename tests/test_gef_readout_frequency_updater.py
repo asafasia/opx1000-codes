@@ -7,7 +7,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 def test_gef_readout_frequency_stages_profile_shift_update():
     source = (
         REPOSITORY_ROOT
-        / "calibrations_v2"
+        / "calibrations"
         / "14_gef_readout_frequency_optimization.py"
     ).read_text()
 

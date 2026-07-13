@@ -23,10 +23,10 @@ if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from calibration_utils.iq_blobs import Parameters
-from calibrations_v2.core import CalibrationOptions
+from calibrations.core import CalibrationOptions
 
 
-IqBlobs = importlib.import_module("calibrations_v2.07_iq_blobs").IqBlobs
+IqBlobs = importlib.import_module("calibrations.07_iq_blobs").IqBlobs
 
 
 def build_parser() -> argparse.ArgumentParser:

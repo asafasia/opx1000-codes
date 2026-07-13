@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 
 from quam_config import create_machine
-from calibrations_v2.base import CalibrationOptions
+from calibrations.base import CalibrationOptions
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,19 +27,19 @@ def _load_module(path: Path, name: str):
 
 
 resonator_module = _load_module(
-    ROOT / "calibrations_v2" / "02a_resonator_spectroscopy.py",
+    ROOT / "calibrations" / "02a_resonator_spectroscopy.py",
     "q3_resonator_spectroscopy_module",
 )
 qubit_module = _load_module(
-    ROOT / "calibrations_v2" / "03a_qubit_spectroscopy.py",
+    ROOT / "calibrations" / "03a_qubit_spectroscopy.py",
     "q3_qubit_spectroscopy_module",
 )
 power_rabi_module = _load_module(
-    ROOT / "calibrations_v2" / "04b_power_rabi.py",
+    ROOT / "calibrations" / "04b_power_rabi.py",
     "q3_power_rabi_module",
 )
 power_rabi_chevron_module = _load_module(
-    ROOT / "calibrations_v2" / "04d_power_rabi_chevron.py",
+    ROOT / "calibrations" / "04d_power_rabi_chevron.py",
     "q3_power_rabi_chevron_module",
 )
 

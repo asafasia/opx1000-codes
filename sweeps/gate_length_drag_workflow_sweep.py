@@ -18,7 +18,7 @@ if __package__ in {None, ""}:
         sys.path.insert(0, str(repository_root))
 
 from calibration_io import CalibrationSaver
-from calibrations_v2 import CalibrationOptions
+from calibrations import CalibrationOptions
 from profiles import Profile, validate_profile
 from profiles.loader import _select_qubit
 from workflows.drag_workflow import DragWorkflow, DragWorkflowParameters

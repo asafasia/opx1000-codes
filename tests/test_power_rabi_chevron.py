@@ -18,7 +18,7 @@ REPOSITORY_ROOT = Path(__file__).parent.parent
 
 class PowerRabiChevronTests(unittest.TestCase):
     def test_sequence_sweeps_frequency_and_amplitude(self):
-        source = (REPOSITORY_ROOT / "calibrations_v2" / "04d_power_rabi_chevron.py").read_text()
+        source = (REPOSITORY_ROOT / "calibrations" / "04d_power_rabi_chevron.py").read_text()
 
         self.assertIn("with for_(*from_array(df, dfs)):", source)
         self.assertIn("with for_(*from_array(a, amps)):", source)

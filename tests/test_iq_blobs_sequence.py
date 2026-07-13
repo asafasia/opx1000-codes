@@ -4,7 +4,7 @@ from pathlib import Path
 
 class IQBlobsSequenceTests(unittest.TestCase):
     def test_preparation_uses_global_align_before_prepared_measurement(self):
-        source = (Path(__file__).parent.parent / "calibrations_v2" / "07_iq_blobs.py").read_text()
+        source = (Path(__file__).parent.parent / "calibrations" / "07_iq_blobs.py").read_text()
         prepared_block = source.split("with for_(n, 0, n < n_runs, n + 1):", 2)[2].split(
             "with stream_processing()", 1
         )[0]
@@ -17,7 +17,7 @@ class IQBlobsSequenceTests(unittest.TestCase):
         self.assertNotIn("qubit.align()", prepared_block)
 
     def test_prepared_readout_has_no_extra_timing_delay(self):
-        source = (Path(__file__).parent.parent / "calibrations_v2" / "07_iq_blobs.py").read_text()
+        source = (Path(__file__).parent.parent / "calibrations" / "07_iq_blobs.py").read_text()
         prepared_block = source.split("with for_(n, 0, n < n_runs, n + 1):", 2)[2].split(
             "with stream_processing()", 1
         )[0]
@@ -26,7 +26,7 @@ class IQBlobsSequenceTests(unittest.TestCase):
         self.assertNotIn("qubit.resonator.wait", prepared_block)
 
     def test_ground_and_prepared_clouds_use_independent_shot_loops(self):
-        source = (Path(__file__).parent.parent / "calibrations_v2" / "07_iq_blobs.py").read_text()
+        source = (Path(__file__).parent.parent / "calibrations" / "07_iq_blobs.py").read_text()
         acquisition_block = source.split("# Acquire the selected clouds", 1)[1].split(
             "with stream_processing()", 1
         )[0]
@@ -39,7 +39,7 @@ class IQBlobsSequenceTests(unittest.TestCase):
         self.assertNotIn("qubit.resonator.wait", acquisition_block)
 
     def test_f_state_active_reset_uses_bounded_gef_reset(self):
-        source = (Path(__file__).parent.parent / "calibrations_v2" / "07_iq_blobs.py").read_text()
+        source = (Path(__file__).parent.parent / "calibrations" / "07_iq_blobs.py").read_text()
 
         self.assertIn('use_gef_active_reset = "f" in states and reset_type == "active"', source)
         self.assertIn("active_gef_reset_attempts", source)
@@ -57,7 +57,7 @@ class IQBlobsSequenceTests(unittest.TestCase):
         self.assertIn("Run IQ blobs with states ['g', 'e', 'f'] and reset_type='thermal' first.", source)
 
     def test_three_state_fit_updates_gef_centers(self):
-        source = (Path(__file__).parent.parent / "calibrations_v2" / "07_iq_blobs.py").read_text()
+        source = (Path(__file__).parent.parent / "calibrations" / "07_iq_blobs.py").read_text()
 
         self.assertIn('state_labels == ["g", "e", "f"]', source)
         self.assertIn("q.resonator.gef_centers =", source)
@@ -65,7 +65,7 @@ class IQBlobsSequenceTests(unittest.TestCase):
         self.assertIn("readout.gef_centers", source)
 
     def test_successful_fit_updates_profile_angle_and_threshold(self):
-        source = (Path(__file__).parent.parent / "calibrations_v2" / "07_iq_blobs.py").read_text()
+        source = (Path(__file__).parent.parent / "calibrations" / "07_iq_blobs.py").read_text()
 
         self.assertIn("readout.integration_weights_angle_rad", source)
         self.assertIn("readout.threshold", source)

@@ -3,7 +3,7 @@
 ## Project Overview
 
 This repository contains OPX1000 quantum-control calibration code. Current
-calibration work should generally use `calibrations_v2/`, not
+calibration work should generally use `calibrations/`, not
 `calibrations_old/`.
 
 Generated experiment output goes under `data/` and should not be committed
@@ -47,12 +47,12 @@ Run tests:
 python -m pytest
 ```
 
-Use the v2 calibration runner:
+Use the calibration runner:
 
 ```powershell
-python -m calibrations_v2.runner list
-python -m calibrations_v2.runner describe resonator
-python -m calibrations_v2.runner run power-rabi --qubit q9 --simulate --no-save
+python -m calibrations.runner list
+python -m calibrations.runner describe resonator
+python -m calibrations.runner run power-rabi --qubit q9 --simulate --no-save
 ```
 
 Use `--dry-run`, `--simulate`, or `--no-save` when checking behavior without
@@ -61,7 +61,7 @@ intending to run or persist a real calibration.
 ## Calibration Conventions
 
 New calibration code should subclass `BaseCalibration` from
-`calibrations_v2/base.py`.
+`calibrations/base.py`.
 
 Use `CalibrationOptions` to avoid unwanted side effects in automated runs:
 
@@ -116,7 +116,7 @@ git status --short
 ## Where To Look
 
 - `README.md`: high-level repository overview.
-- `calibrations_v2/README.md`: calibration lifecycle and runner usage.
+- `calibrations/README.md`: calibration lifecycle and runner usage.
 - `profiles/README.md`: profile schema and safety constraints.
 - `docs/hardware/`: durable hardware facts.
 - `tests/`: expected validation patterns.

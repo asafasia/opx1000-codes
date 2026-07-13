@@ -24,7 +24,7 @@ REPOSITORY_ROOT = Path(__file__).parent.parent
 
 class RabiStateDiscriminationTests(unittest.TestCase):
     def test_power_rabi_uses_parameter_for_acquisition_and_plotting(self):
-        source = (REPOSITORY_ROOT / "calibrations_v2" / "04b_power_rabi.py").read_text()
+        source = (REPOSITORY_ROOT / "calibrations" / "04b_power_rabi.py").read_text()
 
         self.assertNotIn("node.use_state_discrimination", source)
         self.assertIn("if self.parameters.use_state_discrimination:", source)
@@ -35,7 +35,7 @@ class RabiStateDiscriminationTests(unittest.TestCase):
         self.assertIn("use_state_discrimination=self.parameters.use_state_discrimination", source)
 
     def test_rabi_chevron_uses_parameter_for_acquisition_and_plotting(self):
-        source = (REPOSITORY_ROOT / "calibrations_v2" / "04a_rabi_chevron.py").read_text()
+        source = (REPOSITORY_ROOT / "calibrations" / "04a_rabi_chevron.py").read_text()
 
         self.assertIn("state_discrimination = node.parameters.use_state_discrimination", source)
         self.assertIn("state = [declare(int) for _ in range(num_qubits)]", source)

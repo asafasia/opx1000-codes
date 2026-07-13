@@ -9,7 +9,7 @@ class ReadoutPowerProfileUpdateTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = (
-            REPOSITORY_ROOT / "calibrations_v2" / "08b_readout_power_optimization.py"
+            REPOSITORY_ROOT / "calibrations" / "08b_readout_power_optimization.py"
         ).read_text()
 
     def test_profile_update_stages_optimized_readout_amplitude(self):

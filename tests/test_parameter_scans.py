@@ -173,10 +173,10 @@ class ParameterScanTests(unittest.TestCase):
             status = json.loads((run_directory / "status.json").read_text(encoding="utf-8"))
             self.assertEqual(status["status"], "complete")
 
-    def test_runner_extracts_results_from_v2_calibration_object(self):
+    def test_runner_extracts_results_from_calibration_object(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            script = root / "fake_v2.py"
+            script = root / "fake_calibration.py"
             script.write_text(
                 "from types import SimpleNamespace\n"
                 "calibration = SimpleNamespace(\n"
@@ -201,12 +201,12 @@ class ParameterScanTests(unittest.TestCase):
             self.assertEqual(rows[0]["experiment_name"], "05_T1")
             self.assertEqual(rows[0]["parameter"], "T1")
 
-    def test_runner_resolves_legacy_calibrations_path_to_v2(self):
+    def test_runner_resolves_calibrations_path(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            v2_directory = root / "calibrations_v2"
-            v2_directory.mkdir()
-            (v2_directory / "05_T1.py").write_text(
+            calibrations_directory = root / "calibrations"
+            calibrations_directory.mkdir()
+            (calibrations_directory / "05_T1.py").write_text(
                 "from types import SimpleNamespace\n"
                 "calibration = SimpleNamespace(\n"
                 "    name='05_T1',\n"

@@ -19,7 +19,7 @@ from qm.qua import *
 from qualang_tools.loops import from_array
 from qualang_tools.units import unit
 
-from calibrations_v2.base import BaseCalibration, CalibrationOptions
+from calibrations.base import BaseCalibration, CalibrationOptions
 from shaped_pulse_spectroscopy.lorentzian import (
     install_lorentzian_operation,
     plot_raw_data,

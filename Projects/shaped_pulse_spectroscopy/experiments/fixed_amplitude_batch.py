@@ -17,7 +17,7 @@ for path in (PROJECT_ROOT, REPOSITORY_ROOT):
 import matplotlib.pyplot as plt
 import numpy as np
 
-from calibrations_v2.base import CalibrationOptions
+from calibrations.base import CalibrationOptions
 from experiments.fixed_amplitude_spectroscopy import EchoLorentzianFixedAmplitude
 from shaped_pulse_spectroscopy.lorentzian import _t2_star_seconds
 from shaped_pulse_spectroscopy.parameters import Parameters

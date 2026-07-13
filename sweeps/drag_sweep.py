@@ -22,7 +22,7 @@ from calibration_io import CalibrationSaver
 from calibration_utils.single_qubit_randomized_benchmarking import (
     Parameters as RandomizedBenchmarkingParameters,
 )
-from calibrations_v2 import CalibrationOptions
+from calibrations import CalibrationOptions
 from profiles import Profile, validate_profile
 from profiles.loader import _select_qubit
 from quam_config import Quam
@@ -30,7 +30,7 @@ from quam_config.create_machine_from_profile import create_machine_from_profile
 from workflows.drag_workflow import InMemoryProfile, _set_profile_path
 
 SingleQubitRandomizedBenchmarking = importlib.import_module(
-    "calibrations_v2.11a_single_qubit_randomized_benchmarking"
+    "calibrations.11a_single_qubit_randomized_benchmarking"
 ).SingleQubitRandomizedBenchmarking
 
 

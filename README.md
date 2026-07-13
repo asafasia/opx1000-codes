@@ -18,7 +18,7 @@ under `data/` and is intentionally not tracked by git.
 ## Repository Layout
 
 ```text
-calibrations_v2/       Class-based Qualibrate calibration scripts and base lifecycle
+calibrations/       Class-based Qualibrate calibration scripts and base lifecycle
 calibrations_old/      Older script-style calibration implementations
 calibration_utils/     Per-calibration parameters, analysis, and plotting code
 profiles/              Versioned JSON device profiles and validation helpers
@@ -47,7 +47,7 @@ More focused documentation is available in:
 - `docs/README.md`
 - `docs/hardware/README.md`
 - `profiles/README.md`
-- `calibrations_v2/README.md`
+- `calibrations/README.md`
 - `apps/visualiser/README.md`
 - `apps/profile_studio/README.md`
 - `Projects/ising_machine/README.md`
@@ -102,13 +102,13 @@ the calibration source:
 
 ```powershell
 $env:QUAM_PROFILE = "main"
-python calibrations_v2/03a_qubit_spectroscopy.py
+python calibrations/03a_qubit_spectroscopy.py
 ```
 
 ## Running Calibrations
 
-Current calibration scripts live in `calibrations_v2/`. The v2 scripts share a
-class-based lifecycle in `calibrations_v2/base.py`: create or simulate the QUA
+Current calibration scripts live in `calibrations/`. These scripts share a
+class-based lifecycle in `calibrations/base.py`: create or simulate the QUA
 program, save raw xarray results with a profile snapshot, reload and analyze
 saved runs, save figures, stage optional profile updates, and clean up temporary
 machine changes. Older script-style versions are kept under `calibrations_old/`
@@ -145,7 +145,7 @@ you disable raw saves, figures, plotting, state updates, or profile-update
 proposals when running unattended scans or nested workflows:
 
 ```python
-from calibrations_v2 import CalibrationOptions
+from calibrations import CalibrationOptions
 
 options = CalibrationOptions(
     save_raw_data=False,
@@ -157,14 +157,14 @@ options = CalibrationOptions(
 )
 ```
 
-Pass `options=options` into any v2 calibration constructor. See
-`calibrations_v2/README.md` for the full subclassing pattern and a concrete
+Pass `options=options` into any calibration constructor. See
+`calibrations/README.md` for the full subclassing pattern and a concrete
 `PowerRabi` example.
 
 ## Gate Tune-Up Workflows
 
 The `workflows/` and `sweeps/` packages provide higher-level routines that
-reuse the v2 calibrations without writing intermediate profile files.
+reuse the calibrations without writing intermediate profile files.
 
 Run the standard single-qubit DRAG tune-up sequence: Power Rabi, DRAG
 180/-180, then single-qubit randomized benchmarking:
@@ -206,9 +206,9 @@ Run selected experiments without a config file:
 
 ```powershell
 python -m parameter_scans --name weekend_drift --repetitions 48 --interval-seconds 600 `
-  --experiment calibrations_v2/03a_qubit_spectroscopy.py `
-  --experiment calibrations_v2/05_T1.py `
-  --experiment calibrations_v2/06a_ramsey.py
+  --experiment calibrations/03a_qubit_spectroscopy.py `
+  --experiment calibrations/05_T1.py `
+  --experiment calibrations/06a_ramsey.py
 ```
 
 By default the runner stops on the first script error, records the traceback in

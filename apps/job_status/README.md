@@ -13,4 +13,4 @@ http://127.0.0.1:8895
 ```
 
 The API is read-only and uses `QuantumMachinesManager.get_jobs()` through
-`calibrations_v2.job_status`.
+`calibrations.job_status`.

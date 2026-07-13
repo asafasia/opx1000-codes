@@ -17,7 +17,7 @@ for path in (PROJECT_ROOT, REPO_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from calibrations_v2.base import CalibrationOptions
+from calibrations.base import CalibrationOptions
 from experiments.detuning_amplitude_sweep import EchoLorentzian
 from shaped_pulse_spectroscopy.parameters import Parameters
 from quam_config import create_machine

@@ -19,7 +19,7 @@ for path in (PROJECT_ROOT, REPOSITORY_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from calibrations_v2.base import CalibrationOptions
+from calibrations.base import CalibrationOptions
 from experiments.cutoff_amp_fwhm_map import (
     plot_cutoff_summary,
     plot_fwhm_heatmap,

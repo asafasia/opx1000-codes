@@ -16,7 +16,7 @@ from calibration_utils.readout_weights_optimization import (
 
 class ReadoutWeightsOptimizationTests(unittest.TestCase):
     def test_calibration_proposes_use_kernel_instead_of_overwriting_basic_weights(self):
-        source = Path("calibrations_v2/10d_readout_weights_optimization.py").read_text(
+        source = Path("calibrations/10d_readout_weights_optimization.py").read_text(
             encoding="utf-8"
         )
 

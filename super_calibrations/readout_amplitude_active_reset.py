@@ -35,10 +35,10 @@ from qualibration_libs.parameters import (
 )
 from quam_config import Quam, create_machine
 from calibration_io import CalibrationSaver, current_profile_name
-from calibrations_v2.base import BaseCalibration, CalibrationOptions
+from calibrations.base import BaseCalibration, CalibrationOptions
 from utils.plotting_settings import FIGURE_SIZE
 
-iq_blobs_module = importlib.import_module("calibrations_v2.07_iq_blobs")
+iq_blobs_module = importlib.import_module("calibrations.07_iq_blobs")
 IqBlobs = iq_blobs_module.IqBlobs
 IqBlobParameters = iq_blobs_module.Parameters
 

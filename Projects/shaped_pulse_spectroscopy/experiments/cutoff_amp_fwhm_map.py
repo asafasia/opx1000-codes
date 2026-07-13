@@ -30,7 +30,7 @@ from matplotlib.colors import LogNorm
 import numpy as np
 import xarray as xr
 
-from calibrations_v2.base import CalibrationOptions
+from calibrations.base import CalibrationOptions
 from experiments.detuning_amplitude_sweep import EchoLorentzian
 from shaped_pulse_spectroscopy.lorentzian import _t2_star_seconds, plot_raw_data
 from shaped_pulse_spectroscopy.parameters import Parameters

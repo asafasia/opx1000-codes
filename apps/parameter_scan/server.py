@@ -28,7 +28,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from parameter_scans.runner import ExperimentSpec, LongScanRunner, ScanConfig
 
-CALIBRATIONS_ROOT = PROJECT_ROOT / "calibrations_v2"
+CALIBRATIONS_ROOT = PROJECT_ROOT / "calibrations"
 SINGLE_QUBIT_PROFILE_ROOT = PROJECT_ROOT / "profiles" / "single_qubit"
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "data" / "parameter_scans"
 PREFERRED_EXPERIMENTS = {

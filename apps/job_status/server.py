@@ -25,7 +25,7 @@ PROJECT_ROOT = APP_ROOT.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from calibrations_v2.job_status import query_profile_qop_status
+from calibrations.job_status import query_profile_qop_status
 from profiles import load_profile
 from temperature_monitor.temperature_monitor import TemperatureMonitor
 

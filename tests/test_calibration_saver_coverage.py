@@ -25,8 +25,8 @@ class CalibrationSaverCoverageTests(unittest.TestCase):
 
         self.assertEqual(missing, [])
 
-    def test_all_v2_xarray_saves_include_experiment_parameters(self):
-        calibrations = Path(__file__).parent.parent / "calibrations_v2"
+    def test_all_calibration_xarray_saves_include_experiment_parameters(self):
+        calibrations = Path(__file__).parent.parent / "calibrations"
         missing = []
         for path in calibrations.glob("*.py"):
             source = path.read_text()

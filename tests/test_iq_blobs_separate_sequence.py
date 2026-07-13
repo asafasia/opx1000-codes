@@ -6,7 +6,7 @@ class SeparateIQBlobsSequenceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = (
-            Path(__file__).parent.parent / "calibrations_v2" / "07_iq_blobs_separate.py"
+            Path(__file__).parent.parent / "calibrations" / "07_iq_blobs_separate.py"
         ).read_text()
 
     def test_builds_two_independent_state_programs(self):

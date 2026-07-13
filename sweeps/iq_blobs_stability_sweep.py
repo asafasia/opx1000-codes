@@ -20,10 +20,10 @@ if __package__ in {None, ""}:
 
 from calibration_io import CalibrationSaver, current_profile_name
 from calibration_utils.iq_blobs import Parameters as IqBlobsParameters
-from calibrations_v2 import CalibrationOptions
+from calibrations import CalibrationOptions
 from quam_config import Quam, create_machine
 
-IqBlobs = importlib.import_module("calibrations_v2.07_iq_blobs").IqBlobs
+IqBlobs = importlib.import_module("calibrations.07_iq_blobs").IqBlobs
 
 
 @dataclass

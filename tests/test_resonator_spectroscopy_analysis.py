@@ -43,7 +43,7 @@ class ResonatorSpectroscopyAnalysisTests(unittest.TestCase):
     def test_acquisition_preserves_shots_without_stream_averaging(self):
         source = (
             Path(__file__).resolve().parents[1]
-            / "calibrations_v2"
+            / "calibrations"
             / "02a_resonator_spectroscopy.py"
         ).read_text(encoding="utf-8")
         stream_processing = source.split("with stream_processing():", 1)[1]
@@ -56,7 +56,7 @@ class ResonatorSpectroscopyAnalysisTests(unittest.TestCase):
     def test_gef_acquisition_preserves_shots_and_prepares_f_state(self):
         source = (
             Path(__file__).resolve().parents[1]
-            / "calibrations_v2"
+            / "calibrations"
             / "02a_resonator_spectroscopy.py"
         ).read_text(encoding="utf-8")
         stream_processing = source.split("with stream_processing():", 1)[1]

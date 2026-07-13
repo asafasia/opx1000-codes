@@ -14,7 +14,7 @@ if __package__ in {None, ""}:
     if str(repository_root) not in sys.path:
         sys.path.insert(0, str(repository_root))
 
-from calibrations_v2 import CalibrationOptions
+from calibrations import CalibrationOptions
 from calibration_utils.drag_calibration_180_minus180 import Parameters as DragParameters
 from calibration_utils.power_rabi import Parameters as PowerRabiParameters
 from calibration_utils.single_qubit_randomized_benchmarking import (
@@ -25,12 +25,12 @@ from profiles.loader import _select_qubit
 from quam_config import Quam
 from quam_config.create_machine_from_profile import create_machine_from_profile
 
-PowerRabi = importlib.import_module("calibrations_v2.04b_power_rabi").PowerRabi
+PowerRabi = importlib.import_module("calibrations.04b_power_rabi").PowerRabi
 DragCalibration180Minus180 = importlib.import_module(
-    "calibrations_v2.10b_drag_calibration_180_minus_180"
+    "calibrations.10b_drag_calibration_180_minus_180"
 ).DragCalibration180Minus180
 SingleQubitRandomizedBenchmarking = importlib.import_module(
-    "calibrations_v2.11a_single_qubit_randomized_benchmarking"
+    "calibrations.11a_single_qubit_randomized_benchmarking"
 ).SingleQubitRandomizedBenchmarking
 
 
@@ -301,7 +301,7 @@ def _set_profile_path(profile_documents: dict[str, Any], path: str, value: Any) 
 
 
 def default_parameters() -> DragWorkflowParameters:
-    """Return a practical starting point mirroring the v2 examples."""
+    """Return a practical starting point mirroring the calibration examples."""
     parameters = DragWorkflowParameters()
 
     parameters.rabi.reset_type = "active"

@@ -104,7 +104,7 @@ def make_parameters(args: argparse.Namespace, length_us: float):
 
 
 def run_one(args: argparse.Namespace, length_us: float) -> Path:
-    from calibrations_v2.base import CalibrationOptions
+    from calibrations.base import CalibrationOptions
     from experiments.detuning_amplitude_sweep import EchoLorentzian
     from quam_config import create_machine
 

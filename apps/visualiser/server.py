@@ -26,7 +26,6 @@ APP_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = APP_ROOT.parent.parent
 DATA_ROOT = PROJECT_ROOT / "data"
 CALIBRATION_CODE_ROOT = PROJECT_ROOT / "calibrations"
-CALIBRATION_V2_CODE_ROOT = PROJECT_ROOT / "calibrations_v2"
 CALIBRATION_RUN_ROOT = DATA_ROOT / "calibrations"
 CALIBRATION_UPDATE_ROOT = DATA_ROOT / "calibration_updates"
 PARAMETER_SCAN_ROOT = DATA_ROOT / "parameter_scans"
@@ -586,8 +585,6 @@ def matching_calibration_assets(path: Path, experiment_type: str, date: str | No
     for candidate in (
         PROJECT_ROOT / "calibrations" / f"{experiment_type}.py",
         PROJECT_ROOT / "calibrations" / f"{experiment_type.lower()}.py",
-        PROJECT_ROOT / "calibrations_v2" / f"{experiment_type}.py",
-        PROJECT_ROOT / "calibrations_v2" / f"{experiment_type.lower()}.py",
     ):
         if candidate.is_file():
             scripts.append(file_record(candidate, PROJECT_ROOT))

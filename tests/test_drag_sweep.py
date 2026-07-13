@@ -8,7 +8,7 @@ from unittest.mock import patch
 import numpy as np
 
 from calibration_io import CalibrationSaver
-from calibrations_v2 import CalibrationOptions
+from calibrations import CalibrationOptions
 from sweeps.drag_sweep import DragSweep, DragSweepParameters
 
 

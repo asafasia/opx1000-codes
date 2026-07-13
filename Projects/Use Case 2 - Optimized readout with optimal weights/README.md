@@ -48,7 +48,7 @@ current script now gets its config from the generated machine. Here we will
 show some results from the training.
 
 In the current repository, `IQ_blobs_opt_weights_train.py` is a wrapper around
-`calibrations_v2.10d_readout_weights_optimization.ReadoutWeightsOptimization`.
+`calibrations.10d_readout_weights_optimization.ReadoutWeightsOptimization`.
 It creates the machine with `quam_config.create_machine`, executes sliced
 readout measurements, and writes the optimized profile kernel to:
 
@@ -109,7 +109,7 @@ Having calibrated the optimal weights in `IQ_blobs_opt_weights_train.py`, now we
 focus on `IQ_blobs_opt_weights_benchmark.py`. In the historical code this used
 the macro `discriminator.measure_state()` from `TwoStateDiscriminator.py`. In
 the current repository, the benchmark script wraps
-`calibrations_v2.07_iq_blobs.IqBlobs`, so the selected machine/profile decides
+`calibrations.07_iq_blobs.IqBlobs`, so the selected machine/profile decides
 whether the generated config contains flat or optimized readout weights.
 
 Example:

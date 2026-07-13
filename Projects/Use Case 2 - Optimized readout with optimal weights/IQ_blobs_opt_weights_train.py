@@ -21,11 +21,11 @@ if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from calibration_utils.readout_weights_optimization import Parameters
-from calibrations_v2.core import CalibrationOptions
+from calibrations.core import CalibrationOptions
 
 
 ReadoutWeightsOptimization = importlib.import_module(
-    "calibrations_v2.10d_readout_weights_optimization"
+    "calibrations.10d_readout_weights_optimization"
 ).ReadoutWeightsOptimization
 
 

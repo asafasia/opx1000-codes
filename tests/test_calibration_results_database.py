@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from calibrations_v2.results_db import CalibrationResultsDatabase
+from calibrations.results_db import CalibrationResultsDatabase
 
 
 class CalibrationResultsDatabaseTests(unittest.TestCase):

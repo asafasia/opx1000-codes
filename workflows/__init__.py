@@ -1,4 +1,4 @@
-"""Calibration workflows built from class-based v2 calibrations."""
+"""Calibration workflows built from class-based calibrations."""
 
 from .drag_workflow import DragWorkflow, DragWorkflowParameters
 

@@ -19,7 +19,7 @@ import xarray as xr
 from qm.qua import *
 from qualang_tools.loops import from_array
 
-from calibrations_v2.base import BaseCalibration, CalibrationOptions
+from calibrations.base import BaseCalibration, CalibrationOptions
 from shaped_pulse_spectroscopy.lorentzian import (
     amplitude_prefactors,
     install_lorentzian_operation,
@@ -53,7 +53,7 @@ def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> 
 
 
 class EchoLorentzianAmplitude(BaseCalibration[Parameters, Quam]):
-    """Echo-Lorentzian amplitude sweep implemented with the v2 lifecycle."""
+    """Echo-Lorentzian amplitude sweep implemented with the calibration lifecycle."""
 
     def __init__(
         self,

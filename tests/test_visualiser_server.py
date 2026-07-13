@@ -335,20 +335,20 @@ class VisualiserServerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             run = root / "data" / "parameter_scans" / "2026-06-28" / "codex_t1_q1_check" / "21-13-51-592429"
-            script = root / "calibrations_v2" / "05_T1.py"
+            script = root / "calibrations" / "05_T1.py"
             run.mkdir(parents=True)
             script.parent.mkdir(parents=True)
             script.write_text("# fake T1 calibration\n", encoding="utf-8")
             (run / "summary.csv").write_text(
                 "timestamp,cycle,experiment_name,script,status,qubit,parameter,value,unit,success,duration_s,error\n"
-                "2026-06-28T21:13:51+03:00,1,05_T1,calibrations_v2/05_T1.py,ok,q1,T1,47125,ns,True,15,\n",
+                "2026-06-28T21:13:51+03:00,1,05_T1,calibrations/05_T1.py,ok,q1,T1,47125,ns,True,15,\n",
                 encoding="utf-8",
             )
             (run / "scan.json").write_text(
                 json.dumps(
                     {
                         "name": "codex_t1_q1_check",
-                        "experiments": [{"script": "calibrations_v2/05_T1.py"}],
+                        "experiments": [{"script": "calibrations/05_T1.py"}],
                     }
                 )
                 + "\n",
@@ -361,7 +361,7 @@ class VisualiserServerTests(unittest.TestCase):
             self.assertEqual(detail["summary"]["kind"], "parameter_scan")
             self.assertEqual(
                 [item["project_path"] for item in detail["calibrations"]["scripts"]],
-                ["calibrations_v2/05_T1.py"],
+                ["calibrations/05_T1.py"],
             )
 
     def test_npz_plot_data_reports_corrupt_results_without_crashing(self):
