@@ -10,6 +10,11 @@ from types import SimpleNamespace
 from typing import Any, Iterable, Mapping
 
 from .job_status import query_profile_qop_status
+from .output_safety import (
+    clear_output_inhibit,
+    engage_output_inhibit,
+    output_inhibit_status,
+)
 from .registry import CALIBRATIONS, CalibrationEntry, get_entry
 from .results_db import CalibrationResultsDatabase
 
@@ -217,6 +222,54 @@ def print_job_status(
         print(f"  {job.id}: {job.status}{suffix}{description}")
 
 
+def manage_outputs(
+    action: str,
+    *,
+    reason: str,
+    profile_name: str | None,
+    qubit: str | None,
+    confirm_fridge_cold: bool,
+) -> int:
+    """Manage the persistent output-inhibit latch."""
+    if action == "status":
+        status = output_inhibit_status()
+        if status is None:
+            print("outputs: enabled")
+        else:
+            print("outputs: inhibited")
+            print(f"engaged_at: {status.get('engaged_at', 'unknown')}")
+            print(f"reason: {status.get('reason', 'no reason recorded')}")
+        return 0
+
+    if action == "inhibit":
+        path = engage_output_inhibit(reason)
+        print(f"outputs: inhibited ({path})")
+        # Persist the latch before touching QOP. If QOP is unreachable, future
+        # repository calibrations remain blocked even though closure is unverified.
+        from quam_config import create_machine
+
+        machine = create_machine(profile_name=profile_name, qubit=qubit)
+        qmm = machine.connect()
+        qmm.close_all_qms()
+        remaining_qms = tuple(str(qm_id) for qm_id in qmm.list_open_qms())
+        if remaining_qms:
+            raise RuntimeError(
+                "Output inhibit is engaged, but QOP still reports open QMs: "
+                + ", ".join(remaining_qms)
+            )
+        print("open QMs: closed and verified")
+        return 0
+
+    if not confirm_fridge_cold:
+        raise SystemExit(
+            "Refusing to enable outputs without --confirm-fridge-cold. "
+            "Verify refrigerator temperature and the RF/DC chain first."
+        )
+    changed = clear_output_inhibit()
+    print("outputs: enabled" if changed else "outputs: already enabled")
+    return 0
+
+
 def record_run_in_database(
     calibration: Any,
     status: Any,
@@ -367,6 +420,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     jobs.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
 
+    outputs = subparsers.add_parser(
+        "outputs",
+        help="Inhibit OPX hardware execution while the refrigerator is heating.",
+    )
+    outputs.add_argument("action", choices=("status", "inhibit", "enable"))
+    outputs.add_argument(
+        "--reason",
+        default="dilution refrigerator heating",
+        help="Operator reason recorded when engaging the inhibit latch.",
+    )
+    outputs.add_argument("--profile", dest="profile_name", help="Profile used to connect to QOP.")
+    outputs.add_argument("--qubit", help="Optional qubit selection for a single-qubit profile.")
+    outputs.add_argument(
+        "--confirm-fridge-cold",
+        action="store_true",
+        help="Required acknowledgement before outputs can be enabled.",
+    )
+
     run = subparsers.add_parser("run", help="Run one calibration.")
     run.add_argument("calibration", nargs="?", help="Friendly calibration name.")
     run.add_argument("--recipe", type=Path, help="JSON recipe with calibration, parameters, and options.")
@@ -400,6 +471,14 @@ def main(argv: Iterable[str] | None = None) -> int:
             json_output=bool(args.json),
         )
         return 0
+    if args.command == "outputs":
+        return manage_outputs(
+            args.action,
+            reason=args.reason,
+            profile_name=args.profile_name,
+            qubit=args.qubit,
+            confirm_fridge_cold=bool(args.confirm_fridge_cold),
+        )
 
     recipe = load_recipe(args.recipe) if args.recipe else {}
     calibration_name = args.calibration or recipe.get("calibration")

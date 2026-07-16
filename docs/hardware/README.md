@@ -4,6 +4,7 @@ This directory contains stable reference information about the physical device
 and control hardware.
 
 - [Wiring and shared-LO rules](wiring.md)
+- [OPX output inhibit during refrigerator heating](output_inhibit.md)
 - [IQM qubit summary](iqm_qubit_summary.csv)
 
 Update these files when the physical wiring or vendor characterization changes.

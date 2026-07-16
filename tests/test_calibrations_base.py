@@ -81,7 +81,7 @@ class FakeMachine:
         return {"config": "fake"}
 
 
-class CalibrationsV2BaseTests(unittest.TestCase):
+class CalibrationsBaseTests(unittest.TestCase):
     def tearDown(self):
         clear_active_profile()
 

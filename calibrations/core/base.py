@@ -21,6 +21,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from calibration_io import CalibrationSaver
+from calibrations.output_safety import assert_outputs_allowed
 from profiles import ProfileUpdater, current_profile_name
 from qualibrate import NodeParameters
 from quam_config import Quam
@@ -108,6 +109,8 @@ class BaseCalibration(ABC, Generic[P, M]):
         self._logger = logger or print
 
         if auto_connect:
+            if not self.simulate_requested:
+                assert_outputs_allowed()
             self.connect_machine(close_existing_qms=True)
 
     @property
@@ -180,10 +183,15 @@ class BaseCalibration(ABC, Generic[P, M]):
                     self.load_data(self.load_data_id)
                 loaded = True
             else:
+                if self.should_execute():
+                    assert_outputs_allowed()
                 self.namespace["qua_program"] = self.create_qua_program()
                 if self.should_simulate():
                     self.simulate_qua_program()
                 elif self.should_execute():
+                    # Re-check after QUA construction in case an operator
+                    # engaged the latch while the program was being built.
+                    assert_outputs_allowed()
                     self.execute_qua_program()
                     if self.options.save_raw_data:
                         self.save_raw_results()

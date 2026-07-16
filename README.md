@@ -161,6 +161,48 @@ Pass `options=options` into any calibration constructor. See
 `calibrations/README.md` for the full subclassing pattern and a concrete
 `PowerRabi` example.
 
+### Refrigerator-heating output inhibit
+
+Before heating the dilution refrigerator, double-click this file:
+
+```text
+SAFE_FOR_FRIDGE_HEATING.cmd
+```
+
+Wait for the green-path terminal message:
+
+```text
+SUCCESS: SOFTWARE OUTPUT INHIBIT IS ON
+SUCCESS: ALL OPEN QUANTUM MACHINES ARE CLOSED
+```
+
+If the script displays `SAFETY CHECK FAILED`, do not heat the refrigerator.
+The equivalent terminal command is:
+
+```powershell
+python -m calibrations.runner outputs inhibit --reason "dilution refrigerator heating"
+```
+
+While inhibited, real `BaseCalibration` execution is rejected; simulation and
+saved-data analysis remain available. The latch is stored outside device
+profiles, so calibrated pulse and connectivity values are not changed. After
+independently verifying that the refrigerator and RF/DC chain are safe:
+
+```text
+ENABLE_OUTPUTS_AFTER_FRIDGE_COLD.cmd
+```
+
+Double-click the file and answer `Y`. The equivalent terminal command is:
+
+```powershell
+python -m calibrations.runner outputs enable --confirm-fridge-cold
+```
+
+This software latch is defense in depth. Use a physical RF/DC interlock or
+disconnect when a hardware guarantee of zero output is required. See the
+[operator runbook](docs/hardware/output_inhibit.md) for the complete procedure,
+expected output, and failure handling.
+
 ## Gate Tune-Up Workflows
 
 The `workflows/` and `sweeps/` packages provide higher-level routines that

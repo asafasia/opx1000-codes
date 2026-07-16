@@ -1,5 +1,6 @@
 # Generated experiment and simulation output
 data/
+/logs/
 /calibrations/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 /visualiser/*.log
 /apps/visualiser/*.log
@@ -18,6 +19,7 @@ data/
 /wiring.json
 /physical_state.json
 /physical_config.json
+/.lab_state/
 
 # Python bytecode and caches
 __pycache__/

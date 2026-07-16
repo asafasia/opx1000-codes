@@ -14,7 +14,7 @@ Open <http://127.0.0.1:8890>. Stopping the hub also stops any app processes it
 started. Apps that were already running are detected and left alone.
 
 The hub verifies each app's identity, writes child-process output to
-`data/app_logs/super_app/`, and automatically restarts a crashed app up to four
+`logs/super_app/`, and automatically restarts a crashed app up to four
 times with backoff. A port occupied by an unrelated service is reported in the
 UI instead of being mistaken for a healthy lab app.
 
