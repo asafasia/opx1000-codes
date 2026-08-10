@@ -55,3 +55,4 @@ ising_simulation/README_files/
 .DS_Store
 .idea/
 .vscode/*
+tmp/pdfs/jdry*.png

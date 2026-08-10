@@ -31,8 +31,8 @@ from qualibrate import NodeParameters
 from qualibrate.core.parameters import RunnableParameters
 from qualibration_libs.parameters import (
     CommonNodeParameters,
-    QubitsExperimentNodeParameters,
 )
+from calibration_utils.parameters import QubitsExperimentNodeParameters
 from quam_config import Quam, create_machine
 from calibration_io import CalibrationSaver, current_profile_name
 from calibrations.base import BaseCalibration, CalibrationOptions

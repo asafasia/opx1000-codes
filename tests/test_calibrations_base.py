@@ -10,7 +10,7 @@ import xarray as xr
 
 from calibration_io import CalibrationSaver
 from calibration_utils.analysis_base import BaseAnalysis
-from calibrations import BaseCalibration, CalibrationOptions
+from calibrations import BaseCalibration, CalibrationError, CalibrationOptions
 from profiles import Profile, clear_active_profile, set_active_profile
 
 
@@ -304,6 +304,67 @@ class CalibrationsBaseTests(unittest.TestCase):
 
             np.testing.assert_array_equal(loaded.coords["x"].values, [10, 20])
             np.testing.assert_allclose(loaded.data_vars["signal"].values, [4.0, 5.0])
+
+    def test_readout_mitigation_inverts_iq_blobs_assignment_matrix(self):
+        matrix = np.array([[0.9, 0.1], [0.2, 0.8]])
+        true_excited = np.array([0.0, 0.25, 0.75, 1.0])
+        measured_excited = (1.0 - true_excited) * matrix[0, 1] + true_excited * matrix[1, 1]
+        qubit = SimpleNamespace(
+            name="q1",
+            resonator=SimpleNamespace(confusion_matrix=matrix.tolist()),
+        )
+        calibration = FakeCalibration(
+            name="mitigated",
+            parameters=SimpleNamespace(
+                use_state_discrimination=True,
+                use_readout_mitigation=True,
+            ),
+            machine=object(),
+            logger=lambda message: None,
+        )
+        calibration.namespace["qubits"] = [qubit]
+        calibration.results["ds_raw"] = xr.Dataset(
+            {"state": (("qubit", "x"), measured_excited[None, :])},
+            coords={"qubit": ["q1"], "x": np.arange(true_excited.size)},
+        )
+
+        calibration.apply_readout_mitigation()
+
+        result = calibration.results["ds_raw"]
+        np.testing.assert_allclose(result.state.sel(qubit="q1"), true_excited)
+        np.testing.assert_allclose(
+            result.state_unmitigated.sel(qubit="q1"), measured_excited
+        )
+        self.assertTrue(result.state.attrs["readout_mitigated"])
+
+    def test_readout_mitigation_requires_state_discrimination(self):
+        calibration = FakeCalibration(
+            name="mitigated",
+            parameters=SimpleNamespace(use_state_discrimination=False),
+            machine=object(),
+            logger=lambda message: None,
+        )
+
+        with self.assertRaisesRegex(CalibrationError, "use_state_discrimination=True"):
+            calibration.apply_readout_mitigation()
+
+    def test_readout_mitigation_rejects_missing_matrix(self):
+        calibration = FakeCalibration(
+            name="mitigated",
+            parameters=SimpleNamespace(use_state_discrimination=True),
+            machine=object(),
+            logger=lambda message: None,
+        )
+        calibration.namespace["qubits"] = [
+            SimpleNamespace(name="q1", resonator=SimpleNamespace(confusion_matrix=None))
+        ]
+        calibration.results["ds_raw"] = xr.Dataset(
+            {"state": (("qubit", "x"), [[0.2]])},
+            coords={"qubit": ["q1"], "x": [0]},
+        )
+
+        with self.assertRaisesRegex(CalibrationError, "Run IQ blobs"):
+            calibration.apply_readout_mitigation()
 
 
 if __name__ == "__main__":

@@ -40,7 +40,7 @@ for ch in range(1, 5):
 
         data_len = int(raw[2:header_len])
 
-        data = raw[header_len:header_len + data_len]
+        data = raw[header_len : header_len + data_len]
 
         adc = np.frombuffer(data, dtype=np.uint8)
 

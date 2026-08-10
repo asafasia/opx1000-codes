@@ -2,7 +2,8 @@ from typing import Literal, Optional
 import numpy as np
 from qualibrate import NodeParameters
 from qualibrate.core.parameters import RunnableParameters
-from qualibration_libs.parameters import QubitsExperimentNodeParameters, CommonNodeParameters
+from qualibration_libs.parameters import CommonNodeParameters
+from calibration_utils.parameters import QubitsExperimentNodeParameters
 
 
 RBGateFamily = Literal["square", "drag", "cos", "cosine"]

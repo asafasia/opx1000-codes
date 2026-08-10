@@ -198,6 +198,8 @@ class BaseCalibration(ABC, Generic[P, M]):
                         raw_data_saved = True
 
             if not self.simulate_requested:
+                if getattr(self.parameters, "use_readout_mitigation", False):
+                    self.apply_readout_mitigation()
                 if self.options.analyse_data:
                     self.analyse_data()
                     if self.options.save_analysis_result:
@@ -287,6 +289,85 @@ class BaseCalibration(ABC, Generic[P, M]):
 
     def progress_total(self) -> int | None:
         return getattr(self.parameters, "num_shots", None)
+
+    def apply_readout_mitigation(self) -> None:
+        """Correct binary state populations using calibrated assignment matrices.
+
+        IQ-blobs stores a matrix whose rows are prepared states and whose columns
+        are measured states.  Therefore ``p_measured = p_true @ matrix`` and the
+        mitigated population is obtained by applying the matrix inverse.  The
+        result is intentionally not clipped: finite-shot fluctuations outside
+        the physical interval are useful diagnostics and clipping would bias it.
+        """
+        if not getattr(self.parameters, "use_state_discrimination", False):
+            raise CalibrationError(
+                "Readout mitigation requires use_state_discrimination=True."
+            )
+
+        dataset = self.results.get("ds_raw")
+        if dataset is None or "state" not in dataset:
+            raise CalibrationError(
+                "Readout mitigation requires a discriminated 'state' variable in ds_raw."
+            )
+        if dataset["state"].attrs.get("readout_mitigated", False):
+            return
+
+        qubits = self.namespace.get("qubits")
+        if qubits is None:
+            qubits = self.get_qubits()
+        qubits = list(qubits)
+        if not qubits:
+            raise CalibrationError("Readout mitigation requires at least one selected qubit.")
+
+        state = dataset["state"]
+        corrected = state.astype(float).copy(deep=True)
+        has_qubit_axis = "qubit" in state.dims
+        if not has_qubit_axis and len(qubits) != 1:
+            raise CalibrationError(
+                "The state data has no 'qubit' dimension, but multiple qubits were selected."
+            )
+
+        for qubit in qubits:
+            qubit_name = str(getattr(qubit, "name", qubit))
+            matrix_value = getattr(getattr(qubit, "resonator", None), "confusion_matrix", None)
+            if matrix_value is None:
+                raise CalibrationError(
+                    f"No readout confusion matrix is calibrated for {qubit_name}. "
+                    "Run IQ blobs and apply its profile update first."
+                )
+            matrix = np.asarray(matrix_value, dtype=float)
+            if matrix.shape != (2, 2) or not np.all(np.isfinite(matrix)):
+                raise CalibrationError(
+                    f"Readout confusion matrix for {qubit_name} must be a finite 2x2 matrix; "
+                    f"got shape {matrix.shape}."
+                )
+            if np.linalg.matrix_rank(matrix) < 2:
+                raise CalibrationError(
+                    f"Readout confusion matrix for {qubit_name} is singular and cannot mitigate data."
+                )
+
+            inverse = np.linalg.inv(matrix)
+            measured_excited = state.sel(qubit=qubit_name) if has_qubit_axis else state
+            mitigated_excited = (
+                (1.0 - measured_excited) * inverse[0, 1]
+                + measured_excited * inverse[1, 1]
+            )
+            if has_qubit_axis:
+                corrected.loc[{"qubit": qubit_name}] = mitigated_excited
+            else:
+                corrected = mitigated_excited
+
+        corrected.attrs = dict(state.attrs)
+        corrected.attrs.update(
+            {
+                "readout_mitigated": True,
+                "readout_mitigation_method": "inverse_assignment_matrix",
+            }
+        )
+        self.results["ds_raw"] = dataset.assign(
+            state_unmitigated=state.copy(deep=True),
+            state=corrected,
+        )
 
     def save_raw_results(self, *, now: datetime | None = None) -> Path:
         """Save ``results['ds_raw']`` and a profile snapshot."""

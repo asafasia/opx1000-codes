@@ -1,6 +1,7 @@
 from qualibrate import NodeParameters
 from qualibrate.core.parameters import RunnableParameters
-from qualibration_libs.parameters import CommonNodeParameters, QubitsExperimentNodeParameters
+from qualibration_libs.parameters import CommonNodeParameters
+from calibration_utils.parameters import QubitsExperimentNodeParameters
 
 
 class NodeSpecificParameters(RunnableParameters):

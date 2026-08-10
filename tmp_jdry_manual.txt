@@ -1,0 +1,4405 @@
+                JanisULT
+
+                  JDry-250-QT
+              CRYOGEN-FREE
+DILUTION REFRIGERATOR SYSTEM
+
+                    OPERATING MANUAL
+                       Serial number 22112
+
+                                         August 2020
+
+                                   225 Wildwood Avenue
+                                    Woburn, Ma 01801
+
+                                  Phone: +1 781 491-0999
+                                   Fax: +1 781 491-0998
+                                      www.janult.com
+
+                                                                                                           1
+                                           TABLE OF CONTENT
+
+1 GENERAL DESCRIPTION .............................................................................................................................8
+
+2 MODEL GHS4334400301110R0 AUTOMATED GAS HANDLING SYSTEM (GHS) ............................32
+
+3 JANIS AUTOMATED CONTROL BOX (JACOB) .....................................................................................33
+
+4 TURBO PUMPING STATION PS344000 .....................................................................................................39
+
+5 JANIS 3HE-4HE MIXTURE ENCLOSURE (JAMIE) ................................................................................41
+
+6 LIQUID NITROGEN TEMPERATURE COLD TRAP AND LIQUID NITROGEN DEWAR ..............43
+
+7 TURN ON, TURN OFF, AND RESTART THE GHS ..................................................................................45
+
+8 EMERGENCY SHUTDOWN.........................................................................................................................46
+
+9 SYSTEM OPERATION IN MANUAL MODE ............................................................................................47
+
+   9.1 ROOM TEMPERATURE OPERATIONS ................................................................................................................48
+       9.1.1 Parameters checking ............................................................................................................................48
+       9.1.2 Evacuation. Leak tests and Flow tests .................................................................................................49
+            9.1.2.1 Evacuation of the RD OVC. ...................................................................................................................... 49
+            9.1.2.2 Evacuation of the Dilution Refrigerator. .................................................................................................... 49
+            9.1.2.3 OVC Leak check........................................................................................................................................ 51
+            9.1.2.4 Gas handling system (GHS2) region leak check. ....................................................................................... 51
+            9.1.2.5 The DR-core leak check............................................................................................................................. 52
+       9.1.3 Mixture cleaning procedure .................................................................................................................53
+       9.1.4 Impedance check at room temperature ................................................................................................55
+
+   9.2 COOLING DOWN .............................................................................................................................................58
+       9.2.1 Precooling ............................................................................................................................................59
+       9.2.2 Impedance check around 80K ~ 100K.................................................................................................59
+       9.2.3 Precooling with LN2............................................................................................................................59
+       9.2.4 Precooling and Initial Mixture Condensation with the Main Pump.....................................................60
+       9.2.5 Final mixture condensation..................................................................................................................63
+       9.2.6 Normal mixture circulation..................................................................................................................66
+
+   9.3 WARMING UP THE SYSTEM ............................................................................................................................67
+       9.3.1 Shut down and "warm" mixture recovery from refrigerator. ...............................................................68
+       9.3.2 Mixture recovery from cold trap and GHS internal manifold panel ....................................................71
+       9.3.3 Shut down the system ..........................................................................................................................74
+
+10 INTERLOCKS AND SAFETY PROTECTION FEATURES .....................................................................77
+
+   10.1 PRESSURE GAUGES....................................................................................................................................77
+   10.2 MAIN PUMP AND BOOSTER PUMP..............................................................................................................78
+   10.3 VALVES.....................................................................................................................................................78
+   10.4 DATA LOGGING AND PROTECTION ............................................................................................................78
+
+11 JANISULT HELIUM DILUTION REFRIGERATOR CONTROL SYSTEM SOFTWARE..................80
+
+   11.1 SOFTWARE CONFIGURATION .....................................................................................................................80
+       11.1.1 Real-Time Controller Software.......................................................................................................80
+            11.1.1.1 JanisRT.INI File Access ............................................................................................................................ 80
+            11.1.1.2 Janis RT INI File Description .................................................................................................................... 82
+            11.1.1.3 Janis Lake Shore Model 372 AC Resistance Bridge INI File Description ................................................. 84
+            11.1.1.4 cRIO Clock ................................................................................................................................................ 85
+            11.1.1.5 PID Control................................................................................................................................................ 85
+            11.1.1.6 Janis Automation.scr File Description ....................................................................................................... 87
+            11.1.1.7 Power Monitoring and Recovery ............................................................................................................... 95
+            11.1.1.8 LS372 Channel Timeout ............................................................................................................................ 96
+       11.1.2 HMI Software .................................................................................................................................97
+            11.1.2.1 HMI INI File.............................................................................................................................................. 98
+            11.1.2.2 HMI GRAPHS INI File and HMI DEWAR INI File ................................................................................. 99
+            11.1.2.3 HMI Graphical User Interface ................................................................................................................... 99
+            11.1.2.4 Alarms ..................................................................................................................................................... 116
+            11.1.2.5 Logs ......................................................................................................................................................... 116
+            11.1.2.6 Data Logs................................................................................................................................................. 117
+   11.2 REMOTE ACCESS VIA JETWAY COMPUTER AND SSH..............................................................................117
+       11.2.1 Setting up Remote Access via JetWay Computer and SSH ..........................................................118
+       11.2.2 Troubleshooting communication issues between cRIO and a remote PC .....................................122
+   11.3 APPLICATION PROGRAMMING INTERFACE...............................................................................................123
+       11.3.1 Detail Design Description .............................................................................................................123
+       11.3.2 Client Considerations ....................................................................................................................124
+       11.3.3 Command Summary .....................................................................................................................125
+       11.3.4 Parameters Definitions ..................................................................................................................135
+       11.3.5 Status Definitions..........................................................................................................................137
+   11.4 SCRIPTING LANGUAGE DESCRIPTION ......................................................................................................137
+       11.4.1 Detail Design Description .............................................................................................................138
+       11.4.2 Command Summary .....................................................................................................................140
+       11.4.3 Resource definitions......................................................................................................................154
+       11.4.4 Defined Variables .........................................................................................................................158
+
+12 SYSTEM POWER AND WATER REQUIREMENT ................................................................................160
+
+13 SYMBOLS AND DEFINITIONS .................................................................................................................162
+                                              LIST OF FIGURES
+
+Figure 1 Overall view of the Model JDry-250-QPro Dilution Refrigerator system assembled for a
+test at JanisULT. ............................................................................................................................. 8
+Figure 2 Side section view of the RD with dimensions in inches, showing the Insert and the Shields
+......................................................................................................................................................... 9
+Figure 3 Shields installation, showing 1st shield upper and lower sections ................................. 10
+Figure 4 Pump out box with cover removed, showing meander and black anti reflection coating
+....................................................................................................................................................... 11
+Figure 5 Insert top flange view .................................................................................................... 11
+Figure 6 Insert top view with 3 NW100 windows for cable stacks blanked with flanges..... Error!
+Bookmark not defined.
+Figure 7 PT-410-RM drawings ..................................................................................................... 13
+Figure 8 The Insert attached to the Stand ..................................................................................... 14
+Figure 9 Insert 50 K, 10 K, and 3 K plates ................................................................................... 15
+Figure 10 Insert 3 K Plate area in detail ....................................................................................... 16
+Figure 11 The top view of the 3K plate of the Insert.................................................................... 17
+Figure 12 Still plate and Mixture Condensing Unit...................................................................... 18
+Figure 13 JDry-250 dilution refrigerator core .............................................................................. 20
+Figure 14 Mixing chamber 0.01 K plate with its shield attached (For Reference Only).............. 21
+Figure 15 Thermometers and heaters.............................................Error! Bookmark not defined.
+Figure 16 Feedthrough and wire color coding .............................................................................. 23
+Figure 17 Housekeeping wiring diagram...................................................................................... 24
+Figure 18 Insert side cutout view, showing HS and its manipulation stage ................................. 26
+Figure 19 HS detailed drawing ......................................................Error! Bookmark not defined.
+Figure 20 Mechanical Heat Switch assembly ............................................................................... 27
+Figure 21 Precooler showing the anchors on the ICP and MC..................................................... 28
+Figure 22 Precooler showing the 3K and the Still Anchors.......................................................... 29
+Figure 23 Precooler showing the 50K and the 10K Anchors ....................................................... 30
+Figure 24 TF view showing the precooler vacuum-jacketed Inlet with the removable 4 PSI pressure
+relief valve and the Outlet with a NUPRO shut off valve for pump out and leak tests ................ 31
+Figure 25 Model GHS4334400301110R0 Gas Handling System ................................................ 32
+Figure 26 JACoB .......................................................................................................................... 37
+Figure 27 MAIN screen of HMI ....................................................Error! Bookmark not defined.
+Figure 28 The Speed Control of the Main Pump: High ­ 100%, Low ­ 67%.............................. 38
+Figure 29 Model GHS4334400301110R0 Gas Handling System drawing .................................. 40
+Figure 30 JaMiE with the Pumping Station PS344000 ................................................................ 41
+Figure 31 Pressure inside the dumps when the all the mixture is out (for reference only; the actual
+pressure in your system may be different) .................................................................................... 42
+Figure 32 Liquid nitrogen temperature cold trap ...........................Error! Bookmark not defined.
+Figure 33 Liquid nitrogen temperature cold trap drawing ............................................................ 44
+Figure 31 Schematic diagram of the Gas Handling System ......................................................... 47
+Figure 32. GHS HMI diagram ...................................................................................................... 48
+Figure 33 Nominal pressure readings ........................................................................................... 49
+Figure 34 Mixture cleaning procedure diagram............................................................................ 54
+Figure 35 Mixture cleaning procedure.......................................................................................... 55
+Figure 36 Impedance checking procedure diagram ...................................................................... 56
+Figure 37 Impedance checking procedure .................................................................................... 57
+Figure 38 Typical flow dynamics into the Still Line .................................................................... 58
+Figure 39 Initial Mixture Condensation diagnram........................................................................ 61
+Figure 40 Initial Mixture Condensation........................................................................................ 62
+Figure 41 Final mixture condensation diagram ............................................................................ 63
+Figure 42 Final mixture condensation .......................................................................................... 65
+Figure 43 Normal mixture circulation diagram ............................................................................ 66
+Figure 44 Normal mixture circulation .......................................................................................... 67
+Figure 45 Warm mixture recovery from refrigerator diagram...................................................... 69
+Figure 46 Shutdown and warm mixture recovery from refrigerator............................................. 70
+Figure 47 Diagram of mixture recovery from cold trap and GHS2 panel .................................... 72
+Figure 48 Mixture recovery from cold trap and GHS2 panel ....................................................... 73
+Figure 49 Diagram of system Safe State in case of power off...................................................... 75
+Figure 50 System Safe State in case of power off ........................................................................ 76
+Figure 51 HMI cRIO drive mapping credentials prompt.............................................................. 81
+Figure 53 cRIO storage mapped to "Z:" drive in HMI File Explorer........................................... 82
+Figure 54 LabVIEW PID algorithm description........................................................................... 86
+Figure 55 Content of HMI Software installation folder................................................................ 97
+Figure 56 Content of HMI Software configuration folder............................................................ 98
+Figure 57 MAIN screen of HMI ................................................................................................. 100
+Figure 58 Popup window that configures the indicators displayed on the Dewar...................... 101
+Figure 59 PLOT1 panel of HMI ................................................................................................. 102
+Figure 60 PLOT2 panel of HMI ................................................................................................. 103
+Figure 61 Popup window that configures the Graph1 ................................................................ 104
+Figure 62 Popup window that configures the Still Heater Loop in the Open Loop Mode ......... 105
+Figure 63 Popup window that configures the Still Heater Loop in the SW PID Mode (Software
+PID)............................................................................................................................................. 106
+Figure 64 Popup window that configures the MC Heater Loop in the Open Loop Mode ......... 107
+Figure 65 Popup window that configures the MC Heater Loop in the HW (Hardware) PID Mode
+..................................................................................................................................................... 108
+Figure 66 Popup window that configures the MC Heater Loop in the Zone Mode ................... 109
+Figure 67 CONFIG tab window that allows the user to configure the parameters of the MC Heater
+Loop in the Zone mode ............................................................................................................... 110
+Figure 68 CONFIG tab window that allows the user to edit sensor calibration curves and load them
+in LS372 AC Resistance Bridge ................................................................................................. 111
+Figure 69 CONFIG tab window that allows the user to configure the LS372 AC Resistance Bridge
+..................................................................................................................................................... 112
+Figure 70 CONFIG tab window that allows the user to change Script Parameters.................... 114
+Figure 71 CONFIG tab window with the information about the system.................................... 115
+Figure 72 GHS Remote Access Architecture ............................................................................. 118
+Figure 73 GHS rear panel Remote Access port .......................................................................... 119
+Figure 74 Configuring Putty for Remote Access PC.................................................................. 121
+Figure 75 Mapping network drive for GHS Remote Access file transfer .................................. 122
+Figure 76 GHS Script control interface ...................................................................................... 138
+                                              LIST OF TABLES
+
+Table 1 System thermometers list................................................................................................. 22
+Table 2 System heaters list ........................................................................................................... 23
+Table 3 Pressure gauge parameters............................................................................................... 49
+Table 4 HMI software Alarms .................................................................................................... 116
+1 General description
+Model JDry-250-QPro 3He - 4He cryogen-free Dilution Refrigerator system is comprised of two
+main components ­ the Refrigeration Device (RD) on its own stand, and the Gas Handling System
+GHS2 with the turbo pumping station (PS) as seen on the Figure below. The stand is made of
+aluminum extrusion and has a 1 inch thick aluminum plate to support the RD positioned on top.
+
+Figure 1 Overall view of the Model JDry-250-QPRO Dilution Refrigerator system
+
+The RD is made as series of consecutive cooling stages of the Insert, with outer can and a series
+of radiation shields, concentrically arranged around it like a "Russian doll". The first layer is called
+the Outer Vacuum Chamber (OVC), and provides a common vacuum environment for the whole
+RD. The OVC is at room temperature and therefore the flanges are sealed with Buna rubber O-
+ring. Its upper and lower sections are made from 6061 aluminum alloy by TIG-welding, and are
+equipped with 2 lifting handles and 4 lifting lugs each. The OVC flanges also have additional
+groove for optional microwave shielding gaskets.
+
+                                                                                                                    8
+Figure 2 Side section view of the RD with dimensions in inches, showing the Insert and the Shields
+
+                                                                                                              9
+The 1st infrared (IR) radiation shield (the 50 K shield) is made of 110 aluminum and is covered
+with about 40 layers of multilayer insulation (MLI). It has an intermediate flange separating the
+upper and the lower sections for easy access inside of RD.
+The 2nd IR radiation shield (the 3 K shield), the 3rd IR shield (the 1 K or the Still shield) are also
+made of aluminum. The last 4th shield (0.01 K shield or mixing chamber shield) is made of OFHC
+copper by TIG welding as single units.
+
+                       Figure 3 Shields installation, showing 1st shield upper and lower sections
+
+First, the Insert top flange (TF) is attached to the stand mounting plate from below, using long SS
+screws from above. Then the shields are attached, one by one starting from the innermost, to the
+Insert flanges. To ensure light tightness of the shields, they are fitting into steps in the plates, and
+each has an individual pump out box with antireflection meander design and black antireflection
+carbon epoxy coating inside.
+
+                                                                                                                   10
+Figure 4 Pump out box with cover removed, showing meander and black anti reflection coating
+
+                                         Figure 5 Insert top flange view
+
+                                                                                                           11
+Refrigeration Device Insert contains TF of 26 inches in diameter, made of aluminum. The TF has
+the Still pump out port with the NW80 butterfly valve and the elbow with electric isolator, the 3He
+return port with the manual bellows valve and plastic electric isolator, the PT-410-RM pulse tube
+(PT) with the bellows assembly, the housekeeping wiring chamber with the electrical glass sealed
+feedthrough and the OVC evacuation valve, the LN2 precooling loop assembly, the mechanical
+heat switch assembly, the customer wiring with NW100 blank flanges and ports and a spare port
+with an NW16 blank flange.
+
+                                       Coldhead
+
+                                                                                                       OVC valve
+
+LN2 precooler  Heat Switch                      NW100 ports with
+ports          actuator                         blank flanges
+
+               Figure 6 Insert top flange view
+
+The Cryomech PT-410-RM PT is installed on the TF bellows assembly and sealed with Buna
+rubber O-rings. A remote distribution valve (RMV) as well as expansion tanks are to be installed
+on a separate platform. The RMV is connected to the PT with a 3 feet super flexible braided hose.
+
+                                                                                                                   12
+NOTE:
+All the PT components are filled with pure pressurized 4He, use special tools and techniques
+if reconnecting of AEROQUIP lines (call Janis for instructions).
+
+                                            Figure 7 Cryomech PT-410-RM coldhead
+
+In final configuration, the Insert is attached the Stand mounting plate from below using 12 stainless
+steel 3/8-20 bolts inserted from above.
+Below TF there are few plates supported with SS thin wall trusses as can be seen on the next figure.
+The trusses ensure high longitudinal and torsional strength, as well as low thermal conductivity
+between the plates.
+
+                                                                                                                   13
+50K               Top
+Plate             Flange
+
+  3K          10K
+  Plate       Plate
+
+    ICP       Still
+              Plate
+    MC Plate
+
+                                            Figure 8 The Insert attached to the Stand
+
+         The 6061 aluminum light tight 50 K plate is connected to the 1st stage of PT-410-RM pulse
+tube with removable set of copper braids, attached from below the plate.
+
+         Another set of flexible copper braids clamps a middle section of pulse tube second stage
+regenerator to the 10 K plate, also made of 6061 aluminum.
+
+                                                                                                                   14
+      50 Layers
+      MLI
+
+     50K
+     Braids
+10K
+Braids
+
+         PT 2nd
+         Stage
+
+              3K
+              Braids
+
+                             Figure 9 Insert 50 K, 10 K, and 3 K plates
+
+                                                                                                      15
+ Heat
+ Switch
+ Force
+ Amplifier
+
+                                   Heat Switch
+                                   Anchor
+
+                                             Figure 10 Insert 3 K Plate area in detail
+
+Apiezon grease is used to improve thermal conductivity on all connections above 3 K, including
+braids and shields.
+Removable Still pumping tube assembly is installed into via NW80 Buna rubber sealed O-rings.
+Its bimetal aluminum anchors are attached to the 50 K and the 3 K plates in a light tight manner.
+In the working position, the 3" i.d. semiflexible Still pumping line connects the Insert to the PS,
+while the 0.25" i.d. flexible Mixture return line from GHS2 has a plastic NW16 electric isolator
+on the Insert top flange. This isolator is attached to the bellows sealed manual valve V24, attached
+to a NW16 removable feedthrough.
+On the other side of the feedthrough, a removable synthetic charcoal trap with ¼" and ½" VCR
+connections is installed on the 50 K plate. It is intended for the final mixture cleaning before
+entering the refrigerator capillary piping. The 1st stage calibrated Cernox temperature sensor and
+the 50 Ohm cartridge heater are attached to the 50 K plate (refer to the wiring diagrams below for
+details). This allows heating the trap to somewhat higher temperatures then the 1st stage itself, but
+not higher than 320 K.
+
+                                                                                                                   16
+After final cleaning in the trap and precooling in 1st stage copper bobbin heat exchanger the mixture
+enters the 1/8" stainless steel return capillary, silver soldered to the PT second stage regenerator
+tube.
+
+This capillary together with the 2nd stage copper bobbin heat exchanger and the removable copper
+mesh filter installed into 3 K plate serve to cool the mixture down to about 3 K and clean any
+possible impurities from the stream before entering smallest capillaries in the system, partially
+condensing it if pressure is high enough. Further mixture condensation takes place inside the
+removable Mixture Condensing Unit (MCU) 0.030" diameter 3.5 m long stainless steel capillary.
+The necessary conditions are created by the dynamic overpressure of a few hundred mbar caused
+by the Primary flow Impedance (PI) of about 3.04x1010 cc-1 and lower temperature of about 2 K,
+created by the cold 3He exiting the Still chamber.
+
+                      Force Amplifier
+
+LN2 Inlet
+Line
+
+           LN2        3K
+           Precooler  Filter
+
+                                     Figure 11 The top view of the 3K plate of the Insert
+
+Final mixture condensation occurs inside the Still chamber copper capillary heat exchanger at the
+temperatures below 1 K and pressures of a few tens of mbar, ensured by the Secondary flow
+Impedance of 9.12 x1010 cc-1.
+
+The Still chamber is attached to the OFHC copper Still plate. Its all welded copper shield also has
+a step to ensure light tightness. The 100 Ohm cartridge heater block is positioned on top of the
+
+                                                                                                                   17
+plate, while the RO600A ruthenium resistive sensor with the generic calibration is attached under
+the plate.
+
+              JT Mixture
+              Condensing
+              Unit
+
+Still            Light Tight
+Chamber          Pump Out
+                 Port
+
+         Wire
+         Anchor
+
+                                      Figure 12 Still plate and Mixture Condensing Unit
+
+After exiting the Still, liquid mixture is led into the Continuous Heat Exchanger CHE-250 of the
+spiral­in-tube type, made of Stainless Steel by silver brazing. It is followed by a section of the
+silver powder heat exchanger (SHE-250) just above the Intermediate Cold Plate (ICP). This plate
+is attached to the 0.1 K plate made of OFHC copper and serves for heat anchoring of all incoming
+wiring and support trusses, using the enthalpy of outgoing mixture.
+
+Below the 0.1 K plate, the returning mixture is entering the remaining sections of SHE-250 before
+finally reaching the mixing chamber MC-250. That chamber contains ultrafine silver powder,
+attached to its copper bottom. It serves to increase thermal contact to that bottom by overcoming
+Kapitsa resistance phenomenon.
+
+After crossing the 3He- 4He phase separation line the diluted phase of the mixture follows the
+same path up into the Still chamber, where 3He is being pumped out with the PS, cleaned in the
+LN2 trap from air impurities and compressed back into the return line, closing the circulation cycle.
+
+The bottom of the MC is directly clamped to the 0.01 K gold-plated OHFC copper plate. The plate
+has a grid of mounting holes to attach DUT from below, as well as its own all welded light tight
+
+                                                                                                                   18
+copper shield to shield it from EMF. The inner surface of the shield is covered with a mixture of
+carbon powder and Stycast 2850FT epoxy to adsorb any reflecting light, specifically the far
+infrared and the microwave radiation.
+The core is designed in such way that it can be removed from the Insert if needed. To do so, the
+0.01 K plate must be removed first. Then special supports have to be installed to hold the core
+together and clamps holding the Still chamber and the ICP removed. Finally, the DR must be
+vented with N2 gas, the mini-CF flange and VCR coupling at Still chamber have to be released
+and core slowly moved down.
+
+                                                                                                                   19
+   Heat           Mixture
+   Switch         Condensing Unit
+   Still          (MCU)
+   Anchor
+              JDR-250 Still
+Heat Switch
+ICP Anchor   JDR-250 CHE
+                Intermediate
+Heat            Cold Plate (ICP)
+Switch             JDR-250 SHE
+MC
+Anchor       JDR-250 MC
+
+             Figure 13 JDry-250 dilution refrigerator core
+
+                                                                                             20
+                Figure 14 Mixing chamber 0.01 K plate with its shield attached (For Reference Only)
+
+There is a number of thermometers and heaters installed in the system and their description can be
+found on the diagram and in the table below:
+
+                                                                                                                   21
+Table 1 System thermometers list  Location  Nominal resistance     Device and
+                                                  at 300 K,       Input/output
+      Model and s/n                                 [Ohm]       LSCI 372S, Ch 1
+
+Cernox           50 K plate, bottom                  1000       LSCI 372S, Ch 2
+1070-CU-HT-4L    10 K plate, bottom                  1000
+#X142915         3 K plate, bottom                   1001       LSCI 372S, Ch 3
+Cernox           MCU anchor (JT loop)
+1070-CU-HT-4L    1 K plate (Still), bottom                      LSCI 372S, Ch 4
+#X142919         0.1 K plate (ICP), bottom
+Cernox           0.01 K plate (MC), top                         LSCI 372S, Ch 5
+1050-CU-HT-1.4L  0.01 K plate (MC), top                         LSCI 372S, Ch 6
+#X147011         0.01 K plate (MC), top                         LSCI 372S, Ch 7
+Cernox                                                          LSCI 372S, Ch 8
+1050-CU-HT-1.4L
+#X146724                                                        LSCI 372S, Ch. 9
+RO600A
+#4926
+RO600A
+#4927
+JRS1000
+#52
+Cernox
+1010-CU-HT-0.1L
+#X140906
+CMN
+#1120-
+
+                                                                22
+Figure 15 Feedthrough and wire color coding
+
+Table 2 System heaters list       Location      Nominal Resistance    Device and
+                                                      at 300 K,      Input/output
+                Heater       50 K Plate                 [Ohm]
+                             top side                      50       TBD
+ Cartridge heater            10 K Plate                             by the customer
+ #EDM-50CRTHTR-RAMA          top side                      50       TBD
+ Cartridge heater            3 K Plate                              by the customer
+ #EDM-50CRTHTR-RAMA          top side                      50       TBD
+ Cartridge heater            1 K plate (Still)                      by customer
+ #EDM-50CRTHTR-RAMA          top side                     100       LSCI 372S,
+ Cartridge heater            0.01 K plate (MC)                      Analog 2 output
+ #EDM-100CRTHTR-RAMA         top side                     100       LSCI 372S
+ Cartridge heater                                                   Heater output
+ #EDM-100CRTHTR-RAMA
+
+                                                                    23
+                                            Figure 16 Housekeeping wiring diagram
+
+NOTE:
+The heater resistance CANNOT be measured more accurately from the top of the insert
+when the system is cooled down to below 4 K due to the resistive wires (bronze) in the upper
+part at room temperature. If there is a need to know resistance better than 1%, remove the
+heater and measure it in liquid helium with a 4-wire dipstick.
+
+To ensure precooling from room temperature to 3 K, where mixture condensing occurs, the
+mechanical heat switch assembly is installed. It serves to connect each plate individually to the
+copper thermal link, permanently attached to 3 K plate as described below (see Figure 19). The
+copper link is hollow in the middle and does not move. It has three sets of anchors, attached to it
+with flexible braids. Each set has four spring-loaded feet and can be moved by an actuator. The
+actuator is a bronze push-pull rod inside of the copper thermal link, attached to the anchors with
+horizontal SS pins. When HS is being engaged, the push-pull rod presses on the anchors and feet
+
+                                                                                                                   24
+come into a contact, one by one, with gold-plated copper discs, attached to consecutive plates, thus
+providing a thermal connection to the 3 K plate. When HS is being disengaged, the push-pull rod
+pulls the anchors to produce about 1 mm gaps between the feet and corresponding anchors.
+The actuation is performed with IAI Actuator ERC3-RA6C-I-56P-24-50-NP-S-CN-NM. This
+actuator engages the heat switch by pulling up on the rod inside of the system. The control program
+then measures the force applied to the actuator and stops when it reaches a preprogramed level. In
+the event that there is an issue and the actuator does not feel the preprogramed force it will stop
+when it reaches a preprogramed distance determined by internal encoder.
+
+                                                                                                                   25
+  Heat Switch
+  linear actuator
+
+       Heat Switch
+       3K thermal link
+Still-plate
+Heat Switch anchor
+
+ICP-plate
+Heat Switch anchor
+MC-plate
+Heat Switch anchor
+
+                 Figure 17 Insert side cutout view, showing HS and its manipulation stage
+
+                                                                                                             26
+    Still Heat  ICP
+    Switch      Heat
+    Anchor      Switch
+                Anchor
+MC Heat
+Switch
+Anchor
+
+                                          Figure 18 Mechanical Heat Switch assembly
+
+The LN2 precooler is designed to speed up initial cooldown by utilizing liquid nitrogen latent heat
+of evaporation. It is made of individual sections attached to each other using ½" VCRs. Each of
+the anchor plates is made of explosively welded Aluminum to Stainless Steel. Inside of each block
+is an "S" shaped groove.
+
+                                                                                                                   27
+      ICP Precooler
+      Anchor
+
+MC
+Precooler
+Anchor
+
+          Figure 19 Precooler showing the anchors on the ICP and MC
+
+                                                                                                 28
+                              3K
+                              Precooler
+                              Anchor
+
+                             Still Precooler
+                             Anchor
+
+Figure 20 Precooler showing the 3K and the Still Anchors
+
+                                                                                       29
+                         50K Precooler
+                         Anchor
+
+                          10K
+                          Precooler
+                          Anchor
+
+                                Figure 21 Precooler showing the 50K and the 10K Anchors
+
+The anchors are attached to the corresponding plates directly with bolts from below. The MC
+Anchor is the only anchor that bolts from above. This is to keep the bottom of the MC Plate open
+for customer use.
+
+                                                                                                                   30
+                                                          Outlet
+                                             Inlet
+
+Figure 22 TF view showing the precooler vacuum-jacketed Inlet with the removable 4 PSI pressure relief valve
+and the Outlet with a NUPRO shut off valve for pump out and leak tests
+
+                                                                                                                   31
+2 Model GHS4334400301110R0 Automated Gas Handling System (GHS)
+
+                              Figure 23 Model GHS4334400301110R0 Gas Handling System
+
+Automated Gas Handling System (GHS) consists of the following units: Janis Automated Control
+Box (JACoB) and Janis Mixture Enclosure (JaMiE) with an integrated Pumping Station
+
+                                                                                                                   32
+3 Janis Automated Control Box (JACoB)
+                                                                                                                   33
+34
+35
+36
+                                                           Figure 24 JACoB
+
+Janis Automated Control Box (JACoB) is assembled inside a Knurr DoubleProRack 19" Enclosure
+with Pfeiffer miniature solenoid valves and control electronics. The valve control electronics,
+pressure and flow meter read-out as well as the control for the pumps is based on a National
+Instruments cRIO (compact Reconfigurable Input Output) platform with a real-time operating
+system. CompactRIO controller and I/O modules are housed inside the 4 slot cRIO chassis inside
+the box. An NI Touch Panel Human Machine Interface (HMI) PC uses the Windows Embedded
+Standard 7 (WES7) operating system, and is placed on the front panel of the JACoB. The HMI
+Graphical User Interface (GUI) contains the 4He and the 3He/4He mixture flow diagram with
+Valves, Pumps, the Compressor, the Pressure Gauges and the Flow Meter shown on the screen.
+To open or close the Valves, the valve "CONTROL" on the flow diagram should be pressed. The
+GUI also serves as a gauge indicator, showing pressure and flow in real time. It communicates
+with the cRIO controller via Ethernet. All programs including cRIO software and GUI are written
+in LabVIEW. For simplicity, the HMI GUI will be referred to as HMI.
+
+                                                                                                                   37
+                          Figure 25 MAIN screen of HMI. Main Pump speed control is visible.
+
+JACoB's main components include
+
+· Valve Manifold Assembly
+· The I/O Connector Panel mounted below the Valve Manifold. It has the following bulkhead
+
+         connectors
+         o 220 VAC rated Power Entry Module
+         o 25-pin D-sub bulkhead (labeled "J4 Pumping Station 1" for the Main Pump, the
+
+                  valve V1 and the Booster Pump)
+         o 9-pin D-sub bulkhead (labeled "J3-V14" for the valve V14)
+         o 9-pin D-sub bulkhead (labeled "J2-G1" for gauge G1)
+         o inlet RJ-45 bulkhead (labeled "J6-RJ45 Maint." for maintenance via local network)
+         o inlet RJ-45 bulkhead (labeled "J7-RJ45 Remote Access" for the remote access)
+         o 15-pin D-sub bulkhead (labeled "J10 PT Compressor" for the remote control of the
+
+                  Pulse Tube (PT) Compressor via RS232 Interface)
+         o 9-pin D-sub bulkhead (labeled "J11 Heat Switch" for the remote control of the Heat
+
+                  Switch via RS485 Interface)
+
+                                                                                                                   38
+· Ethernet Switch Moxa EDS-205 for the local network inside JACoB
+· VPN Firewall Zyxel ZyWALL USG 40 for remote access to JACoB
+· cRIO controller with the plug-in modules
+
+         o NI cRIO-9063 Real-Time Controller and Chassis
+         o NI 9477 DO Module
+         o NI 9205 AI Module
+         o NI 9263 AO Module
+         o NI 9870 RS-232 Serial Interface Module
+· Four 24 VDC Power Supplies and one 12VDC Power Supply
+
+             · NI TPC 2230 15" WES7 touch panel PC (TP). TP is connected to cRIO via Ethernet,
+                  and it is used to execute HMI to communicate with the cRIO. HMI is included in the
+                  startup folder in the TP, and it starts automatically when JACoB is turned on. If HMI
+                  is closed, it can be restarted by clicking the icon "GHS4334400301110R0 HMI" on
+                  the desktop.
+
+· 1500W Uninterruptible Power Supply (UPS). It is capable of maintaining execution of the
+         control program in JACoB in the STANDBY mode (see below) for 30 minutes.
+
+· Pfeiffer Model PCR 280 (0 ­ 1500 mbar range) Compact Pirani Capacitive Absolute
+         Pressure Gauges (G1, G2, G3, and G4)
+
+· Compound Gauges (-10 In. Hg ­ 15 psi range)
+· MKS Model GM50A Flow Meter and readout to measure the circulation rate
+4 Turbo Pumping Station PS344000
+
+                                                                                                                   39
+                        Figure 26 Model GHS4334400301110R0 Gas Handling System drawing
+
+The oil-free turbo pumping station includes HiPace 400 air cooled Booster pump with the TC 400
+power supply and Edwards XDS35i air cooled MAIN pump. A solenoid valve (V1) is installed
+in between these two pumps. Both pumps and the valve are controlled by the JACoB.
+
+                                                                                                                   40
+                                    Figure 27 JaMiE with the Pumping Station PS344000
+
+5 Janis 3He-4He Mixture Enclosure (JaMiE)
+
+                                                                                                                   41
+Figure 28 Pressure inside the dumps when the all the mixture is out (for reference only; the actual pressure in
+                                                   your system may be different)
+
+JaMiE is another 19" rack and it is bolted to the bottom of the JACoB enclosure. Two (2) aluminum
+tanks with capacity of 100 liters each are located inside the enclosure.
+This dilution refrigerator system contains the mixture of the 3He gas and the 4He gas, and it is
+stored inside JaMiE when not in use.
+The mixture pressure inside JaMiE at room temperature is indicated by the gauge G2.
+This pressure may vary slightly with the temperature in the user's lab.
+The user should log this pressure every time the system warms up. Any substantial changes (either
+higher or lower) indicate a leakage in the dilution refrigerator system, and it must be fixed
+immediately.
+
+                                                                                                                   42
+6 Liquid Nitrogen Temperature Cold Trap and Liquid Nitrogen Dewar
+Two liquid nitrogen cold traps as shown in Error! Reference source not found., Figure 30 are
+provided with the system, and the model LN-50 liquid nitrogen Dewar with holding time of a few
+weeks are used to keep the cold traps cold.
+It is highly recommended to clean the cold trap after each run. It is normal if it catches a few mbar
+of air after a few weeks of running, but a more excessive amount may indicate a leak inside the
+dilution refrigerator system. It should be investigated immediately.
+
+                                       Figure 29 Liquid nitrogen temperature cold trap
+
+                                                                                                                   43
+Figure 30 Liquid nitrogen temperature cold trap drawing
+
+                                                                                       44
+7 Turn ON, Turn OFF, and Restart the GHS
+Make sure all the cables are connected to the middle panel of JACoB (see Figure 24 JACoB) while
+GHS is off.
+To turn GHS on first turn on the switch on the middle panel of JACoB on the back of the GHS
+such that the green LED on the switch turns on. When this switch is turned on, the LED screen on
+the front panel of the UPS should turn on. Press and hold the "POWER" button on the front panel
+of the UPS until UPS starts beeping. You will see the message "Do you want to turn on the UPS?"
+Press the "CARRIAGE RETURN" button ("OK"). After that UPS will turn its output on, and it
+will supply power to all hardware inside JACoB, and in about one minute you will see that the
+touch panel PC turned on and started loading software in its memory.
+To turn GHS off, press and hold the "POWER" button on the front panel of the UPS until UPS
+starts beeping. You will see the message "Do you want to turn off the UPS?" Press the
+"CARRIAGE RETURN" button ("OK"). After that UPS will turn its output off, all the hardware
+inside JACoB will lose power and the touch panel PC will turn off. After you turned off the UPS
+output, the LED screen on its front panel will still be on. To turn off GHS completely, turn off the
+switch on the middle panel on the back of the GHS such that the green LED on the switch is off.
+This switch controls power to the UPS, and UPS output supplies power to all hardware inside
+JACoB.
+NOTE:
+Keep in mind that when you turn off GHS, all the circulation pumps and the Pulse tube
+compressor controlled by the GHS will turn off.
+To restart GHS turn it off, wait for 10 seconds and turn it on. You don't have to turn off the switch
+on the middle panel of JACoB to restart GHS.
+
+                                                                                                                   45
+8 Emergency shutdown
+GHS has a red "EMERGENCY STOP" button on its front face, near the top right corner of the
+touch panel PC (see Figure 23 Model GHS4334400301110R0 Gas Handling System). This button
+is connected to the Emergency Power Off (EPO) Port of the UPS (see the UPS Operating Manual),
+and it can be used to shut down GHS in case of emergency. To shut down GHS press the
+"EMERGENCY STOP" button until you hear a click. After that UPS will immediately turn off
+completely, all the green LEDs on its front panel will turn off, all the hardware inside JACoB will
+turn off and the pumps and the compressor connected to GHS will turn off.
+To restart GHS after emergency shutdown:
+
+    1. Turn off the switch on the middle panel of the GHS.
+    2. Twist and release the "EMERGENCY STOP" button until you see a black ring on the
+
+         yellow part of the button
+    3. Turn on the switch on the middle panel of the GHS to reapply power to the UPS. After that
+
+         the LED screen on the front panel of the UPS should turn on.
+    4. Turn on the UPS pressing the "POWER" button on its front panel.
+
+                                                                                                                   46
+9 System operation in manual mode
+
+                                 Figure 31 Schematic diagram of the Gas Handling System
+
+                                                                                                                   47
+                                                   Figure 32. GHS HMI diagram
+
+It is assumed that the system is fully assembled and ready for pumpout and final leak test at this
+point (refer to assembly and initial leak test procedures in Optional Assembly manual).
+
+NOTE:
+It is operator's responsibility to make sure everything is assembled and pretested
+correctly!!!
+9.1 Room temperature operations
+
+9.1.1 Parameters checking
+
+    · Check all thermometers and compare to their 300K calibration or nominal values (refer to
+         Error! Reference source not found.);
+
+    · Check all heaters and make sure that they are conducting, record the values as 2 wire
+         readings in the log journal;
+
+    · Check all pressures and make sure that they are in accord with the table below:
+
+                                                                                                                   48
+Table 3 Pressure gauge parameters  Location              Value
+                                             < few mbar abs
+           Sensor                            <500 mbar abs
+                                             <500 mbar abs
+G1  Still Line pressure                      <500 mbar abs
+
+G2  Auxiliary pressure gauge
+
+G3  Main Pump exhaust pressure
+
+G4  Return Line pressure
+
+                                   Figure 33 Nominal pressure readings
+
+9.1.2 Evacuation. Leak tests and Flow tests
+
+9.1.2.1 Evacuation of the RD OVC.
+
+Connect a turbo high vacuum pumping station with a high vacuum gauge to OVC pump out port,
+open the isolation valve V23 and evacuate the cryostat vacuum chamber. Since the multilayer
+insulation (MLI) that is installed on the 50K shield has a very large surface area, it is recommended
+to keep pumping the vacuum chamber for minimum 24 hours before a cooldown.
+
+NOTE:
+The OVC volume is several hundred liters and high throughput roughing pump may be
+required to speed up the process.
+
+NOTE:
+Pressure inside the OVC before attempted cooldown should be in the 1x10-5 mbar range or
+lower.
+
+9.1.2.2 Evacuation of the Dilution Refrigerator.
+
+    · Start the process with all valves closed. In particular, make sure that V16 and V17
+         manual valves are closed (whenever an external pump is connected to GHS);
+
+    · Start GHS2 by pressing ON button on UPS, make sure HMI is active and working properly;
+    · Connect an auxiliary pump to GHS service port and through the manual valve V18, start
+
+         pumping, make sure there is no leak in any connections;
+    · Open the manual valve V19, open V2, V3, V8;
+    · Slowly open the manual valve V18;
+    · Open the butterfly valve V0 to evacuate the Still line section inside the cryostat and the
+
+         DR-core;
+
+                                                                                                                   49
+    · Open V14 and V24 to evacuate the mixture return line;
+    · Open V9 and V22 to evacuate the cold traps
+
+    Note:
+
+    At this point the cold traps should still be at Room Temperature or slightly heated with heat
+    gun to about 90 C. Avoid pointing the hear gun directly at the bottom flange of the cold traps,
+    to not compromise the indium seal!!!
+
+    · Use the auxiliary pump to evacuate the whole DR system;
+    · After rough pumping is done close all the valves, close the manual valve V18, disconnect
+
+         the auxiliary pump, install a NW16 blank flange on V18;
+    · Final fine pumping is done with DR own pumping station. First turn ON water cooling of
+
+         the PS and push MAIN PUMP control ON for final evacuation, make sure the pump started
+         by observing the main pump status indicator as "Running";
+    · Open V1 by tapping on the corresponding control, observe slight G3 pressure rise;
+Note:
+
+Variable valve V5 does not provide a perfect seal when closed. In order to prevent the leakage
+of the remaining 3He/4He mixture from the main pump into the rest of the manifold keep
+V16 and V17 closed and keeping the Main Pump turned ON if there is mixture inside of it to
+keep the inlet pressure low.
+
+    · After G1 reads below 3 mbar (preset value in INI file) the G1 display will turn yellow and
+         allow the user to turn on the BOOSTER Pump;
+
+    · Tap on the BOOSTER Pump GUI control to turn it on. Make sure the speed indicator
+         reaches 630 Hz and status indicator displays "Running";
+
+    · Observe slight G3 rise and saturation;
+         NOTE: In case there is permanent leak the G3 value will be rising linearly. Stop the pump
+         out process and leak test the GHS.
+
+    · If there is no leak, close all valves after the system is evacuated and stop the BOOSTER
+         pump and the MAIN Pump;
+
+    · Stop cooling water flow.
+
+NOTE:
+
+Due to the big surface area of the charcoal in the cold trap, it may take an extensive time to
+pump out the warm trap. In this case heating up with a heat gun can speed up the process.
+
+NOTE:
+
+                                                                                                                   50
+Avoid pointing the hear gun directly at the bottom flange of the cold trap, to not compromise
+the indium seal!!!
+
+9.1.2.3 OVC Leak check
+
+In order to make the leak check easier, it is recommended to divide the system into three regions
+for the leak check:
+
+Cryostat, Vacuum space and Precooler
+
+    · Once the vacuum is low enough replace a pumping station at the OVC pump out port (V23)
+         with a leak detector and wait until the background signal stabilizes below 1x10-7 sccm;
+
+    · Spray the top flange and all all the external joints to the OVC with Helium gas and monitor
+         the signal on the leak detector
+
+    · Attach an auxiliary pump to V25 valve on the LN2 precooler pump out port, block the Inlet
+         to the LN2 precooler with pressure relief valve fixture or a blank plug;
+
+    · Pump out the precooler and back fill it with Helium gas, while monitoring the signal on
+         the leak detector.
+
+    · If the signal does not change pump out the Helium gas from the precooler, close the V25
+         and install a blank NW25 flange on it.
+
+9.1.2.4 Gas handling system (GHS2) region leak check.
+
+NOTE:
+In principle this will only need to be leak checked after it is first received to make sure that
+no leak developed during the shipment or if there is a suspicion of a leak. It is assumed there
+is a mixture stored in the dumps, therefore it is advised to have at least two valves always
+closed between the dumps and the auxiliary pumps or leak detectors. Any attempt to leak
+check the volumes between V16 and V4 as well as V17 and V13 must be done with extreme
+caution!!!
+
+    · Make sure that V16 and V17 are closed;
+    · Make sure that V4, V12, and V13 are closed;
+    · Keep V0, V14, and V24 closed;
+    · Connect a helium leak detector to GHS service port at V18;
+    · Open all other solenoid valves on GHS2;
+    · Open V18 and wait until the background signal on the leak detector stabilizes below 1x10-
+
+         7 sccm;
+    · Spray helium gas around all valves, gauges, joints, and etc.;
+
+                                                                                                                   51
+    · After assuring that the GHS valves panel and the pump cart are leak tight, open V0, V14
+         and V24 to leak check room temperature components the connect the DR system to the
+         GHS;
+
+    · Close all valves after the leak check is complete;
+
+NOTE
+Variable valve V5 does not provide a perfect seal when closed. In order to prevent the leakage
+of the remaining 3He/4He mixture from the main pump into the rest of the GHS manifold
+keep V16 and V17 closed and keeping the Main Pump turned ON if there is mixture inside
+of it to keep the inlet pressure low.
+
+9.1.2.5 The DR-core leak check
+
+NOTE:
+It is assumed that both OVC and GHS2 are leak tested at this time, and DR is pumped out.
+
+    · Start JACoB, close all valves.
+    · Connect the leak detector to V23, wait until the background signal reached 1E-8 sccm or
+
+         better;
+    · Open manual valves V0, V19 and V24;
+    · Make sure that G1, G2, and G3 read adequately low pressures as described in the table
+
+         Figure 33;
+    · If everything looks good, open manual valves V16, V17, and solenoid valve V4;
+    · Start running the cooling water;
+    · Start the MAIN pump, observe the Status indicator as "Running";
+    · Insert a corresponding cold trap to be used into a LN2 dewar;
+
+NOTE:
+If the cooldown is planned to be performed in an automatic mode, using "Complete
+Cooldown" script, then only Cold Trap 1 should be used for the cooldown, as the GHS scripts
+are not able to automatically manipulate the solenoid valves of the Cold Trap 2. If the system
+is planned to be cooled manually, either of the two cold traps can be used for the process.
+
+    · Open V10 and V11 (Or V20 and V21 if using trap 2)
+    · Open V7, V14 and V1 to set up a circulation path;
+    · Slowly open the proportional valve V5 and add more mixture into the DR through the
+
+         return line
+
+                                                                                                                   52
+NOTE:
+V5 does not start to open much until about 50% position.
+
+    · Wait until G3 reached around 800 mbar, close V4 and V5, observe the leak rate changes.
+         Stop the process if the signal starts rising indicating possible leak, then repeat the test.
+         Otherwise proceed further;
+
+NOTE:
+V5 can be shut by pressing the control and opened by pressing it again to the same % value
+(Override function)
+
+NOTE:
+At this point, it is convenient to test the Impedance conductance as described in the sections
+bellow together with the return line leak test described here:
+
+    · To test the DR-core, inject the mixture directly into both the "Still" and "Mixture Return"
+         sides of the system by first closing V1 and then opening V4, V2 and V3;
+
+    · Then open V12 and build the pressure inside the DR-core for the final leak check, observe
+         signal change for half an hour, make records in the logbook, stop and repeat the test if a
+         leak is suspected;
+
+    · If the leak rate goes up, pump half of the mixture out from the circulation lines immediately
+         by closing V7 and opening V13 and V5, observe if the signal changes proportionally to the
+         pressure of the mixture;
+         NOTE: If while pumping the mixture back to the dump the pressure on G3 goes close to 1
+         bar, regulate the rate at which the mixture is being pumped out of the system with V5. Once
+         V5 is open to 99% it is safe to reopen V1 for the final pumpout.
+
+    · If there is no leak, pump out all mixture into the Dumps in a similar manner;
+    · Close all valves, stop the pumps;
+
+9.1.3 Mixture cleaning procedure
+
+This step is needed only if the user believes it needed, such as:
+
+    a) The system has a leakage to the air;
+    b) The system has not been used for several months;
+
+Otherwise, skip this step and go to step 9.1.4 Impedance check at room temperature.
+
+    · Start with all valves closed;
+    · Open V10 (or V20 if using trap #2);
+    · Turn on the Main Pump;
+
+                                                                                                                   53
+    · Open V11 (or V21 if using trap #2);
+    · Open V13 and V17;
+    · Open V16 and V4;
+    · Slowly open V5 and make sure that the NW16 connection flange on the corresponding
+
+         Cold Trap does not freeze over;
+WARNING:
+In case of fast pumping rate (Flow over 1000 µmol/s) the NW16 O-rings on the cold trap may
+freeze and open a leak, which will lead to contaminating and/or losing the mixture. Observe
+the ice build up on the output of the corresponding cold trap and adjust the V5 if needed.
+
+                                        Figure 34 Mixture cleaning procedure diagram
+
+                                                                                                                   54
+                      Figure 35 Mixture cleaning procedure on HMI screen
+
+9.1.4 Impedance check at room temperature
+The values of the impedances installed in this system:
+
+Primary impedance:    2.70 x 1010 cm-3;
+Secondary impedance:  3.48 x 109 cm-3;
+
+The following paragraph introduces a pragmatic approach of how to check the mixture condensing
+impedance for blockage (even partial blockage), without measuring the absolute value of the
+impedance.
+
+The basic idea is to pump out the DR, keep certain (fixed) head pressure of helium gas at the
+mixture return side, and monitor the pressure increase rate (measured by G1) inside a fixed volume
+at the Still side of the DR-core. The user should keep in mind that the resulting value strongly
+depends on the impedance temperature as well as the head pressure value.
+
+                                                                          55
+During the test procedure the butterfly valve V0 should remain open and solenoid valve V0 should
+be closed to provide a reasonable fixed volume for the gas to leak into.
+
+                                           Figure 36 Impedance checking procedure diagram
+
+                                                                                                                   56
+                                  Figure 37 Impedance checking procedure on HMI screen
+
+Below is an Impedance Test Procedures for user's reference:
+
+It is expected that the system has been evacuated during the leak check steps, all the mixture is in
+the Storage Dump, and the DR-core stage is under vacuum before the test begins.
+
+    1. Keep the Main Pump running;
+    2. Set up a circulation loop by opening V10 and V11 (or V20 and V21 if using trap 2);
+    3. Open V7, V14, V24, V0 and V1;
+    4. Open V4, and use V5 to slowly bring G3 to ~ 830 mbar;
+    5. Let the system circulate mixture for a few minutes for the pressure on G1 to stabilize.
+    6. Once G1 has stabilized, close the V1 and start recording G1 vs. time every minture for 10
+
+         minutes;
+    7. After 10 minutes the test in complete, you can open V1 to return to the normal circulation
+
+         loop;
+    8. Compare the result with those obtained on previous cooldown sessions;
+
+                                                                                                                   57
+NOTE:
+It is important to note that the rate at which G1 increase is dependent on the head pressure.
+To make sure reading are consistent the G4 pressure readings should be within +/- 10 mbar
+between the measurements.
+
+                                      Figure 38 Typical flow dynamics into the Still Line
+
+9.2 Cooling down
+This section describes how to cool down the system manually. It can also be cooled down
+automatically using the "Complete Cooldown" script (see 11.1.2.3 HMI and 11.1.1.6 Janis
+Automation.scr File Description).
+
+                                                                                                                   58
+9.2.1 Precooling
+
+There are two different methods to precool the JDry-500-QPro system. Whether the LN2 Precooler
+is in use or not will determine how the system is cooled. The first method will be without the use
+of the Precooler
+
+    · Close the heat switch by switching ENGAGE control on HMI GUI Heat Switch control;
+    · Turn on the pulse tube compressor by tapping PT Compressor GUI control, listen to cold
+
+         head RM operation sound;
+    · Open all the valve needed to start the circulation loop and use V5 to build up about 800
+
+         mbar of pressure in the mixture return line.
+    · Wait until the Still plate reached 3K, as indicated by the T6 Cernox sensor;
+    · Disengage the HS using the control on HMI GUI;
+NOTE:
+The PT-420-RM cold head may get hot during initial cooldown, an additional air cooling of
+the cold head using a small fan can help to speed up the cooling process.
+
+9.2.2 Impedance check around 80K ~ 100K.
+
+If possible, it is suggested that when the DR stage reaches between 80K and 100K, repeat the
+Impedance check procedure (Optional):
+
+    · Follow steps of section 9.1.4 Impedance check at room temperature.
+
+NOTE:
+This procedure also acts as the cold leak check, for which you would need to have a leak
+detector connected to the OVC pump out port at V23 and assure the background leak rate
+has stabilized below 1x10-7 sccm.
+
+9.2.3 Precooling with LN2
+
+These instructions are for the precooling of the system using the LN2 Precooler.
+
+    · Activate the HS by switching ENGAGE control on HMI GUI;
+    · Turn on the pulse tube compressor using PT Compressor control on HMI GUI, listen to
+
+         cold head RM operation sound;
+    · Open all the valve needed to start the circulation loop and operate the variable valve V5 to
+
+         build up about 800 mbar of pressure (pressure gauge G4) in the mixture return line.
+
+NOTE:
+The PT-420-RM cold head may get hot during initial cooldown, an additional air cooling of
+the cold head using a small fan can help to speed up the cooling process
+
+                                                                                                                   59
+    · Connect a liquid nitrogen (LN2) tank liquid line to the precooler inlet tube adapter. Remove
+         the valve V25 from the Precooler exhaust and attach an exhaust line to the NW25 flange
+         for draining the excess liquid nitrogen from the precooler
+
+    · Begin flowing LN2 through the Precooler.
+    · Once the system reaches 80K ~ 100K perform an impedance check (optional), following
+
+         the procedure of the section 10.1.4
+
+NOTE:
+This procedure also acts as the cold leak check, for which you would need to have a leak
+detector connected to the OVC pump out port at V23, and assure the background leak rate
+has stabilized below 1x10-7 sccm
+
+    · Once the system is close to 80K stop flowing LN2 through the precooler and flow N2 gas
+         through to purge any remaining liquid.
+
+    · Replace the Precooler inlet tube adapter with the provided pressure relief assembly and
+         install the V25 valve back to the precooler exhaust.
+
+    · Connect an external pump to V25 and a leak detector to V23
+    · Pump out the precooler and backfill it with Helium gas. Monitor the leak rate signal in the
+
+         OVC. This will indicate a cold leak from the Precooler into the vacuum chamber. If the
+         signal doesn't change pump out the helium gas from the precooler and, close the V25 valve
+         and install the NW2k blank to leave the precooler under vacuum.
+    · Wait until the Still plate reached 3 K;
+    · Disconnect the HS using the DISENGAGE control on HMI GUI;
+
+9.2.4 Precooling and Initial Mixture Condensation with the Main Pump
+
+    · Close V1, V2, V3, V4, V5, V8, V12, V10, V11, V13, V20 and V21 if opened;
+    · Open V4 and record the initial dump pressure using G2, then close V4 again;
+    · Turn OFF the Main Pump;
+    · Open V16, V17 and V19;
+    · Open V10 (or V20 if using trap #2), V11 (or V21 if using trap #2), V7, V14, V24
+    · Open V0, V2, and V3;
+    · Open V12 and let 70-100 mbar into both sides of the DR;
+    · After that allow the mixture to sit in both sides and close V14.
+
+This serves multiple purposes: it cools the mixture, freezes out any contaminates to wall of the still
+pumping line, and acts as exchange gas to cool the DR-core heat exchangers.
+
+                                                                                                                   60
+Figure 39 Initial Mixture Condensation diagram
+
+                                                                                  61
+Figure 40 Initial Mixture Condensation on HMI screen
+
+                                                                                     62
+9.2.5 Final mixture condensation
+After the Still and the Mixing Chamber temperature sensors reached below 3K, start condensing
+the remainder of the mixture from the dumps:
+
+                                        Figure 41 Final mixture condensation diagram
+
+    · Close V3 and V12
+    · Provided that V1 is closed, turn ON the Main Pump.
+    · Close V7 and open V13;
+    · Slowly operating the variable valve V5 pump the mixture out of the Still line of the DR-
+
+         core and back into the Storage Dump through the valve V13
+    · Once the mixture is back in the Storage Dump, disengage the HS using the DISENGAGE
+
+         control on HMI GUI;
+    · Close the valves V5, V2 and V13
+    · Start the normal circulation loop by opening V7, V14 and V1
+
+                                                                                                                   63
+    Open the valve V4 and start to start adding more mixture into the circulation, by operating
+    V5;
+· As the system cools down and the exhaust pressure (G3) on the Main Pump starts to
+    decrease slowly, periodically adjust V5 to gradually let more mixture to the circulation
+    line, up to 900 mbar, as long as the mixture flow remains below 800 µmole/s
+· When G1 reads below 3 mbar, the color of the G1 indicator will change from red to yellow,
+    indicating that you can turn on the Booster pump using the BOOSTER Pump control on
+    HMI GUI. Observe the pump speed ramping up to 630 Hz;
+NOTE:
+There are safety features built into the main program. If the pressure climbs to G3 Hi set
+point specified in INI file (950 mbar), the software will release mixture to the dumps by
+momentarily opening V12 and closing V2 and V5. If G3 hits HiHi set point value specified
+in INI file (1000 mbar), the software will shut down the pumps and will put GHS into the
+Safe Mode as described in the GHS Manual.
+NOTE:
+After V5 is 99% open, and the pressure inside the dump reaches ~ 1x10-1 mbar all
+mixture has been condensed into the DR;
+· At that time close V5 (set 0%) and Open V2, keep V4 opened. This puts the system into
+    Normal Circulation Mode described in the next section;
+
+                                                                                                              64
+Figure 42 Final mixture condensation on HMI screen
+
+                                                                                    65
+9.2.6 Normal mixture circulation
+
+                                        Figure 43 Normal mixture circulation diagram
+
+    · Keep valves V0, V1, V10 (or V20 if using trap #2), V11 (or V21 if using trap #2), V7,
+         V14, V24, V19, V2, V4, V16, and V17 open during the circulation;
+
+    · Apply power to the Still heater using HMI GUI Still Heater controls, to achieve optimal
+         mixture circulation, which for this system is approximately 360 µmole/sec
+
+    · The system is expected to reach the base temperature in a few hours.
+ NOTE:
+ Always keep the return mixture pressure G3 below 900 mbar;
+
+                                                                                                                   66
+ Note:
+ The recommended voltage applied to the Still heater is approximately 0.4V ~ 2.0V (i.e. with
+ Still heater current of approximately 5.0 mA ~ 10 mA). In principle, higher circulation rate
+ will generate higher cooling power, but this will not necessarily generate the lowest
+ temperature.
+
+                                    Figure 44 Normal mixture circulation on HMI screen.
+
+9.3 Warming up the System
+This section describes how to warm up the system manually. Alternatively, part of the Warm-up
+procedure can be done automatically using the "Mixture Recovery" script (see 11.1.2.3 HMI and
+11.1.1.6 Janis Automation.scr File Description).
+There are different approaches for how to warm up the system depending upon the initial state of
+the cryostat.
+
+                                                                                                                   67
+9.3.1 Shut down and "warm" mixture recovery from refrigerator.
+
+It is assumed the system is in the "Normal Circulation" manual mode.
+
+    · Turn off the Booster Pump by BOOSTER Pump control on HMI, observe the indicator
+         color change from green to grey, and wait until the Booster pump speed goes to 0 Hz;
+
+    · Turn off the Main Pump using the control on HMI, observe the pump to stop;
+    · Turn off the PT Compressor using corresponding control on HMI GIU, observe the
+
+         compressor status indicator changing to "Stopped". The PT Compressor will power off;
+    · Make sure V24, V14, V0, V1, V19, V2, V3, V16, V17 and V4 are open. This allows the
+
+         mixture to have a direct path to the dump.
+    · Activate the Heat Switch using ENGAGE control on HMI, and let the system warm up.
+    · Once the system reaches above 20K all the liquid mixture should evaporate and now can
+
+         be pumped into the dump using the Main Pump;
+    · Close V1 and V4;
+    · Open V10, V11 (or V20 and V21 in case of using Trap 2) and V13;
+    · Turn on cooling water and start the Main Pump using the corresponding control on HMI
+
+         GUI;
+    · Slowly adjusting V5, pump the mixture to the dump;
+
+Warning:
+In case of fast pumping rate (Flow over 1000 µmol/s) the NW16 O-rings on the cold trap may
+freeze and open a leak, which will lead to contaminating and/or losing the mixture. Observe
+the ice build up on the output flange of the corresponding cold trap, and reduce the flow by
+adjusting the V5 if needed.
+
+    · Once V5 can be opened 99%, close V5 and open V1;
+
+NOTE:
+To speed up the warmup process small amount of exchange gas (typically dry N2) can be
+added to the vacuum chamber through the OVC port (V25) once the system is above ~80K
+
+    · Once the G1 reads <10-2 mbar range and G3 pressure value has stabilized, close V0, V1,
+         V7, V14, V19, V24, and record G3.
+
+         You can now pump out the remaining mixture from the Cold Traps and the GHS internal
+         manifold, as described in the section 9.3.2;
+
+                                                                                                                   68
+Figure 45 Warm mixture recovery from refrigerator. Diagram.
+
+                                                                                          69
+Figure 46 Shutdown and warm mixture recovery from refrigerator
+
+                                                                                            70
+9.3.2 Mixture recovery from cold trap and GHS internal manifold panel
+NOTE:
+The cold trap must remain cold during this process. DO NOT remove the cold trap from the
+liquid nitrogen Dewar!!!
+
+    · Turn on cooling water
+    · Start the Main Pump;
+    · Close V16 manual valve, but keep V17 opened;
+    · Open V9 (or V22 in case of Cold Trap 2 is being been used), V8, V6, V11 (or V21 in case
+
+         of Cold Trap 2 is being used), and V12;
+    · Gradually open V5 and keep pumping on the cold trap for 15 minutes minimum, until the
+
+         G2 is in 1 x 10-2mbar range,
+    · Record G3 value and compare it to the previous runs
+    · Close all valves;
+    · Stop the MAIN Pump and the water flow;
+
+                                                                                                                   71
+Figure 47 Diagram of mixture recovery from cold trap and GHS2 panel
+
+                                                                                              72
+Figure 48 Mixture recovery from cold trap and GHS2 panel on HMI screen.
+
+                                                                                                 73
+9.3.3 Shut down the system
+    · Close all valves;
+    · Record G3 again;
+
+Note:
+Compare the readings with that before the cooldown. The value might slightly fluctuate
+depending on the temperature in the lab, however a constant change (either increase or
+decrease) of their reading indicates leakage in the DR system.
+Note:
+In powered off state the mixture should be stored only in the Dumps and the Main Pump.
+This is a recommended state, especially, if the DR system is expected to be idling for a
+prolonged time.
+
+                                                                                                                   74
+Figure 49 Diagram of system Safe State when powered off.
+
+                                                                                       75
+Figure 50 System Safe State when powered off on HMI screen
+
+                                                                                         76
+10 Interlocks and Safety Protection Features
+
+When the dilution refrigerator system experiences an unusual case, e.g., the cryostat vacuum
+suddenly deteriorates due to a leak in the OVC or a leak in the dilution refrigerator itself etc., a
+large amount of heat will be transferred to the dilution refrigerator during a short period of time.
+In this case, the mixture will come out from the dilution refrigerator and cause a rapid increase of
+the Still pressure that in turn will cause a rapid increase of the pressure in the mixture return line.
+This type of rapid pressure increase inside the dilution refrigerator system is very dangerous and
+can damage the dilution refrigerator, and it must be prevented from happening.
+
+Another case that may cause the pressure increase inside the dilution refrigerator is a power outage.
+The pumps will shut down due to the power loss, and the whole cryostat will gradually warm up.
+Although the pressure inside the dilution refrigerator will not increase very rapidly, special
+measures still must be taken to prevent the buildup of high pressure in the dilution refrigerator.
+
+The following safety features have been implemented in the GHS design for this system.
+
+10.1 Pressure Gauges
+
+Still line pressure G1
+
+    · The program has set the following "Hi" value and a "HiHi" value for G1:
+             o Hi = 0.5 mbar
+             o HiHi = 3.0 mbar
+
+    · When G1 reaches the Hi value, the background of G1 indicator turns yellow; the event is
+         recorded to the log; but no valve states change, no actions or confirmation are needed. G1
+         will returns to green color as soon as pressure measured by G1 drops below Hi value.
+
+    · When G1 reaches HiHi value, the G1 indicator background turns red; the event is recorded
+         to the log; no valve states change, but the Booster pump is turned OFF by software. G1
+         indicator color returns back to yellow when the pressure measured by G1 drops below
+         HiHi, and to the green color when the pressure drops below Hi.
+
+Main Pump exhaust pressure G3
+
+    · The program contains the following preset "Hi" value and a "HiHi" value for G3:
+             o Hi = 1100 mbar
+             o HiHi = 1200 mbar
+
+    · When G3 reaches the Hi value, the G3 background turns yellow; the valves V5 and V2
+         close (if they are open); V12 valve opens; the event is recorded to the log. When the
+         pressure measured by G3 drops below Hi, G3 background color returns to green; and the
+         valve V12 closes; the event is also recorded to the log.
+
+                                                                                                                   77
+    · When G3 reaches HiHi value, the G3 background turns red, all valves return to the un-
+         energized state (the valves V2 and V4 normally opened, all other solenoid valves are
+         normally closed); all pumps stop. When the pressure measured by G3 drops below HiHi,
+         the G3 indicator background color returns and green when it drops below Hi.
+
+Return line pressure G4
+
+    · The program has preset the following "Hi" value and a "HiHi" value for G4:
+             o Hi = 1500 mbar
+             o HiHi = 1700 mbar
+
+    · When G4 reaches the Hi value, the G4 indicator background turns yellow; the event is
+         recorded to the log; but no valve changes, and no actions or confirmation is required. G4
+         indicator returns to green color as soon as pressure measured by gauge G4 decreases below
+         Hi value
+
+    · When G4 reaches HiHi value, the G4 background turns red. G4 returns to yellow when the
+         pressure measured by G4 drops below HiHi, and green when it drops below Hi.
+
+NOTE:
+The events described above are recorded in the log file only if the praDiagnostics = 1 in the
+Janis_HMI.ini file (see Section Error! Reference source not found. Error! Reference source not
+found.) in the touch panel PC.
+
+10.2 Main Pump and Booster Pump
+
+    · Booster Pump will stop immediately if the Main Pump is turned off either by interlock
+             software or by the user.
+
+10.3 Valves
+
+    · Every solenoid valve has a built-in directional relief valve, which will open up in one
+         direction when the differential pressure reached 1.5 bar. These valves are all installed with
+         the correct pressure protection directions.
+
+    · CV1 and CV2 are Inline Check Valves. They will open and relieve the mixture to the
+         Storage Dump and reduce the pressure difference when the pressure difference reaches
+         25 PSI along the arrow direction as, shown in Error! Reference source not found. Error!
+         Reference source not found..
+
+10.4 Data Logging and Protection
+
+    · All data recorded by the software is stored in the nonvolatile memory of the NI cRIO
+         controller. It can be copied to the hard drive of the touch panel PC or a remote PC remote
+         access (for the Remote Access to GHS see section 11.2).
+
+                                                                                                                   78
+· The total disk space in cRIO is only about 512Mb, therefore there is a danger that the
+    controller can run out of available memory.
+
+· A built-in software safety feature is meant to prevent this from happening: if the available
+    disk space drops below the "Disk Alarm Limit" specified in percent of the total disk space
+    in the configuration file Janis_RT.ini (see Section Error! Reference source not found.
+    Error! Reference source not found.), the data logging will stop, and will not resume until
+    there is available disk space.
+
+                                                                                                              79
+11 JanisULT Helium Dilution Refrigerator Control System Software
+This section of the Operating Manual defines software components included into the Janis
+Helium Dilution Refrigerator Control System Software and quick start user guide on how to
+use these components. The complete software package comes preinstalled from Janis. No
+additional software installation is required.
+
+11.1 Software Configuration
+Janis software is designed as distributed component type software. It requires two computers
+running two separate software applications as well as NI cRIO-9063 chassis XILINX FPGA.
+This is because a portion of the software runs on NI cRIO-9063 chassis FPGA. The computers
+are connected together into an Ethernet computer network and they communicate over TCP/IP
+protocol.
+
+11.1.1 Real-Time Controller Software
+NI cRIO-9063 integrated system is used for control application.
+
+· NI cRIO-9063 Real-Time Controller and Chassis
+· NI Linux Real-Time Operating System (32-bit)
+· 667 MHz ARM Cortex-A9 Processor
+· 512 MB nonvolatile storage, 256 MB DRAM Memory
+Executable file location:
+
+..\natinst\bin\JanisRT_JaSoftDry.rtexe
+
+Configuration INI file location:
+..\bin\data\Janis_RT.ini
+
+11.1.1.1 JanisRT.INI File Access
+INI File can be accessed from an external computer connected to cRIO 9063 by means of Ethernet
+network. By default, the HMI Computer in the GHS should have the drive Z: mapped to the cRIO
+disk storage. General instructions for mapping a network drive on a remote windows machine can
+be found here:
+
+http://digital.ni.com/public.nsf/allkb/4EBE45E8A816B19386257B6C0071D025 .
+
+                                                                                                                   80
+If you are familiar with mapping a network drive in MS Windows OS, then simply select a drive
+letter to map and bind it to \\172.16.0.10\files . A pop-up dialog window will ask for
+access credentials. Use the default login name "admin", leave the password field empty (the default
+password is blank, but MS Windows will fill the password space with dots for security reasons)
+and click "OK".
+
+                                  Figure 51 HMI cRIO drive mapping credentials prompt
+
+Once the drive has been mapped, the files can be transferred between the cRIO and the MS
+Windows computer using a File Explorer on the Windows computer. Click on the mapped drive,
+navigate to the desired location and use "drag and drop" or any other methods for transferring the
+files.
+172.16.0.10 used in address field is a default IP address of the cRIO controller. This IP address
+is clearly labelled on the body of cRIO inside the GHS enclosure.
+
+                                                                                                                   81
+                          Figure 52 cRIO storage mapped to "Z:" drive in HMI File Explorer.
+
+11.1.1.2 Janis RT INI File Description
+
+The path to the file on cRIO Linux file system:
+\home\lvuser\natinst\bin\data\Janis_RT.ini".
+The file name should not be modified as the real time application uses this name for initial
+configuration data access.
+[TCP/IP]
+Port = 5557
+MaxClients = 20
+[Compressor]
+COM_Port = 1
+[Alarm Limits]
+Gauge1_Hi_mBar = 0.5 ; pressure in mBars
+Gauge1_HiHi_mBar = 3 ; pressure in mBars
+Gauge3_Hi_mBar = 950 ; pressure in mBars
+Gauge3_HiHi_mBar = 1000 ; pressure in mBars
+Gauge4_Hi_mBar = 1500 ; pressure in mBars
+
+                                                                                                                   82
+Gauge4_HiHi_mBar = 1700 ; pressure in mBars
+
+Gauge5_Hi_mBar = 1100 ; pressure in mBars
+Gauge5_HiHi_mBar = 15000 ; pressure in mBars
+
+[Averaging]
+
+WS_Interlock = 20
+
+[FLM]
+
+FLM_Constant = 1000
+FLM_Helium_Conversion_Const = 1.8
+
+[CRIO]
+
+Time_Zone = -5
+
+[MCPID]
+
+PID_Thermometer = 0; 0=Internal, 1=External
+PID_Default_Temp = .500; To be used in the event External Temp is not
+sent by user
+
+[POWER MANAGEMENT]
+
+PM_TIME_STPL = 10; Short Term Power Loss Time in Seconds
+PM_TIME_LTPL = 10; Long Term Power Loss in % of UPS power left
+PM_EN = 1; 1 enables auto power recovery, 0 disables
+
+[LakeShore]
+
+LS_IP_Address = 172.16.0.12
+LS_Socket = 7777
+LS_Chan_Timeout = 60; time for LS372 to wait for valid data before moving
+on - seconds
+
+[SYSINFO]
+
+Model_Number = GHS2511600301010R0
+Serial_Number = 21524
+Disk_Alarm_Limit = 10; Percent of total disk space left available
+
+[SCRIPT]
+
+Log_Enable = 1; Script Log Enable, 0 = Disable, 1 = Enable
+
+You may change the numeric values of the parameters, or the comments located to the right from
+the semicolon symbol `;'. Do not change anything else, such as the parameter names or the file
+syntax (do not add or delete spaces, commas etc.) because it may render the file unreadable.
+
+                                                                                                                   83
+To modify a parameter in this file (such as Gauge1_Hi_mBar):
+
+1. Copy Janis_RT.ini to the HMI touch panel PC or a to network connected PC via Remote
+    Access.
+
+2. Make a backup copy of Janis_RT.ini before the modification. Use this copy to revert to the
+    original configuration in case something goes wrong with the updated file.
+
+3. Open the file in Notepad. Modify the numeric values of the desired parameters and save the
+    updated file with the original name.
+
+4. Delete the old file Janis_RT.ini in cRIO.
+
+5. Copy the updated file to cRIO.
+
+6. Restart the GHS.
+
+11.1.1.3 Janis Lake Shore Model 372 AC Resistance Bridge INI File Description
+
+File name and path:
+
+\home\lvuser\natinst\bin\data\Janis_LS372.xml.
+
+This name should not be modified as the real time application uses this name for INI data access.
+This file provides startup configuration data for the Lakeshore LS372 AC Resistance Bridge. The
+data in this file can be edited using the LS372 file editor in the CONFIG tab. This file should not
+be edited manually.
+
+LakeShore 372 Resistance Bridge allows to measure both the real (resistance) and imaginary
+(reactance) part of the sensor impedance. Conversion of the reactance Q [Ohm] into T [K] is
+accomplished using the following formula:
+
+T [K] = C [Ohm*K] / (Q [Ohm]-Q0 [Ohm])
+
+Here C and Q0 are constants recorded in the INI file through the CONFIG tab of HMI
+
+C = 4.39248*10E-4[Ohm*K]  (example value)
+
+Q0 = 1.994*10E-2[Ohm] (example value)
+
+                                                                                    84
+11.1.1.4 cRIO Clock
+During the power on sequence for the GHS the cRIO reads a GMT Time Stamp from the JetWay
+computer and sets the cRIO clock to GMT. If Time Zone adjustment is desired, an offset can be
+set in the Janis_RT.ini file under the [cRIO] heading as shown below:
+[CRIO]
+TimeZone = -5; Eastern United States, Columbia
+The text after the semicolon is a comment. Using a text editor, set the offset (in hours) to the
+desired Time Zone. "TimeZone = 0" in this case means GMT.
+11.1.1.5 PID Control
+The RT Software PID control is accomplished through use of the PID Advanced VI in the PID and
+Fuzzy Logic Toolkit. Currently, the advanced functions are not being used, and the VI uses only
+Process Variable, Setpoint and PID values as well as a configurable sample rate. The advanced
+parameters of alpha, beta, gamma and linearity are not being used. The equations from the basic
+PID VI help file governing PID response are shown below.
+
+                                                                                                                   85
+Figure 53 LabVIEW PID algorithm description
+
+                                                                                 86
+up(k)[V]= P[V/(mole/s)]*e(k)[mole/s]
+If P=0 then up(k)=0 ­ no Proportional Action
+
+uI(k)[V]= uI(k-1)[V]+I[V/((mole/s)*min)]* (PIDPeriod[s]/60)*((e(k)+e(k-1)/2)[mole/s]
+If I=0 then uI(k) = uI(k-1) ­ no Integral Action
+
+uD(k)[V]= -P[V/(mole/s)]* D[min]*(60/ PIDPeriod[s])*(PV(k)-PV(k-1)) [mole/s]
+If D=0 then uD(k)=0 ­ no Derivative Action
+
+u(k)[V]= up(k)[V]+ uI(k)[V]+ uD(k)[V]
+
+11.1.1.6 Janis Automation.scr File Description
+File name and path:
+\home\lvuser\natinst\bin\data\Automation.scr
+
+This name should not be modified, because the real time application uses this name for INI data
+access. This file contains Scripts that allow to automate routine processes of cryostat operation, as
+well as the power management scripts that will execute in case of a power failure and restoration.
+The default content of the Automation.scr file provided with the system is presented below. The
+description of the Scripting Language can be found in the Section Error! Reference source not
+found. Error! Reference source not found. below.
+
+1  ScriptName Manual Mode
+
+3  DefineParam  #950,Precooling_T10Stop,3.000000
+                #951,Precooling_G3Min,0.600000
+4  DefineParam  #952,Precooling_G3Max,0.800000
+                #956,Precooling_DecrementV5Delay,1.000000
+5  DefineParam  #957,Precooling_IncrementV5Delay,5.000000
+                #958,Precooling_DecrementV5Percent,1.000000
+6  DefineParam  #959,Precooling_IncrementV5Percent,1.000000
+                #960,Condensation_FlowUpperLimit,0.000900
+7  DefineParam  #961,Condensation_FlowLowerLimit,0.000700
+                #962,Condensation_G3UpperLimit,0.800000
+8  DefineParam  #963,Condensation_T10DisengageHeatSwitch,3.000000
+
+9  DefineParam
+
+10 DefineParam
+
+11 DefineParam
+
+12 DefineParam
+
+13 DefineParam
+
+                                                                                      87
+14 DefineParam        #964,Condensation_DecrementV5Delay,1.000000
+15 DefineParam        #965,Condensation_IncrementV5Delay,5.000000
+16 DefineParam        #966,Condensation_DecrementV5Percent,1.000000
+17 DefineParam        #967,Condensation_IncrementV5Percent,1.000000
+18 DefineParam        #968,MixtureRecovery_G2star,0.003000
+19 DefineParam        #969,MixtureRecovery_G2doublestar,0.000040
+20 DefineParam        #970,MixtureRecovery_G2triplestar,0.000100
+21 DefineParam        #971,MixtureRecovery_FlowUpperLimit,0.000330
+22 DefineParam        #972,MixtureRecovery_G3UpperLimit,0.850000
+23 DefineParam        #973,CloseAllValves_V5Percent,0.000000
+
+100 ScriptName Condensation
+
+101 SetMemValue       #0,0 ;Yes or Stopped or Disengaged
+
+102 SetMemValue       #1,1 ;No or Running or Engaged
+
+103 SetMemValue       #600,1   ;V5 Delta Value
+
+104 SetMemValue       #603,50 ;V5 Initial Value
+
+105 Add #0,#603,#605 ;V5 Lower Limit
+
+106 SetMemValue       #606,99 ;V5 Max
+
+107 SetMemValue       #608,0.0029  ;G1 value when the Booster Pump
+
+is turned on
+
+108 SetMemValue       #301,1   ;delay in s
+
+109 SetMemValue       #302,2   ;delay in s
+
+110 SetMemValue       #305,5   ;delay in s
+
+111 SetMemValue       #307,7   ;delay in s
+
+112 Message The Condensation Script is running
+
+113 MainPump ON
+
+114 Label MonitorFlow
+
+115 ReadHeatSwitchStatus #100
+
+116 ReadFlow #700
+
+117 ReadPressure G3,#101
+
+118 If #101,>,[Condensation_G3UpperLimit],Then DecrementV5 ;G3
+
+is above Upper Limit
+
+119 If #700,<,[Condensation_FlowLowerLimit],Then IncrementV5 ;Flow
+
+is below Lower Limit
+
+120 If #700,>,[Condensation_FlowUpperLimit],Then DecrementV5 ;Flow
+
+is above Upper Limit
+
+121 Delay #301
+
+122 If #100,=,#1,Then CheckT10 ;Heat Switch is Engaged
+
+123 Goto MonitorFlow
+
+124 Label DecrementV5
+
+125 Subtract #603,[Condensation_DecrementV5Percent],#603
+
+126 SetV5 #603
+
+127 Message Decreased V5
+
+128 Delay [Condensation_DecrementV5Delay]
+
+129 If #603,<,#605, Then IncrementV5 ;V5 is below the Lower Limit
+
+130 If #100,=,#1,Then CheckT10 ;Heat Switch is Engaged
+
+131 Goto MonitorFlow
+
+132 Label IncrementV5
+
+133 Add #603,[Condensation_IncrementV5Percent],#603
+
+134 SetV5 #603
+
+135 Message Increased V5
+
+136 Delay [Condensation_IncrementV5Delay]
+
+                                                                     88
+137 If #100,=,#1,Then CheckT10 ;Heat Switch is Engaged
+
+138 If #603,>,#606,Then Success
+
+139 Goto MonitorFlow
+
+140 Label CheckT10
+
+141 ReadTemp T10,#1010
+
+142 If #1010,        <,[Condensation_T10DisengageHeatSwitch],  Then
+
+DisengageHeatSwitch ;T10 is less than T10DisengageHeatSwitch
+
+143 Delay #301
+
+144 Goto MonitorFlow
+
+145 Label DisengageHeatSwitch
+
+146 HeatSwitch Disengage ; Heat Switch is being Disengaged
+
+147 Label HeatSwitchStatus1
+
+148 Message The Heat Switch is being disengaged
+
+149 ReadHeatSwitchStatus #200
+
+150 If #200,=,#0,Then HeatSwitchDisengaged
+
+151 Delay #305
+
+152 Goto HeatSwitchStatus1
+
+153 Label HeatSwitchDisengaged
+
+154 Message The Heat Switch is disengaged
+
+155 Delay #305
+
+156 Goto MonitorFlow
+
+157 Label Success
+
+158 SetV5 #0
+
+159 Delay #302
+
+160 SetValve V2, open
+
+161 Label MonitorG1
+
+162 Message Waiting for G1 to drop below 2.9mbar
+
+163 ReadPressure G1,#102
+
+164 If #102, <, #608, Then TurnOnBoosterPump ;G1 is less then the
+
+value when the Booster pump should be turned on
+
+165 Delay #305
+
+166 Goto MonitorG1
+
+167 Label TurnOnBoosterPump
+
+168 BoosterPump      ON
+
+169 Message Condensation Is Completed
+
+170 Label End
+
+171 StopScript
+
+180 ScriptName Precooling
+
+181 SetMemValue      #0,0 ;Yes or Stopped or Disengaged
+
+182 SetMemValue      #1,1 ;No or Running or Engaged
+
+183 SetMemValue      #600,1     ;V5 Delta Value
+
+184 SetMemValue      #603,50 ;V5 Initial Value
+
+185 SetMemValue      #604,0     ;V5 Final Value
+
+186 Add #0,#603,#606 ;V5 Lower Limit
+
+187 SetMemValue      #607,99 ;V5 Upper Limit
+
+188 SetMemValue      #608,50 ;V5 Decrement Value
+
+189 SetMemValue      #301,1     ;delay in s
+
+190 SetMemValue      #302,2     ;delay in s
+
+191 SetMemValue      #305,5     ;delay in s
+
+192 SetMemValue      #307,7     ;delay in s
+
+193 SetMemValue      #310,10 ;delay in s
+
+                                                               89
+194 Message The Precooling Script is running
+
+195 Delay #305
+
+196 PTCompressor ON
+
+197 Delay #310
+
+198 GetCompressorStatus #100
+
+199 If #100, =, #0, Then PTCompressorDidNotStart ;PT Compressor
+
+did not start
+
+200 If #100, =, #1, Then EngageHeatSwitch
+
+201 Label PTCompressorDidNotStart
+
+202 Message The PT Compressor did not start
+
+203 Goto End
+
+204 Label EngageHeatSwitch
+
+205 Message The Heat Switch is being engaged
+
+206 HeatSwitch Engage
+
+207 Label HeatSwitchStatus1
+
+208 Delay #305
+
+209 ReadHeatSwitchStatus #200
+
+210 If #200,=,#1,Then HeatSwitchEngaged
+
+211 Goto HeatSwitchStatus1
+
+212 Label HeatSwitchEngaged
+
+213 Message The Heat Switch is engaged
+
+214 CallSubroutine Close All Valves
+
+215 BoosterPump       OFF ;Booster Pump Off
+
+216 MainPump ON
+
+217 SetValve V10, open
+
+218 SetValve V1, open
+
+219 SetValve V4, open
+
+220 SetValve V11, open
+
+221 SetValve V7,open
+
+222 SetValve V14, open
+
+223 Label WaitUntilT10Stop ;Waiting Until T10 < T10Stop
+
+224 ReadTemp T10,#1010
+
+225 If #1010, <,[Precooling_T10Stop], Then T10LessThanT10Stop ;T10
+
+is less than T10Stop
+
+226 Message Waiting until T10 < T10Stop
+
+227 ReadPressure G3,#101
+
+228 If #101,>,[Precooling_G3Max],Then DecrementV5 ;G3 is above G3
+
+Max
+
+229 If #101,<,[Precooling_G3Min],Then IncrementV5 ;G3 is below G3
+
+Min
+
+230 Delay #305
+
+231 Goto WaitUntilT10Stop
+
+232 Label DecrementV5
+
+233 Subtract #603,[Precooling_DecrementV5Percent],#603
+
+234 SetV5 #603
+
+235 Message Decreased V5
+
+236 Delay [Precooling_DecrementV5Delay]
+
+237 If #603,<,#606, Then IncrementV5 ;V5 is below the Lower Limit
+
+238 Goto WaitUntilT10Stop
+
+239 Label IncrementV5
+
+240 Add #603,[Precooling_IncrementV5Percent],#603
+
+241 SetV5 #603
+
+                                                         90
+242 Message Increased V5                 ;V5 is above the Upper Limit
+243 Delay [Precooling_IncrementV5Delay]
+244 If #603,>,#607, Then DecrementV5
+245 Goto WaitUntilT10Stop
+246 Label T10LessThanT10Stop
+247 Message Precooling is completed
+248 Label End
+249 StopScript
+
+280 ScriptName Mixture Recovery
+
+281 SetMemValue       #0,0 ;Yes or Stopped or Disengaged
+
+282 SetMemValue       #1,1 ;No or Running or Engaged
+
+283 SetMemValue       #600,1     ;V5 Delta Value
+
+284 SetMemValue       #603,40 ;V5 Initial Value
+
+285 Add #0,#603,#605 ;V5 Lower Limit
+
+286 SetMemValue       #606,99 ;V5 Upper Limit
+
+287 SetMemValue       #301,1     ;delay in s
+
+288 SetMemValue       #302,2     ;delay in s
+
+289 SetMemValue       #305,5     ;delay in s
+
+290 SetMemValue       #307,7     ;delay in s
+
+291 Message The Mixture Recovery Script is running
+
+292 BoosterPump       OFF ;Turn Off the Booster Pump
+
+293 PTCompressor OFF ;Turn Off the PT Compressor
+
+294 HeatSwitch Engage       ;Engage the Heat Switch
+
+295 Label HeatSwitchStatus
+
+296 ReadHeatSwitchStatus #100
+
+297 If #100,=,#1,Then MainPumpON
+
+298 Message The Heat Switch is being engaged
+
+299 Delay #305
+
+300 Goto HeatSwitchStatus
+
+301 Label MainPumpON
+
+302 MainPump ON
+
+303 SetValve V1, Close ;Close V12
+
+304 SetValve V4, Close ;Close V4
+
+305 SetValve V7, Close ;Close V7
+
+306 SetValve V13, Open ;Open V13
+
+307 SetValve V2, Open ;Open V2
+
+308 SetValve V3, Open ;Open V3
+
+309 Label MonitorFlow
+
+310 Delay #302
+
+311 ReadFlow #700
+
+312 ReadPressure G3,#101
+
+313 If #101,>,[MixtureRecovery_G3UpperLimit],Then DecrementV5 ;G3
+
+is above the Upper Limit
+
+314 If #700,>,[MixtureRecovery_FlowUpperLimit],Then       DecrementV5
+
+;Flow is above the Upper Limit
+
+315 Goto IncrementV5
+
+316 Label DecrementV5
+
+317 Subtract #603,#600,#603
+
+318 SetV5 #603
+
+319 Message Decreased V5
+
+320 If #603,<,#605, Then IncrementV5 ;V5 is below the Lower Limit
+
+                                                                   91
+321 Delay #301
+322 Goto MonitorFlow
+323 Label IncrementV5
+324 Add #603,#600,#603
+325 SetV5 #603
+326 Message Increased V5
+327 If #603,>,#606,Then PumpingUntilG2star ;Open V5 until it is
+99% open
+328 Delay #301
+329 Goto MonitorFlow
+330 Label PumpingUntilG2star ;Pumping Until G2 < 3 mbar
+331 ReadPressure G2,#1002
+332 If #1002,<,[MixtureRecovery_G2star],Then OpenV1
+333 Message Pumping Until G2 < G2star
+334 Delay #302
+335 Goto PumpingUntilG2star
+336 Label OpenV1
+337 SetValve V1, Open ;Open V1
+338 SetV5 #0 ;V5 is 0% open
+339 Label PumpingUntilG2doublestar ;Pumping Until G2 < 0.015 mbar
+340 ReadPressure G2,#1022
+341 If #1022,<,[MixtureRecovery_G2doublestar],Then EvacuateLN2Traps
+
+342 Message Pumping Until G2 < G2doublestar
+
+343 Delay #302
+
+344 Goto PumpingUntilG2doublestar
+
+345 Label EvacuateLN2Traps ;Evacuation of the LN2 Traps
+
+346 Message Evacuation of the LN2 traps
+
+347 SetValve V13, close
+
+348 SetValve V14, close
+
+349 SetValve V1, close
+
+350 SetValve V2, close
+
+351 SetValve V3, close
+
+352 SetValve V10, close
+
+353 SetValve V11, close
+
+354 SetValve V20, close
+
+355 SetValve V21, close
+
+356 SetValve V8, open
+
+357 SetValve V9, open
+
+358 SetValve V22, open
+
+359 SetValve V12, open
+
+360 SetV5 #606 ;V5 is 99% Open
+
+361 Label PumpingUntilG2triplestar ;Pumping Until G2 < 0.1 mbar
+
+362 ReadPressure G2,#1222
+
+363 If #1222,<,[MixtureRecovery_G2triplestar],Then Stop
+
+364 Message Pumping until G2 < G2triplestar
+
+365 Delay #302
+
+366 Goto PumpingUntilG2triplestar
+
+367 Label Stop ;Stopping
+
+368 CLS
+
+369 MessageWait  Close V16 V17 and V19 and click OK
+
+370 SetValve V22, Close ;Close V22
+
+                                                                 92
+371 SetValve V9, Close ;Close V9
+372 SetValve V8, Close ;Close V8
+373 SetValve V12, Close ;Close V12
+374 SetV5 #0 ;Close V5
+375 MainPump OFF
+376 Message Mixture Recovery is completed
+377 Delay #305
+378 StopScript
+
+400 ScriptName Close All Valves
+
+401 SetMemValue  #999,0          ;0% Open
+
+402 SetValve V1, close
+
+403 SetValve V2, close
+
+404 SetValve V3, close
+
+405 SetValve V4, close
+
+406 SetV5 [CloseAllValves_V5Percent]
+
+407 SetValve V6, close
+
+408 SetValve V7, close
+
+409 SetValve V8, close
+
+410 SetValve V9, close
+
+411 SetValve V10, close
+
+412 SetValve V11, close
+
+413 SetValve V12, close
+
+414 SetValve V13, close
+
+415 SetValve V14, close
+
+416 SetValve V15, close
+
+417 SetValve V20, close
+
+418 SetValve V21, close
+
+419 SetValve V22, close
+
+420 StopScript
+
+500 ScriptName SetIdleState
+
+501 SetMemValue  #0,0 ;0 or Disengaged
+
+502 SetMemValue  #1,1 ;1 or Engaged
+
+503 SetMemValue  #100,0
+
+504 SetMemValue  #305,5          ;delay in s
+
+505 Message The SetIdleState Script is running
+
+506 SetV5 #0
+
+507 PTCompressor ON
+
+508 HeatSwitch Engage
+
+509 Label HeatSwitchStatus
+
+510 ReadHeatSwitchStatus #100
+
+511 If #100,=,#1,Then Stop
+
+512 Message The Heat Switch is being engaged
+
+513 Delay #305
+
+514 Goto HeatSwitchStatus
+
+515 Label Stop
+
+516 Message The Heat Switch is engaged
+
+517 Delay #305
+
+518 Message The system is in the Idle State
+
+519 StopScript
+
+                                                93
+600 ScriptName ShutdownScript
+
+601 SetMemValue  #0,0 ;0 or Disengaged
+
+602 SetMemValue  #1,1 ;1 or Engaged
+
+603 SetMemValue  #101,1
+
+604 SetMemValue  #305,5        ;delay in s
+
+605 Message The Shutdown Script is running
+
+606 PTCompressor OFF
+
+607 HeatSwitch Disengage
+
+608 Label HeatSwitchStatus
+
+609 ReadHeatSwitchStatus #101
+
+610 If #101,=,#0,Then Stop
+
+611 Message The Heat Switch is being disengaged
+
+612 Delay #305
+
+613 Goto HeatSwitchStatus
+
+614 Label Stop
+
+615 Message The Heat Switch is disengaged
+
+616 Delay #305
+
+617 Message The UPS will Shutdown
+
+618 Delay #305
+
+619 UPSShutdown
+
+620 StopScript
+
+650 ScriptName LTPLScript
+651 Message The LTPL Script is running
+652 Message The System is in the Idle State after recovery from the
+power failure
+653 StopScript
+
+700 ScriptName Disable_PM          ;disable autorecovery
+701 SetPMRecoveryEnable disable
+702 StopScript
+
+710 ScriptName Enable_PM           ;enable autorecovery
+711 SetPMRecoveryEnable enable
+712 StopScript
+
+800 ScriptName Complete Cooldown
+
+801 SetMemValue  #0,0 ;Yes or Stopped or Disengaged
+
+802 SetMemValue  #305,5        ;delay in s
+
+803 Message The Complete Cooldown Script is running
+
+804 Delay #305
+
+805 CallSubroutine Precooling
+
+806 CLS
+
+807 GetCompressorStatus #100
+
+808 If #100, =, #0, Then PTCompressorDidNotStart ;PT Compressor
+
+did not start
+
+809 Message The Precooling Script finished execution
+
+810 Delay #305
+
+811 Message The Condensation Script is running
+
+812 CallSubroutine Condensation
+
+813 CLS
+
+814 Message The Complete Cooldown Script finished execution
+
+                                                             94
+815 Goto End
+816 Label PTCompressorDidNotStart
+817 Message The PT Compressor did not start
+818 Label End
+819 StopScript
+
+11.1.1.7 Power Monitoring and Recovery
+
+The power of cRIO RT controller and HMI computer are both maintained by a dedicated
+Uninterruptible Power Supply (UPS). The RT software contains an independent power monitor
+loop. This loop continuously monitors the status of the UPS. Upon detection of an external power
+failure, the monitor will start a timer. When the external power is restored, the software sets a new
+status of the system depending on the amount of time the power was absent, based on a simple
+algorithm. The following two parameters are defined in the algorithm:
+
+PM_TIME_STPL = Short term Power Loss Threshold (in seconds)
+PM_TIME_LTPL = Long term Power Loss Threshold (in percent of battery
+charge remaining in UPS)
+
+1. Power outage time is shorter than PM_TIME_STPL (default = 10 Seconds)  Do nothing,
+    continue normal operation. The status of the valves and the heat switch does not change. If the
+    Compressor and the Main Pump were running before the power loss, they will be turned back
+    ON after the power is restored. If the Booster Pump was running before the power loss, it will
+    not be turned on after the power is restored.
+
+2. Power outage time is longer than PM_TIME_STPL  The software puts the system in the
+    Standby Mode: all Pumps and the Compressor are tuned OFF, all solenoid valves are in the
+    unenergized state (V2 and V4 are normally open, and all other valves are normally closed)).
+    After that the Script Engine queues and executes the "SetIdleState" script.
+
+3. If the external power is restored within the timeframe between PM_TIME_STPL and time
+    event of PM_TIME_LTPL (default value = 25%)  Script Engine queues and executes the
+    "LTPLScript" script.
+
+4. If the external power is not restored before the PM_TIME_LTPL event occurs  the Script
+    Engine queues and executes the "ShutdownScript" script.
+
+Power Recovery Management is enabled as delivered. The state of this option is controlled by a
+parameter in the Janis RT.ini file (see Section 12.1.1.2 Janis RT INI File Description)
+
+PM_EN = 1; 1 enables auto power recovery, 0 disables
+
+This setting is user configurable and is read and applied at system power up and after a system
+restart.
+
+                                                                                                                   95
+There is a script command that will change the enable state for power management during run time
+(see Section Error! Reference source not found. Error! Reference source not found.). This
+command will take effect immediately upon execution, but it does not modify the INI file. Upon
+power up or system restart, the PM_EN state will revert back to the INI file setting.
+The following scripts can modified by a User to accomplish a set of desired tasks to be executed
+upon a power loss event:
+
+1. The SetIdleState script should be programmed by the User, to place the system in a
+    Safe/Idle State where it can safely wait for power to be restored.
+
+2. The LTPLScript should be written by the User to transition the system from the Safe/Idle
+    state back to the normal operating state.
+
+3. The ShutdownScript is to perform a user-desired maintenance steps on the system before
+    initiating the UPSShutdown script command. The UPSShutdown command will instruct
+    the UPS to shut down and power OFF the JACoB. This will shut down all automation functions
+    in the system.
+
+11.1.1.8 LS372 Channel Timeout
+
+The LS372 channel timeout control software is designed to abort a channel read if it takes longer
+than the timeout parameter (in seconds) specified in the Janis_RT.ini file
+
+[LakeShore]
+
+LS_Chan_Timeout = 60; time for LS372 to wait for valid data before moving
+on ­ seconds
+
+If a channel times out, the software will return a zero value for the reading and remove the channel
+from the scan list. The change will be only made in memory and will not be written to the
+LS372.xml config file. If the operator wants to make the change permanent, then he must go to the
+LS372 settings tab in the HMI Software, change the corresponding parameter in the interface and
+click "Write Config File" button. This will save the change to the LS372.xml config file.
+
+To restore the active status to the channel, the operator can do one of the following
+
+1. Restart the GHS ­ this will force a read of the LS372.xml file. This assumes the
+    operator did not save the changes to the config file.
+
+2. Go to the LS372 Settings tab and click Read Config File and Write Config File. The
+
+                                                                                                                   96
+    read operation will read the xml file into memory. This will restore the list of active
+    channels, assuming that the xml file has not been overwritten since the channel was
+    removed from the list. The write operation will then save the newly read parameters
+    to the LS372.
+If the LS372.xml file has been overwritten, then the operator can go to the LS372 settings tab in
+the HMI Software, set up the LS372 channel parameters as desired and click "Write Config File"
+button. This will immediately apply the parameter to the LS372, and save the changes to the
+LS372.xml config file
+11.1.2 HMI Software
+HMI Software is running on NI TPC-2230 Touch Panel Computer
+· Operating System: Windows Embedded Standard 7 (WES7);
+· Hardware: 1.33 GHz Intel Atom Processor, 8 GB CF Memory Card, 1 GB DDR2 SDRAM
+· Fanless cooling system with -20 ºC to 50 ºC operating temperature range
+· Monitor: 15 in. XGA TFT color LCD touch screen with LED backlight
+Executable files location;
+C:\Program Files\JaSoftDry HMI\JaSoftDry HMI.exe
+INI configuration file location:
+C:\Program Files\ JaSoftDry HMI\JaSoftDry HMI.ini
+
+                                    Figure 54 Content of HMI Software installation folder
+
+                                                                                                                   97
+HMI Software Interface configuration files location:
+
+C:\Program Files\JaSoftDry HMI\data\Janis_Dewar.xml
+C:\Program Files\JaSoftDry HMI\data\Janis_Graphs_A.xml
+C:\Program Files\JaSoftDry HMI\data\Janis_Graphs_B.xml
+C:\Program Files\JaSoftDry HMI\data\Janis_HMI.ini
+
+                                  Figure 55 Content of HMI Software configuration folder
+
+These files contain the setting configured by the user in the HMI Software GUI, and should not be
+edited manually.
+
+11.1.2.1 HMI INI File
+
+The content of the HMI configuration INI file
+
+[TCP/IP]
+IP_Address = 172.16.0.10
+IP_Port = 5557
+Timeout = 5000
+Diagnostics = 1
+
+[GUI]
+
+Valve_Delay = 2000           ; ms, time delay needed to synchronize GUI
+
+updates and valve
+
+status updates; to be modified by Janis service personnel only
+
+Heater_Bar = 20        ; mW, full scale of the Still Heater Power
+
+horizontal bar indicator
+
+in the PLOT1 and PLOT2 tabs
+
+                                                                98
+Janis_HMI.ini can be edited in a plain text editor (for example: Notepad). In order for the changes
+to take effect, close and reopen the HMI Application in the touch panel PC (or on remote PC in
+case of Remote access, see section 12.2 Remote Access via JetWay Computer and SSH).
+
+Please note that each PC running the HMI Software has its own copy of Janis_HIM.ini, and you
+can have different configuration in Janis_HMI.ini for the touch panel PC and for a remote PC. For
+example, if the parameter Diagnostics=1 in Janis_HMI.ini on the touch panel PC but
+Diagnostics=0 in Janis_HMI.ini on the remote PC, then the alarm log files will be recorded
+in the touch panel PC but will not be recorded in the remote PC.
+
+11.1.2.2 HMI GRAPHS INI File and HMI DEWAR INI File
+The HMI Plot tabs and the indicators on the Dewar in the Main tab are user configurable through
+the GHS2511600301010R0 HMI Graph Page Interface and Main Page Interface. The INI files
+should not be edited by hand. The data source and description text for each individual graph and
+indicator can be edited in a popup dialog box that is accessed by double clicking on the specific
+graph or indicator in question.
+
+11.1.2.3 HMI Graphical User Interface
+11.1.2.3.1 MAIN Page
+The system GUI page displays the JANIS Helium Dilution System gas circulation diagram and
+allows to control the following system components:
+
+    · V1: VAT valve: OPEN/CLOSE
+    · V2.. V14, V20.. V22: Pfeiffer EVI-005 valves: OPEN/CLOSE
+    · Booster Pump: ON/OFF
+    · Main Pump: ON/OFF
+    · PT Compressor: ON/OFF
+    · V5 Proportional Valve: OPEN/CLOSE, Set Open %
+    · Heat Switch: ENGAGE/DISENGAGE
+
+                                                                                                                   99
+                                                  Figure 56 MAIN screen of HMI
+
+The page continuously displays the following system parameters:
+
+     · Pressure Gauges G1, G2, G3, G4 [mBar]
+     · Flow Meter reading [mole/s]
+     · Booster Pump Speed [Hz]
+     · Main Pump status:
+
+               o Stopped ­ Pump is stopped - Green on Black background
+               o Running ­ Pump is running normally - Green on Black background
+               o Warning ­ Pump has issued a warning code ­ Black on Yellow background
+               o Alarm ­ Pump has issued an alarm code ­ White on Red background
+     · Booster Pump status:
+               o Stopped ­ Pump is stopped - Green on Black background
+               o Accelerating ­ Pump is speeding up - Black on Yellow background
+               o Running ­ Speed reached, no error ­ Black on Green background
+               o Warning ­ Pump has issued a warning code ­ Black on Yellow background
+               o Alarm ­ Pump has issued an alarm code ­ White on Red background
+
+                                                                                                                 100
+     · Compressor status
+               o Stopped ­ Compressor is stopped ­ Green on Black background
+               o Running ­ Compressor is running normally ­ Green on Black background
+               o Warning ­ Compressor has issued a warning. The compressor will indicate
+                   running or stopped, depending on run state - Black on Yellow background
+
+     · Power status
+               o AC ON/UPS OFF ­ Power is being supplied from the main power source - AC
+                   ON is Green, UPS OFF is Black.
+               o AC OFF/UPS ON ­ The main power source has been interrupted and power is
+                   being supplied from the UPS ­ AC ON is Black, UPS ON is Green.
+               o UPS Life (%) ­ Indicates the remaining charge of the UPS battery in %
+
+Data from four Temperature Sensors is displayed in the indicators on the Cryostat area. Double
+clicking on any indicator will bring up a popup dialogue that will allow you to change the data
+displayed in that indicator.
+
+                   Figure 57 Popup window that configures the indicators displayed on the Dewar
+
+                                                                                                                 101
+11.1.2.3.2 PLOT1 and PLOT2 Panels
+ThePLOT panels display 8 time plots each, with history data for Pressure Gauges, Flow Meter,
+Temperature Sensors, Heaters and the CMN sensor. The data is being continuously updated and
+the data points populate the graph from left to right. The Gauges and Sensors assignments are
+configurable by the operator. Double clicking on any graph will bring up a popup dialogue that
+allows to change the data displayed on that graph. This change will be automatically saved to the
+Janis_Graphs_A.xml and Janis_Graphs_B.xml configuration files, and these settings will be the
+utilized the next time the HMI Software starts.
+
+                                                  Figure 58 PLOT1 panel of HMI
+
+                                                                                                                 102
+Figure 59 PLOT2 panel of HMI
+
+                                                                       103
+Figure 60 Popup window that configures the Graph1
+
+                                                                                   104
+The PLOT panels also allow the operator to control and monitor the system heaters (STILL Heater
+and Mixing Chamber (MC) Heater). The heaters control button set is duplicated on both PLOT
+panels and can be operated from either panel. Clicking on either of the heater control buttons will
+bring up a popup dialogue that will allow the user to set the parameters of each heater.
+
+              Figure 61 Popup window that configures the Still Heater Loop in the Open Loop Mode
+
+                                                                                                                 105
+Figure 62 Popup window that configures the Still Heater Loop in the SW PID Mode (Software PID)
+
+                                                                                                            106
+Figure 63 Popup window that configures the MC Heater Loop in the Open Loop Mode
+
+                                                                                                     107
+Figure 64 Popup window that configures the MC Heater Loop in the HW (Hardware) PID Mode
+
+                                                                                                          108
+                   Figure 65 Popup window that configures the MC Heater Loop in the Zone Mode
+
+11.1.2.3.3 CONFIG Page
+This page allows the user to edit the configuration files for the GHS. The following files are
+accessible for editing:
+
+     · Zone File for the LS372: "Zone_File.csv"
+     · Assignment and content of the individual sensor calibration curve files for the LS372
+     · LS372 configuration INI File: "Janis_LS372.ini"
+
+Zone File for the LS372
+To read and or edit the LS372 Zone file, select Zone in the Configuration File Type drop down
+menu. Any available Zone files found on the cRIO will be listed in the "Configuration File Name"
+drop down menu. Select the file that is desired and click the "Read Config File" button. Left
+clicking on the line to be edited will populate the controls on the lower half of the screen. These
+controls will accept changes by the user. Once the changes are made, click the "Apply" button to
+
+                                                                                                                 109
+apply the change to the calibration table. Click on the "Write Config File" to save the table contents
+to the LS372 Zone file, and to write the Zone information to the LS372.
+
+ Figure 66 CONFIG tab window that allows the user to configure the parameters of the MC Heater Loop in
+                                                             the Zone mode
+
+11.1.2.3.3.1Calibration Curve Files for the LS372
+To read/or edit the LS372 Sensor Calibration Curve file, select "Cal Curve" in the "Configuration
+File Type" drop-down menu. Any available sensor calibration curve files found on the cRIO
+memory storage will be listed in the "Configuration File Name" menu. Select the desired file and
+click the "Read Config File" button. Left clicking on the line to be edited will populate the field
+on the lower half of the screen. These fields can be edited by the user. Once the changes are made,
+clicking the "Apply" button will modify the calibration table to reflect the changes.
+
+                                                                                                                 110
+To send the curve to the LS372 instrument, first select a desired curve number from the "372 Curve
+Index" field, and then click on the "Write Config File" button. If any changes were made, they
+will be saved to the corresponding file in cRIO storage memory, and the new file will be uploaded
+to the LS372.
+NOTE:
+If you installed a new calibrated sensor in the cryostat and need to load its calibration curve
+to the LS372 instrument, please contact JanisULT.
+
+Figure 67 CONFIG tab window that allows the user to edit sensor calibration curves and load them in LS372
+                                                        AC Resistance Bridge
+
+11.1.2.3.3.2LS372 INI File
+To read and/or edit the LS372 configuration, select "LS372 INI" in the "Configuration File Type"
+drop-down menu. Only one LS372 INI file will be listed in the "Configuration File Name" menu.
+Clicking on the "Read Config File" button will populate the "LS372 configuration" panel with the
+
+                                                                                                                 111
+values from the configuration file in cRIO memory. These parameters can be edited in place. Some
+parameters only accept certain values, which will be listed in the corresponding drop-down menu
+Once the desired changes are made, click the "Write Config File" button to the new configuration
+to the LS372 INI file, and t o upload the new values to the LS372.
+
+       Figure 68 CONFIG tab window that allows the user to configure the LS372 AC Resistance Bridge
+
+11.1.2.3.3.3 Automation.scr File for Scripting
+The Automation.scr file is a text file that contains an automation script, that can be executed from
+the "System Control" section on the MAIN panel. Several scripts have been programmed to
+accomplish some of the typical labor-intensive processes, like "Precooling" or "Mixture
+Condensation".
+
+                                                                                                                 112
+The scripting language supports some variables that can be changed on the fly. To change these
+variables, select Script Parameters in the Configuration File Type control. The list of parameters
+along with their current values that are predefined in the Automation.scr file will be displayed.
+Only the "Param Value" column of the panel is editable. This column shows the value of the
+parameter as it is currently stored in script memory. Until this value is edited, it reflects the last
+value stored in the script file.
+To change the value, click on the corresponding field, input a new desirable value and press
+"Enter" key. This will apply the new of the parameter in Script Memory, which will take effect
+immediately. The value can be changed over again as many times as is needed, however it is not
+permanent. Upon restarting the GHS will read the file "Automation.scr" again and use values
+stored in that file. Moreover, clicking the "Read Config File" button will restore the values stored
+in Automation.scr file. Even though the values in the "Param Value" (Script Mem) column will
+not be updated in this case, the script will still use the values from the script file. To save the
+changes to the script file and make it `permanent', click the "Write Config File" button. These
+saved values will now be utilized by the system upon a restart of the GHS.
+
+                                                                                                                 113
+                  Figure 69 CONFIG tab window that allows the user to change Script Parameters
+
+11.1.2.3.3.4 System Info
+To get the system configuration information press the "System Info" button in the top left corner
+of the CONFIG tab. All indicators in this window are populated automatically, and this information
+is not editable. The only exception is the Serial Number of the system: this number is recorded in
+the Janis_RT.ini file (see Error! Reference source not found. Error! Reference source not
+found.).
+
+                                                                                                                 114
+Figure 70 CONFIG tab window with the information about the system
+
+                                                                                            115
+11.1.2.4 Alarms
+
+The following visual Alarms are supported by the HMI software application:
+
+    · Red: Display the Value, Red Status and Alarm Name, no operator acknowledgement
+         required
+
+    · Yellow: Display the Value, Yellow Status and Alarm Name, no operator
+         acknowledgement required
+
+    · Clear Alarm: Clear the status to Gray, display the Value and the Alarm Name. Clear
+         Alarm is also performed when Enable Condition is not satisfied
+
+Table 4 HMI software Alarms  Val < Hi  Hi < Val < HiHi Val  HiHi Notes
+
+  N Alarm Alarm name           Clear   Yellow  Red supported
+  1 Gauge1 Alarm G1            Alarm
+                               Clear
+2 Gauge3 Alarm G3              Alarm   Yellow  Red supported
+                               Clear
+3 Gauge4 Alarm G4              Alarm   Yellow  Red supported
+                               Clear
+4 Gauge5 Alarm G5              Alarm   Yellow  Red supported
+                               Clear
+5 Main      Alarm MP           Alarm   Yellow  Red supported
+      Pump
+
+11.1.2.5 Logs
+
+If the parameter Diagnostics = 1 in the Janis_HMI.ini, the software generates dated log files
+containing alarm event records located in the "C:/Alarm Logs/Logs" directory. Please create this
+directory using Windows Explorer before you make Diagnostics = 1:as this directory will not be
+created automatically by the software, and the log files will not be recorded if this directory does
+not exist. File names follow the naming convention below:
+
+EL20091204.txt = Event Log YYYY MM DD
+
+Events are recorded in tab delimited human readable ASCII format, for example:
+
+7:00:00 PM WaterSwitch_NoFlow 1
+
+                                                                        116
+11.1.2.6 Data Logs
+To record data into a file, click the "Start Log" button in the lower right corner of HMI GUI. The
+software will record the values of the pressure from all pressure gauges, the gas flow, resistance
+and temperature values of all sensors, and the power of the Still and Mixing Chamber Heaters into
+the ".../ni-rt/LabVIEW Data/" directory on cRIO controller. The file name contains the time stamp
+of the moment when the recording started, and follows the naming convention below:
+
+20160315060327.xls = YYYYMMDDHHMMSS.xls
+
+The size of the file recorded for more than a few days exceeds 10Mb (the size increases by 3-4Mb
+every 24 hours; the rate is about 1.7kb/min. The total disk space in cRIO is about 512Mb. Since
+the data logging is being made to cRIO, there is a danger that cRIO will run out of available
+memory. There is a built in software safety feature that will prevent this from happening: if the
+available disk space drops below the "Disk Alarm Limit" specified in percent of the total disk
+space in Janis_RT.ini (see Section Error! Reference source not found. Error! Reference source
+not found.), the data logging will stop, the "Start Log" button in HMI will turn red and become
+inactive, displaying "Disk Alarm" message. The data logging will not resume until the available
+disk space is larger than the "Disk Alarm Limit", meaning there is enough free space in cRIO. To
+find out the amount of available free space in cRIO go to the CONFIG Panel of HMI Software and
+click on "System Info" button. The available disk space is indicated in the "Avail. Disk Space"
+field (see Error! Reference source not found.).
+11.2 Remote Access via JetWay Computer and SSH
+The JanisULT GHS is supplied with a built-in Remote Access option, which allows system status
+monitoring, complete control over the GHS component in manual and automatic mode, as well as
+remote transfer of data log files.
+Architecturally, the Remote Access is implemented using a JetWay Computer, which allows a
+Secure Shell (SSH) access to the JACoB Private Automation Network.
+
+                                                                                                                 117
+                                          Figure 71 GHS Remote Access Architecture
+
+11.2.1 Setting up Remote Access via JetWay Computer and SSH
+In order to use Remote Access connection to monitor and control the GHS you will need the
+following prerequisites:
+
+    · A static IP address for your GHS issued by your local network administrator office. The
+         MAC address of the JetWay computer needed for serving a static IP address is printed on
+         a label attached to the computer case inside the GHS enclosure;
+
+    · A Secure Shell (SSH) access client with port-tunneling capabilities installed and
+         configured on a remote PC, we are using Putty in this guide (available for free download
+         at https://www.putty.org/);
+
+    · HMI software installed on a remote PC, which is supplied on a Customer USB with your
+         system or can be requested from JanisULT.
+
+Note:
+It is strongly recommended that you create a backup copy of any configuration file before
+performing any modification.
+
+    1. Make sure the JetWay is connected correctly. There are two Ethernet ports on the lower
+         left area of the GHS rear panel. Connect your local company network to the lower port,
+         labeled "J7 ­ Remote access"
+
+                                                                                                                 118
+                    Figure 72 GHS rear panel Remote Access port
+
+         2. Install the HMI Software on a PC you plan to use for Remote Access, and configure it as
+             follows:
+                  a. locate the HMI INI configuration file in
+                      C:\Program Files\GHSxxxxxxxx\data\Janis_HMI.ini and edit is
+                      as follows
+
+          b. Use a plain text editor to modify the IP_Address parameter string as shown
+              below and save the file:
+
+Before:
+
+[TCP/IP]
+
+IP_Address = 172.16.0.10
+IP_Port = 5557
+Timeout = 3000
+Diagnostics = 1
+
+[GUI]
+Valve_Delay = 2000
+
+                                                                 119
+    Heater_Bar = 50
+
+After:
+    [TCP/IP]
+    IP_Address = localhost
+    IP_Port = 5557
+    Timeout = 3000
+    Diagnostics = 1
+    [GUI]
+    Valve_Delay = 2000
+    Heater_Bar = 50
+
+         3. Install Putty on the PC you plan to use for remote access.
+         4. Launch Putty client and set up a session as follows:
+
+                  c. In the left pane navigate to Connection  SSH  Tunnels
+                  d. In "Source Port" enter 5557. In "Destination" enter the IP address for the cRIO
+
+                      followed by a destination port ­ 172.16.0.10:5557. This address for cRIO is
+                      predefined in the GHS internal network and will always remain the same.
+                  e. Click "Add" and the information will appear in the larger "Forwarded ports" box
+                      above
+                  f. To set up remote file transfer using WebDAV, you also need to forward port 80
+                      from the GHS to Remote PC. As before, in the "Source Port" enter 80. In the
+                      "Destination" enter 172.16.0.10:80.
+                  g. Click ADD and the information will be added to the "Forwarded ports" box;
+                  h. In the left pane navigate to the top and click on "Sessions";
+                  i. Select connection type "SSH", port 22;
+                  j. In the "Host name" enter either a DNS Name, which was provided by your network
+                      administrator or an IP address which he assigned to your GHS system.
+                  k. Assign a Name to the Session and click "Save". This will allow you to quickly load
+                      the Session next time without entering all the settings from scratch.
+
+                                                                                                                      120
+                                    Figure 73 Configuring Putty for Remote Access PC
+
+             a. Select the saved session and click "Open". This will open a Putty command window
+                  and upon successful connection to the GHS will display a login prompt. Login with
+                  the following credentials:
+
+                                            Username: bco
+                                            Password: aish8Hu8
+
+    5. Once logged in, launch your HMI Software application ­ you should be connected.
+    6. To be able to transfer files to and from the GHS using the WebDAV protocol through the
+
+         JetWay tunneled remote SSH connection:
+             a. Open MS Windows File Explorer;
+             b. Click "Map network drive"
+             c. Select a Letter in the drive field
+             d. In the folder box, type the following
+
+\\localhost:80\files
+
+             e. Make sure "Reconnect at login" box is checked and click "Finish"
+             f. At the first-time connection a login prompt will appear, use the cRIO controller
+
+                  default user credentials
+
+                                        Username: admin
+
+                                                                                                                 121
+                                        Password:
+             g. The default password is blank, do not type anything in the password box, just leave
+
+                  it as is and click ok
+             h. The cRIO file system will appear and you can now copy/move the files between
+
+                  the cRIO and the Remote Access PC.
+             i. In the future, the mapped drive will be available for use in MS Windows File
+
+                  Explorer every time when you are connected through the SSH Tunnel to the GHS
+
+                         Figure 74 Mapping network drive for GHS Remote Access file transfer
+
+11.2.2 Troubleshooting communication issues between cRIO and a remote PC
+When connecting from a remote PC to the GHS, you may see a popup window with a message
+"Config file not found on cRIO". This indicates a disrupted communication between the Remote
+PC the GHS. When this happens, try to increase the "Timeout" parameter in the HMI INI file (see
+Error! Reference source not found. Error! Reference source not found.) to 5000 (time in
+milliseconds).
+To increase the Timeout:
+
+    1. Close the HMI Software.
+                                                                                                                 122
+    2. Make a backup copy of Janis_HMI.ini. If something goes wrong and the updated file does
+         not work, use the backup copy
+
+    3. Open Janis_HMI.ini in a text editor and change the "Timeout" to 5000
+    4. Save the file and try running the HMI Software again.
+
+Please note that the timeout is a local parameter for each PC, and the touch panel PC and the remote
+PC connected to GHS remotely might have different timeout values accordingly.
+
+If increasing the Timeout to 5000 ms did not help and you still see the popup window with the
+message "Config file not found on cRIO", then check for other possible communication issues
+between the GHS and the Remote PC
+
+11.3 Application Programming Interface
+
+This section describes the JACoB third party Application Programming Interface (API). The API
+is provided to allow a third party to develop an application that can exercise limited access to the
+embedded real time automation controller in the Jacob for the purpose of retrieving sensor data
+and controlling heaters. Before using API, remote access in the client PC should be set up
+according to the Section Error! Reference source not found. of the Manual.
+
+11.3.1 Detail Design Description
+
+The Janis third party API is designed to offer a customer access to measured data and certain
+control parameters in the automation cRIO controller without interfering with the existing
+proprietary interface for the HMI. The API has its own TCP server on the cRIO. It will respond to
+requests made by a TCP client that is connected to the appropriate port on the server. For every
+request, the server will respond with one response. The response will be either valid data or an
+error code. Every response will contain at least a time stamp and a status code.
+
+A simple client example coded in LabVIEW 2015 is provided. This code demonstrates how to
+connect with the server, send a request/command and receive the response. Error handling and
+recovery of a dropped connection is left to the client to handle as the application dictates. The
+example is provided as a LabVIEW project called Janis API Sample Client.lvproj.
+
+The Syntax for commands using the API is as follows:
+
+Command(param 1 ­ I32,param 2 - double, param 3 - double,...)
+
+Parenthesis must be included. All parameters after the first one will be double. Return value is
+always a string.
+
+                                                                                                                 123
+The cRIO-9063 does not have an ability to maintain time during reboot or power down. To log the
+correct time, the time must be set once the GHS is up and running. The GHS software will
+automatically get a time stamp from the JetWay computer within a couple minutes of system start.
+Alternately, there are two ways to set the time.
+
+    a) Set the time through the BCO HMI. Clicking the Start Logging button on the HMI Main
+         Diagram will set the cRIO clock to the same time as the HMI computer. This method is
+         currently DISABLED.
+
+    b) Set the time is through the API syncTime() method. The syncTime Method requires five
+         parameters: Year, Month, Day, Hour, and Minute. This method will set the cRIO time to
+         the parameters provided in the method.
+
+NOTE:
+If the time is set using the API syncTime() method while logging, there may be a noticeable
+discontinuity in the HMI Log time stamps.
+
+11.3.2 Client Considerations
+The client must follow the sequence shown in the example as a minimum to connect and
+communicate with the server. The sequence is Connect, Send, Receive and Close Connection.
+Once a connection is established it may be left open while the send receive combination is repeated
+as many times as is needed and then the connection is closed when it is no longer needed. For
+every send, the client must wait for the response. It is not recommended that commands be sent
+faster that every 200 ms.
+
+The server expects that the first four bytes of every command be prefixed by four bytes containing
+the size in bytes of the command. It is the responsibility of the client to discover the size of the
+command to be sent and append this as a four-byte prefix. The server will append a four-byte
+prefix to the response containing the size of the response, not including the four bytes.
+
+The provided example is written in LabVIEW. However, the client can be written in any
+programming language. The Server creates a socket and listens on that socket. Any client that
+attempts a connection with the appropriate information will be serviced. The information needed
+is as follows:
+
+                                                                                                                 124
+IP Address   This is the IP address of the cRIO Automation Controller. Reference the Janis
+             Control Software User Manual for your system for this information (see also
+Port Number  Section Error! Reference source not found. of this Manual)
+Timeout      The API Server listens on port number 5559
+             Timeout is not required for a connection, but is needed to determine how long
+             the client should wait for a response before declaring and error condition. The
+             recommended value is at least 1 s.
+
+Currently the maximum number of clients allowed to connect through the API at the same time is
+hard coded at 1.
+
+11.3.3 Command Summary
+readTemp(sensorNumber)
+
+Parameter 1  Type          Range
+Sensor #     I32           1..16
+
+Example:
+readTemp(2) returns a string containing temperature data from the LS370 sensor #2
+
+The return type is String and contains 4 coma separated values.
+Example: 99270.000000,1.400050,11:41:46.816 06/13/2014,0
+
+            99270.000000 = the resistance value in ohms for sensor #2
+            1.400050 = the temperature in Kelvin for sensor #2
+            11:41:46.816 06/13/2014 = the time the measurement was recorded
+            0 = Status (See Status Summary)
+
+readPressure(gaugeNumber)
+
+Parameter 1  Type          Range
+Gauge #      I32           1..3
+
+Example:
+readPressure(1) returns a string containing pressure data from the Jacob Gauge #1
+
+The return type is String and contains 4 coma separated values.
+Example: 8.502307,1005.326055,11:48:18.901 06/13/2014,0
+
+            8.502307 = the pressure value in volts for gauge #1
+            1005.326055 = the pressure in mbar for gauge #1
+
+                                                                                   125
+11:48:18.901 06/13/2014 = the time the measurement was recorded
+0 = Status (See Status Summary)
+
+readFlow(flowMeterNumber)
+
+Parameter 1          Type        Range
+                           1
+Flow Meter # I32
+
+Example:
+readFlow(1) returns a string containing flow rate data from the Jacob flow meter. There is only
+one flow meter at this time.
+
+The return type is String and contains 4 coma separated values.
+Example: 0.002454,0.490856,11:54:33.985 06/13/2014,0
+
+            0.002454 = the flow value in volts from the flow meter
+            0.490856 = the flow in uMoles/s from the flow meter
+            11:54:33.985 06/13/2014 = the time the measurement was recorded
+            0 = Status (See Status Summary)
+
+readHtrPwr(heaterNumber)
+
+Parameter 1  Type          Range
+                           1..2
+Heater Number # I32
+
+Example:
+readHtrPwr(1) returns a string containing heater power data for heater #1 from the LS370.
+
+The return type is String and contains 3 coma separated values.
+Example: 0.000000,12:23:05.632 06/13/2014,0
+
+            0.000000 = this string consists of the heater output value and a letter that corresponds
+                          to the units of power: no letter ­ W, m ­ mW, u ­ uW, n - nW
+
+            11:54:33.985 06/13/2014 = the time the measurement was recorded
+            0 = Status (See Status Summary)
+
+readCMNTemp(lcrSensor)
+
+                                                                             126
+Parameter 1          Type        Range
+                           1
+LCR Sensor # I32
+
+Example:
+readCMNTemp(1) returns a string containing temperature data from the Agilent 4263B LCR
+Meter. There is only one CMN Sensor at this time.
+
+The return type is String and contains 4 coma separated values.
+Example: 16.577700,0.000000,12:34:18.277 06/13/2014,0
+
+            16.577700 = mutual inductance in Henry
+            0.000000 = calculated temperature in Kelvin
+            11:54:33.985 06/13/2014 = the time the measurement was recorded
+            0 = Status (See Status Summary)
+
+readHtrCntrlMode(heaterNumber)
+
+Parameter 1  Type          Range
+                           1..2
+Heater Number # I32
+
+Example:
+readHtrCntrlMode(1) returns a string containing the heater control mode for heater #1 from
+the LS370.
+
+The return type is String and contains 3 coma separated values.
+Example: 4,13:04:58.707 06/13/2014,0
+
+            4 = the heater control mode from the LS370 for the selected heater
+            13:04:58.707 06/13/2014 = the time the measurement was recorded
+            0 = Status (See Status Summary)
+
+readHtrPID(heaterNumber)
+
+Parameter 1  Type          Range
+                           1..2
+Heater Number # I32
+
+Example:
+readHtrPID(1) returns a string containing the PID control Parameters for heater #1 from the
+LS370.
+
+                                                                                127
+Heater #2 = Still Heater ­ the command is available for heater #2 for future use. Currently, the
+Still heater does not support HW PID control from the LS370.
+
+The return type is String and contains 5 coma separated values.
+Example: 1.000000,0.010000,0.000000,13:21:29.728 06/13/2014,0
+
+            1.000000 = the P parameter from the LS370 for the selected heater
+            0.010000 = the I parameter from the LS370 for the selected heater
+            0.000000 = the D parameter from the LS370 for the selected heater
+            13:21:29.728 06/13/2014 = the time the measurement was recorded
+            0 = Status (See Status Summary)
+
+readHtrSetPoint(heaterNumber)
+
+Parameter 1  Type              Range
+                               1..2
+Heater Number # I32
+
+Example:
+readHtrSetPoint(1) returns a string containing the Set Point value for heater #1 from the
+LS370.
+
+The return type is String and contains 3 coma separated values.
+
+Example: 0.000000,13:26:12.235 06/13/2014,0
+            0.000000 = the heater set point in Kelvin from the LS370 for the selected heater
+            13:26:12.235 06/13/2014 = the time the measurement was recorded
+            0 = Status (See Status Summary)
+
+readHtrManualOut(heaterNumber)
+
+Parameter 1  Type              Range
+                               1..2
+Heater Number # I32
+
+Example:
+readHtrManualOut(1) returns a string containing the Set Point value for heater #1 from the
+LS370.
+
+The return type is String and contains 3 coma separated values.
+Example: 0.000000,13:26:12.235 06/13/2014,0
+
+                                                                                                                 128
+0.000000 = the manual set value (Output % for the MC heater, Volt for the Still heater)
+              from the LS370 for the selected heater
+
+13:26:12.235 06/13/2014 = the time the measurement was recorded
+0 = Status (See Status Summary)
+
+setHtrCntrlModeOff(heaterNumber)
+
+Parameter 1          Type        Range
+                           1..2
+Heater Number # I32
+
+Example:
+setHtrCntrlModeOff(1) sets the control mode for heater #1 to Off and returns a string
+containing the time stamp of the command and status.
+
+The return type is String and contains 2 coma separated values.
+Example: 13:26:12.235 06/13/2014,0
+
+            13:26:12.235 06/13/2014 = the time the command was executed
+            0 = Status (See Status Summary)
+
+setHtrCntrlModeOpenLoop(heaterNumber,outputValue,heaterRange)
+
+  Parameter #               Parameter name     Type                             Range
+1              Heater Number #              I32                          1..2
+2              Output % for MC heater       Double                       0..100 for MC
+               Volts for Still heater                                    0..3 for Still
+3              Range                        Double                       0..8
+
+Example:
+setHtrCntrlModeOpenLoop(1,50,3) sets the control mode for the MC heater to Open
+Loop and the output power to 50% of Range 3 returning a string containing the time stamp of the
+command and status.
+
+The return type is String and contains 2 coma separated values.
+Example: 13:26:12.235 06/13/2014,0
+
+            13:26:12.235 06/13/2014 = the time the command was executed
+            0 = Status (See Status Summary)
+
+                                                                                         129
+setHtrCntrlModeHwPID(heaterNumber,setPoint,heaterRange,P,I,D)
+
+  Parameter #     Parameter name        Type            Range
+1              Heater Number #    I32             1..2
+2              Set Point          Double          0..500 K
+3              Range              Double          0..8
+4              P                  Double          .001..1000
+5              I                  Double          0..10000
+6              D                  Double          0..2500
+
+Example:
+setHtrCntrlModeHwPID(1,10,3,1,1000,500) sets the control mode for the MC
+heater to HW PID, the loop set point to 10 K, Range 3, P parameter 1, I parameter 1000, and D
+parameter to 500. Returns a string containing the time stamp of the command and status.
+
+The return type is String and contains 2 coma separated values.
+Example: 13:26:12.235 06/13/2014,0
+
+            13:26:12.235 06/13/2014 = the time the command was executed
+            0 = Status (See Status Summary)
+
+setHtrCntrlModeZone(heaterNumber,setPoint)
+
+Parameter #    Parameter name     Type            Range
+1              Heater Number #    I32             1..2
+2              Set Point          Double          0..500 K
+
+Example:
+setHtrCntrlModeZone(1,10) sets the control mode for the MC heater to Zone and the loop
+set point to 10 K. Returns a string containing the time stamp of the command and status.
+
+The return type is String and contains 2 coma separated values.
+Example: 13:26:12.235 06/13/2014,0
+
+            13:26:12.235 06/13/2014 = the time the command was executed
+            0 = Status (See Status Summary)
+
+setHtrOpenLoopSetPoint(heaterNumber,outputPower)
+
+                                                                         130
+Parameter #    Parameter name       Type                         Range
+1              Heater Number #      I32                          1..2
+2              Output Power         Double                       0..100%
+
+Example:
+setHtrOpenLoopSetPoint(1,20) sets the open loop MC heater power to 10%. Returns a
+string containing the time stamp of the command and status.
+
+The return type is String and contains 2 coma separated values.
+Example: 13:26:12.235 06/13/2014,0
+
+            13:26:12.235 06/13/2014 = the time the command was executed
+            0 = Status (See Status Summary)
+
+setHtrRange(heaterNumber,heaterRange)
+
+Parameter #    Parameter name       Type                         Range
+1              Heater Number #      I32                          1..2
+2              Heater Range         Double                       0..8
+
+Example:
+setHtrRange(1,3) sets the MC heater range to 3. Returns a string containing the time stamp
+of the command and status.
+
+The return type is String and contains 2 coma separated values.
+Example: 13:26:12.235 06/13/2014,0
+13:26:12.235 06/13/2014 = the time the command was executed
+0 = Status (See Status Summary)
+
+setHtrPIDCntrlChannel (heaterNumber,sensorChannel)
+
+  Parameter #       Parameter name        Type                         Range
+1              Heater Number #      I32                          1..2
+2              Sensor Channel       Double                       1..16
+
+                                                                              131
+Example:
+setPIDCntrlChannel(1,7) sets the MC heater PID process variable to LS370 sensor #7.
+Returns a string containing the time stamp of the command and status.
+
+The return type is String and contains 2 coma separated values.
+Example: 13:26:12.235 06/13/2014,0
+
+            13:26:12.235 06/13/2014 = the time the command was executed
+            0 = Status (See Status Summary)
+
+setHtrPIDSetPoint(heaterNumber,setPoint)
+
+Parameter #     Parameter name   Type        Range
+1               Heater Number #  I32         1..2
+2               PID Set Point    Double      0..500
+
+Example:
+setPIDSetPoint(1,20) sets the MC heater PID set point to 20. Returns a string containing
+the time stamp of the command and status.
+
+The return type is String and contains 2 coma separated values.
+Example: 13:26:12.235 06/13/2014,0
+
+            13:26:12.235 06/13/2014 = the time the command was executed
+            0 = Status (See Status Summary)
+
+getLastError()
+
+Parameter # Parameter name             Type        Range
+                                             none
+none            none             none
+
+Example:
+getLastError() Returns the last system related error stored by the API state machine and
+resets the error code to 0. The API state machine does not record syntax errors such as error codes
+-100 through -1500.
+
+Sending a command such as readCMNTemp(1) while the LCR meter is disabled would generate
+a response as follows:
+15:07:44.066 06/13/2014,-1600
+
+                                                                         132
+Sending getLastError() will return
+-1600,LCR Meter Not Available,15:07:44.066 06/13/2014,0
+
+The return type is String and contains 4 coma separated values.
+Example: -1600,LCR Meter Not Available,15:07:44.066 06/13/2014,0
+
+            -1600 = Error Code
+            LCR Meter Not Available = Error Text
+            15:07:44.066 06/13/2014 = Time error occurred
+            0 = Status (See Status Summary)
+
+getErrorText(errorCode)
+
+Parameter #    Parameter name   Type        Range
+1              Error Code       I32         0..-2500 by 100
+
+Example:
+getErrorText(-100) Returns the Text/Definition associated with error code -100.
+
+The return type is String and contains 4 coma separated values.
+Example: -100,Parameter 1 Invalid,15:18:13.282 06/13/2014,0
+
+            -100 = Error Code
+            Parameter 1 Invalid = Error Text
+            15:18:13.282 06/13/2014 = The time the command was sent
+            0 = Status (See Status Summary)
+
+syncTime(year,month,day,hour,minute)
+
+  Parameter #   Parameter name        Type        Range
+1              Year             I32         2000..3000
+2              Month            Double      1..12
+3              Day              Double      1..31
+4              Hour             Double      0..23
+5              Minute           Double      0..59
+
+Example:
+syncTime(2014,6,13,14,33) Sets the cRIO internal clock to June 13, 2014 14:33:00.
+
+The return type is String and contains 2 coma separated values.
+                                                                                                                 133
+Example:
+            15:18:13.282 06/13/2014,0 = The time the command was sent. This will be equal to
+            the time set in the command parameters.
+            0 = Status (See Status Summary)
+
+readValveStatus(valve number)
+
+Parameter #  Parameter name Type  Range
+1            Valve number I32     1...15,21...23
+
+Example:
+readValveStatus(1) returns a string containing the Open/Closed status of V1. 1 = Open, 0
+= Closed.
+
+The return type is String and contains 3 coma separated values.
+Example:
+
+           0,11:41:46.816 06/13/2014,0
+           0 = the status of V1 (1 = Open, 0 = Closed)
+           11:41:46.816 06/13/2014 = The time the command was sent
+           0 = Status (See Status Summary)
+
+getLoggingState()
+
+Parameter #  Parameter name Type  Range
+none
+
+Example:
+getLoggingState() returns a string containing the state of the logging function. 1 = On, 0 =
+Off.
+
+The return type is String and contains 3 coma separated values.
+Example:
+
+           0,11:41:46.816 06/13/2014,0
+           0 = the state of the logging function (1 = On, 0 = Off)
+           11:41:46.816 06/13/2014 = The time the command was sent
+           0 = Status (See Status Summary)
+
+                                                                    134
+setLogging(on/off)
+
+   Parameter #      Parameter name             Type                    Range
+                                                I32                      0,1
+1                  Logging state (on/off)
+
+Example:
+setLogging(1) sets logging on or off. 1 = On, 0 = Off.
+
+Returns a string containing the time stamp of the command and status.
+Example: 11:41:46.816 06/13/2014,0
+
+            11:41:46.816 06/13/2014 = The time the command was sent
+            0 = Status (See Status Summary)
+
+11.3.4 Parameters Definitions
+
+Heater Number Values
+
+                      Heater Number
+
+                1                          Mixing Chamber Heater
+
+                2                              Still Heater
+
+Heater Mode Values
+
+                               Heater Mode
+
+      MC Heater                                Still Heater
+
+   4                  Off                   0                Off
+
+   3                Open Loop               2           Open Loop
+
+   2                  Zone
+
+   1                HW PID
+
+                                                                              135
+Heater Range Values
+
+   Heater range
+
+0                                 Off
+
+1                                 31.6 uA
+
+2                                 100 uA
+
+3                                 316 uA
+
+4                                 1 mA
+
+5                                 3.16mA
+
+6                                 10 mA
+
+7                                 31.6 mA
+
+8                                 100 mA
+
+Heater PID Values                 .001..1000
+                                   0..10000
+                             PID   0.. 2500
+               P
+                I
+               D
+
+                                              136
+11.3.5 Status Definitions
+
+0      Success
+-100   Parameter 1 Invalid
+-200   Parameter 2 Invalid
+-300   Parameter 3 Invalid
+-400   Parameter 4 Invalid
+-500   Parameter 5 Invalid
+-600   Parameter 6 Invalid
+-700   Parameter 7 Invalid
+-800   Parameter 8 Invalid
+-900   Parameter 9 Invalid
+-1000  Parameter 10 Invalid
+-1100  Wrong Number of Params
+-1200  Unsupported Command
+-1300  Bad Param Type
+-1400  Missing Open Parenthesis
+-1500  Missing Close Parenthesis
+-1600  LCR Meter Not Available
+-1700  Error Code Not Found
+-1800  Reserved
+-1900  Reserved
+-2000  Reserved
+-2100  Reserved
+-2200  Reserved
+-2300  Reserved
+-2400  Reserved
+-2500  Reserved
+
+11.4 Scripting Language Description
+
+This section describes the Janis Jacob Scripting Language. The Scripting language allows a user
+to develop "Smart Scripts" for the purpose of automating some typical routine procedures of
+cryostat operation.
+
+                                  137
+11.4.1 Detail Design Description
+The Janis Scripting Capability is built around a parser and execution engine that recognizes and
+executes a limited set of commands or language. The language is designed around the operation
+of the Jacob Gas Handling System.
+The Graphical User Interface (GUI) for the Scripting Engine resides within the Jacob HMI. The
+Script controls are located in the lower left corner of the HMI MAIN Panel, and are united by a
+"System Control" block.
+
+                                             Figure 75 GHS Script control interface
+
+The user can select from a list of preconfigured Scripts from the drop-down menu. Once the desired
+Scripts is selected, the user can click "RUN" button to execute it and "STOP" button to stop the
+Scripts at any moment. The UI will display the Scripts Status in the status in the "Status" text box
+below the script selection control.
+
+                                                                                                                 138
+Clicking the RUN button will also create a log file Script_Log_[timestamp].log located
+in
+/home/lvuser/natinst/LabVIEW Data/
+Parameters that refer to specific resources available in the JACoB System like gauges, flow meters,
+temperature channels, etc. can be referred to by name. Valid names are listed in Section 11.4.3.
+The scripting engine has a built in block of `scratch pad' memory that is of type double and is
+1 Kilobyte (1024 byte) in size. Any reference to a script memory location should be prefaced with
+a # sign to distinguish it as a memory location.
+Example:
+ReadPressure G1, #100; stores pressure from G1 in memory location 100
+The Scripts are defined in a text file called Automation.scr that resides on the cRIO at the following
+location:
+/home/lvuser/natinst/LabVIEW Data/
+The Automation.scr file is a text file and can be manually edited with a text editor. The file is read
+at system startup. If the file has been edited, the changes will not be recognized until the GHS is
+restarted.
+The Automation.scr file is a list of commands and parameters that will be parsed and executed in
+sequence. There is limited looping and conditional branching capability.
+The command format is as follows.
+LineNumber[TAB]Command[TAB]param 1,param 2,...;comment[CR]
+
+The Automation.scr file follows the following format:
+
+                                                                                                                 139
+Example:
+
+1  ScriptName Manual Mode
+
+2  ScriptName Condensation
+
+3  DisableAlarm  G1,Disable
+
+4  DisableAlarm  G3,Disable
+
+5  MainPump On
+
+6  Delay 5
+
+7  MainPump Off
+
+8  Delay 2
+
+9  MainPump On
+
+10 Delay 1
+
+11 BoosterPump   On
+
+12 Delay 5
+
+13 BoosterPump   Off
+
+14 Delay 1
+
+15 MainPump Off
+
+16 Delay 1
+
+17 PTCompressor On
+
+18 Delay 5
+
+19 PTCompressor Off
+
+20 JTCompressor On
+
+21 Delay 5
+
+22 JTCompressor Off
+
+23 GetCompressorStatus #100
+
+24 GetMainPumpStatus              #101
+
+16 DisableAlarm G1,Enable
+
+17 DisableAlarm G3,Enable
+
+24 Label End
+
+25 StopScript
+
+11.4.2 Command Summary
+ScriptName `Name of the Script
+
+   Parameter 1   Range
+
+Routine Name Any string
+
+Example: ScriptName Condensation
+
+ScriptName defines the beginning of a new Script. All scripts are stored in the same
+Automation.scr file and each individual script is delineated by the ScriptName command. The
+name defined with this command is also the name that will appear in the Script selection menu in
+the UI. This command will also log the Script Name in the log file.
+
+                                        140
+ReadPressure         Gauge Resource, Address
+
+   Parameter #              Parameter Name                    Range
+                                                    G1 through G5
+1               Gauge Resource. See Section 11.4.3  #0 ­ #1024
+
+2               Address to store pressure read
+
+Example: ReadPressure G1, #100
+
+ReadPressure retrieves the latest pressure measurement from the Gauge selected and stores the
+value in the script memory address selected. This command will also log the ReadPressure event
+in the log file. Unit of measure for Pressure value is [bar].
+
+ReadFlow #Address
+
+   Parameter 1                         Range
+
+Address to store flow read #0 ­ #1024
+
+from the flow meter
+
+Example: ReadFlow #100
+
+ReadFlow retrieves the latest flow measurement from the Flow Meter. Currently the Jacob only
+has one flow meter so there is no need for a resource selection. The value is stored in #Address.
+This command will also log the ReadFlow event in the log file. Unit of measure for Flow value is
+[mole/s].
+
+ReadTemp Temp Channel Resource, Address
+
+  Parameter #             Parameter Name                         Range
+1               Temp Channel                        T1 through T16
+2               Address to store temperature read   #0 ­ #1024
+
+Example: ReadTemp T1, #100
+
+ReadTemp retrieves the latest temperature measurement from the Channel selected and stores the
+value in the script memory address selected. This command will also log the ReadTemp event in
+the log file. Unit of measure for Temperature value is [K].
+
+ReadResistance Resistance Channel Resource, Address
+                                                                                                                 141
+   Parameter #            Parameter Name                        Range
+                                                   R1 through R16
+1               Resistance Channel                 #0 ­ #1024
+
+2               Address to store temperature read
+
+Example: ReadResistance R1, #100
+
+ReadResistance retrieves the latest resistance measurement from the Channel selected and stores
+the value in the script memory address selected. This command will also log the ReadResistance
+event in the log file. Unit of measure for Resistance value is [ohm].
+
+MainPump ON/OFF
+
+   Parameter 1   Range
+
+ON/OFF          ON/OFF
+
+Example: MainPump ON
+
+MainPump turns the main pump on based on the state of Alarms and Alarm Enables. Alarm states
+are defined in the Software reference manual. Alarm Enables are defined in the DisableAlarm
+command below. This command will also log the MainPump event in the log file.
+
+BoosterPump     ON/OFF
+
+   Parameter 1   Range
+
+ON/OFF          ON/OFF
+
+Example: BoosterPump ON
+
+BoosterPump turns the booster pump on based on the state of Alarms and Alarm Enables. Alarm
+states are defined in the Software reference manual. Alarm Enables are defined in the
+DisableAlarm command below. This command will also log the BoosterPump event in the log
+file.
+
+PTCompressor    ON/OFF
+
+   Parameter 1   Range
+
+ON/OFF          ON/OFF
+
+Example: PTCompressor ON
+
+                                                                       142
+PTCompressor turns the PTCompressor on if so equipped, based on the state of Alarms and Alarm
+Enables. Alarm states are defined in the Software reference manual. Alarm Enables are defined
+in the DisableAlarm command below. This command will also log the PTCompressor event in
+the log file.
+
+JTCompressor  ON/OFF
+
+Parameter 1   Range
+
+ON/OFF        ON/OFF
+
+Example: PTCompressor ON
+
+JTCompressor turns the JTCompressor on if so equipped, based on the state of Alarms and Alarm
+Enables. Alarm states are defined in the Software reference manual. Alarm Enables are defined
+in the DisableAlarm command below. This command will also log the JTCompressor event in the
+log file.
+
+HeatSwitch Engage/Disengage
+
+Parameter 1          Range
+
+Engage/Disengage Engage/Disengage
+
+Example: HeatSwitch Engage
+
+HeatSwitch engages the HeatSwitch, if so equipped. This command will log the heat switch event
+in the log file.
+
+ReadHeatSwitchStatus Address
+
+        Parameter 1                Range
+
+Address to store Heat Switch Status #0 ­ #1024
+
+Example: ReadHeatSwitchStatus #100
+
+ReadHeatSwitchStatus retrieves the latest Engaged/Disengaged Status of the Heat Switch if so
+equipped and stores the value in the script memory address selected. This command will also log
+the ReadHeatSwitchStatus event in the log file.
+
+                                                143
+ReadNeedleValvePercent Address
+
+                  Parameter 1                Range
+Address to store Needle Valve Status  #0 ­ #1024
+
+Example: ReadNeedleValvePercent #100
+
+ReadNeedleValvePercent retrieves the latest Needle Valve Percent Open Status if so equipped and
+stores the value in the script memory address selected. This command will also log the
+ReadNeedleValvePercent event in the log file.
+
+Delay Address
+
+               Parameter 1                  Range
+Address to store delay in s           #1 ­ #1024
+
+Example: Delay #100
+
+Delay pauses the Routine execution by the number of seconds stored in the memory location 100.
+
+WaitCondition resource name, operator, #Address of compare value
+
+   Parameter #  Parameter name                                Range
+                                          Any of the resource names listed in
+1               Resource name             Section 11.4.3
+                                          <,>,=
+2               operator                  #0 - #1024
+
+3               Address of compare value
+
+Example: WaitCondition G1, <, #100
+
+WaitCondition pauses execution and waits until the pressure read from G1 is less than the value
+stored at memory location 100.
+
+Message `message text'
+
+                                                                               144
+      Parameter #          Parameter name                              Range
+1                  Message Text
+                                                  Any text
+
+Example: Message This is a message.
+
+Message will send the message text to the UI Scripting Status window.
+
+MessageWait        `message text'
+
+   Parameter #     Parameter name                     Range
+                                           Any text
+1                  Message Text
+
+Example: MessageWait Click Ok when you are ready.
+
+MessageWait will generate popup window at the UI with the message text displayed. The Routine
+will pause and wait till the user clicks OK, then continue.
+
+MessageChoice `message text','button 1 text','button 2 text,#address for
+result
+
+  Parameter #             Parameter name             Range
+1                  Message Text
+2                  Button 1 text           Any text
+3                  Button 2 text           Any text
+4                  Address for result      Any text
+                                           N/A
+
+Example: MessageChoice Choose A or B, A, B, #100
+
+MessageChoice will generate popup window at the UI with the message text displayed. The popup
+will have two buttons with Button 1 text - A and Button 2 text ­ B. The Routine will pause and
+wait till the user clicks selects a button. Once the user selects a button, the Routine will continue
+and store the user selection in script memory address 100. Button A will store a 0, Button B will
+store a 1.
+
+MessageChoice `message text', #address for result
+
+   Parameter #     Parameter name                           Range
+
+1                  Message Text            Any text
+                                           N/A
+2                  Address for result
+
+                                                                              145
+Example: MessageResponse Enter target Temp, #100
+
+MessageResponse will generate popup window at the UI with the message text displayed. The
+message should request a value from the user. The Routine will pause and wait till the user enters
+a value and clicks OK. Once the user clicks OK, the Routine will continue and store the user
+response in script memory address 100.
+
+Label `label name'
+
+   Parameter #      Parameter name                Range
+                                       Any text
+1               Label name
+
+Example: Label  here.
+
+Label will create a reference point in the Routine call `here'. This point can be used to create
+looping and decision constructs. From other places in the script, a GOTO command can jump to
+a label.
+
+Goto `label name'
+
+   Parameter #         Parameter name                  Range
+                                       Any text
+1               Label name
+
+Example: Goto   here.
+
+Goto will branch the Routine and continue execution from the `here' label..
+
+If #address of operand 1, operator, #address of operand 2, [Then]
+`label name'
+
+  Parameter #        Parameter name                          Range
+1               Address of op 1        #0 - #1024
+2               operator               <,>,=
+3               Address of op 2        #0 - #1024
+4               Then                   Then
+5               Label name             Any label name defined in the Routine
+
+Example: If #100, >, #101, Then here
+
+                                                                              146
+If will perform the operation, in this case >, on the two operands and, based on the result, branch
+to the label or continue to the next command. The "Then" is a constant and must be used as shown.
+
+StopScript
+
+No Parameters
+
+Example: StopScript
+
+StopScript will stop execution of the routine and should be used at the end of every script as well
+as at the end of any branch where execution should stop. This command will also close the log
+file.
+
+SetValve Valve Name, Open/Close
+
+      Parameter #               Parameter name               Range
+1                  Valve Name                   V1 ­ V4, V6 - V22
+2                  Open/Close                   Open/Close
+
+Example: SetValve V1, Open
+
+SetValve will Open V1. This command will also log the SetValve event in the log file. Set Valve
+does not support the proportional valve ­ V5.
+
+GetValveState Valve Name, #address for result
+
+  Parameter #           Parameter name               Range
+1                  Valve Name           V1 ­ V4, V6 - V22
+2                  Address              #0 - #1024
+
+Example: GetValveState V1, 10
+
+GetValveState will get the open/closed status of V1and store it in script memory address 10. This
+command will also log the GetValveState event in the log file. Set Valve does not support the
+proportional valve ­ V5. Return value in address 10 maps to 1=open, 0 = closed.
+
+SetV5 #Address
+                                                                                                                 147
+   Parameter #                  Parameter name                       Range
+
+1               Address containing value to open V5 to in % 0 ­ 100%
+
+Example: SetV5 50
+
+SetV5 will Open V5 to 50%. This command will also log the SetV5 event in the log file.
+
+SetMemValue     #address, value
+
+   Parameter #     Parameter name                         Range
+                                                 #0 - #1024
+1               Address to store value in        Any real number
+
+2               Value to store
+
+Example: SetMemValve #100, 1.4
+
+SetMemValve will store 1.4 in mem location 100.
+
+AND #address to store result, number of Boolean operands, #address of
+op 1, #address of op 2,
+
+  Parameter #           Parameter name                        Range
+1               #address to store result         #0 - #1024
+2               Number of operands               0...
+3               #address of op 1                 #0 - #1024
+4               #address of op 2                 #0 - #1024
+5               ...                              #0 - #1024
+
+Example: AND    #200,3,#100,#101,#102
+
+AND will perform the Logical AND operation on the contents of address 100, 101 and 103 and
+store the result in address 200.
+
+OR #address to store result, number of Boolean operands, #address of op
+1, #address of op 2,
+
+Parameter #             Parameter name                     Range
+1               #address to store result         #0 - #1024
+2               Number of operands               0...
+3               #address of op 1                 #0 - #1024
+4               #address of op 2                 #0 - #1024
+
+                                                                                        148
+5               ...                           #0 - #1024
+
+Example: OR #200,3,#100,#101,#102
+
+OR will perform the Logical OR operation on the contents of address 100, 101 and 103 and store
+the result in address 200.
+
+Add #address of op 1, #address of op 2,#address to store result
+
+  Parameter #             Parameter name                  Range
+1                  #address of op 1           #0 - #1024
+2                  #address of op 2           #0 - #1024
+3                  #address to store result   #0 - #1024
+
+Example: Add #100,#200,#300
+
+will add the contents of 100 to the contents of 200 and store the result in 300.
+
+Subtract #address of op 1, #address of op 2,#address to store result
+
+  Parameter #               Parameter name               Range
+1                  #address of op 1           #0 - #1024
+2                  #address of op 2           #0 - #1024
+3                  #address to store result   #0 - #1024
+
+Example: Subtract    #100,#200,#300
+
+will subtract the contents of 200 from the contents of 100 and store the result in 300.
+
+LogMessage `message text'
+
+   Parameter #       Parameter name                       Range
+                                              Any text
+1                  Message text
+
+Example: LogMessage  This is a message for the log file.
+
+Will place the message text in the log file.
+
+LogValue `message text', value
+                                                                                                                 149
+   Parameter #  Parameter name                       Range
+                                          Any text
+1               Message text              #0 - #1024
+
+2               Address of value to log
+
+Example: LogValue This is a message for the log file, #100
+Will place the message text and value in the log file.
+
+GetAlarmState Alarm name,#address
+
+   Parameter #  Parameter name                              Range
+
+1               Alarm name                Any legal alarm name. See Section 11.4.3
+
+2               #address to store result #0 - #1024
+
+Example: GetAlarmState G1, #100
+
+Will store the Alarm State for G1 in address 100. This command will also log the Alarm State
+event in the log file.
+
+GetAlarmEnable Alarm name,#address
+
+  Parameter #       Parameter name                                 Range
+1               Alarm name                Any legal alarm name. See Section 11.4.3
+2               #address to store result  #0 - #1024
+
+Example: GetAlarmEnable G1, #100
+
+will store the Alarm Enable Mask for G1 in address 100. This command will also log the Alarm
+Enable event in the log file.
+
+DisableAlarm Alarm name,Enable/Disable
+
+   Parameter # Parameter name                               Range
+
+1               Alarm name        Any legal alarm name. See Section 11.4.3
+
+2               Enable/Disable Enable/Disable
+
+Example: DisableAlarm G1, Disable
+
+Will disable the G1 Alarm. This command will also log the Disable Alarm event in the log file.
+
+                                                                                    150
+GetCompressorStatus #address
+
+   Parameter #                      Parameter name               Range
+                                                           #0 ­ #1024
+1               #Address to store Compressor on/off State
+
+Example: GetCompressorStatus #100
+
+Will store the current compressor on/off status at address 100. This command only works for the
+PT Compressor. The JT Compressor does not supply status. This command will also log the Get
+Compressor Status Event.
+
+See Section 11.4.3 for Compressor Status
+
+GetMainPumpStatus #address
+
+   Parameter #              Parameter name                Range
+                                                    #0 ­ #1024
+1               #Address to store Main Pump Status
+
+Example: GetMainPumpStatus          #100
+
+Will store the current main pump status at address 100. This command will also log the Get Main
+Pump Status Event.
+
+See Section 11.4.3 for pump status
+
+Add #address,#address,#address
+
+  Parameter #                   Parameter name                   Range
+1               #Address of first operand                  #0 ­ #1024
+2               #Address of second operand                 #0 ­ #1024
+3               #Address to store result                   #0 ­ #1024
+
+Example: Add    #100,#101,#102
+
+will add the values stored in the first two addresses and store the result in the third address.
+
+Subtract #address,#address,#address
+
+                                                                                                  151
+  Parameter #               Parameter name           Range
+1                  #Address of first operand   #0 ­ #1024
+2                  #Address of second operand  #0 ­ #1024
+3                  #Address to store result    #0 ­ #1024
+
+Example: Subtract    #100,#101,#102
+
+will subtract the value stored in the second address from the value stored in the first address and
+
+store the result in the third address.
+
+CLS
+
+No Parameters
+
+Example: CLS
+Will write an empty string to the Script Status indicator on the GUI. This can be used to clear any
+user messages that are no longer needed or appropriate.
+
+UPSShutdown
+
+No Parameters
+
+Example: UPSShutdown
+will shut down the UPS System and power down the entire Jacob and all internal functions within
+1 second.
+
+StartScript
+
+   Parameter # Parameter name                  Range
+
+1                  Script Name          Any valid script name
+
+Example: StartScript LTPL_Recovery
+Will flush the automation queue and begin execution of the LTPL_Recovery Script.
+
+SetPMRecoveryEnable
+
+Parameter #        Parameter name Range
+1                  Enable/Disable Enable/Disable
+
+                                                                                  152
+Example: SetPMRecoveryEnable Enable
+Will enable the Power Loss Recovery feature in the Jacob. Recovery Mode will read its
+enable/disable state from the Janis_RT.ini file on system startup and any reboot. This command
+will alter the state during run time. It does not save the state to the ini file so upon reboot, the
+system will revert to the state dictated in the ini file.
+
+CallSubroutine
+
+Parameter #     Parameter name Range
+1
+                Script Name            Any valid script name
+
+Example: CallSubroutine LTPL_Recovery
+will flush the automation queue and begin execution of the LTPL_Recovery Script.
+
+This command will return to the next command and continue execution after the called script
+finishes execution. In theory, any number of nested calls can be made.
+
+GetBoosterPumpStatus #address
+
+   Parameter #               Parameter name                            Range
+                                                               1,2
+1               Booster Pump to Query
+                                                               #0 ­ #1024
+2               #Address to store Booster Pump Running Status  #0 ­ #1024
+                                                               #0 ­ #1024
+3               #Address to store Booster Pump % Max speed
+
+4               #Address to store Booster Pump Speed
+
+Example: GetBoosterPumpStatus #1,#100,#101,#102
+This will store the selected Booster Pump Running status at address 100, Booster Pump % Max
+speed at address 101 and Booster Pump Speed at address 102. This command will also log the Get
+Booster Pump Status Event.
+
+Units for Booster Pump Percent Max Speed are [% Max Value] (630Hz). Units for Booster Speed
+are [Hz].
+See Section Error! Reference source not found. Error! Reference source not found. for the
+Booster Pump Status
+
+GetV5Percent    #Address
+
+                                                                                  153
+                  Parameter 1              Range
+Address to store V5 Percent Open    #0 ­ #1024
+
+Example: GetV5Pervent #100
+
+GetV5Percent retrieves the latest Proportional Valve Percent Open setting. Currently the JACoB
+only has one Proportional Valve (V5) so there is no need for a resource selection. The value is
+stored in #Address. This command will also log the GetV5Percent event in the log file. Unit of
+measure for GetV5Percent value is % of Max Value.
+
+DefineParam         #Address
+
+Parameter #         Parameter name                          Range
+
+1            #Address of Script Memory to Store #0 ­ #1024
+
+             Value
+
+2            User Defined Name of Variable Any String that describes the variable.
+
+                                    Any Letter or Number is allowed. No
+
+                                    spaces Allowed.
+
+3            Value to be stored     Any floating point real number
+
+Example: DefineParam #1000,G2_Pressure,53.12
+
+This will create a Named variable called G2_Pressure at location #1000 in script memory and
+places the value 53.12 there. See Section Error! Reference source not found. Error! Reference
+source not found. for Instructions for using Defined Variables in your script commands.
+
+11.4.3 Resource definitions
+
+Gauges
+
+  Gauge Names
+               G1
+               G2
+               G3
+               G4
+               G5
+
+                                                                    154
+Flow Meter
+  Flow Meter Names
+            Flow
+
+Temp Sensors
+   Temp SensorsNames
+              T1
+              T2
+              T3
+              T4
+              T5
+              T6
+              T7
+              T8
+              T9
+              T10
+              T11
+              T12
+              T13
+              T14
+              T15
+              T16
+
+                                                                                                                 155
+Resistance Sensors
+
+  Sensor Resistance Names
+                   R1
+                   R2
+                   R3
+                   R4
+                   R5
+                   R6
+                   R7
+                   R8
+                   R9
+                   R10
+                   R11
+                   R12
+                   R13
+                   R14
+                   R15
+                   R16
+
+Alarms         Values        Enable State
+  Alarm Names  0 (No Alarm)  255 ­ enabled
+          G1   1 (Hi)        0 - disabled
+               2 (HiHi)
+          G3   0 (No Alarm)  255 ­ enabled
+               1 (Hi)        0 - disabled
+          G4   2 (HiHi)
+               0 (No Alarm)  255 ­ enabled
+          G5   1 (Hi)        0 - disabled
+               2 (HiHi)
+               0 (No Alarm)  255 ­ enabled
+               1 (Hi)        0 - disabled
+               2 (HiHi)
+
+                                            156
+Main Pump Status
+
+Bit                       Status
+
+0              0 = Stopped
+
+               1 = Running
+
+1              0 = No Warning
+
+               1 = Warning
+
+2              0 = No Alarm
+
+               1 = Alarm
+
+4              0 = No Water Alarm
+
+               1 = Water Alarm
+
+Compressor Status           Enable State
+
+ Value                       0 = Stopped
+                             1 = Running
+  0
+  1
+
+Heat Switch Status
+
+       Value            Enable State
+0                   0 = Disengaged
+1                   1 = Engaged
+2                   2 = In Motion
+99
+                    99 = Motion
+                    Alarm/Error
+
+Valve Status            Enable State
+                    0= Closed
+        Value       1= Open
+ 0
+ 1
+
+                                          157
+Booster Pump Status
+
+    Run Status                    Status
+0               Stopped
+1               Warning
+2               Running ­ Not at speed
+3               Running ­ At speed
+
+11.4.4 Defined Variables
+
+The DefineParam command allows the user to define a variable that can be used in a script file.
+The value of the named variable can be changed on the fly at any time and immediately influence
+the behavior of the script. The Variable can be used in any command in place of a script memory
+address. Instead of using an address where a value may be stored, a Variable name in brackets []
+may be used. The Variable name must be of the format [variable_name] and must match the name
+that was given to the variable in the DefineParam command. The name can be any string containing
+letters and numbers and cannot contain spaces or slashes.
+
+Example:
+
+10 SetV5 #500
+
+Can be written in the following way...
+
+5  DefineParam       #100,V5_Perc,50
+
+10 SetV5 [V5_Perc]
+
+When the script is executed, the value 50 be stored at script memory location 100 and the address
+100 will be substituted for [V5_Perc]. This will result in a SetV5 50 command at run time.
+
+NOTE:
+
+     1. The memory locations used in DefineParam cannot be used in any other script.
+     2. The Variable defined in DefineParam can be used in any script.
+
+It is recommended that you group all your DefineParam Commands together at the beginning of
+the script file just after the Manual Mode Script name to make them easy to find and modify if
+needed.
+
+The CONFIG tab on the HMI has a Config File Type called Script Params (see Error! Reference
+source not found.). Selecting this file type will display all the Variables in the scripts defined by
+
+                                                                                                                 158
+the DefineParam Command. This tab allows you to change the parameter value on the fly and
+immediately modify script behavior.
+The Tab only allows you to modify the value of the Variable. Adding, Removing, Renaming or
+Moving a Variable in memory in real time would adversely affect the script execution. Those tasks
+must be accomplished by manually modifying the script file (Automation.scr) on the cRIO.
+The details about how to modify the Variables are given in Section Error! Reference source not
+found. Error! Reference source not found..
+
+                                                                                                                 159
+12 System Power and water Requirement
+The JDry-250-QPro power consumption comes from 4 major components: the Cryomech PT
+Compressor, Main Pump, Booster Pump, and the JACoB UPS which powers the GHS. The
+power and cooling water consumptions for each of the components are listed below.
+ JACoB
+ UPS
+ Compressor
+
+ Pfeiffer
+                                                                                                                 160
+Main Pump
+                                                                                                                161
+13 Symbols and Definitions
+  Definition of Symbols Found on the Unit
+
+EARTH GROUND                   HAZARDOUS VOLTAGE HIGH MAGNETIC FIELD
+
+                               Contact may cause electric    Pacemakers or other similar
+                               shock or burn.                implanted devices may be
+                                                             affected
+                               Turn off & lock out system
+                               before servicing
+
+HOT SURFACE INSIDE             MOVING      PARTS             HEAVY OBJECT
+                               PRESENT
+Contact may cause burn                                       Can cause muscle strain or
+                               Moving part can crush and     back injury. Use lifting aids
+Do not touch or wear           cut.                          & proper lifting techniques
+protective gear before                                       when removing or replacing
+servicing internal part        Keep hands or feet away from
+                               moving part
+
+ROTATION PARTS
+
+Entanglement of hands, feet,
+hair, clothing or accessories
+can occur.
+
+Stay away from rotating parts
+
+                                                                      162
+
