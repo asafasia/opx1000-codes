@@ -332,8 +332,10 @@ if __name__ == "__main__":
 
     parameters.num_shots = 2000
     parameters.use_state_discrimination = True
+    parameters.use_readout_mitigation = True
+
     parameters.reset_type = "active"
-    parameters.max_wait_time_in_ns = 150e3
+    parameters.max_wait_time_in_ns = 50e3
     parameters.wait_time_num_points = 250
     parameters.frequency_detuning_in_mhz = 0.2
 
@@ -342,6 +344,6 @@ if __name__ == "__main__":
     calibration = Ramsey(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q12"),
+        machine=create_machine(qubit="q9"),
     )
     calibration.run()

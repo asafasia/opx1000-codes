@@ -419,10 +419,10 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
-    parameters.qubit_operation = "x180"
+    parameters.qubit_operation = "saturation"
     parameters.num_shots = 200
-    parameters.frequency_span_in_mhz = 20
-    parameters.frequency_step_in_mhz = 0.1
+    parameters.frequency_span_in_mhz = 10
+    parameters.frequency_step_in_mhz = 0.05
     parameters.states = ["g", "f"]
 
     options = CalibrationOptions()

@@ -32,5 +32,7 @@ class SimulationParameters:
     x180_length_in_ns: float = 40.0
     t1_in_us: float | None = 30.87
     t2_star_in_us: float | None = 6.855588134130561
+    num_levels: int = 2
+    anharmonicity_hz: float | None = None
     num_time_points: int = 1000
     output_dir: Path = Path("Projects/shaped_pulse_spectroscopy/simulation/qutip/output")

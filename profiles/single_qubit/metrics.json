@@ -3,8 +3,8 @@
   "qubits": {
     "q1": {
       "coherence": {
-        "t1_ns": 45184.80730985946,
-        "t2_ramsey_ns": 6.855588134130561e-06,
+        "t1_ns": 27155.802304054116,
+        "t2_ramsey_ns": 6.497862157848716e-06,
         "t2_echo_ns": 17104.916414048766
       },
       "gates": {
@@ -12,8 +12,8 @@
       },
       "readout": {
         "fidelity_percent": {
-          "active": 95.255,
-          "thermal": 91.74
+          "active": 86.3,
+          "thermal": 85.675
         }
       }
     },
@@ -131,7 +131,7 @@
     },
     "q9": {
       "coherence": {
-        "t1_ns": 38823.217302558165,
+        "t1_ns": 32167.440410441923,
         "t2_ramsey_ns": 4.0462030446001355e-06,
         "t2_echo_ns": null
       },
@@ -140,8 +140,8 @@
       },
       "readout": {
         "fidelity_percent": {
-          "active": 87.46000000000001,
-          "thermal": 87.13499999999999
+          "active": 76.405,
+          "thermal": 68.74
         }
       }
     },

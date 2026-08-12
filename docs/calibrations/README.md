@@ -1,5 +1,8 @@
 # Calibration Routine Hierarchy
 
+See [Readout-error mitigation](readout_mitigation.md) for the binary IQ-blobs
+assignment-matrix convention and the `use_readout_mitigation` workflow.
+
 This note gives the general order of the important calibration routines. The
 details of each experiment live in the calibration scripts and analysis modules,
 but the high-level workflow is:

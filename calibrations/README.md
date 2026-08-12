@@ -74,6 +74,18 @@ figure saving. The review is written into the run directory as
 `ai_review.json` and `ai_review.md`, and a short status line is printed through
 the calibration logger.
 
+Qubit experiments also inherit `use_readout_mitigation=False`. Enable it only
+with `use_state_discrimination=True`; the shared lifecycle then applies the
+inverse 2x2 IQ-blobs fidelity matrix to `state` before analysis and plotting,
+while retaining the measured values as `state_unmitigated`. For example:
+
+```powershell
+python -m calibrations.runner run power-rabi --qubit q9 --set use_state_discrimination=true --set use_readout_mitigation=true
+```
+
+The selected qubit must have a non-singular `readout.confusion_matrix` in its
+profile, normally proposed by the IQ-blobs calibration.
+
 ## Terminal runner
 
 The lightweight terminal wrapper is meant for Codex and quick lab use:

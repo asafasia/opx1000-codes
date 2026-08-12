@@ -197,7 +197,7 @@ def plot_raw_amplitude(
     saturation_lead_time_in_ns: Optional[int] = None,
 ):
     """
-    Plot mean resonator responses and normalized shot-cloud separation.
+    Plot mean resonator responses, shot-cloud separation, and readout fidelity.
 
     Parameters
     ----------
@@ -221,9 +221,9 @@ def plot_raw_amplitude(
     ]
     rows = max(row for row, _ in locations) + 1
     columns = max(column for _, column in locations) + 1
-    height_ratios = [3, 1] * rows
+    height_ratios = [3, 1, 1] * rows
     fig, axes = plt.subplots(
-        2 * rows,
+        3 * rows,
         columns,
         figsize=FIGURE_SIZE,
         squeeze=False,
@@ -233,9 +233,16 @@ def plot_raw_amplitude(
 
     used_axes = set()
     for qubit, (row, column) in zip(qubits, locations):
-        spectrum_ax = axes[2 * row, column]
-        difference_ax = axes[2 * row + 1, column]
-        used_axes.update({(2 * row, column), (2 * row + 1, column)})
+        spectrum_ax = axes[3 * row, column]
+        difference_ax = axes[3 * row + 1, column]
+        fidelity_ax = axes[3 * row + 2, column]
+        used_axes.update(
+            {
+                (3 * row, column),
+                (3 * row + 1, column),
+                (3 * row + 2, column),
+            }
+        )
 
         selected = ds.assign_coords(full_freq_GHz=ds.full_freq / u.GHz).sel(qubit=qubit.name)
         separation = selected.IQ_separation
@@ -271,7 +278,29 @@ def plot_raw_amplitude(
         spectrum_ax.set_ylabel(r"$|IQ|$ [mV]")
         spectrum_ax.legend()
 
-        separation.plot(ax=difference_ax, x="full_freq_GHz", color="tab:blue")
+        separation.plot(
+            ax=difference_ax,
+            x="full_freq_GHz",
+            color="tab:blue",
+            label="Normalized IQ separation",
+        )
+        if "readout_fidelity" in selected.data_vars:
+            selected.readout_fidelity.plot(
+                ax=fidelity_ax,
+                x="full_freq_GHz",
+                color="tab:orange",
+                label="Readout fidelity",
+            )
+        else:
+            fidelity_ax.text(
+                0.5,
+                0.5,
+                "Fidelity unavailable",
+                transform=fidelity_ax.transAxes,
+                ha="center",
+                va="center",
+                color="0.4",
+            )
         state_pairs = (
             set(str(value) for value in selected.pairwise_IQ_separation.state_pair.values)
             if "pairwise_IQ_separation" in selected.data_vars
@@ -298,13 +327,30 @@ def plot_raw_amplitude(
             linestyle="--",
             label=max_separation_label,
         )
-        difference_ax.set_xlabel("RF frequency [GHz]")
+        fidelity_ax.axvline(
+            current_frequency_ghz,
+            color="black",
+            linestyle=":",
+            label=current_frequency_label,
+        )
+        fidelity_ax.axvline(
+            max_separation_frequency_ghz,
+            color="tab:red",
+            linestyle="--",
+            label=max_separation_label,
+        )
+        difference_ax.set_xlabel("")
         difference_ax.set_ylabel("IQ separation / pooled std")
         difference_ax.legend()
+        fidelity_ax.set_xlabel("RF frequency [GHz]")
+        fidelity_ax.set_ylabel("Optimal discrimination fidelity [%]")
+        fidelity_ax.set_ylim(75, 100)
+        fidelity_ax.legend()
         _add_detuning_axis(spectrum_ax, current_frequency_ghz)
         _add_detuning_axis(difference_ax, current_frequency_ghz)
+        _add_detuning_axis(fidelity_ax, current_frequency_ghz)
 
-    for row in range(2 * rows):
+    for row in range(3 * rows):
         for column in range(columns):
             if (row, column) not in used_axes:
                 axes[row, column].set_visible(False)

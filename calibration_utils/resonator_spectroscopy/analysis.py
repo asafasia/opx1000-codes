@@ -7,6 +7,7 @@ import xarray as xr
 from qualibrate import QualibrationNode
 from qualibration_libs.data import add_amplitude_and_phase, convert_IQ_to_V
 from qualibration_libs.analysis import peaks_dips
+from calibration_utils.iq_blobs.analysis import _optimal_threshold
 
 
 @dataclass
@@ -30,6 +31,88 @@ def calculate_iq_separation(ds: xr.Dataset) -> xr.DataArray:
         "units": "",
     }
     return separation
+
+
+def calculate_readout_fidelity(ds: xr.Dataset) -> xr.DataArray:
+    """Return optimal threshold-discrimination fidelity versus frequency."""
+    pairwise_fidelities = _calculate_pairwise_readout_fidelities(ds)
+    if pairwise_fidelities.sizes["state_pair"] > 1:
+        fidelity = pairwise_fidelities.min(dim="state_pair")
+    else:
+        fidelity = pairwise_fidelities.isel(state_pair=0)
+    fidelity.attrs = {
+        "long_name": "worst-pair optimal threshold discrimination fidelity",
+        "units": "%",
+    }
+    return fidelity
+
+
+def _binary_threshold_fidelity(
+    first_i: np.ndarray,
+    first_q: np.ndarray,
+    second_i: np.ndarray,
+    second_q: np.ndarray,
+) -> float:
+    """Calculate balanced assignment fidelity for two shot-level IQ clouds."""
+    first_valid = np.isfinite(first_i) & np.isfinite(first_q)
+    second_valid = np.isfinite(second_i) & np.isfinite(second_q)
+    first_i = np.asarray(first_i[first_valid], dtype=float)
+    first_q = np.asarray(first_q[first_valid], dtype=float)
+    second_i = np.asarray(second_i[second_valid], dtype=float)
+    second_q = np.asarray(second_q[second_valid], dtype=float)
+    if first_i.size == 0 or second_i.size == 0:
+        return np.nan
+
+    delta_i = second_i.mean() - first_i.mean()
+    delta_q = second_q.mean() - first_q.mean()
+    angle = np.arctan2(-delta_q, delta_i)
+    cosine = np.cos(angle)
+    sine = np.sin(angle)
+    first_rotated = first_i * cosine - first_q * sine
+    second_rotated = second_i * cosine - second_q * sine
+    threshold = _optimal_threshold(first_rotated, second_rotated)
+    if not np.isfinite(threshold):
+        return np.nan
+
+    first_correct = np.mean(first_rotated < threshold)
+    second_correct = np.mean(second_rotated > threshold)
+    return float(50.0 * (first_correct + second_correct))
+
+
+def _calculate_pairwise_readout_fidelities(ds: xr.Dataset) -> xr.DataArray:
+    states = _available_states(ds)
+    if len(states) < 2:
+        raise ValueError("Resonator spectroscopy requires at least two measured states.")
+    pairs = [
+        (f"{first}{second}", first, second)
+        for first_index, first in enumerate(states)
+        for second in states[first_index + 1 :]
+    ]
+
+    fidelities = []
+    for pair_name, first, second in pairs:
+        first_i, first_q = _state_iq(ds, first)
+        second_i, second_q = _state_iq(ds, second)
+        fidelity = xr.apply_ufunc(
+            _binary_threshold_fidelity,
+            first_i,
+            first_q,
+            second_i,
+            second_q,
+            input_core_dims=[["n_runs"]] * 4,
+            output_core_dims=[[]],
+            vectorize=True,
+            dask="parallelized",
+            output_dtypes=[float],
+        )
+        fidelities.append(fidelity.expand_dims(state_pair=[pair_name]))
+
+    pairwise_fidelities = xr.concat(fidelities, dim="state_pair")
+    pairwise_fidelities.attrs = {
+        "long_name": "pairwise optimal threshold discrimination fidelity",
+        "units": "%",
+    }
+    return pairwise_fidelities
 
 
 def _calculate_pairwise_iq_separations(ds: xr.Dataset) -> xr.DataArray:
@@ -149,6 +232,8 @@ def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
         ds[f"{label}_phase"] = state_data.phase
     ds["pairwise_IQ_separation"] = _calculate_pairwise_iq_separations(ds)
     ds["IQ_separation"] = calculate_iq_separation(ds)
+    ds["pairwise_readout_fidelity"] = _calculate_pairwise_readout_fidelities(ds)
+    ds["readout_fidelity"] = calculate_readout_fidelity(ds)
     full_freq = np.array([ds.detuning + q.resonator.RF_frequency for q in node.namespace["qubits"]])
     ds = ds.assign_coords(full_freq=(["qubit", "detuning"], full_freq))
     ds.full_freq.attrs = {"long_name": "RF frequency", "units": "Hz"}

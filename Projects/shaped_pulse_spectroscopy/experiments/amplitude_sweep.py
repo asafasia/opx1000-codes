@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import sys
 from pathlib import Path
 from typing import Any
@@ -81,14 +80,15 @@ class EchoLorentzianAmplitude(BaseCalibration[Parameters, Quam]):
         qubits = self.get_qubits()
         num_qubits = len(qubits)
         operation = self.parameters.operation
-        install_lorentzian_operation(self)
-        play_duration = self.namespace["lorentzian_play_duration_cycles"]
-
         amps = amplitude_prefactors(self.parameters)
         if amps.size == 0:
             raise ValueError("Amplitude sweep is empty.")
         if np.any(np.abs(amps) >= 2):
             raise ValueError("QUA amplitude prefactors must stay within [-2, 2).")
+        install_lorentzian_operation(self, amplitude_factors=amps)
+        stark_chirps = self.namespace["lorentzian_stark_chirps"]
+        play_duration = self.namespace["lorentzian_play_duration_cycles"]
+        correction_enabled = bool(self.parameters.ac_stark_correction)
 
         self.namespace["sweep_axes"] = {
             "qubit": xr.DataArray(qubits.get_names()),
@@ -104,6 +104,20 @@ class EchoLorentzianAmplitude(BaseCalibration[Parameters, Quam]):
                 state = [declare(int) for _ in range(num_qubits)]
                 state_st = [declare_stream() for _ in range(num_qubits)]
             a = declare(fixed)
+            if correction_enabled:
+                rate_index = declare(int)
+                base_chirp_rates = {
+                    qubit.name: declare(
+                        int, value=stark_chirps[qubit.name]["rates"]
+                    )
+                    for qubit in qubits
+                }
+                scaled_chirp_rates = {
+                    qubit.name: declare(
+                        int, size=len(stark_chirps[qubit.name]["rates"])
+                    )
+                    for qubit in qubits
+                }
 
             for multiplexed_qubits in qubits.batch():
                 for qubit in multiplexed_qubits.values():
@@ -122,11 +136,50 @@ class EchoLorentzianAmplitude(BaseCalibration[Parameters, Quam]):
                         align()
 
                         for qubit in multiplexed_qubits.values():
-                            qubit.xy.play(
-                                operation,
-                                amplitude_scale=a,
-                                duration=play_duration,
-                            )
+                            if correction_enabled:
+                                chirp = stark_chirps[qubit.name]
+                                reference = chirp["reference_amplitude_factor"]
+                                scale = (
+                                    0.0
+                                    if reference == 0.0
+                                    else a * a / reference**2
+                                )
+                                with for_(
+                                    rate_index,
+                                    0,
+                                    rate_index < len(chirp["rates"]),
+                                    rate_index + 1,
+                                ):
+                                    assign(
+                                        scaled_chirp_rates[qubit.name][rate_index],
+                                        Cast.mul_int_by_fixed(
+                                            base_chirp_rates[qubit.name][rate_index],
+                                            scale,
+                                        ),
+                                    )
+                                qubit.xy.update_frequency(
+                                    qubit.xy.intermediate_frequency
+                                    + Cast.mul_int_by_fixed(
+                                        chirp["initial_frequency_offset_hz"],
+                                        scale,
+                                    )
+                                )
+                                qubit.xy.play(
+                                    operation,
+                                    amplitude_scale=a,
+                                    duration=play_duration,
+                                    chirp=(
+                                        scaled_chirp_rates[qubit.name],
+                                        chirp["times_cycles"],
+                                        chirp["units"],
+                                    ),
+                                )
+                            else:
+                                qubit.xy.play(
+                                    operation,
+                                    amplitude_scale=a,
+                                    duration=play_duration,
+                                )
                         align()
 
                         for i, qubit in multiplexed_qubits.items():
@@ -180,50 +233,32 @@ class EchoLorentzianAmplitude(BaseCalibration[Parameters, Quam]):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=DESCRIPTION)
-    parser.add_argument("--qubit", default="q9")
-    parser.add_argument("--simulate", action="store_true")
-    parser.add_argument("--num-shots", type=int, default=1000)
-    parser.add_argument("--pulse-shape", default="root_lorentzian")
-    parser.add_argument("--cutoff", type=float, default=0.01)
-    parser.add_argument("--echo", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--pulse-length-ns", type=int, default=30000)
-    parser.add_argument("--template-length-ns", type=int, default=2000)
-    parser.add_argument("--peak-amplitude", type=float, default=0.5)
-    parser.add_argument("--min-amp-factor", type=float, default=0.0)
-    parser.add_argument("--max-amp-factor", type=float, default=1.0)
-    parser.add_argument("--amp-factor-step", type=float, default=0.05)
-    parser.add_argument("--amp-factor-points", type=int)
-    parser.add_argument(
-        "--amp-factor-spacing",
-        choices=["linear", "log"],
-        default="linear",
-    )
-    args = parser.parse_args()
-
     parameters = Parameters()
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
-    parameters.simulate = args.simulate
-    parameters.pulse_shape = args.pulse_shape
-    parameters.echo = args.echo
-    parameters.cutoff = args.cutoff
-    parameters.num_shots = args.num_shots
-    parameters.lorentzian_length_in_ns = args.pulse_length_ns
-    parameters.waveform_template_length_in_ns = args.template_length_ns
-    parameters.lorentzian_peak_amplitude = args.peak_amplitude
-    parameters.min_amp_factor = args.min_amp_factor
-    parameters.max_amp_factor = args.max_amp_factor
-    parameters.amp_factor_step = args.amp_factor_step
-    parameters.amp_factor_points = args.amp_factor_points
-    parameters.amp_factor_spacing = args.amp_factor_spacing
+    parameters.simulate = False
+    parameters.pulse_shape = "root_lorentzian"
+    parameters.echo = False
+    parameters.ac_stark_correction = False
+    parameters.stark_kappa_mhz_inv = 0.00225
+    parameters.stark_chirp_max_error_hz = 100.0
+    parameters.cutoff = 0.01
+    parameters.num_shots = 1000
+    parameters.lorentzian_length_in_ns = 30000
+    parameters.waveform_template_length_in_ns = 2000
+    parameters.lorentzian_peak_amplitude = 0.5
+    parameters.min_amp_factor = 0.0
+    parameters.max_amp_factor = 1.0
+    parameters.amp_factor_step = 0.05
+    parameters.amp_factor_points = None
+    parameters.amp_factor_spacing = "linear"
 
     options = CalibrationOptions()
 
     calibration = EchoLorentzianAmplitude(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit=args.qubit),
-        auto_connect=not args.simulate,
+        machine=create_machine(qubit="q1"),
+        auto_connect=not parameters.simulate,
     )
     calibration.run()

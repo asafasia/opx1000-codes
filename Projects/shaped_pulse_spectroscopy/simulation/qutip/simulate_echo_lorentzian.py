@@ -2,7 +2,8 @@
 
 This is a PC-only simulator. It does not connect to QOP hardware and does not
 execute QUA. It mirrors the experiment sweep axes and pulse parameters, then
-solves a driven two-level qubit Hamiltonian for each detuning/amplitude point.
+solves a driven two- or three-level transmon Hamiltonian for each
+detuning/amplitude point.
 """
 
 from __future__ import annotations
@@ -210,17 +211,24 @@ def collapse_operators(parameters: SimulationParameters) -> list[Any]:
     if qutip is None:
         raise_qutip_missing()
 
+    num_levels = int(parameters.num_levels)
+    if num_levels not in (2, 3):
+        raise ValueError("num_levels must be either 2 or 3.")
+
     c_ops = []
     if parameters.t1_in_us is not None and parameters.t1_in_us > 0:
         t1_s = parameters.t1_in_us * 1e-6
-        c_ops.append(np.sqrt(1 / t1_s) * qutip.destroy(2))
+        annihilation = (
+            qutip.destroy(2) if num_levels == 2 else qutip.destroy(num_levels)
+        )
+        c_ops.append(np.sqrt(1 / t1_s) * annihilation)
 
     if parameters.t2_star_in_us is not None and parameters.t2_star_in_us > 0:
         t2_star_s = parameters.t2_star_in_us * 1e-6
         gamma_1 = 0 if parameters.t1_in_us is None else 1 / (parameters.t1_in_us * 1e-6)
         gamma_phi = max(1 / t2_star_s - gamma_1 / 2, 0)
         if gamma_phi > 0:
-            c_ops.append(np.sqrt(2 * gamma_phi) * qutip.num(2))
+            c_ops.append(np.sqrt(2 * gamma_phi) * qutip.num(num_levels))
     return c_ops
 
 
@@ -241,12 +249,12 @@ def waveform_on_time_axis(
     return np.interp(tlist_s, source_times_s, waveform_v)
 
 
-def simulate_point(
+def simulate_point_populations(
     parameters: SimulationParameters,
     waveform_v: np.ndarray,
     detuning_hz: float,
     amp_prefactor: float,
-) -> float:
+) -> np.ndarray:
     if qutip is None:
         raise_qutip_missing()
 
@@ -259,35 +267,84 @@ def simulate_point(
     )
     omega_rad_s = 2 * np.pi * rabi_hz
 
-    annihilation = qutip.destroy(2)
-    h0 = 2 * np.pi * detuning_hz * qutip.num(2)
+    num_levels = int(parameters.num_levels)
+    if num_levels not in (2, 3):
+        raise ValueError("num_levels must be either 2 or 3.")
+    if num_levels == 3 and (
+        parameters.anharmonicity_hz is None or parameters.anharmonicity_hz <= 0
+    ):
+        raise ValueError(
+            "A positive anharmonicity_hz magnitude is required for three-level simulation."
+        )
+
+    annihilation = (
+        qutip.destroy(2) if num_levels == 2 else qutip.destroy(num_levels)
+    )
+    number = qutip.num(num_levels)
+    h0 = 2 * np.pi * detuning_hz * number
+    if num_levels == 3:
+        # The saved transmon anharmonicity is the positive magnitude
+        # f01 - f12.  In the drive frame alpha = f12 - f01 = -|alpha|.
+        h0 -= (
+            2
+            * np.pi
+            * float(parameters.anharmonicity_hz)
+            * 0.5
+            * number
+            * (number - qutip.qeye(num_levels))
+        )
     h_drive = 0.5 * (annihilation + annihilation.dag())
     hamiltonian = [h0, [h_drive, omega_rad_s]]
-    psi0 = qutip.basis(2, 0)
+    psi0 = qutip.basis(num_levels, 0)
+    projectors = [
+        qutip.basis(num_levels, level) * qutip.basis(num_levels, level).dag()
+        for level in range(num_levels)
+    ]
     result = qutip.mesolve(
         hamiltonian,
         psi0,
         tlist_s,
         c_ops=collapse_operators(parameters),
-        e_ops=[qutip.sigmax(), qutip.sigmay(), qutip.sigmaz()],
+        e_ops=projectors,
     )
-    final_z = float(np.real(result.expect[2][-1]))
-    return (1 - final_z) / 2
+    return np.asarray(
+        [float(np.real(expectation[-1])) for expectation in result.expect],
+        dtype=float,
+    )
+
+
+def simulate_point(
+    parameters: SimulationParameters,
+    waveform_v: np.ndarray,
+    detuning_hz: float,
+    amp_prefactor: float,
+) -> float:
+    """Return P1, preserving the original two-level helper API."""
+    return float(
+        simulate_point_populations(
+            parameters, waveform_v, detuning_hz, amp_prefactor
+        )[1]
+    )
 
 
 def simulate_grid(parameters: SimulationParameters) -> xr.Dataset:
     waveform = stretched_waveform(parameters)
     detunings, amps = sweep_axes(parameters)
 
-    state = np.empty((1, len(detunings), len(amps)), dtype=float)
+    num_levels = int(parameters.num_levels)
+    populations = np.empty(
+        (num_levels, 1, len(detunings), len(amps)), dtype=float
+    )
     for detuning_index, detuning_hz in enumerate(detunings):
         for amp_index, amp_prefactor in enumerate(amps):
-            state[0, detuning_index, amp_index] = simulate_point(
+            populations[:, 0, detuning_index, amp_index] = simulate_point_populations(
                 parameters,
                 waveform,
                 detuning_hz,
                 amp_prefactor,
             )
+
+    state = populations[1]
 
     full_freq = parameters.rf_frequency_hz + detunings[np.newaxis, :]
     full_amp = parameters.lorentzian_peak_amplitude * amps[np.newaxis, :]
@@ -299,9 +356,18 @@ def simulate_grid(parameters: SimulationParameters) -> xr.Dataset:
     ds = xr.Dataset(
         {
             "state": (("qubit", "detuning", "amp_prefactor"), state),
+            "level_population": (
+                ("level", "qubit", "detuning", "amp_prefactor"),
+                populations,
+            ),
+            "total_excited_population": (
+                ("qubit", "detuning", "amp_prefactor"),
+                populations[1:].sum(axis=0),
+            ),
             "waveform": (("time_ns",), waveform),
         },
         coords={
+            "level": np.arange(num_levels, dtype=int),
             "qubit": [parameters.qubit_name],
             "detuning": detunings,
             "amp_prefactor": amps,
@@ -316,7 +382,14 @@ def simulate_grid(parameters: SimulationParameters) -> xr.Dataset:
     ds.full_freq.attrs = {"long_name": "RF frequency", "units": "Hz"}
     ds.full_amp.attrs = {"long_name": "Lorentzian peak amplitude", "units": "V"}
     ds.rabi_frequency_hz.attrs = {"long_name": "Rabi frequency", "units": "Hz"}
-    ds.state.attrs = {"long_name": "simulated excited-state population"}
+    ds.state.attrs = {"long_name": "simulated |1> population"}
+    ds.level_population.attrs = {"long_name": "simulated level population"}
+    ds.total_excited_population.attrs = {
+        "long_name": "simulated population outside |0>"
+    }
+    if num_levels == 3:
+        ds["leakage"] = ds.level_population.sel(level=2, drop=True)
+        ds.leakage.attrs = {"long_name": "simulated |2> leakage population"}
     if parameters.t2_star_in_us is not None and parameters.t2_star_in_us > 0:
         t2_star_s = parameters.t2_star_in_us * 1e-6
         ds = ds.assign_coords(
@@ -414,6 +487,44 @@ def save_parameters(parameters: SimulationParameters, output_dir: Path) -> Path:
     return path
 
 
+def plot_leakage_dataset(
+    ds: xr.Dataset,
+    output_dir: Path,
+    *,
+    filename: str = "echo_lorentzian_qutip_leakage.png",
+) -> Path | None:
+    """Plot the final |2> population for a three-level simulation."""
+    if "leakage" not in ds:
+        return None
+
+    selected = ds.isel(qubit=0).assign_coords(
+        detuning_MHz=ds.detuning / 1e6,
+        rabi_frequency_MHz=ds.rabi_frequency_hz.isel(qubit=0) / 1e6,
+    )
+    figure, ax = plt.subplots(figsize=(9, 6))
+    plotted = selected.leakage.transpose("amp_prefactor", "detuning").plot(
+        ax=ax,
+        x="detuning_MHz",
+        y="rabi_frequency_MHz",
+        add_colorbar=True,
+        cmap="magma",
+        vmin=0,
+        cbar_kwargs={"label": "Final |2> population"},
+    )
+    plotted.colorbar.set_label("Final |2> population")
+    ax.set_title("QuTiP echo-Lorentzian three-level leakage")
+    ax.set_xlabel("Detuning [MHz]")
+    ax.set_ylabel("Rabi frequency [MHz]")
+    ax.grid(alpha=0.25)
+    figure.tight_layout()
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / filename
+    figure.savefig(path, dpi=160)
+    plt.close(figure)
+    return path
+
+
 def save_fwhm_results(ds: xr.Dataset, output_dir: Path) -> Path:
     """Save the shared experimental-style FWHM results as a flat CSV."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -507,6 +618,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Ramsey T2* in microseconds (--t2-in-us is a compatibility alias).",
     )
+    parser.add_argument("--num-levels", type=int, choices=[2, 3])
+    parser.add_argument(
+        "--anharmonicity-hz",
+        type=float,
+        help="Positive transmon anharmonicity magnitude f01-f12 in Hz.",
+    )
     parser.add_argument("--num-time-points", type=int)
     parser.add_argument("--output-dir", type=Path)
     return parser.parse_args()
@@ -530,10 +647,13 @@ def main() -> None:
     dataset_path = save_dataset(ds, parameters.output_dir)
     fwhm_path = save_fwhm_results(ds, parameters.output_dir)
     figure_path = plot_dataset(ds, parameters.output_dir)
+    leakage_figure_path = plot_leakage_dataset(ds, parameters.output_dir)
     print(f"Saved parameters: {parameter_path}")
     print(f"Saved dataset: {dataset_path}")
     print(f"Saved FWHM results: {fwhm_path}")
     print(f"Saved figure: {figure_path}")
+    if leakage_figure_path is not None:
+        print(f"Saved leakage figure: {leakage_figure_path}")
 
 
 if __name__ == "__main__":

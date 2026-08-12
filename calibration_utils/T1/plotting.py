@@ -56,7 +56,14 @@ def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str
         ds.sel(qubit=qubit["qubit"]).state.plot(ax=ax, marker=".", linestyle="-", markersize=5)
         if fitted is not None:
             ax.plot(ds.idle_time, fitted, "r--")
+            ax.axhline(
+                float(fit.fit_data.sel(fit_vals="offset").values),
+                color="black",
+                linestyle="--",
+                label="B",
+            )
         ax.set_ylabel("State")
+        ax.set_ylim(0, 1)
     elif hasattr(fit, "I"):
         quadrature = str(fit.selected_quadrature.values) if "selected_quadrature" in fit else "I"
         (ds.sel(qubit=qubit["qubit"])[quadrature] * 1e3).plot(
@@ -67,6 +74,12 @@ def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str
         )
         if fitted is not None:
             ax.plot(ds.idle_time, fitted * 1e3, "r--")
+            ax.axhline(
+                1e3 * float(fit.fit_data.sel(fit_vals="offset").values),
+                color="black",
+                linestyle="--",
+                label="B",
+            )
         ax.set_ylabel(f"Trans. amp. {quadrature} [mV]")
     else:
         raise RuntimeError("The dataset must contain either 'I' or 'state' for the plotting function to work.")

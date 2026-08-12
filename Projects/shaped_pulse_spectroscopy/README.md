@@ -72,6 +72,20 @@ Figures include a compact parameter banner with the pulse shape, pulse length,
 cutoff or tau, echo flag, peak amplitude, sweep span/step, and square pi pulse.
 When available, the banner also includes T1, Ramsey T2*, and
 `1 / (pi * T2*)` in Hz.
+
+The MHz conversion is a prediction from the square `x180` calibration, not an
+independent measurement. Validate its linearity over the intended voltage range
+with the constant-envelope duration-by-amplitude diagnostic:
+
+```powershell
+python Projects\shaped_pulse_spectroscopy\scripts\run_rabi_frequency_linearity.py
+```
+
+For every constant drive voltage, this experiment fits the observed time-domain
+oscillation frequency. Its result compares the measured frequency with the
+square-`x180` prediction and plots the relative error. It never updates the
+device profile, and its default amplitudes remain below the `0.7 V` project
+safety ceiling.
 For each amplitude in the 2D spectroscopy scan, analysis fits a Gaussian versus
 detuning, stores the fitted FWHM and signal amplitude, and overlays the fitted
 FWHM edges as paired markers on the heatmap.

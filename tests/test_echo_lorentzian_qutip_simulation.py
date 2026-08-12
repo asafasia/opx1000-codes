@@ -125,7 +125,9 @@ class EchoLorentzianQutipSimulationTests(unittest.TestCase):
         self.assertIn("import qutip", source)
         self.assertIn("qutip.mesolve", source)
         self.assertIn("qutip.destroy(2)", source)
-        self.assertIn("qutip.sigmaz()", source)
+        self.assertIn("simulate_point_populations", source)
+        self.assertIn("anharmonicity_hz", source)
+        self.assertIn("qutip.qeye(num_levels)", source)
         self.assertIn(
             "from shaped_pulse_spectroscopy.fwhm import add_gaussian_fwhm_analysis",
             source,

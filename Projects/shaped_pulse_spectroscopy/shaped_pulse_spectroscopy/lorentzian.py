@@ -169,7 +169,147 @@ def apply_echo_phase_jump(waveform: list[float]) -> list[float]:
     return (envelope * signs).tolist()
 
 
-def install_lorentzian_operation(node: QualibrationNode) -> list[float]:
+def ac_stark_corrected_iq_waveforms(
+    waveform: list[float],
+    *,
+    amplitude_factor: float,
+    pi_amplitude: float,
+    pi_length_ns: float,
+    pulse_length_ns: int,
+    kappa_mhz_inv: float,
+) -> tuple[list[float], list[float]]:
+    """Return I/Q samples with accumulated-phase AC-Stark compensation.
+
+    ``waveform`` may already contain the echo sign reversal. The correction
+    depends on its squared physical Rabi frequency, so its accumulated phase is
+    continuous across that reversal. The returned samples exclude the QUA
+    ``amplitude_factor`` because it is still supplied to ``play()``.
+    """
+    samples = np.asarray(waveform, dtype=float)
+    if samples.ndim != 1 or samples.size == 0:
+        raise ValueError("waveform must be a non-empty one-dimensional sequence.")
+    if pulse_length_ns <= 0:
+        raise ValueError("pulse_length_ns must be positive.")
+    if not np.isfinite(kappa_mhz_inv):
+        raise ValueError("stark_kappa_mhz_inv must be finite.")
+
+    played_rabi_mhz = np.asarray(
+        amplitude_to_rabi_frequency_hz(
+            amplitude_factor * samples,
+            pi_amplitude,
+            pi_length_ns,
+        ),
+        dtype=float,
+    ) / 1e6
+    sample_duration_us = pulse_length_ns / samples.size / 1000.0
+    accumulated_phase = np.zeros_like(samples)
+    if samples.size > 1:
+        squared_rabi = played_rabi_mhz**2
+        accumulated_phase[1:] = (
+            2.0
+            * np.pi
+            * kappa_mhz_inv
+            * sample_duration_us
+            * np.cumsum(0.5 * (squared_rabi[:-1] + squared_rabi[1:]))
+        )
+
+    # The played hardware envelope is (I + iQ) exp(-i phi).
+    waveform_i = samples * np.cos(accumulated_phase)
+    waveform_q = -samples * np.sin(accumulated_phase)
+    return waveform_i.tolist(), waveform_q.tolist()
+
+
+def _piecewise_linear_indices(values: np.ndarray, max_error: float) -> list[int]:
+    """Select clock-grid knots whose linear interpolation meets ``max_error``."""
+    if max_error <= 0 or not np.isfinite(max_error):
+        raise ValueError("stark_chirp_max_error_hz must be finite and positive.")
+    if values.size < 2:
+        return [0]
+
+    selected = {0, values.size - 1}
+    pending = [(0, values.size - 1)]
+    while pending:
+        start, stop = pending.pop()
+        if stop - start <= 1:
+            continue
+        positions = np.arange(start + 1, stop, dtype=float)
+        interpolated = values[start] + (values[stop] - values[start]) * (
+            (positions - start) / (stop - start)
+        )
+        errors = np.abs(values[start + 1 : stop] - interpolated)
+        split = start + 1 + int(np.argmax(errors))
+        if float(errors[split - start - 1]) > max_error:
+            selected.add(split)
+            pending.extend(((start, split), (split, stop)))
+    return sorted(selected)
+
+
+def ac_stark_chirp_parameters(
+    waveform: list[float],
+    *,
+    amplitude_factor: float,
+    pi_amplitude: float,
+    pi_length_ns: float,
+    pulse_length_ns: int,
+    kappa_mhz_inv: float,
+    max_error_hz: float,
+) -> dict[str, object]:
+    """Build a compact QUA chirp implementing the quadratic Stark correction."""
+    samples = np.asarray(waveform, dtype=float)
+    if samples.ndim != 1 or samples.size < 2:
+        raise ValueError("waveform must contain at least two samples.")
+    if pulse_length_ns <= 0 or pulse_length_ns % 4 != 0:
+        raise ValueError(
+            "AC-Stark chirp correction requires pulse length divisible by 4 ns."
+        )
+    if not np.isfinite(kappa_mhz_inv):
+        raise ValueError("stark_kappa_mhz_inv must be finite.")
+
+    played_rabi_mhz = np.asarray(
+        amplitude_to_rabi_frequency_hz(
+            amplitude_factor * samples,
+            pi_amplitude,
+            pi_length_ns,
+        ),
+        dtype=float,
+    ) / 1e6
+    correction_hz = kappa_mhz_inv * played_rabi_mhz**2 * 1e6
+
+    pulse_cycles = pulse_length_ns // 4
+    sample_cycles = np.linspace(0.0, pulse_cycles, samples.size)
+    clock_cycles = np.arange(pulse_cycles + 1, dtype=float)
+    correction_on_clock = np.interp(clock_cycles, sample_cycles, correction_hz)
+    knots = _piecewise_linear_indices(correction_on_clock, max_error_hz)
+    if len(knots) == 1:
+        knots.append(pulse_cycles)
+
+    slopes_hz_per_ns = np.array(
+        [
+            (correction_on_clock[stop] - correction_on_clock[start])
+            / (4.0 * (stop - start))
+            for start, stop in zip(knots[:-1], knots[1:], strict=True)
+        ]
+    )
+    if np.max(np.abs(slopes_hz_per_ns * 1000.0), initial=0.0) <= 2_147_483_647:
+        rates = np.rint(slopes_hz_per_ns * 1000.0).astype(np.int64)
+        units = "mHz/nsec"
+    else:
+        rates = np.rint(slopes_hz_per_ns).astype(np.int64)
+        units = "Hz/nsec"
+
+    return {
+        "initial_frequency_offset_hz": int(round(correction_on_clock[0])),
+        "rates": rates.tolist(),
+        "times_cycles": knots[:-1],
+        "units": units,
+        "segments": len(rates),
+    }
+
+
+def install_lorentzian_operation(
+    node: QualibrationNode,
+    amplitude_factors: np.ndarray | list[float] | None = None,
+) -> list[float]:
     """Install the selected waveform as a temporary qubit XY operation."""
     waveform = build_waveform(node.parameters)
     sweep_factors = amplitude_prefactors(node.parameters)
@@ -190,11 +330,40 @@ def install_lorentzian_operation(node: QualibrationNode) -> list[float]:
     node.namespace["lorentzian_play_duration_cycles"] = lorentzian_play_duration_cycles(
         node.parameters
     )
+    correction_enabled = bool(
+        getattr(node.parameters, "ac_stark_correction", False)
+    )
+    correction_factors = (
+        sweep_factors
+        if amplitude_factors is None
+        else np.asarray(amplitude_factors, dtype=float)
+    )
+    if correction_enabled and correction_factors.size == 0:
+        raise ValueError("AC-Stark correction requires at least one amplitude factor.")
+
+    node.namespace["lorentzian_operation_names"] = [node.parameters.operation]
+    node.namespace["lorentzian_stark_chirps"] = {}
+    reference_amplitude_factor = float(
+        np.max(np.abs(correction_factors), initial=0.0)
+    )
     for qubit in node.namespace["qubits"]:
         qubit.xy.operations[node.parameters.operation] = WaveformPulse(
             waveform_I=waveform,
             waveform_Q=[0.0] * len(waveform),
         )
+        if correction_enabled:
+            pi_pulse = qubit.xy.operations["x180"]
+            chirp = ac_stark_chirp_parameters(
+                waveform,
+                amplitude_factor=reference_amplitude_factor,
+                pi_amplitude=float(pi_pulse.amplitude),
+                pi_length_ns=float(pi_pulse.length),
+                pulse_length_ns=int(node.parameters.lorentzian_length_in_ns),
+                kappa_mhz_inv=float(node.parameters.stark_kappa_mhz_inv),
+                max_error_hz=float(node.parameters.stark_chirp_max_error_hz),
+            )
+            chirp["reference_amplitude_factor"] = reference_amplitude_factor
+            node.namespace["lorentzian_stark_chirps"][qubit.name] = chirp
     return waveform
 
 
@@ -257,10 +426,11 @@ def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode) -> xr.Dataset:
     ds.full_amp.attrs = {"long_name": "Lorentzian peak amplitude", "units": "V"}
     ds.attrs.update(_pulse_metadata(node.parameters))
     ds = _add_t2_star_coordinates(ds, node.namespace["qubits"])
-    ds = add_gaussian_fwhm_analysis(
-        ds,
-        use_state_discrimination=node.parameters.use_state_discrimination,
-    )
+    if getattr(node.parameters, "fit_fwhm", True):
+        ds = add_gaussian_fwhm_analysis(
+            ds,
+            use_state_discrimination=node.parameters.use_state_discrimination,
+        )
     return ds
 
 
@@ -303,6 +473,11 @@ def _pulse_metadata(parameters) -> dict[str, object]:
             parameters, "lorentzian_peak_amplitude", None
         ),
         "echo": getattr(parameters, "echo", False),
+        "ac_stark_correction": getattr(parameters, "ac_stark_correction", False),
+        "stark_kappa_mhz_inv": getattr(parameters, "stark_kappa_mhz_inv", None),
+        "stark_chirp_max_error_hz": getattr(
+            parameters, "stark_chirp_max_error_hz", None
+        ),
         "min_amp_factor": getattr(parameters, "min_amp_factor", None),
         "max_amp_factor": getattr(parameters, "max_amp_factor", None),
         "amp_factor_step": getattr(parameters, "amp_factor_step", None),
@@ -311,6 +486,7 @@ def _pulse_metadata(parameters) -> dict[str, object]:
         "frequency_span_in_mhz": getattr(parameters, "frequency_span_in_mhz", None),
         "frequency_step_in_mhz": getattr(parameters, "frequency_step_in_mhz", None),
         "frequency_points": getattr(parameters, "frequency_points", None),
+        "fit_fwhm": getattr(parameters, "fit_fwhm", True),
     }
 
 
@@ -683,6 +859,10 @@ def _add_t2_star_coordinates(
 
 
 def _add_t2_limit_lines(ax, qubit: AnyTransmon) -> None:
+    x_min_mhz, x_max_mhz = ax.get_xlim()
+    if max(abs(x_min_mhz), abs(x_max_mhz)) > 2:
+        return
+
     t2_star_s = _t2_star_seconds(qubit)
     if t2_star_s is None:
         return
@@ -762,7 +942,6 @@ def _plot_state(ds: xr.Dataset, qubits: List[AnyTransmon]):
                 markersize=3,
             )
             ax.set_ylabel("Measured state")
-            _add_single_amp_fwhm_lines(ax, selected)
         else:
             plotted = (
                 selected["state"]
@@ -771,13 +950,15 @@ def _plot_state(ds: xr.Dataset, qubits: List[AnyTransmon]):
                     ax=ax,
                     x="detuning_MHz",
                     y="rabi_frequency_MHz",
+                    cmap="magma",
+                    vmin=0,
+                    vmax=0.6,
                     add_colorbar=True,
                     cbar_kwargs={"pad": 0.16},
                 )
             )
             plotted.colorbar.set_label("Measured state")
             _add_absolute_amplitude_axis(ax, qubit)
-            _add_fwhm_markers(ax, selected)
             ax.set_ylabel("Rabi frequency [MHz]")
         _add_absolute_frequency_axis(ax, _rf_frequency_ghz(selected))
         _add_t2_limit_lines(ax, qubit)
@@ -814,7 +995,6 @@ def _plot_iq(ds: xr.Dataset, qubits: List[AnyTransmon]):
                     markersize=3,
                 )
                 ax.set_ylabel(label)
-                _add_single_amp_fwhm_lines(ax, selected)
             else:
                 plotted = (
                     selected[variable].transpose("amp_prefactor", "detuning") / u.mV
@@ -822,13 +1002,13 @@ def _plot_iq(ds: xr.Dataset, qubits: List[AnyTransmon]):
                     ax=ax,
                     x="detuning_MHz",
                     y="rabi_frequency_MHz",
+                    cmap="magma",
                     add_colorbar=True,
                     robust=True,
                     cbar_kwargs={"pad": 0.16},
                 )
                 plotted.colorbar.set_label(label)
                 _add_absolute_amplitude_axis(ax, qubit)
-                _add_fwhm_markers(ax, selected)
                 ax.set_ylabel("Rabi frequency [MHz]")
             _add_absolute_frequency_axis(ax, rf_frequency_ghz)
             _add_t2_limit_lines(ax, qubit)

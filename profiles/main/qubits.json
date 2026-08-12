@@ -31,7 +31,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -69,7 +69,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -107,7 +107,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -145,7 +145,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -183,7 +183,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -221,7 +221,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -259,7 +259,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -297,7 +297,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -335,7 +335,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -373,7 +373,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -411,7 +411,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -449,7 +449,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",

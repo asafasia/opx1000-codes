@@ -321,10 +321,10 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
 
 if __name__ == "__main__":
     parameters = Parameters()
-    parameters.num_shots = 100000
+    parameters.num_shots = 10000
     parameters.division_length_clock_cycles = 10
     parameters.use_current_integration_weights = False
-    parameters.reset_type = "active"
+    parameters.reset_type = "thermal"
 
     options = CalibrationOptions()
 

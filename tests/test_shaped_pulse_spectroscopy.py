@@ -87,6 +87,100 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
             [0.1, 0.1, 0.1, 0.1],
         )
 
+    def test_ac_stark_correction_builds_negative_q_and_preserves_magnitude(self):
+        waveform = [0.1, 0.2, 0.2, -0.2, -0.2, -0.1]
+
+        waveform_i, waveform_q = lorentzian.ac_stark_corrected_iq_waveforms(
+            waveform,
+            amplitude_factor=0.5,
+            pi_amplitude=0.1,
+            pi_length_ns=40,
+            pulse_length_ns=60,
+            kappa_mhz_inv=0.00225,
+        )
+
+        complex_waveform = np.asarray(waveform_i) + 1j * np.asarray(waveform_q)
+        np.testing.assert_allclose(np.abs(complex_waveform), np.abs(waveform))
+        self.assertEqual(waveform_q[0], 0.0)
+        self.assertLess(waveform_q[1], 0.0)
+        self.assertGreater(waveform_q[3], 0.0)
+
+    def test_ac_stark_phase_scales_quadratically_with_amplitude(self):
+        waveform = [0.1] * 5
+
+        low_i, low_q = lorentzian.ac_stark_corrected_iq_waveforms(
+            waveform,
+            amplitude_factor=0.25,
+            pi_amplitude=0.1,
+            pi_length_ns=40,
+            pulse_length_ns=1000,
+            kappa_mhz_inv=0.00225,
+        )
+        high_i, high_q = lorentzian.ac_stark_corrected_iq_waveforms(
+            waveform,
+            amplitude_factor=0.5,
+            pi_amplitude=0.1,
+            pi_length_ns=40,
+            pulse_length_ns=1000,
+            kappa_mhz_inv=0.00225,
+        )
+
+        low_phase = -np.unwrap(np.angle(np.asarray(low_i) + 1j * np.asarray(low_q)))
+        high_phase = -np.unwrap(np.angle(np.asarray(high_i) + 1j * np.asarray(high_q)))
+        np.testing.assert_allclose(high_phase, 4.0 * low_phase)
+
+    def test_zero_stark_kappa_leaves_echo_waveform_on_i_only(self):
+        waveform = [0.1, 0.2, -0.2, -0.1]
+
+        waveform_i, waveform_q = lorentzian.ac_stark_corrected_iq_waveforms(
+            waveform,
+            amplitude_factor=1.0,
+            pi_amplitude=0.1,
+            pi_length_ns=40,
+            pulse_length_ns=4000,
+            kappa_mhz_inv=0.0,
+        )
+
+        np.testing.assert_allclose(waveform_i, waveform)
+        np.testing.assert_allclose(waveform_q, 0.0)
+
+    def test_ac_stark_chirp_is_compact_and_resolves_center(self):
+        waveform = lorentzian.root_lorentzian_envelope(
+            length_ns=400,
+            cutoff=0.01,
+            peak_amplitude=0.1,
+        )
+
+        chirp = lorentzian.ac_stark_chirp_parameters(
+            waveform,
+            amplitude_factor=0.5,
+            pi_amplitude=0.1,
+            pi_length_ns=40,
+            pulse_length_ns=400,
+            kappa_mhz_inv=0.00225,
+            max_error_hz=100.0,
+        )
+
+        self.assertEqual(chirp["times_cycles"][0], 0)
+        self.assertEqual(len(chirp["rates"]), len(chirp["times_cycles"]))
+        self.assertLess(chirp["segments"], 400 // 4)
+        self.assertIn(chirp["units"], {"mHz/nsec", "Hz/nsec"})
+
+    def test_zero_amplitude_stark_chirp_is_one_constant_segment(self):
+        chirp = lorentzian.ac_stark_chirp_parameters(
+            [0.1] * 40,
+            amplitude_factor=0.0,
+            pi_amplitude=0.1,
+            pi_length_ns=40,
+            pulse_length_ns=40,
+            kappa_mhz_inv=0.00225,
+            max_error_hz=100.0,
+        )
+
+        self.assertEqual(chirp["initial_frequency_offset_hz"], 0)
+        self.assertEqual(chirp["rates"], [0])
+        self.assertEqual(chirp["times_cycles"], [0])
+
     def test_gaussian_envelope_derives_sigma_from_cutoff(self):
         waveform = lorentzian.gaussian_envelope(
             length_ns=9,
@@ -387,22 +481,31 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         ).read_text()
 
         self.assertIn("class EchoLorentzian(BaseCalibration", v2_source)
-        self.assertIn("install_lorentzian_operation(self)", v2_source)
+        self.assertIn(
+            "install_lorentzian_operation(self, amplitude_factors=amps)",
+            v2_source,
+        )
         self.assertIn("class EchoLorentzianAmplitude(BaseCalibration", amplitude_source)
         self.assertIn("class EchoLorentzianFixedAmplitude(BaseCalibration", fixed_source)
         self.assertIn("fixed_rabi_frequency_mhz", fixed_source)
         self.assertIn("rabi_frequency_hz_to_amplitude", fixed_source)
         self.assertIn("with for_(*from_array(a, amps)):", amplitude_source)
+        self.assertIn("Cast.mul_int_by_fixed", amplitude_source)
+        self.assertNotIn("with switch_(amp_index", amplitude_source)
+        self.assertIn("chirp=(", amplitude_source)
         self.assertIn("amplitude_prefactors(self.parameters)", amplitude_source)
-        self.assertIn("--amp-factor-points", amplitude_source)
-        self.assertIn("--amp-factor-spacing", amplitude_source)
+        self.assertIn("parameters.amp_factor_points", amplitude_source)
+        self.assertIn("parameters.amp_factor_spacing", amplitude_source)
         self.assertNotIn("with for_(*from_array(df, dfs)):", amplitude_source)
         self.assertIn("for_each_(df, dfs.tolist())", v2_source)
         self.assertIn("else for_(*from_array(df, dfs))", v2_source)
         self.assertIn("with for_(*from_array(a, amps)):", v2_source)
-        self.assertIn("--amp-factor-points", v2_source)
-        self.assertIn("--amp-factor-spacing", v2_source)
-        self.assertIn("--frequency-points", v2_source)
+        self.assertIn("Cast.mul_int_by_fixed", v2_source)
+        self.assertNotIn("with switch_(amp_index", v2_source)
+        self.assertIn("chirp=(", v2_source)
+        self.assertIn("parameters.amp_factor_points", v2_source)
+        self.assertIn("parameters.amp_factor_spacing", v2_source)
+        self.assertIn("parameters.frequency_points", v2_source)
         self.assertIn("duration=play_duration", v2_source)
         self.assertIn("duration=play_duration", amplitude_source)
         self.assertIn('"detuning": xr.DataArray(', v2_source)
@@ -752,7 +855,7 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertIn("1/(pi*T2*)=318310", figure_text)
         plt.close(figure)
 
-    def test_lorentzian_plot_marks_gaussian_fwhm_edges(self):
+    def test_lorentzian_plot_omits_gaussian_fwhm_annotations(self):
         detuning = np.linspace(-4e6, 4e6, 81)
         amps = [0.5, 1.0]
         sigma = 0.8e6
@@ -805,7 +908,7 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
             if legend is not None
             for text in legend.get_texts()
         )
-        self.assertIn("Up Gaussian FWHM", legend_text)
+        self.assertNotIn("Gaussian FWHM", legend_text)
         plt.close(figure)
 
     def test_lorentzian_plot_handles_single_fixed_amplitude(self):
@@ -953,6 +1056,18 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertIn("T2* limit: ±1/(2πT2*)", labels)
         plt.close(figure)
 
+    def test_lorentzian_plot_hides_t2_limit_lines_outside_narrow_window(self):
+        figure, axis = plt.subplots()
+        axis.set_xlim(-3, 3)
+
+        lorentzian._add_t2_limit_lines(
+            axis,
+            make_plot_qubit(t2_ramsey=1e-6),
+        )
+
+        self.assertFalse(axis.lines)
+        plt.close(figure)
+
     def test_t2_ramsey_ns_attribute_is_interpreted_as_seconds(self):
         qubit = make_plot_qubit(t2_ramsey=None)
         qubit.T2ramsey = None
@@ -1046,6 +1161,29 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
             ),
             6.25e6,
         )
+
+    def test_constant_rabi_linearity_fit_recovers_frequency(self):
+        from Projects.shaped_pulse_spectroscopy.shaped_pulse_spectroscopy.rabi_linearity import (
+            fit_rabi_trace,
+        )
+
+        duration_ns = np.arange(16, 804, 4)
+        signal = 0.45 - 0.40 * np.cos(2 * np.pi * 12.5e6 * duration_ns * 1e-9 + 0.2)
+        result = fit_rabi_trace(duration_ns, signal)
+
+        self.assertAlmostEqual(result["frequency_hz"], 12.5e6, delta=2e3)
+        self.assertGreater(result["r_squared"], 0.999)
+
+    def test_constant_rabi_linearity_sweep_enforces_safety_limit(self):
+        from Projects.shaped_pulse_spectroscopy.experiments.rabi_frequency_linearity import (
+            Parameters as LinearityParameters,
+            sweep_values,
+        )
+
+        parameters = LinearityParameters()
+        parameters.max_drive_amplitude_v = 0.71
+        with self.assertRaisesRegex(ValueError, "0.7 V safety limit"):
+            sweep_values(parameters)
 
 
 if __name__ == "__main__":

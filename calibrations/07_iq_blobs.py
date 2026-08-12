@@ -20,6 +20,7 @@ from qualang_tools.results import progress_counter
 from quam_config import Quam, create_machine
 from calibration_io import CalibrationSaver, current_profile_name
 from utils.plotting_settings import plot_per_qubit
+from utils.readout_macro import active_reset_configured
 from profiles import ProfileUpdater
 from calibration_utils.iq_blobs import (
     Parameters,
@@ -58,7 +59,7 @@ State update:
     - The integration weight angle: qubit.resonator.operations["readout"].integration_weights_angle
     - the ge discrimination threshold: qubit.resonator.operations["readout"].threshold
     - the Repeat Until Success threshold: qubit.resonator.operations["readout"].rus_exit_threshold
-    - The confusion matrix: qubit.resonator.operations["readout"].confusion_matrix
+    - The binary fidelity/assignment matrix: qubit.resonator.confusion_matrix
 """
 
 
@@ -80,6 +81,33 @@ def _copy_integration_weights(integration_weights):
         [float(weight_segment[0]), int(weight_segment[1])]
         for weight_segment in integration_weights
     ]
+
+
+def _rotate_iq_centers(centers, angle: float):
+    """Express fitted centers in the IQ frame used after the IW-angle update."""
+    centers = np.asarray(centers, dtype=float)
+    cosine = np.cos(angle)
+    sine = np.sin(angle)
+    return np.column_stack(
+        (
+            centers[:, 0] * cosine - centers[:, 1] * sine,
+            centers[:, 0] * sine + centers[:, 1] * cosine,
+        )
+    )
+
+
+def _should_update_iq_centers(reset_type: str) -> bool:
+    """Return whether fitted centers may replace the stored thermal IQ means."""
+    return reset_type not in {"active", "active_gef"}
+
+
+def reset_qubit_active_gef(qubit, max_attempts: int = 15) -> None:
+    """Reset G/E/F through the profile-configured readout discriminator."""
+    active_reset_configured(
+        qubit,
+        num_states=3,
+        max_attempts=max_attempts,
+    )
 
 
 # Be sure to include [Parameters, Quam] so the node has proper type hinting
@@ -142,6 +170,7 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
         states = list(node.parameters.states)
         reset_type = node.parameters.reset_type
         use_gef_active_reset = "f" in states and reset_type == "active"
+        use_simple_active_gef_reset = reset_type == "active_gef"
         selected_qubit_operation = node.parameters.qubit_operation
         qua_qubit_operation = (
             "x180"
@@ -162,7 +191,9 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
         if node.parameters.active_gef_reset_attempts < 1:
             raise ValueError("active_gef_reset_attempts must be a positive integer.")
         for qubit in qubits:
-            if use_gef_active_reset and not _has_gef_centers(qubit):
+            if (
+                use_gef_active_reset or use_simple_active_gef_reset
+            ) and not _has_gef_centers(qubit):
                 raise ValueError(
                     f"{qubit.name} active_gef reset requires qubit.resonator.gef_centers. "
                     "Run IQ blobs with states ['g', 'e', 'f'] and reset_type='thermal' first."
@@ -181,7 +212,9 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                         f"{qubit.name} does not define qubit operation 'EF_x180'."
                     )
             if (
-                operation == "readout_GEF" or use_gef_active_reset
+                operation == "readout_GEF"
+                or use_gef_active_reset
+                or use_simple_active_gef_reset
             ) and "readout_GEF" not in qubit.resonator.operations:
                 readout_op = qubit.resonator.operations["readout"]
                 qubit.resonator.operations["readout_GEF"] = SquareReadoutPulse(
@@ -209,6 +242,25 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
             I_e, I_e_st, Q_e, Q_e_st, _, _ = node.machine.declare_qua_variables()
             if "f" in states:
                 I_f, I_f_st, Q_f, Q_f_st, _, _ = node.machine.declare_qua_variables()
+
+            def measure_cloud(qubit, i_quadrature, q_quadrature):
+                uses_gef_frequency = operation == "readout_GEF"
+                if uses_gef_frequency:
+                    qubit.resonator.update_frequency(
+                        int(
+                            qubit.resonator.intermediate_frequency
+                            + qubit.resonator.GEF_frequency_shift
+                        )
+                    )
+                qubit.resonator.measure(
+                    operation,
+                    qua_vars=(i_quadrature, q_quadrature),
+                )
+                if uses_gef_frequency:
+                    qubit.resonator.update_frequency(
+                        qubit.resonator.intermediate_frequency
+                    )
+
             if use_gef_active_reset:
                 reset_state = [declare(int) for _ in range(num_qubits)]
                 reset_attempt = declare(int)
@@ -250,11 +302,17 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
             else:
 
                 def reset_qubit(qubit, qubit_index):
-                    qubit.reset(
-                        reset_type,
-                        node.parameters.simulate,
-                        # log_callable=node.log,
-                    )
+                    if reset_type == "active_gef":
+                        reset_qubit_active_gef(
+                            qubit,
+                            max_attempts=node.parameters.active_gef_reset_attempts,
+                        )
+                    else:
+                        qubit.reset(
+                            reset_type,
+                            node.parameters.simulate,
+                            # log_callable=node.log,
+                        )
 
             for multiplexed_qubits in qubits.batch():
                 save_n_state = states[0]
@@ -267,9 +325,7 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                             reset_qubit(qubit, i)
                         align()
                         for i, qubit in multiplexed_qubits.items():
-                            qubit.resonator.measure(
-                                operation, qua_vars=(I_g[i], Q_g[i])
-                            )
+                            measure_cloud(qubit, I_g[i], Q_g[i])
 
                             save(I_g[i], I_g_st[i])
                             save(Q_g[i], Q_g_st[i])
@@ -296,9 +352,7 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                                 )
                         align()
                         for i, qubit in multiplexed_qubits.items():
-                            qubit.resonator.measure(
-                                operation, qua_vars=(I_e[i], Q_e[i])
-                            )
+                            measure_cloud(qubit, I_e[i], Q_e[i])
                             save(I_e[i], I_e_st[i])
                             save(Q_e[i], Q_e_st[i])
                         align()
@@ -323,9 +377,7 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                             )
                         align()
                         for i, qubit in multiplexed_qubits.items():
-                            qubit.resonator.measure(
-                                operation, qua_vars=(I_f[i], Q_f[i])
-                            )
+                            measure_cloud(qubit, I_f[i], Q_f[i])
                             save(I_f[i], I_f_st[i])
                             save(Q_f[i], Q_f_st[i])
                         align()
@@ -430,6 +482,11 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                 "pi_repetitions": node.parameters.pi_repetitions,
                 "states": node.parameters.states,
                 "qubit_operation": node.parameters.qubit_operation,
+                "readout_discriminator": getattr(
+                    node.machine,
+                    "readout_discriminator",
+                    None,
+                ),
             },
             figure_name="iq_blobs_dashboard",
         )
@@ -465,16 +522,35 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                         f"{q.name} failed IQ-blob quality checks; its fitted parameters can still be reviewed."
                     )
                 operation = q.resonator.operations[node.parameters.operation]
-                if state_labels == ["g", "e", "f"]:
+                update_iq_centers = _should_update_iq_centers(
+                    node.parameters.reset_type
+                )
+                if update_iq_centers and state_labels in (
+                    ["g", "e"],
+                    ["g", "e", "f"],
+                ):
                     centers = np.asarray(fit_result["center_matrix"], dtype=float)
+                    if state_labels == ["g", "e"]:
+                        centers = _rotate_iq_centers(
+                            centers,
+                            float(fit_result["iw_angle"]),
+                        )
                     if np.isfinite(centers).all():
                         q.resonator.gef_centers = (
                             centers * operation.length / 2**12
                         ).tolist()
                     else:
                         node.log(
-                            f"Skipping {q.name} GEF center update because fitted centers are not finite."
+                            f"Skipping {q.name} IQ-center update because fitted centers are not finite."
                         )
+                elif not update_iq_centers and state_labels in (
+                    ["g", "e"],
+                    ["g", "e", "f"],
+                ):
+                    node.log(
+                        f"Skipping {q.name} IQ-center update because active-reset acquisitions "
+                        "must not replace the thermal IQ means."
+                    )
                 if state_labels != ["g", "e"]:
                     node.log(
                         f"Skipping {q.name} readout state update because acquired states "
@@ -490,7 +566,7 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                     float(fit_result["rus_threshold"]) * operation.length / 2**12
                 )
                 if node.parameters.operation == "readout":
-                    q.resonator.confusion_matrix = fit_result["confusion_matrix"]
+                    q.resonator.confusion_matrix = fit_result["fidelity_matrix"]
 
     def propose_profile_update(self):
         node = self
@@ -511,8 +587,17 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
         for q in node.namespace["qubits"]:
             fit_result = node.results["fit_results"][q.name]
             state_labels = [str(state) for state in fit_result.get("state_labels", [])]
-            if state_labels == ["g", "e", "f"]:
+            update_iq_centers = _should_update_iq_centers(node.parameters.reset_type)
+            if update_iq_centers and state_labels in (
+                ["g", "e"],
+                ["g", "e", "f"],
+            ):
                 centers = np.asarray(fit_result["center_matrix"], dtype=float)
+                if state_labels == ["g", "e"]:
+                    centers = _rotate_iq_centers(
+                        centers,
+                        float(fit_result["iw_angle"]),
+                    )
                 if np.isfinite(centers).all():
                     operation = q.resonator.operations["readout"]
                     updates[f"qubits.json.qubits.{q.name}.readout.gef_centers"] = (
@@ -520,8 +605,17 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                     ).tolist()
                 else:
                     node.log(
-                        f"Profile GEF-center update skipped for {q.name}: fitted centers are not finite."
+                        f"Profile IQ-center update skipped for {q.name}: fitted centers are not finite."
                     )
+            elif not update_iq_centers and state_labels in (
+                ["g", "e"],
+                ["g", "e", "f"],
+            ):
+                node.log(
+                    f"Profile IQ-center update skipped for {q.name}: active-reset "
+                    "acquisitions must not replace the thermal IQ means."
+                )
+            if state_labels == ["g", "e", "f"]:
                 continue
             if state_labels != ["g", "e"]:
                 node.log(
@@ -543,6 +637,9 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
             )
             updates[f"qubits.json.qubits.{q.name}.readout.rus_exit_threshold"] = float(
                 operation.rus_exit_threshold
+            )
+            updates[f"qubits.json.qubits.{q.name}.readout.confusion_matrix"] = (
+                fit_result["fidelity_matrix"]
             )
             if reset_metric_key is not None:
                 updates[
@@ -571,8 +668,8 @@ if __name__ == "__main__":
 
     parameters.qubit_operation = "x180"
     parameters.states = ["g", "e"]
-    parameters.reset_type = "active"
-    parameters.active_gef_reset_attempts = 1
+    parameters.reset_type = "thermal"
+    # parameters.active_gef_reset_attempts = 3
     parameters.num_shots = 10000
 
     options = CalibrationOptions()

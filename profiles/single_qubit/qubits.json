@@ -7,9 +7,9 @@
         4
       ],
       "frequencies_hz": {
-        "qubit_f01": 4265995248.8079386,
+        "qubit_f01": 4265924616.846842,
         "qubit_f12": 4050000000.0,
-        "resonator": 6668700000.0,
+        "resonator": 6668900000.0,
         "resonator_bare": null
       },
       "transmon": {
@@ -23,29 +23,35 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": -0.0002761792466853608,
-        "rus_exit_threshold": -0.0002761792466853608,
+        "threshold": -0.00023366966445682386,
+        "rus_exit_threshold": -0.00023366966445682386,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": -10.830671939748104,
+        "integration_weights_angle_rad": -4.026344304537524,
         "use_kernel": true,
         "gef_frequency_shift_hz": -810000.0,
         "gef_centers": [
           [
-            -0.00043384384177625173,
-            1.5505123883485793e-06
+            -0.00041910191514310004,
+            8.327075051316654e-05
           ],
           [
-            -4.2138450592756265e-05,
-            8.741557598114011e-07
+            -0.0001050917191887885,
+            8.327075051316655e-05
+          ]
+        ],
+        "confusion_matrix": [
+          [
+            0.9416,
+            0.0584
           ],
           [
-            1.1330069229006767e-05,
-            -8.770411536097526e-05
+            0.2281,
+            0.7719
           ]
         ]
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -83,7 +89,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -121,7 +127,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -159,7 +165,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -197,7 +203,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -235,7 +241,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -273,7 +279,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -311,7 +317,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -325,7 +331,7 @@
         0
       ],
       "frequencies_hz": {
-        "qubit_f01": 4349629563.381579,
+        "qubit_f01": 4350713804.570797,
         "qubit_f12": 4133600000.0,
         "resonator": 7471800000.0,
         "resonator_bare": null
@@ -341,15 +347,25 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0.0004768506294353637,
-        "rus_exit_threshold": 0.0004768506294353637,
+        "threshold": 0.00034188508061497216,
+        "rus_exit_threshold": 0.00034188508061497216,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 3.9685760185925134,
+        "integration_weights_angle_rad": 3.667782238301787,
         "use_kernel": false,
-        "gef_frequency_shift_hz": 0
+        "gef_frequency_shift_hz": 0,
+        "confusion_matrix": [
+          [
+            0.8438,
+            0.1562
+          ],
+          [
+            0.3157,
+            0.6843
+          ]
+        ]
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -387,7 +403,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -425,7 +441,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
@@ -463,7 +479,7 @@
         "gef_frequency_shift_hz": 0
       },
       "operations": {
-        "x180": "x180_const",
+        "x180": "x180_cosine",
         "EF_x180": "EF_x180_const",
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",

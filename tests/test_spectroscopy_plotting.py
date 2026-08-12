@@ -391,6 +391,52 @@ class SpectroscopyPlottingTests(unittest.TestCase):
         )
         self.assertIn("q3: index=2", parameter_text.get_text())
 
+    def test_resonator_second_subplot_shows_readout_fidelity(self):
+        frequencies = np.asarray([7.469e9, 7.470e9, 7.471e9])
+        ds = xr.Dataset(
+            {
+                "ground_IQ_abs": (
+                    ("qubit", "detuning"),
+                    [[1.0e-3, 1.1e-3, 1.0e-3]],
+                ),
+                "mixed_IQ_abs": (
+                    ("qubit", "detuning"),
+                    [[1.2e-3, 1.3e-3, 1.2e-3]],
+                ),
+                "IQ_separation": (
+                    ("qubit", "detuning"),
+                    [[1.0, 4.0, 2.0]],
+                ),
+                "readout_fidelity": (
+                    ("qubit", "detuning"),
+                    [[75.0, 96.5, 82.0]],
+                ),
+            },
+            coords={
+                "qubit": ["q1"],
+                "detuning": [-1e6, 0.0, 1e6],
+                "full_freq": (("qubit", "detuning"), frequencies[None, :]),
+            },
+        )
+        qubit = SimpleNamespace(
+            name="q1",
+            grid_location="0,0",
+            resonator=SimpleNamespace(RF_frequency=7.470e9),
+        )
+
+        fig = plot_raw_amplitude(ds, [qubit])
+
+        fidelity_ax = next(
+            axis
+            for axis in fig.axes
+            if axis.get_ylabel() == "Optimal discrimination fidelity [%]"
+        )
+        fidelity_line = next(
+            line for line in fidelity_ax.lines if line.get_label() == "Readout fidelity"
+        )
+        np.testing.assert_allclose(fidelity_line.get_ydata(), [75.0, 96.5, 82.0])
+        self.assertEqual(tuple(fidelity_ax.get_ylim()), (75.0, 100.0))
+
 
 if __name__ == "__main__":
     unittest.main()

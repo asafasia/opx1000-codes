@@ -27,6 +27,12 @@ class NodeSpecificParameters(RunnableParameters):
     """Shared edge/peak amplitude ratio for cutoff-based pulse shapes."""
     echo: bool = False
     """Apply a 180-degree phase jump at the waveform midpoint."""
+    ac_stark_correction: bool = False
+    """Apply accumulated-phase AC-Stark compensation to the pulse IQ waveform."""
+    stark_kappa_mhz_inv: float = 0.00225
+    """Quadratic AC-Stark correction coefficient in inverse MHz."""
+    stark_chirp_max_error_hz: float = 100.0
+    """Maximum interpolation error for the piecewise-linear Stark chirp."""
     min_amp_factor: float = 0.0
     """Minimum Lorentzian-amplitude prefactor."""
     max_amp_factor: float = 1.0
@@ -47,6 +53,8 @@ class NodeSpecificParameters(RunnableParameters):
     """Qubit-frequency step in MHz."""
     frequency_points: int | None = None
     """Optional exact number of detuning points, including both span endpoints."""
+    fit_fwhm: bool = True
+    """Run Gaussian FWHM fitting during detuning-sweep analysis."""
 
 
 class Parameters(

@@ -35,6 +35,24 @@ Readout acquisition timing is configured per qubit with
 `readout.depletion_time_ns`. The profile population step applies these values
 directly to the QuAM resonator.
 
+MW-FEM acquisition gain is configured per physical input as
+`controllers.<controller>.fems.<fem>.inputs.<port>.gain_db` in
+`connectivity.json`. Valid values are integer dB settings from 0 through 32;
+all resonators sharing that physical input use the same gain.
+
+The profile-level `readout_discriminator` selects the QUA state classifier for
+all qubits. `"quam"` keeps the QuAM-provided readout methods and is the default.
+`"nearest_center"` selects the repository macro, which assigns the measured IQ
+point to the nearest calibrated blob center. The optional per-qubit
+`readout.gef_centers` contains either the G/E centers (2x2) or G/E/F centers
+(3x2), in demodulation units. IQ-blobs calibration stages these values.
+
+Experiments can use `readout_state_configured(...)` for one measurement or
+`active_reset_configured(...)` for bounded active reset. Both macros select the
+profile discriminator automatically. Active reset supports G/E and G/E/F; the
+three-state path applies E-to-G or F-to-E-to-G correction pulses according to
+the discriminated state.
+
 Pulse definitions are grouped by qubit name in `pulses.json`. Each qubit
 references pulse names from its own group under `operations`, so the same
 operation names can be calibrated independently. Supported pulse types are:
@@ -56,6 +74,11 @@ Readout pulses define piecewise-constant integration kernels as
 span the full readout pulse. The per-qubit
 `readout.integration_weights_angle_rad` rotates this kernel when the QuAM
 configuration is generated.
+
+The optional `readout.confusion_matrix` is the 2x2 assignment matrix produced
+by binary IQ-blobs analysis. Rows identify prepared `g/e` states and columns
+identify discriminated `g/e` states. It is loaded onto the resonator for
+readout-error mitigation.
 
 Set `qubits.json.qubits.<qubit>.readout.use_kernel` to choose the kernel source
 for the default readout operation. `false` uses the basic `pulses.json`

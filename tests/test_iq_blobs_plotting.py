@@ -101,9 +101,14 @@ class IQBlobsPlottingTests(unittest.TestCase):
             coords={"qubit": ["q1"], "n_runs": runs},
         )
         readout = SimpleNamespace(length=1200, amplitude=0.045)
+        cosine_pulse = type("DragCosinePulse", (), {})()
         qubit = SimpleNamespace(
             name="q1",
-            resonator=SimpleNamespace(operations={"readout": readout}),
+            resonator=SimpleNamespace(
+                operations={"readout": readout},
+                use_kernel=False,
+            ),
+            xy=SimpleNamespace(operations={"x180": cosine_pulse}),
         )
 
         fig = plot_iq_blobs_dashboard(
@@ -112,9 +117,10 @@ class IQBlobsPlottingTests(unittest.TestCase):
             fit,
             run_metadata={
                 "operation": "readout",
-                "reset_type": "active",
+                "reset_type": "active_gef",
                 "num_shots": 25000,
                 "pi_repetitions": 3,
+                "readout_discriminator": "nearest_center",
             },
         )
 
@@ -123,6 +129,9 @@ class IQBlobsPlottingTests(unittest.TestCase):
         self.assertIn("Parameters", parameter_text.get_text())
         self.assertIn("readout length=1200 ns", parameter_text.get_text())
         self.assertIn("readout amp=0.045 V", parameter_text.get_text())
+        self.assertIn("optimized kernel=False", parameter_text.get_text())
+        self.assertIn("pi pulse type=cosine", parameter_text.get_text())
+        self.assertIn("discrimination=nearest_center", parameter_text.get_text())
         self.assertIn("active reset=True", parameter_text.get_text())
         self.assertIn("num reps=25000", parameter_text.get_text())
         self.assertIn("pi reps=3", parameter_text.get_text())

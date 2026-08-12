@@ -12,6 +12,7 @@ from calibration_utils.T1.plotting import plot_individual_data_with_fit
 
 def make_fit(decay):
     values = np.zeros((1, len(FIT_VALUES)))
+    values[0, FIT_VALUES.index("offset")] = 0.2
     values[0, FIT_VALUES.index("decay")] = decay
     values[0, FIT_VALUES.index("decay_decay")] = 1e-10
     return xr.DataArray(
@@ -83,6 +84,28 @@ class T1AnalysisTests(unittest.TestCase):
         self.assertEqual(ax.get_ylabel(), "Trans. amp. Q [mV]")
         self.assertEqual(ax.lines[0].get_marker(), ".")
         self.assertEqual(ax.lines[0].get_linestyle(), "-")
+        self.assertNotEqual(ax.get_ylim(), (0.0, 1.0))
+        offset_line = next(line for line in ax.lines if line.get_label() == "B")
+        np.testing.assert_allclose(offset_line.get_ydata(), [200.0, 200.0])
+        plt.close(fig)
+
+    def test_discrimination_plot_uses_probability_limits_and_marks_offset(self):
+        idle_time = np.arange(3.0)
+        ds = xr.Dataset(
+            {
+                "state": (("qubit", "idle_time"), [[0.9, 0.6, 0.4]]),
+                "fit_data": (("qubit", "fit_vals"), make_fit(-0.001).values),
+            },
+            coords={"qubit": ["q1"], "idle_time": idle_time, "fit_vals": FIT_VALUES},
+        ).assign_coords(tau=("qubit", [1000.0]), tau_error=("qubit", [10.0]), success=("qubit", [True]))
+        fig, ax = plt.subplots()
+
+        plot_individual_data_with_fit(ax, ds, {"qubit": "q1"}, ds.sel(qubit="q1"))
+
+        self.assertEqual(ax.get_ylim(), (0.0, 1.0))
+        offset_line = next(line for line in ax.lines if line.get_label() == "B")
+        self.assertEqual(offset_line.get_linestyle(), "--")
+        np.testing.assert_allclose(offset_line.get_ydata(), [0.2, 0.2])
         plt.close(fig)
 
     def test_plot_skips_failed_fit_curve(self):

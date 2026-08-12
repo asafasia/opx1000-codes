@@ -64,6 +64,7 @@
           "inputs": {
             "1": {
               "band": 3,
+              "gain_db": 9,
               "sampling_rate_hz": 1000000000
             },
             "2": {

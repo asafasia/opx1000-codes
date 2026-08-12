@@ -7,6 +7,8 @@ here.
   reference data, and vendor-provided measurements.
 - [Calibration routine hierarchy](calibrations/README.md): general bring-up
   order, fine-tuning flow, and practical calibration notes.
+- [Readout-error mitigation](calibrations/readout_mitigation.md): binary
+  IQ-blobs assignment matrices, correction behavior, and usage.
 - [Current state notes](current_state/README.md): dated lab snapshots for
   working calibration status, blockers, and next checks.
 - [Documentation TODO](TODO.md): follow-up docs, structure cleanup, and known

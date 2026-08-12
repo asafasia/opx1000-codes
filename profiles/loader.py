@@ -11,6 +11,7 @@ PROFILES_ROOT = Path(__file__).resolve().parent
 SUPPORTED_SCHEMA_VERSION = 1
 PULSE_TYPES = {"constant", "drag", "cosine", "saturation"}
 STATE_1_RULES = {"above_threshold", "below_threshold"}
+READOUT_DISCRIMINATORS = {"quam", "nearest_center"}
 MAX_PROFILE_PULSE_AMPLITUDE = 1.0
 MW_FEM_BAND_RANGES_HZ = {
     1: (50e6, 5.5e9),
@@ -156,6 +157,11 @@ def _validate_mw_port(port: dict[str, Any], label: str) -> None:
 def _validate_mw_input_port(port: dict[str, Any], label: str) -> None:
     band = port.get("band")
     _require(band in MW_FEM_BAND_RANGES_HZ, f"{label} has unsupported MW-FEM band {band!r}")
+    gain_db = port.get("gain_db", 0)
+    _require(
+        isinstance(gain_db, int) and not isinstance(gain_db, bool) and 0 <= gain_db <= 32,
+        f"{label} gain_db must be an integer from 0 to 32 dB",
+    )
     _require(
         "lo_frequency_hz" not in port,
         f"{label} must not define lo_frequency_hz; it is derived from the resonator output",
@@ -320,7 +326,7 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
             gef_centers is None
             or (
                 isinstance(gef_centers, list)
-                and len(gef_centers) == 3
+                and len(gef_centers) in {2, 3}
                 and all(
                     isinstance(center, list)
                     and len(center) == 2
@@ -328,7 +334,22 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
                     for center in gef_centers
                 )
             ),
-            f"Qubit {name!r} readout.gef_centers must be null or a 3x2 numeric list",
+            f"Qubit {name!r} readout.gef_centers must be null or a 2x2 or 3x2 numeric list",
+        )
+        confusion_matrix = readout.get("confusion_matrix")
+        _require(
+            confusion_matrix is None
+            or (
+                isinstance(confusion_matrix, list)
+                and len(confusion_matrix) == 2
+                and all(
+                    isinstance(row, list)
+                    and len(row) == 2
+                    and all(isinstance(value, (int, float)) for value in row)
+                    for row in confusion_matrix
+                )
+            ),
+            f"Qubit {name!r} readout.confusion_matrix must be null or a 2x2 numeric list",
         )
         _require(
             isinstance(transmon.get("thermalization_time_ns"), int)
@@ -375,6 +396,11 @@ def validate_profile(profile: dict[str, Any]) -> None:
     for name, document in profile.items():
         _validate_version(document, name)
 
+    _require(
+        manifest.get("readout_discriminator", "quam") in READOUT_DISCRIMINATORS,
+        "profile.json readout_discriminator must be 'quam' or 'nearest_center'",
+    )
+
     _validate_pulses(pulses)
     _validate_qubits(qubits, pulses)
     if metrics is not None:
@@ -389,6 +415,13 @@ def validate_profile(profile: dict[str, Any]) -> None:
     _require(isinstance(active_qubits, list) and active_qubits, "profile.json must define active_qubits")
     for qubit_name in active_qubits:
         _require(qubit_name in qubits["qubits"], f"Active qubit {qubit_name!r} is undefined")
+        if manifest.get("readout_discriminator", "quam") == "nearest_center":
+            centers = qubits["qubits"][qubit_name]["readout"].get("gef_centers")
+            _require(
+                centers is not None and len(centers) >= 2,
+                f"Active qubit {qubit_name!r} needs readout.gef_centers for "
+                "nearest_center discrimination",
+            )
 
 
 def _load_profile_documents(name: str, root: Path = PROFILES_ROOT) -> dict[str, Any]:

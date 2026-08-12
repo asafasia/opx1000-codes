@@ -5,14 +5,14 @@
       "x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.31434054473896916,
+        "amplitude": 0.10005445978213705,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
       "EF_x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.025827745375323802,
+        "amplitude": 0.014802869927137885,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -29,7 +29,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.20873588941473226,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -82,7 +82,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.27072384421637535,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -135,7 +135,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.20605966290691394,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -188,7 +188,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.2745286765886758,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -241,7 +241,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.2,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -294,7 +294,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.7,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -347,7 +347,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.2,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -429,7 +429,7 @@
       "x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.3507472663057987,
+        "amplitude": 0.03610459993309708,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -453,7 +453,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.07220919986619416,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -506,7 +506,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.17303797705812146,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -559,7 +559,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.2,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -612,7 +612,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.7,
         "length_ns": 40,
         "axis_angle_rad": 0
       },

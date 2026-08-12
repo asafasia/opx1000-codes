@@ -30,6 +30,7 @@ from calibration_utils.power_rabi import (
 from profiles import load_profile
 from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
+from utils.readout_macro import active_reset_configured, readout_state_configured
 
 if __package__ in {None, ""}:
     from calibrations.core import BaseCalibration, CalibrationOptions
@@ -71,9 +72,12 @@ def active_operation(parameters: Parameters) -> str:
 
 def has_gef_readout_calibration(qubit: Any) -> bool:
     """Return whether the qubit has the data needed for dedicated GEF readout."""
+    centers = getattr(qubit.resonator, "gef_centers", None)
     return (
         callable(getattr(qubit, "readout_state_gef", None))
         and getattr(qubit.resonator, "GEF_frequency_shift", None) is not None
+        and centers is not None
+        and len(centers) >= 3
     )
 
 
@@ -181,10 +185,26 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
                     with for_(*from_array(npi, n_pi_vec)):
                         with for_(*from_array(a, amps)):
                             for _, qubit in multiplexed_qubits.items():
-                                qubit.reset(
-                                    self.parameters.reset_type,
-                                    self.parameters.simulate,
-                                )
+                                if (
+                                    not self.parameters.simulate
+                                    and self.parameters.reset_type
+                                    in {"active", "active_gef"}
+                                ):
+                                    active_reset_configured(
+                                        qubit,
+                                        num_states=(
+                                            3
+                                            if self.parameters.reset_type
+                                            == "active_gef"
+                                            else 2
+                                        ),
+                                        pulse_name="readout",
+                                    )
+                                else:
+                                    qubit.reset(
+                                        self.parameters.reset_type,
+                                        self.parameters.simulate,
+                                    )
 
                             align()
 
@@ -207,13 +227,18 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
 
                             for i, qubit in multiplexed_qubits.items():
                                 if self.parameters.use_state_discrimination:
-                                    if self.parameters.transition == "ef":
-                                        if has_gef_readout_calibration(qubit):
-                                            qubit.readout_state_gef(state[i])
-                                        else:
-                                            qubit.readout_state(state[i])
-                                    else:
-                                        qubit.readout_state(state[i])
+                                    num_readout_states = (
+                                        3
+                                        if self.parameters.transition == "ef"
+                                        and has_gef_readout_calibration(qubit)
+                                        else 2
+                                    )
+                                    readout_state_configured(
+                                        qubit,
+                                        state[i],
+                                        num_states=num_readout_states,
+                                        pulse_name="readout",
+                                    )
                                     save(state[i], state_st[i])
                                 else:
                                     qubit.resonator.measure(
@@ -313,9 +338,10 @@ if __name__ == "__main__":
     parameters = Parameters()
     parameters.reset_type = "active"
     parameters.use_state_discrimination = True
+    parameters.use_readout_mitigation = False
     parameters.num_shots = 200
     parameters.transition = "ge"
-    parameters.pi_repetitions = 10
+    parameters.pi_repetitions = 3
     parameters.operation = "x180"
 
     options = CalibrationOptions()

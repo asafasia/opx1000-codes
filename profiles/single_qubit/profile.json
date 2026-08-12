@@ -2,6 +2,7 @@
   "schema_version": 1,
   "name": "single_qubit",
   "description": "Independent calibration profile for single-qubit experiments.",
+  "readout_discriminator": "quam",
   "build_mode": "single_qubit",
   "files": {
     "connectivity": "connectivity.json",

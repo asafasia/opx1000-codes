@@ -46,3 +46,12 @@ For quick local testing, reduce the sweep size and pulse length:
 ```powershell
 python Projects\shaped_pulse_spectroscopy\simulation\qutip\simulate_echo_lorentzian.py --pulse-shape root_lorentzian --echo --lorentzian-length-in-ns 80 --cutoff 0.25 --amp-factor-step 0.25 --frequency-span-in-mhz 20 --frequency-step-in-mhz 5
 ```
+
+Use `--num-levels 3` with the positive anharmonicity magnitude
+`--anharmonicity-hz` to simulate a transmon qutrit. The dataset then includes
+all three level populations, total excited population, and a dedicated
+`leakage` variable and plot:
+
+```powershell
+python Projects\shaped_pulse_spectroscopy\simulation\qutip\simulate_echo_lorentzian.py --num-levels 3 --anharmonicity-hz 217106667.324065 --pulse-shape root_lorentzian --echo --lorentzian-length-in-ns 20000 --cutoff 0.005
+```

@@ -301,8 +301,10 @@ if __name__ == "__main__":
 
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
+    parameters.use_readout_mitigation = False
+
     parameters.max_wait_time_in_ns = 250e3
-    parameters.wait_time_num_points = 100
+    parameters.wait_time_num_points = 300
     parameters.log_or_linear_sweep = "log"
 
     options = CalibrationOptions()
@@ -310,6 +312,6 @@ if __name__ == "__main__":
     calibration = T1(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q9"),
     )
     calibration.run()

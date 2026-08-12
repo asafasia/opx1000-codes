@@ -28,7 +28,11 @@ class RabiStateDiscriminationTests(unittest.TestCase):
 
         self.assertNotIn("node.use_state_discrimination", source)
         self.assertIn("if self.parameters.use_state_discrimination:", source)
-        self.assertIn("qubit.readout_state(state[i])", source)
+        self.assertIn("from utils.readout_macro import", source)
+        self.assertIn("readout_state_configured", source)
+        self.assertIn("readout_state_configured(", source)
+        self.assertIn("num_states=num_readout_states", source)
+        self.assertIn("active_reset_configured(", source)
         self.assertIn('f"state{i + 1}"', source)
         self.assertIn("validate_readout_dataset(", source)
         self.assertIn("self.parameters.use_state_discrimination", source)

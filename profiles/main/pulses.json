@@ -29,7 +29,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.10656492655678056,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -82,7 +82,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.07965200407723422,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -135,7 +135,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.2,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -188,7 +188,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.2,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -241,7 +241,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.2,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -294,7 +294,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.2,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -347,7 +347,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.2,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -453,7 +453,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.0786873702673243,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -506,7 +506,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.1297064753248242,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -559,7 +559,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.2,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -612,7 +612,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.1,
+        "amplitude": 0.2,
         "length_ns": 40,
         "axis_angle_rad": 0
       },

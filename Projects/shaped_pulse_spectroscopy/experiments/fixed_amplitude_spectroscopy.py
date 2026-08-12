@@ -115,7 +115,10 @@ class EchoLorentzianFixedAmplitude(BaseCalibration[Parameters, Quam]):
         self.parameters.min_amp_factor = amp_factor
         self.parameters.max_amp_factor = amp_factor + 1e-6
         self.parameters.amp_factor_step = 1e-6
-        install_lorentzian_operation(self)
+        install_lorentzian_operation(self, amplitude_factors=[amp_factor])
+        operation = self.namespace["lorentzian_operation_names"][0]
+        stark_chirps = self.namespace["lorentzian_stark_chirps"]
+        correction_enabled = bool(self.parameters.ac_stark_correction)
         play_duration = self.namespace["lorentzian_play_duration_cycles"]
         amps = np.asarray([amp_factor], dtype=float)
 
@@ -162,17 +165,33 @@ class EchoLorentzianFixedAmplitude(BaseCalibration[Parameters, Quam]):
                                     self.parameters.reset_type,
                                     self.parameters.simulate,
                                 )
-                                qubit.xy.update_frequency(
-                                    qubit.xy.intermediate_frequency + df
-                                )
+                                frequency = qubit.xy.intermediate_frequency + df
+                                if correction_enabled:
+                                    frequency += stark_chirps[qubit.name][
+                                        "initial_frequency_offset_hz"
+                                    ]
+                                qubit.xy.update_frequency(frequency)
                             align()
 
                             for qubit in multiplexed_qubits.values():
-                                qubit.xy.play(
-                                    operation,
-                                    amplitude_scale=a,
-                                    duration=play_duration,
-                                )
+                                if correction_enabled:
+                                    chirp = stark_chirps[qubit.name]
+                                    qubit.xy.play(
+                                        operation,
+                                        amplitude_scale=a,
+                                        duration=play_duration,
+                                        chirp=(
+                                            chirp["rates"],
+                                            chirp["times_cycles"],
+                                            chirp["units"],
+                                        ),
+                                    )
+                                else:
+                                    qubit.xy.play(
+                                        operation,
+                                        amplitude_scale=a,
+                                        duration=play_duration,
+                                    )
                             align()
 
                             for i, qubit in multiplexed_qubits.items():
@@ -237,6 +256,9 @@ if __name__ == "__main__":
     parameters.reset_type = "active"
     parameters.pulse_shape = "root_lorentzian"
     parameters.echo = False
+    parameters.ac_stark_correction = False
+    parameters.stark_kappa_mhz_inv = 0.00225
+    parameters.stark_chirp_max_error_hz = 100.0
     parameters.cutoff = 0.005
     parameters.fixed_rabi_frequency_mhz = 2.32
     parameters.num_shots = 100

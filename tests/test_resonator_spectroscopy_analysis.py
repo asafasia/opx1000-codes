@@ -7,10 +7,39 @@ import xarray as xr
 from calibration_utils.resonator_spectroscopy.analysis import (
     _extract_relevant_fit_parameters,
     calculate_iq_separation,
+    calculate_readout_fidelity,
 )
 
 
 class ResonatorSpectroscopyAnalysisTests(unittest.TestCase):
+    def test_fidelity_uses_optimal_threshold_for_each_frequency(self):
+        ds = xr.Dataset(
+            {
+                "Ig": (
+                    ("qubit", "n_runs", "detuning"),
+                    [[[-2.0, 0.0], [-1.0, 1.0]]],
+                ),
+                "Qg": (
+                    ("qubit", "n_runs", "detuning"),
+                    [[[0.0, 0.0], [0.0, 0.0]]],
+                ),
+                "Im": (
+                    ("qubit", "n_runs", "detuning"),
+                    [[[1.0, 0.0], [2.0, 1.0]]],
+                ),
+                "Qm": (
+                    ("qubit", "n_runs", "detuning"),
+                    [[[0.0, 0.0], [0.0, 0.0]]],
+                ),
+            },
+            coords={"qubit": ["q9"], "n_runs": [0, 1], "detuning": [0, 1]},
+        )
+
+        fidelity = calculate_readout_fidelity(ds)
+
+        self.assertAlmostEqual(float(fidelity.sel(qubit="q9", detuning=0)), 100.0)
+        self.assertAlmostEqual(float(fidelity.sel(qubit="q9", detuning=1)), 50.0)
+
     def test_separation_is_center_distance_divided_by_pooled_width(self):
         ds = xr.Dataset(
             {

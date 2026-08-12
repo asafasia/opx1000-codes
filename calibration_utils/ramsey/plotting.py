@@ -81,13 +81,15 @@ def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str
     - If the fit dataset is provided, the fitted curve is plotted along with the raw data.
     """
     if fit is not None:
+        fit_idle_time = _dense_idle_time(ds.idle_time)
+        fit_parameters = fit["fit"] if isinstance(fit, xr.Dataset) else fit
         fitted_ramsey_data = oscillation_decay_exp(
-            ds.idle_time,
-            fit.sel(fit_vals="a"),
-            fit.sel(fit_vals="f"),
-            fit.sel(fit_vals="phi"),
-            fit.sel(fit_vals="offset"),
-            fit.sel(fit_vals="decay"),
+            fit_idle_time,
+            fit_parameters.sel(fit_vals="a"),
+            fit_parameters.sel(fit_vals="f"),
+            fit_parameters.sel(fit_vals="phi"),
+            fit_parameters.sel(fit_vals="offset"),
+            fit_parameters.sel(fit_vals="decay"),
         )
     else:
         fitted_ramsey_data = None
@@ -95,6 +97,7 @@ def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str
     if hasattr(ds, "state"):
         plot_state(ax, ds, qubit, fitted_ramsey_data)
         ax.set_ylabel("State Population")
+        ax.set_ylim(-0.1, 1.1)
     elif hasattr(ds, "I"):
         plot_transmission_amplitude(ax, ds, qubit, fitted_ramsey_data)
         ax.set_ylabel("Trans. amp. I [mV]")
@@ -102,10 +105,10 @@ def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str
         raise RuntimeError("The dataset must contain either 'I' or 'state' for the plotting function to work.")
 
     ax.set_xlabel("Idle time [ns]")
-    ax.set_title(f"{qubit['qubit']} Ramsey fit")
+    ax.set_title(f"{qubit['qubit']} Ramsey fit", pad=58 if fit is not None else None)
     if fit is not None:
         add_fit_text(ax, fit)
-    ax.legend()
+    _place_legend(ax)
 
 
 def plot_state(ax, ds, qubit, fitted=None):
@@ -114,15 +117,15 @@ def plot_state(ax, ds, qubit, fitted=None):
     ds.sel(detuning_signs=-1).state.plot(ax=ax, x="idle_time", c="C1", marker=".", ms=5.0, ls="", label=r"$\Delta$ = -")
     if fitted is not None:
         ax.plot(
-            ds.idle_time,
-            fitted.fit.sel(detuning_signs=1),
+            fitted.idle_time,
+            fitted.sel(detuning_signs=1),
             c="C0",
             ls="-",
             lw=1,
         )
         ax.plot(
-            ds.idle_time,
-            fitted.fit.sel(detuning_signs=-1),
+            fitted.idle_time,
+            fitted.sel(detuning_signs=-1),
             c="C1",
             ls="-",
             lw=1,
@@ -138,8 +141,28 @@ def plot_transmission_amplitude(ax, ds, qubit, fitted=None):
         ax=ax, x="idle_time", c="C1", marker=".", ms=5.0, ls="", label=r"$\Delta$ = -"
     )
     if fitted is not None:
-        ax.plot(ds.idle_time, 1e3 * fitted.fit.sel(detuning_signs=1), c="C0", ls="-", lw=1)
-        ax.plot(ds.idle_time, 1e3 * fitted.fit.sel(detuning_signs=-1), c="C1", ls="-", lw=1)
+        ax.plot(fitted.idle_time, 1e3 * fitted.sel(detuning_signs=1), c="C0", ls="-", lw=1)
+        ax.plot(fitted.idle_time, 1e3 * fitted.sel(detuning_signs=-1), c="C1", ls="-", lw=1)
+
+
+def _dense_idle_time(idle_time: xr.DataArray, minimum_points: int = 1000) -> xr.DataArray:
+    """Return a dense Ramsey time coordinate for visually smooth fitted curves."""
+    values = np.asarray(idle_time, dtype=float)
+    finite_values = values[np.isfinite(values)]
+    if finite_values.size < 2 or np.ptp(finite_values) == 0:
+        return idle_time
+
+    dense_values = np.linspace(
+        float(np.min(finite_values)),
+        float(np.max(finite_values)),
+        max(minimum_points, finite_values.size),
+    )
+    return xr.DataArray(
+        dense_values,
+        dims=("idle_time",),
+        coords={"idle_time": dense_values},
+        attrs=idle_time.attrs,
+    )
 
 
 def plot_fft_peak(ax: Axes, ds: xr.Dataset, fit: xr.Dataset | None = None):
@@ -160,21 +183,32 @@ def plot_fft_peak(ax: Axes, ds: xr.Dataset, fit: xr.Dataset | None = None):
         ax.plot(peak_frequency_mhz, peak_amplitude, marker="o", color=colors[detuning_sign], ms=4)
         peak_labels.append(f"{detuning_sign:+d}: {peak_frequency_mhz:.3f} MHz")
 
-    ax.set_title("FFT oscillation spectrum")
+    ax.set_title("FFT oscillation spectrum", pad=38 if peak_labels else None)
     ax.set_xlabel("Frequency [MHz]")
     ax.set_ylabel("FFT amplitude [a.u.]")
     ax.grid(True, alpha=0.25)
-    ax.legend()
+    _place_legend(ax)
     if peak_labels:
         ax.text(
-            0.99,
-            0.95,
+            1.0,
+            1.02,
             "Max resonance\n" + "\n".join(peak_labels),
             transform=ax.transAxes,
             ha="right",
-            va="top",
+            va="bottom",
             fontsize=9,
             bbox=dict(facecolor="white", alpha=0.75, edgecolor="0.8"),
+        )
+
+
+def _place_legend(ax: Axes) -> None:
+    """Place a Ramsey legend in the lower-left corner."""
+    handles, labels = ax.get_legend_handles_labels()
+    if handles:
+        ax.legend(
+            handles,
+            labels,
+            loc="lower left",
         )
 
 
@@ -201,9 +235,10 @@ def ramsey_fft_spectrum(ds: xr.Dataset, detuning_sign: int) -> tuple[np.ndarray,
     centered = signal - np.mean(signal)
     frequency_mhz = np.fft.rfftfreq(centered.size, d=dt_ns) * 1e3
     amplitude = np.abs(np.fft.rfft(centered))
-    if frequency_mhz.size <= 1:
+    positive_frequency = frequency_mhz > 0
+    if not np.any(positive_frequency):
         return np.array([]), np.array([])
-    return frequency_mhz[1:], amplitude[1:]
+    return frequency_mhz[positive_frequency], amplitude[positive_frequency]
 
 
 def _signal_for_fft(ds: xr.Dataset, detuning_sign: int) -> np.ndarray:
@@ -234,8 +269,8 @@ def add_fit_text(ax, fit):
             t2_us = 1 / mean_decay_per_ns / 1e3
 
     ax.text(
-        0.02,
-        0.98,
+        1.0,
+        1.02,
         "\n".join(
             [
                 f"Cos fit freq: {_format_detuning_values(fit_frequencies, 'MHz')}",
@@ -245,8 +280,8 @@ def add_fit_text(ax, fit):
         ),
         transform=ax.transAxes,
         fontsize=9,
-        horizontalalignment="left",
-        verticalalignment="top",
+        horizontalalignment="right",
+        verticalalignment="bottom",
         bbox=dict(facecolor="white", alpha=0.75, edgecolor="0.8"),
     )
 

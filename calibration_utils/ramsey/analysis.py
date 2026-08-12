@@ -3,10 +3,25 @@ from dataclasses import dataclass
 from typing import Tuple, Dict
 import numpy as np
 import xarray as xr
+from scipy.optimize import curve_fit
 
 from qualibrate import QualibrationNode
 from qualibration_libs.data import convert_IQ_to_V
-from qualibration_libs.analysis import fit_oscillation_decay_exp
+from qualibration_libs.analysis import oscillation_decay_exp
+
+
+FIT_VALUES = [
+    "a",
+    "f",
+    "phi",
+    "offset",
+    "decay",
+    *[
+        f"{left}_{right}"
+        for left in ("a", "f", "phi", "offset", "decay")
+        for right in ("a", "f", "phi", "offset", "decay")
+    ],
+]
 
 
 @dataclass
@@ -66,15 +81,128 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     xr.Dataset
         Dataset containing the fit results.
     """
-    if node.parameters.use_state_discrimination:
-        fit = fit_oscillation_decay_exp(ds.state, "idle_time")
-    else:
-        fit = fit_oscillation_decay_exp(ds.I, "idle_time")
+    data = ds.state if node.parameters.use_state_discrimination else ds.I
+    frequency_guess_per_ns = abs(float(node.parameters.frequency_detuning_in_mhz)) * 1e-3
+    fit = _fit_ramsey_with_frequency_guess(data, "idle_time", frequency_guess_per_ns)
 
     ds_fit = xr.merge([ds, fit.rename("fit")])
 
     ds_fit, fit_results = _extract_relevant_fit_parameters(ds_fit, node)
     return ds_fit, fit_results
+
+
+def _fit_ramsey_with_frequency_guess(
+    data: xr.DataArray,
+    dim: str,
+    frequency_guess_per_ns: float,
+) -> xr.DataArray:
+    """Fit Ramsey traces robustly, trying the configured detuning frequency first."""
+
+    def fit_trace(time, signal):
+        time = np.asarray(time, dtype=float)
+        signal = np.asarray(signal, dtype=float)
+        valid = np.isfinite(time) & np.isfinite(signal)
+        time = time[valid]
+        signal = signal[valid]
+        if time.size < 6 or np.ptp(time) <= 0 or np.ptp(signal) <= 0:
+            return np.full(len(FIT_VALUES), np.nan)
+
+        order = np.argsort(time)
+        time = time[order]
+        signal = signal[order]
+        positive_steps = np.diff(time)
+        positive_steps = positive_steps[positive_steps > 0]
+        if positive_steps.size == 0:
+            return np.full(len(FIT_VALUES), np.nan)
+
+        max_frequency = 0.5 / float(np.min(positive_steps))
+        configured_frequency = float(np.clip(frequency_guess_per_ns, np.finfo(float).eps, max_frequency))
+        frequency_starts = [configured_frequency]
+        fft_frequency = _fft_frequency_guess(time, signal)
+        if np.isfinite(fft_frequency) and 0 < fft_frequency <= max_frequency:
+            if not np.isclose(fft_frequency, configured_frequency):
+                frequency_starts.append(float(fft_frequency))
+
+        decay_guess = 1 / float(np.ptp(time))
+        best_result = None
+        best_residual = np.inf
+        for frequency_start in frequency_starts:
+            amplitude_guess, phase_guess, offset_guess = _sinusoid_initial_values(
+                time,
+                signal,
+                frequency_start,
+            )
+            initial_values = [
+                amplitude_guess,
+                frequency_start,
+                phase_guess,
+                offset_guess,
+                decay_guess,
+            ]
+            try:
+                fitted_values, covariance = curve_fit(
+                    oscillation_decay_exp,
+                    time,
+                    signal,
+                    p0=initial_values,
+                    bounds=(
+                        [-np.inf, 0, -np.inf, -np.inf, 0],
+                        [np.inf, max_frequency, np.inf, np.inf, np.inf],
+                    ),
+                    method="trf",
+                    loss="soft_l1",
+                    max_nfev=50_000,
+                )
+            except (RuntimeError, ValueError, FloatingPointError):
+                continue
+
+            residual = float(np.sum((signal - oscillation_decay_exp(time, *fitted_values)) ** 2))
+            if np.isfinite(residual) and residual < best_residual:
+                best_residual = residual
+                best_result = np.concatenate([fitted_values, np.asarray(covariance).reshape(-1)])
+
+        if best_result is None or best_result.size != len(FIT_VALUES):
+            return np.full(len(FIT_VALUES), np.nan)
+        return best_result
+
+    fit = xr.apply_ufunc(
+        fit_trace,
+        data[dim],
+        data,
+        input_core_dims=[[dim], [dim]],
+        output_core_dims=[["fit_vals"]],
+        vectorize=True,
+        output_dtypes=[float],
+        dask_gufunc_kwargs={"output_sizes": {"fit_vals": len(FIT_VALUES)}},
+    )
+    return fit.assign_coords(fit_vals=("fit_vals", FIT_VALUES))
+
+
+def _fft_frequency_guess(time: np.ndarray, signal: np.ndarray) -> float:
+    """Estimate a fallback positive frequency after interpolation to a uniform grid."""
+    uniform_time = np.linspace(float(time[0]), float(time[-1]), time.size)
+    uniform_signal = np.interp(uniform_time, time, signal)
+    centered = uniform_signal - np.mean(uniform_signal)
+    frequencies = np.fft.rfftfreq(time.size, d=float(uniform_time[1] - uniform_time[0]))
+    amplitudes = np.abs(np.fft.rfft(centered))
+    positive = frequencies > 0
+    if not np.any(positive):
+        return np.nan
+    return float(frequencies[positive][np.argmax(amplitudes[positive])])
+
+
+def _sinusoid_initial_values(
+    time: np.ndarray,
+    signal: np.ndarray,
+    frequency: float,
+) -> tuple[float, float, float]:
+    """Estimate amplitude, phase, and offset for a fixed starting frequency."""
+    angle = 2 * np.pi * frequency * time
+    design = np.column_stack([np.cos(angle), np.sin(angle), np.ones_like(angle)])
+    cosine, sine, offset = np.linalg.lstsq(design, signal, rcond=None)[0]
+    amplitude = float(np.hypot(cosine, sine))
+    phase = float(np.arctan2(-sine, cosine))
+    return amplitude, phase, float(offset)
 
 
 def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):

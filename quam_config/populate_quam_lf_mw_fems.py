@@ -203,6 +203,11 @@ def apply_profile(
     connectivity = profile["connectivity"]
     qubit_profiles = profile["qubits"]["qubits"]
     pulse_profiles = profile["pulses"]["pulses"]
+    readout_discriminator = profile["manifest"].get(
+        "readout_discriminator",
+        "quam",
+    )
+    machine.readout_discriminator = readout_discriminator
 
     for qubit_name in qubit_profiles:
         if qubit_name not in machine.qubits:
@@ -250,6 +255,11 @@ def apply_profile(
             0,
         )
         qubit.resonator.gef_centers = readout.get("gef_centers")
+        qubit.resonator.use_kernel = bool(readout.get("use_kernel", False))
+        # QUA readout macros usually receive only a qubit, so mirror the
+        # profile-global setting onto every resonator at build time.
+        qubit.resonator.readout_discriminator = readout_discriminator
+        qubit.resonator.confusion_matrix = readout.get("confusion_matrix")
         qubit.rr = qubit.resonator
         qubit.resonator.res_deplete_time = qubit.resonator.depletion_time
 
@@ -260,6 +270,7 @@ def apply_profile(
         ]
         qubit.resonator.opx_output.sampling_rate = rr_output["sampling_rate_hz"]
         qubit.resonator.opx_input.band = rr_input["band"]
+        qubit.resonator.opx_input.gain_db = rr_input.get("gain_db")
         qubit.resonator.opx_input.sampling_rate = rr_input["sampling_rate_hz"]
 
         qubit.xy.operations.clear()

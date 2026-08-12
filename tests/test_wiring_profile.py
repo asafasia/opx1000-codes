@@ -144,6 +144,29 @@ class WiringProfileTests(unittest.TestCase):
                 output["lo_frequency_hz"],
             )
 
+    def test_resonator_input_gain_is_applied(self):
+        profile = load_profile("main")
+        connectivity = profile["connectivity"]
+        machine = create_machine_from_profile("main", save=False)
+
+        for qubit_name, connection in connectivity["connections"].items():
+            input_port = connection["resonator_input"]["port"]
+            input_profile = connectivity["controllers"]["con1"]["fems"]["7"][
+                "inputs"
+            ][str(input_port)]
+            self.assertEqual(
+                machine.qubits[qubit_name].resonator.opx_input.gain_db,
+                input_profile.get("gain_db"),
+            )
+
+        config = machine.generate_config()
+        self.assertEqual(
+            config["controllers"]["con1"]["fems"][7]["analog_inputs"][1][
+                "gain_db"
+            ],
+            9,
+        )
+
     def test_profile_contains_q1_through_q12_only(self):
         profile = load_profile("main")
 
@@ -218,6 +241,20 @@ class WiringProfileTests(unittest.TestCase):
             qubit.resonator.res_deplete_time,
             qubit.resonator.depletion_time,
         )
+
+    def test_global_readout_discriminator_is_applied_to_machine_and_resonators(self):
+        machine = create_machine_from_profile("main", save=False)
+        profile = load_profile("main")
+
+        self.assertEqual(
+            machine.readout_discriminator,
+            profile["manifest"]["readout_discriminator"],
+        )
+        for qubit in machine.qubits.values():
+            self.assertEqual(
+                qubit.resonator.readout_discriminator,
+                machine.readout_discriminator,
+            )
 
     def test_constant_readout_integration_weights_and_angle_are_applied(self):
         machine = create_machine_from_profile("main", save=False)

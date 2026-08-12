@@ -56,7 +56,7 @@ State update:
     - The integration weight angle: qubit.resonator.operations["readout"].integration_weights_angle
     - the ge discrimination threshold: qubit.resonator.operations["readout"].threshold
     - the Repeat Until Success threshold: qubit.resonator.operations["readout"].rus_exit_threshold
-    - The confusion matrix: qubit.resonator.operations["readout"].confusion_matrix
+    - The binary fidelity/assignment matrix: qubit.resonator.confusion_matrix
 """
 
 
@@ -314,7 +314,7 @@ class ReadoutPowerOptimization(BaseCalibration[Parameters, Quam]):
                     float(fit_results["rus_threshold"]) * operation.length / 2**12
                 )
                 operation.amplitude = float(fit_results["optimal_amplitude"])
-                q.resonator.confusion_matrix = fit_results["confusion_matrix"]
+                q.resonator.confusion_matrix = fit_results["fidelity_matrix"]
 
     def propose_profile_update(self):
         node = self
@@ -327,6 +327,9 @@ class ReadoutPowerOptimization(BaseCalibration[Parameters, Quam]):
             fit_result = node.results["fit_results"][q.name]
             updates[f"pulses.json.pulses.{q.name}.readout.amplitude"] = float(
                 fit_result["optimal_amplitude"]
+            )
+            updates[f"qubits.json.qubits.{q.name}.readout.confusion_matrix"] = (
+                fit_result["fidelity_matrix"]
             )
 
             if node.parameters.reset_type in {"active", "thermal"}:
@@ -355,6 +358,6 @@ if __name__ == "__main__":
     calibration = ReadoutPowerOptimization(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q12"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

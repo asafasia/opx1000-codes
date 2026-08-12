@@ -34,6 +34,12 @@ STATE_PLOT_SPECS = (
     ("f", "If", "Qf", "If_rot", "f", "F", "tab:green", "darkgreen", 0.35),
 )
 
+PI_PULSE_TYPES = {
+    "SquarePulse": "constant",
+    "DragGaussianPulse": "drag",
+    "DragCosinePulse": "cosine",
+}
+
 
 def _available_state_specs(ds: xr.Dataset):
     return [spec for spec in STATE_PLOT_SPECS if spec[1] in ds and spec[2] in ds]
@@ -106,12 +112,39 @@ def _format_iq_blobs_run_metadata(
 
     operation_name = run_metadata.get("operation", "readout")
     readout_summaries = format_readout_parameter_lines(qubits, operation=operation_name)
+    readout_mode_summaries = []
+    for qubit in qubits:
+        resonator = getattr(qubit, "resonator", None)
+        use_kernel = getattr(resonator, "use_kernel", None)
+        xy_operations = getattr(getattr(qubit, "xy", None), "operations", {})
+        pi_pulse = (
+            xy_operations.get("x180") if hasattr(xy_operations, "get") else None
+        )
+        pi_pulse_type = (
+            PI_PULSE_TYPES.get(type(pi_pulse).__name__, type(pi_pulse).__name__)
+            if pi_pulse is not None
+            else None
+        )
+        mode_parts = []
+        if use_kernel is not None:
+            mode_parts.append(f"optimized kernel={bool(use_kernel)}")
+        if pi_pulse_type is not None:
+            mode_parts.append(f"pi pulse type={pi_pulse_type}")
+        if mode_parts:
+            readout_mode_summaries.append(
+                f"{qubit.name}: " + " | ".join(mode_parts)
+            )
 
     reset_type = run_metadata.get("reset_type")
     parameter_summaries = []
     parameter_summaries.append(f"operation={operation_name}")
+    discriminator = run_metadata.get("readout_discriminator")
+    if discriminator is not None:
+        parameter_summaries.append(f"discrimination={discriminator}")
     if reset_type is not None:
-        parameter_summaries.append(f"active reset={reset_type == 'active'}")
+        parameter_summaries.append(
+            f"active reset={reset_type in {'active', 'active_gef'}}"
+        )
     if run_metadata.get("num_shots") is not None:
         parameter_summaries.append(f"num reps={run_metadata['num_shots']}")
     if run_metadata.get("pi_repetitions") is not None:
@@ -121,7 +154,12 @@ def _format_iq_blobs_run_metadata(
     if run_metadata.get("qubit_operation") is not None:
         parameter_summaries.append(f"prep operation={run_metadata['qubit_operation']}")
 
-    return ["Parameters", *readout_summaries, " | ".join(parameter_summaries)]
+    return [
+        "Parameters",
+        *readout_summaries,
+        *readout_mode_summaries,
+        " | ".join(parameter_summaries),
+    ]
 
 
 def plot_iq_blobs(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):

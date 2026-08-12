@@ -209,6 +209,29 @@ class ProfileTests(unittest.TestCase):
                 [[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]],
             )
 
+    def test_profile_accepts_two_state_centers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_profile(root)
+            manifest_path = root / "main" / "profile.json"
+            manifest = json.loads(manifest_path.read_text())
+            manifest["readout_discriminator"] = "nearest_center"
+            manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+            qubits_path = root / "main" / "qubits.json"
+            qubits = json.loads(qubits_path.read_text())
+            qubits["qubits"]["q1"]["readout"]["gef_centers"] = [
+                [0.1, 0.2],
+                [0.3, 0.4],
+            ]
+            qubits_path.write_text(json.dumps(qubits) + "\n", encoding="utf-8")
+
+            documents = Profile("main", root=root).load()
+
+            self.assertEqual(
+                len(documents["qubits"]["qubits"]["q1"]["readout"]["gef_centers"]),
+                2,
+            )
+
     def test_profile_rejects_bad_gef_centers_shape(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -219,6 +242,59 @@ class ProfileTests(unittest.TestCase):
             qubits_path.write_text(json.dumps(qubits) + "\n", encoding="utf-8")
 
             with self.assertRaisesRegex(ProfileError, "readout.gef_centers"):
+                Profile("main", root=root).load()
+
+    def test_profile_rejects_unknown_readout_discriminator(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_profile(root)
+            manifest_path = root / "main" / "profile.json"
+            manifest = json.loads(manifest_path.read_text())
+            manifest["readout_discriminator"] = "mystery"
+            manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ProfileError, "readout_discriminator"):
+                Profile("main", root=root).load()
+
+    def test_nearest_center_discriminator_requires_active_qubit_centers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_profile(root)
+            manifest_path = root / "main" / "profile.json"
+            manifest = json.loads(manifest_path.read_text())
+            manifest["readout_discriminator"] = "nearest_center"
+            manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ProfileError, "needs readout.gef_centers"):
+                Profile("main", root=root).load()
+
+    def test_profile_accepts_optional_readout_confusion_matrix(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_profile(root)
+            qubits_path = root / "main" / "qubits.json"
+            qubits = json.loads(qubits_path.read_text())
+            matrix = [[0.95, 0.05], [0.08, 0.92]]
+            qubits["qubits"]["q1"]["readout"]["confusion_matrix"] = matrix
+            qubits_path.write_text(json.dumps(qubits) + "\n", encoding="utf-8")
+
+            documents = Profile("main", root=root).load()
+
+            self.assertEqual(
+                documents["qubits"]["qubits"]["q1"]["readout"]["confusion_matrix"],
+                matrix,
+            )
+
+    def test_profile_rejects_bad_readout_confusion_matrix_shape(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_profile(root)
+            qubits_path = root / "main" / "qubits.json"
+            qubits = json.loads(qubits_path.read_text())
+            qubits["qubits"]["q1"]["readout"]["confusion_matrix"] = [[1.0, 0.0]]
+            qubits_path.write_text(json.dumps(qubits) + "\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ProfileError, "readout.confusion_matrix"):
                 Profile("main", root=root).load()
 
 
