@@ -387,12 +387,12 @@ if __name__ == "__main__":
     parameters.use_readout_mitigation = False
 
     parameters.num_shots = 500
-    parameters.operation_amplitude_factor = 0.01
+    parameters.operation_amplitude_factor = 0.001
     parameters.operation_len_in_ns = 30000
-    parameters.frequency_span_in_mhz = 100
-    parameters.frequency_step_in_mhz = 1
-    parameters.reset_type = "thermal"
-    parameters.transition = "ef"
+    parameters.frequency_span_in_mhz = 1
+    parameters.frequency_step_in_mhz = 0.01
+    parameters.reset_type = "active"
+    parameters.transition = "ge"
 
     options = CalibrationOptions()
     # options.ai_review = True

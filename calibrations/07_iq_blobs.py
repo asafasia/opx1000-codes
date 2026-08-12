@@ -96,11 +96,6 @@ def _rotate_iq_centers(centers, angle: float):
     )
 
 
-def _should_update_iq_centers(reset_type: str) -> bool:
-    """Return whether fitted centers may replace the stored thermal IQ means."""
-    return reset_type not in {"active", "active_gef"}
-
-
 def reset_qubit_active_gef(qubit, max_attempts: int = 15) -> None:
     """Reset G/E/F through the profile-configured readout discriminator."""
     active_reset_configured(
@@ -522,10 +517,7 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                         f"{q.name} failed IQ-blob quality checks; its fitted parameters can still be reviewed."
                     )
                 operation = q.resonator.operations[node.parameters.operation]
-                update_iq_centers = _should_update_iq_centers(
-                    node.parameters.reset_type
-                )
-                if update_iq_centers and state_labels in (
+                if state_labels in (
                     ["g", "e"],
                     ["g", "e", "f"],
                 ):
@@ -543,14 +535,6 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                         node.log(
                             f"Skipping {q.name} IQ-center update because fitted centers are not finite."
                         )
-                elif not update_iq_centers and state_labels in (
-                    ["g", "e"],
-                    ["g", "e", "f"],
-                ):
-                    node.log(
-                        f"Skipping {q.name} IQ-center update because active-reset acquisitions "
-                        "must not replace the thermal IQ means."
-                    )
                 if state_labels != ["g", "e"]:
                     node.log(
                         f"Skipping {q.name} readout state update because acquired states "
@@ -587,8 +571,7 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
         for q in node.namespace["qubits"]:
             fit_result = node.results["fit_results"][q.name]
             state_labels = [str(state) for state in fit_result.get("state_labels", [])]
-            update_iq_centers = _should_update_iq_centers(node.parameters.reset_type)
-            if update_iq_centers and state_labels in (
+            if state_labels in (
                 ["g", "e"],
                 ["g", "e", "f"],
             ):
@@ -607,14 +590,6 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                     node.log(
                         f"Profile IQ-center update skipped for {q.name}: fitted centers are not finite."
                     )
-            elif not update_iq_centers and state_labels in (
-                ["g", "e"],
-                ["g", "e", "f"],
-            ):
-                node.log(
-                    f"Profile IQ-center update skipped for {q.name}: active-reset "
-                    "acquisitions must not replace the thermal IQ means."
-                )
             if state_labels == ["g", "e", "f"]:
                 continue
             if state_labels != ["g", "e"]:

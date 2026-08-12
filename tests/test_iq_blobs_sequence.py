@@ -6,15 +6,6 @@ import numpy as np
 
 
 class IQBlobsSequenceTests(unittest.TestCase):
-    def test_active_reset_does_not_update_iq_centers(self):
-        should_update_iq_centers = import_module(
-            "calibrations.07_iq_blobs"
-        )._should_update_iq_centers
-
-        self.assertFalse(should_update_iq_centers("active"))
-        self.assertFalse(should_update_iq_centers("active_gef"))
-        self.assertTrue(should_update_iq_centers("thermal"))
-
     def test_center_rotation_matches_updated_integration_weight_frame(self):
         rotate_iq_centers = import_module(
             "calibrations.07_iq_blobs"
@@ -100,7 +91,8 @@ class IQBlobsSequenceTests(unittest.TestCase):
     def test_two_and_three_state_fits_update_iq_centers(self):
         source = (Path(__file__).parent.parent / "calibrations" / "07_iq_blobs.py").read_text()
 
-        self.assertIn("update_iq_centers and state_labels in (", source)
+        self.assertIn("if state_labels in (", source)
+        self.assertNotIn("active-reset acquisitions must not replace", source)
         self.assertIn('state_labels == ["g", "e", "f"]', source)
         self.assertIn("centers = _rotate_iq_centers(", source)
         self.assertIn("q.resonator.gef_centers =", source)
