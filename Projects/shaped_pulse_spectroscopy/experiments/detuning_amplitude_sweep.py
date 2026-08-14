@@ -287,26 +287,26 @@ if __name__ == "__main__":
     parameters = Parameters()
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
-    parameters.use_readout_mitigation = True
+    parameters.use_readout_mitigation = False
 
     parameters.simulate = False
     parameters.pulse_shape = "root_lorentzian"
     parameters.echo = False
     parameters.ac_stark_correction = False
-    parameters.stark_kappa_mhz_inv = -0.01
+    parameters.stark_kappa_mhz_inv = -0.00225 * 14
     parameters.stark_chirp_max_error_hz = 100.0
     parameters.cutoff = 0.999
-    parameters.num_shots = 1000
-    parameters.lorentzian_length_in_ns = 20000
-    parameters.waveform_template_length_in_ns = 20000
-    parameters.lorentzian_peak_amplitude = 0.2
+    parameters.num_shots = 100
+    parameters.lorentzian_length_in_ns = 10000
+    parameters.waveform_template_length_in_ns = 10000
+    parameters.lorentzian_peak_amplitude = 1
     parameters.min_amp_factor = 0.0
     parameters.max_amp_factor = 1
-    parameters.amp_factor_step = 0.005
+    parameters.amp_factor_step = 0.02
     parameters.amp_factor_points = None
     parameters.amp_factor_spacing = "linear"
-    parameters.frequency_span_in_mhz = 50
-    parameters.frequency_step_in_mhz = 0.1
+    parameters.frequency_span_in_mhz = 100
+    parameters.frequency_step_in_mhz = 1
     parameters.frequency_points = None
     parameters.fit_fwhm = False
 

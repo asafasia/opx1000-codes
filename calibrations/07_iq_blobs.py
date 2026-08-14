@@ -643,7 +643,7 @@ if __name__ == "__main__":
 
     parameters.qubit_operation = "x180"
     parameters.states = ["g", "e"]
-    parameters.reset_type = "thermal"
+    parameters.reset_type = "active"
     # parameters.active_gef_reset_attempts = 3
     parameters.num_shots = 10000
 

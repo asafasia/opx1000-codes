@@ -328,10 +328,10 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
-    parameters.use_state_discrimination = True
+    parameters.use_state_discrimination = False
     parameters.rotation_type = "PI"
-    parameters.reset_type = "active"
-    parameters.num_shots = 20
+    parameters.reset_type = "thermal"
+    parameters.num_shots = 100
     parameters.max_repetition_groups = 200
     parameters.amp_factor_step = 0.0021
 
@@ -340,6 +340,6 @@ if __name__ == "__main__":
     calibration = FineRabiCalibration(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

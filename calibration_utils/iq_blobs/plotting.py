@@ -45,6 +45,13 @@ def _available_state_specs(ds: xr.Dataset):
     return [spec for spec in STATE_PLOT_SPECS if spec[1] in ds and spec[2] in ds]
 
 
+def _is_three_state_fit(fit: xr.Dataset) -> bool:
+    """Return whether the fit contains the G/E/F pairwise discriminators."""
+    if "threshold" not in fit.coords:
+        return False
+    return {str(pair) for pair in fit.threshold.values} == {"ge", "ef", "gf"}
+
+
 def plot_iq_blobs_dashboard(
     ds: xr.Dataset,
     qubits: List[AnyTransmon],
@@ -60,23 +67,44 @@ def plot_iq_blobs_dashboard(
     )
 
     for row, qubit in enumerate(qubits):
-        qubit_grid = outer_grid[row].subgridspec(
-            2,
-            2,
-            height_ratios=[1.5, 1],
-            width_ratios=[1.4, 1],
-            hspace=0.35,
-            wspace=0.25,
-        )
-        iq_ax = fig.add_subplot(qubit_grid[0, 0])
-        matrix_ax = fig.add_subplot(qubit_grid[0, 1])
-        histogram_ax = fig.add_subplot(qubit_grid[1, :])
-
         fit = fits.sel(qubit=qubit.name)
         qubit_ref = {"qubit": qubit.name}
+        three_state = _is_three_state_fit(fit)
+        if three_state:
+            qubit_grid = outer_grid[row].subgridspec(
+                2,
+                6,
+                height_ratios=[1.5, 1],
+                hspace=0.35,
+                wspace=0.35,
+            )
+            iq_ax = fig.add_subplot(qubit_grid[0, :4])
+            matrix_ax = fig.add_subplot(qubit_grid[0, 4:])
+            histogram_axes = [
+                fig.add_subplot(qubit_grid[1, 0:2]),
+                fig.add_subplot(qubit_grid[1, 2:4]),
+                fig.add_subplot(qubit_grid[1, 4:6]),
+            ]
+        else:
+            qubit_grid = outer_grid[row].subgridspec(
+                2,
+                2,
+                height_ratios=[1.5, 1],
+                width_ratios=[1.4, 1],
+                hspace=0.35,
+                wspace=0.25,
+            )
+            iq_ax = fig.add_subplot(qubit_grid[0, 0])
+            matrix_ax = fig.add_subplot(qubit_grid[0, 1])
+            histogram_axes = [fig.add_subplot(qubit_grid[1, :])]
+
         plot_individual_iq_blobs(iq_ax, ds, qubit_ref, fit)
         plot_individual_confusion_matrix(matrix_ax, ds, qubit_ref, fit)
-        plot_individual_histograms(histogram_ax, ds, qubit_ref, fit)
+        if three_state:
+            for histogram_ax, pair in zip(histogram_axes, ("ge", "ef", "gf")):
+                plot_pairwise_rotated_histogram(histogram_ax, ds, qubit_ref, fit, pair)
+        else:
+            plot_individual_histograms(histogram_axes[0], ds, qubit_ref, fit)
 
         status = "PASS" if bool(fit.success.values) else "FAIL"
         iq_ax.set_title(
@@ -85,10 +113,11 @@ def plot_iq_blobs_dashboard(
             f"fitted rotation={np.degrees(float(fit.iw_angle.values)):.1f} deg"
         )
         matrix_ax.set_title(f"{qubit.name}: confusion matrix")
-        histogram_ax.set_title(
-            f"{qubit.name}: rotated-I histogram\n"
-            f"fidelity={float(fit.readout_fidelity.values):.1f}%"
-        )
+        if not three_state:
+            histogram_axes[0].set_title(
+                f"{qubit.name}: rotated-I histogram\n"
+                f"fidelity={float(fit.readout_fidelity.values):.1f}%"
+            )
 
     fig.suptitle("IQ blobs calibration")
     metadata_lines = _format_iq_blobs_run_metadata(qubits, run_metadata)
@@ -389,6 +418,55 @@ def plot_individual_histograms(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], 
     ax.set_xlabel("I Rotated [mV]")
     ax.set_ylabel("Counts")
     ax.set_title(qubit["qubit"])
+    ax.legend(fontsize="small")
+
+
+def plot_pairwise_rotated_histogram(
+    ax: Axes,
+    ds: xr.Dataset,
+    qubit: dict[str, str],
+    fit: xr.Dataset,
+    pair: str,
+):
+    """Plot two state clouds projected onto their pairwise center-separation axis."""
+    raw = ds.sel(qubit=qubit["qubit"])
+    specs = {spec[0]: spec for spec in _available_state_specs(raw)}
+    left_state, right_state = pair
+    if left_state not in specs or right_state not in specs:
+        raise ValueError(f"Cannot plot {pair.upper()} histogram without both state clouds.")
+
+    normal = np.asarray(
+        fit.threshold_line_normal.sel(threshold=pair).values,
+        dtype=float,
+    )
+    normal_norm = np.linalg.norm(normal)
+    if not np.isfinite(normal_norm) or normal_norm == 0:
+        raise ValueError(f"Cannot rotate {pair.upper()} histogram along a zero-length axis.")
+    projection_axis = normal / normal_norm
+
+    for state in (left_state, right_state):
+        _, i_name, q_name, _, _, label, color, _, alpha = specs[state]
+        projection = projection_axis[0] * raw[i_name] + projection_axis[1] * raw[q_name]
+        ax.hist(1e3 * projection, bins=100, alpha=alpha, label=label, color=color)
+
+    midpoint = np.asarray(
+        fit.threshold_line_midpoint.sel(threshold=pair).values,
+        dtype=float,
+    )
+    threshold = float(np.dot(midpoint, projection_axis))
+    x_limits = ax.get_xlim()
+    ax.axvline(
+        1e3 * threshold,
+        color={"ge": "r", "ef": "purple", "gf": "k"}.get(pair, "0.25"),
+        linestyle="--",
+        linewidth=0.8,
+        label=f"{pair.upper()} threshold",
+    )
+    ax.set_xlim(x_limits)
+    angle_degrees = np.degrees(np.arctan2(projection_axis[1], projection_axis[0]))
+    ax.set_xlabel("Pairwise rotated I [mV]")
+    ax.set_ylabel("Counts")
+    ax.set_title(f"{pair.upper()} projection ({angle_degrees:.1f}°)")
     ax.legend(fontsize="small")
 
 

@@ -238,6 +238,19 @@ class IQBlobsPlottingTests(unittest.TestCase):
         self.assertIn("GF threshold", labels)
         self.assertNotIn("RUS Threshold", labels)
         self.assertNotIn("Threshold", labels)
+        self.assertEqual(len(fig.axes), 5)
+        for histogram_axis, pair, states in zip(
+            fig.axes[2:],
+            ("GE", "EF", "GF"),
+            ({"Ground", "Prepared"}, {"Prepared", "F"}, {"Ground", "F"}),
+        ):
+            histogram_labels = {
+                patch.get_label() for patch in histogram_axis.patches
+            } | {line.get_label() for line in histogram_axis.lines}
+            self.assertIn(f"{pair} projection", histogram_axis.get_title())
+            self.assertTrue(states.issubset(histogram_labels))
+            self.assertIn(f"{pair} threshold", histogram_labels)
+            self.assertEqual(histogram_axis.get_xlabel(), "Pairwise rotated I [mV]")
 
     def test_gf_dashboard_draws_ground_and_f_clouds(self):
         runs = np.arange(4)

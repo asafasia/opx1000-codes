@@ -221,7 +221,10 @@ def plot_raw_amplitude(
     ]
     rows = max(row for row, _ in locations) + 1
     columns = max(column for _, column in locations) + 1
-    height_ratios = [3, 1, 1] * rows
+    # Keep the spectrum, IQ-separation, and fidelity panels equally tall.  In
+    # particular, this lets the bottom fidelity panel extend farther upward
+    # instead of giving most of the vertical space to the spectrum panel.
+    height_ratios = [1, 1, 1] * rows
     fig, axes = plt.subplots(
         3 * rows,
         columns,

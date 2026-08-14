@@ -23,30 +23,30 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": -0.0002707013744788931,
-        "rus_exit_threshold": -0.0002707013744788931,
+        "threshold": -0.00015138223325578901,
+        "rus_exit_threshold": -0.00015138223325578901,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": -10.791426418786353,
+        "integration_weights_angle_rad": -11.838016908318258,
         "use_kernel": true,
         "gef_frequency_shift_hz": -810000.0,
         "gef_centers": [
           [
-            -0.00041910191514310004,
-            8.327075051316654e-05
+            -0.00031672815883395733,
+            7.91282509435284e-06
           ],
           [
-            -0.0001050917191887885,
-            8.327075051316655e-05
+            -1.9409899610979287e-05,
+            7.912825094352838e-06
           ]
         ],
         "confusion_matrix": [
           [
-            0.9416,
-            0.0584
+            0.9818,
+            0.0182
           ],
           [
-            0.2281,
-            0.7719
+            0.1037,
+            0.8963
           ]
         ]
       },
@@ -333,7 +333,7 @@
       "frequencies_hz": {
         "qubit_f01": 4350713804.570797,
         "qubit_f12": 4133600000.0,
-        "resonator": 7471800000.0,
+        "resonator": 7471350000.0,
         "resonator_bare": null
       },
       "transmon": {
@@ -347,20 +347,30 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0.00034188508061497216,
-        "rus_exit_threshold": 0.00034188508061497216,
+        "threshold": 0.0009237911418235715,
+        "rus_exit_threshold": 0.0009237911418235715,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 3.667782238301787,
+        "integration_weights_angle_rad": 4.998292913219701,
         "use_kernel": false,
         "gef_frequency_shift_hz": 0,
         "confusion_matrix": [
           [
-            0.8438,
-            0.1562
+            0.7317,
+            0.2683
           ],
           [
-            0.3157,
-            0.6843
+            0.1008,
+            0.8992
+          ]
+        ],
+        "gef_centers": [
+          [
+            0.0007828340297333255,
+            0.001119409311549128
+          ],
+          [
+            0.001415450226750611,
+            0.001119409311549128
           ]
         ]
       },

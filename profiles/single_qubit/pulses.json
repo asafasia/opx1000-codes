@@ -29,7 +29,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.20873588941473226,
+        "amplitude": 0.20537971014232476,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -436,7 +436,7 @@
       "EF_x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.03904628897405954,
+        "amplitude": 0.020836810077346293,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -453,7 +453,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.07220919986619416,
+        "amplitude": 0.07298666316471625,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -467,7 +467,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.1,
+        "amplitude": 0.17894736842105263,
         "length_ns": 3000,
         "digital_marker": "ON",
         "integration_weights": [

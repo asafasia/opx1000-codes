@@ -434,8 +434,20 @@ class SpectroscopyPlottingTests(unittest.TestCase):
         fidelity_line = next(
             line for line in fidelity_ax.lines if line.get_label() == "Readout fidelity"
         )
+        spectrum_ax = next(axis for axis in fig.axes if axis.get_ylabel() == r"$|IQ|$ [mV]")
+        separation_ax = next(
+            axis for axis in fig.axes if axis.get_ylabel() == "IQ separation / pooled std"
+        )
         np.testing.assert_allclose(fidelity_line.get_ydata(), [75.0, 96.5, 82.0])
         self.assertEqual(tuple(fidelity_ax.get_ylim()), (75.0, 100.0))
+        np.testing.assert_allclose(
+            [
+                spectrum_ax.get_position().height,
+                separation_ax.get_position().height,
+                fidelity_ax.get_position().height,
+            ],
+            spectrum_ax.get_position().height,
+        )
 
 
 if __name__ == "__main__":

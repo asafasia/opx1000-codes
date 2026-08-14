@@ -66,6 +66,7 @@ async function refreshLiveData() {
     if (selectedId && state.experiments.some(experiment => experiment.id === selectedId)) {
       state.selected = state.experiments.find(experiment => experiment.id === selectedId);
       applyFilters();
+      await retrySelectedDetail(selectedId);
     } else if (state.filtered.length) {
       await selectLatestRun();
     }
@@ -76,6 +77,15 @@ async function refreshLiveData() {
   } finally {
     refreshInProgress = false;
   }
+}
+
+async function retrySelectedDetail(id) {
+  if (!state.detail?.errors?.length) return;
+  const detail = await api(`/api/experiment?path=${encodeURIComponent(id)}`);
+  if (state.selected?.id !== id) return;
+  state.detail = detail;
+  populateHero();
+  renderTab();
 }
 
 async function loadExperiments(date) {

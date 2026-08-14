@@ -300,9 +300,8 @@ def available_dates() -> list[str]:
     for category in roots:
         if not category.is_dir() or category.name in IGNORED_DATA_CATEGORIES:
             continue
-        children, _ = safe_iterdir(category)
-        candidates = [category, *children]
-        dates.update(filter(None, (date_for_path(path) for path in candidates)))
+        run_dirs, _ = collect_general_experiment_dirs(category)
+        dates.update(filter(None, (date_for_path(path) for path in run_dirs)))
     return sorted(dates, reverse=True)
 
 
