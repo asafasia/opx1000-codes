@@ -4,9 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>QOP Job Status</title>
-    <link rel="stylesheet" href="/styles.css?v=hub-1">
+    <link rel="stylesheet" href="http://127.0.0.1:8890/lab-tabs.css?v=5">
+    <link rel="stylesheet" href="/styles.css?v=hub-4">
   </head>
-  <body>
+  <body data-lab-tab="lab-monitor">
+    <script src="http://127.0.0.1:8890/lab-tabs.js?v=4"></script>
     <main class="dashboard">
       <header class="header" aria-label="QOP job status">
         <div>
@@ -15,7 +17,6 @@
           <p class="subline" id="connectionText">Connecting to QOP...</p>
         </div>
         <div class="header-actions">
-          <a class="hub-link" data-hub-link href="http://127.0.0.1:8890/">← Lab Home</a>
           <div class="status-block">
             <span class="live-dot" id="liveDot" aria-hidden="true"></span>
             <strong id="liveState">Checking</strong>
@@ -63,6 +64,6 @@
         <span id="openQms">Open QMs: -</span>
       </footer>
     </main>
-    <script src="/app.js?v=hub-1"></script>
+    <script src="/app.js?v=monitor-2"></script>
   </body>
 </html>

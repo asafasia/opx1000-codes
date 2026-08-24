@@ -44,23 +44,30 @@ def make_plot_qubit(name="q7", t1=None, t2_ramsey=None):
 
 
 class ShapedPulseSpectroscopyTests(unittest.TestCase):
-    def test_lorentzian_envelope_is_centered_and_user_length(self):
+    def test_lorentzian_envelope_derives_tau_from_cutoff(self):
         waveform = lorentzian.lorentzian_envelope(
             length_ns=9,
-            tau_ns=2,
+            cutoff=0.25,
             peak_amplitude=0.2,
         )
 
         self.assertEqual(len(waveform), 9)
+        self.assertAlmostEqual(waveform[0], 0.05)
+        self.assertAlmostEqual(waveform[-1], 0.05)
         self.assertAlmostEqual(waveform[4], 0.2)
         np.testing.assert_allclose(waveform, waveform[::-1])
-        self.assertLess(waveform[0], waveform[4])
 
     def test_lorentzian_envelope_validates_user_inputs(self):
         with self.assertRaisesRegex(ValueError, "at least 4"):
-            lorentzian.lorentzian_envelope(3, 2, 0.1)
-        with self.assertRaisesRegex(ValueError, "positive"):
+            lorentzian.lorentzian_envelope(3, 0.5, 0.1)
+        with self.assertRaisesRegex(ValueError, "0 < cutoff <= 1"):
             lorentzian.lorentzian_envelope(8, 0, 0.1)
+        with self.assertRaisesRegex(ValueError, "0 < cutoff <= 1"):
+            lorentzian.lorentzian_envelope(8, 1.1, 0.1)
+        self.assertEqual(
+            lorentzian.lorentzian_envelope(4, 1, 0.1),
+            [0.1, 0.1, 0.1, 0.1],
+        )
 
     def test_root_lorentzian_envelope_derives_tau_from_cutoff(self):
         waveform = lorentzian.root_lorentzian_envelope(
@@ -646,6 +653,21 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         waveform = lorentzian.build_waveform(parameters)
 
         self.assertAlmostEqual(waveform[0], 0.05)
+        self.assertAlmostEqual(waveform[4], 0.2)
+
+    def test_shared_operation_builder_applies_cutoff_to_standard_lorentzian(self):
+        parameters = SimpleNamespace(
+            pulse_shape="lorentzian",
+            lorentzian_length_in_ns=9,
+            lorentzian_peak_amplitude=0.2,
+            cutoff=0.25,
+            echo=False,
+        )
+
+        waveform = lorentzian.build_waveform(parameters)
+
+        self.assertAlmostEqual(waveform[0], 0.05)
+        self.assertAlmostEqual(waveform[-1], 0.05)
         self.assertAlmostEqual(waveform[4], 0.2)
 
     def test_shared_operation_builder_supports_gaussian(self):

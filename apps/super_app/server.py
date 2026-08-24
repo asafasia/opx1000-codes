@@ -23,11 +23,48 @@ from pathlib import Path
 from typing import Any
 
 
+def locate_project_root() -> Path:
+    """Locate the live repository when running from source or a frozen desktop app."""
+    override = os.environ.get("OPX1000_PROJECT_ROOT")
+    candidates = [Path(override)] if override else []
+    executable_directory = Path(sys.executable).resolve().parent
+    executable_ancestors = (executable_directory, *executable_directory.parents)
+    candidates.extend(
+        [
+            Path.cwd(),
+            executable_directory,
+            *executable_directory.parents,
+            *(directory / "opx1000-codes" for directory in executable_ancestors),
+            Path(__file__).resolve().parent.parent.parent,
+        ]
+    )
+    seen: set[Path] = set()
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        if (resolved / "profiles").is_dir() and (resolved / "calibrations").is_dir():
+            return resolved
+    raise RuntimeError(
+        "Could not find the OPX1000 repository. Move the desktop app back into this "
+        "repository's dist folder or set OPX1000_PROJECT_ROOT."
+    )
+
+
+PROJECT_ROOT = locate_project_root()
 APP_ROOT = Path(__file__).resolve().parent
-PROJECT_ROOT = APP_ROOT.parent.parent
 DEFAULT_PORT = 8890
 LAB_PYTHON = Path(r"C:\Users\owner\miniconda3\envs\opx1000_env\python.exe")
-LOG_ROOT = PROJECT_ROOT / "logs" / "super_app"
+LOG_ROOT = Path(
+    os.environ.get("QUANTUM_COHERENCE_LAB_LOG_ROOT", PROJECT_ROOT / "logs" / "super_app")
+).resolve()
+FRIDGE_MONITOR_ROOT = Path(
+    os.environ.get("FRIDGE_MONITOR_ROOT", PROJECT_ROOT.parent / "Fridge Monitor")
+).resolve()
+OSCILLOSCOPE_ROOT = Path(
+    os.environ.get("OSCILLOSCOPE_ROOT", PROJECT_ROOT.parent / "Oscilloscope")
+).resolve()
 MAX_RESTARTS = 4
 MONITOR_INTERVAL_SECONDS = 2.0
 MAX_MARKDOWN_BYTES = 2 * 1024 * 1024
@@ -54,6 +91,9 @@ class AppDefinition:
     server_path: Path
     action: str
     title_marker: str
+    arguments: tuple[str, ...] = ()
+    working_directory: Path | None = None
+    host_argument: str = "--host"
 
 
 APPS = (
@@ -76,6 +116,31 @@ APPS = (
         server_path=PROJECT_ROOT / "apps" / "job_status" / "server.py",
         action="Open monitor",
         title_marker="<title>QOP Job Status</title>",
+    ),
+    AppDefinition(
+        id="fridge-monitor",
+        name="Fridge Monitor",
+        eyebrow="Cryostat",
+        description="Track live cryostat temperatures and recent refrigerator history.",
+        port=8765,
+        server_path=FRIDGE_MONITOR_ROOT / "fridge_monitor.py",
+        action="Open temperatures",
+        title_marker="<title>Fridge temperature monitor</title>",
+        arguments=("--no-browser",),
+        working_directory=FRIDGE_MONITOR_ROOT,
+    ),
+    AppDefinition(
+        id="oscilloscope",
+        name="Oscilloscope",
+        eyebrow="Measure",
+        description="View live Tektronix waveforms, channels, acquisition state, and timing.",
+        port=8851,
+        server_path=OSCILLOSCOPE_ROOT / "app.py",
+        action="Open oscilloscope",
+        title_marker="<title>TekScope Remote Viewer</title>",
+        arguments=("--no-browser", "--quiet"),
+        working_directory=OSCILLOSCOPE_ROOT,
+        host_argument="--bind",
     ),
     AppDefinition(
         id="profile-studio",
@@ -228,10 +293,14 @@ class AppManager:
         self._monitor_thread: threading.Thread | None = None
 
     def start_all(self) -> None:
-        if not self.launch_apps:
+        if not self.launch_apps or self._stop_event.is_set():
             return
         for app in APPS:
+            if self._stop_event.is_set():
+                return
             self._start(app)
+        if self._stop_event.is_set():
+            return
         self._monitor_thread = threading.Thread(
             target=self._monitor,
             name="super-app-monitor",
@@ -240,6 +309,8 @@ class AppManager:
         self._monitor_thread.start()
 
     def _start(self, app: AppDefinition) -> None:
+        if self._stop_event.is_set():
+            return
         healthy, error = probe_app(self.host, app)
         if healthy:
             self.last_errors.pop(app.id, None)
@@ -253,20 +324,42 @@ class AppManager:
         log_path = LOG_ROOT / f"{app.id}.log"
         log_file = log_path.open("a", encoding="utf-8", buffering=1)
         log_file.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] Starting {app.name}\n")
-        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+        creationflags = 0
+        startupinfo = None
+        if os.name == "nt":
+            # The desktop app is windowed; linked Python services must not create
+            # one console window each. STARTUPINFO is retained as a second guard
+            # for Windows versions that handle CREATE_NO_WINDOW inconsistently.
+            creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
         try:
             process = subprocess.Popen(
-                [str(python), str(app.server_path), "--host", self.host, "--port", str(app.port)],
-                cwd=PROJECT_ROOT,
+                [
+                    str(python),
+                    str(app.server_path),
+                    app.host_argument,
+                    self.host,
+                    "--port",
+                    str(app.port),
+                    *app.arguments,
+                ],
+                cwd=app.working_directory or PROJECT_ROOT,
                 stdout=log_file,
                 stderr=subprocess.STDOUT,
                 creationflags=creationflags,
+                startupinfo=startupinfo,
             )
         except OSError as exc:
             log_file.close()
             self.last_errors[app.id] = f"Could not start: {exc}"
             return
         with self._lock:
+            if self._stop_event.is_set():
+                process.terminate()
+                log_file.close()
+                return
             old_log = self.log_files.pop(app.id, None)
             if old_log is not None:
                 old_log.close()
@@ -316,6 +409,11 @@ class AppManager:
             self.last_errors[app.id] = "Starting…"
         elif probe_error and not self.last_errors.get(app.id):
             self.last_errors[app.id] = probe_error
+        log_path = self.log_path(app).resolve()
+        try:
+            displayed_log_path = log_path.relative_to(PROJECT_ROOT.resolve()).as_posix()
+        except ValueError:
+            displayed_log_path = log_path.as_posix()
         return {
             "id": app.id,
             "name": app.name,
@@ -328,7 +426,7 @@ class AppManager:
             "exit_code": process.poll() if process is not None and not running else None,
             "error": None if running else self.last_errors.get(app.id),
             "restart_count": self.restart_counts.get(app.id, 0),
-            "log_path": self.log_path(app).resolve().relative_to(PROJECT_ROOT.resolve()).as_posix(),
+            "log_path": displayed_log_path,
         }
 
     def payload(self) -> dict[str, Any]:
@@ -345,7 +443,7 @@ class AppManager:
             if process.poll() is None:
                 try:
                     if os.name == "nt":
-                        process.send_signal(signal.CTRL_BREAK_EVENT)
+                        process.terminate()
                     else:
                         process.send_signal(signal.SIGINT)
                 except (OSError, ValueError):
@@ -373,6 +471,12 @@ class SuperAppServer(ThreadingHTTPServer):
 class SuperAppHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, directory=str(APP_ROOT / "static"), **kwargs)
+
+    def end_headers(self) -> None:
+        """Prevent stale packaged navigation assets across app rebuilds."""
+        if not urllib.parse.urlparse(self.path).path.startswith("/api/"):
+            self.send_header("Cache-Control", "no-store")
+        super().end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urllib.parse.urlparse(self.path)
@@ -452,19 +556,22 @@ def main() -> None:
     parser.add_argument(
         "--no-launch",
         action="store_true",
-        help="Show links without starting the four linked app servers.",
+        help="Show links without starting the linked app servers.",
     )
     args = parser.parse_args()
     manager = AppManager(args.host, launch_apps=not args.no_launch)
     server = SuperAppServer((args.host, args.port), manager)
-    print(f"OPX1000 Lab Home: http://{args.host}:{args.port}")
-    print("Linked apps: Data Review, Lab Monitor, Profile Studio, Parameter Sweep")
+    print(f"OPX1000 Quantum Coherence Lab: http://{args.host}:{args.port}")
+    print(
+        "Linked apps: Data Review, Lab Monitor, Fridge Monitor, Oscilloscope, "
+        "Profile Studio, Parameter Sweep"
+    )
     try:
         # Bind the hub first so a port conflict cannot orphan newly launched apps.
         manager.start_all()
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nOPX1000 Lab Home stopped.")
+        print("\nOPX1000 Quantum Coherence Lab stopped.")
     finally:
         server.server_close()
         manager.stop_all()

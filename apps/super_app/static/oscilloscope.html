@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#ffffff">
+    <title>Oscilloscope · Quantum Coherence Lab</title>
+    <link rel="stylesheet" href="/lab-tabs.css?v=5">
+    <style>
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #f3f4f5; }
+      body { display: flex; flex-direction: column; }
+      .lab-tabs-shell { flex: 0 0 auto; }
+      .scope-frame { flex: 1 1 auto; width: 100%; min-height: 0; border: 0; background: #aeb3ba; }
+      .scope-notice { position: fixed; right: 18px; bottom: 16px; z-index: 3; padding: 8px 11px; border: 1px solid #d7dadd; border-radius: 4px; color: #5d6468; background: rgba(255,255,255,.94); font: 600 .66rem/1.2 ui-monospace, Consolas, monospace; }
+    </style>
+  </head>
+  <body data-lab-tab="oscilloscope">
+    <script src="/lab-tabs.js?v=4"></script>
+    <iframe class="scope-frame" id="scopeFrame" title="Live Tektronix oscilloscope viewer"></iframe>
+    <div class="scope-notice" id="scopeNotice">Connecting to oscilloscope…</div>
+    <script>
+      const frame = document.querySelector("#scopeFrame");
+      const notice = document.querySelector("#scopeNotice");
+      frame.src = `${window.location.protocol}//${window.location.hostname || "127.0.0.1"}:8851/`;
+      frame.addEventListener("load", () => { notice.hidden = true; });
+    </script>
+  </body>
+</html>

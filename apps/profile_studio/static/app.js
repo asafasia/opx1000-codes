@@ -4,7 +4,8 @@ const sections = {
   pulses: { label: "Pulses", description: "Reusable control and readout pulse definitions" },
   connectivity: { label: "Connectivity", description: "Network, controllers, ports, lines, and LOs" },
 };
-document.querySelectorAll("[data-hub-link]").forEach(link => { link.href = `${location.protocol}//${location.hostname}:8890/`; });
+const desktopQuery = new URLSearchParams(location.search).has("desktop") ? "?desktop=1" : "";
+document.querySelectorAll("[data-hub-link]").forEach(link => { link.href = `${location.protocol}//${location.hostname}:8890/${desktopQuery}`; });
 const state = { profile: "", section: "profile", view: "fields", documents: {}, selectedQubits: {}, selectedPulse: null };
 const $ = id => document.getElementById(id);
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[c]));

@@ -1,19 +1,19 @@
 :root {
   color-scheme: light;
-  --bg: #e9eef4;
+  --bg: #f3f4f5;
   --surface: #ffffff;
-  --surface-soft: #f8fafc;
-  --text: #18202a;
-  --muted: #657080;
-  --line: #dbe2ea;
-  --accent: #0f766e;
-  --accent-soft: #e4f5f1;
-  --danger: #b42318;
-  --danger-soft: #fdebea;
-  --warning: #9a6700;
-  --warning-soft: #fff4db;
-  --ink-soft: #eef4f7;
-  --shadow: 0 32px 90px rgba(24, 32, 42, 0.14);
+  --surface-soft: #f1f2f3;
+  --text: #202427;
+  --muted: #6e7579;
+  --line: #d9dcde;
+  --accent: #555c60;
+  --accent-soft: #e9ebec;
+  --danger: #a04b51;
+  --danger-soft: #fff0f1;
+  --warning: #7c6545;
+  --warning-soft: #f5efe6;
+  --ink-soft: #eceeef;
+  --shadow: none;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -24,10 +24,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0) 360px),
-    radial-gradient(circle at 18% 0%, rgba(15, 118, 110, 0.08), transparent 280px),
-    var(--bg);
+  background: var(--bg);
   color: var(--text);
 }
 
@@ -36,7 +33,7 @@ body {
   margin: 40px auto;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--shadow);
 }
@@ -48,7 +45,7 @@ body {
   gap: 24px;
   padding: 32px 38px 28px;
   border-bottom: 1px solid var(--line);
-  background: linear-gradient(180deg, #ffffff, #fbfcfd);
+  background: var(--surface);
 }
 
 .eyebrow,
@@ -92,7 +89,7 @@ h2 {
 
 .header-actions { display: flex; align-items: center; gap: 12px; }
 .hub-link { display: inline-flex; align-items: center; min-height: 42px; padding: 0 15px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); background: var(--surface-soft); font-size: .82rem; font-weight: 750; text-decoration: none; white-space: nowrap; }
-.hub-link:hover { border-color: #bfcbd3; background: var(--ink-soft); }
+.hub-link:hover { border-color: #aeb4b7; background: var(--ink-soft); }
 
 .status-block {
   display: flex;
@@ -112,18 +109,18 @@ h2 {
   height: 13px;
   border-radius: 999px;
   background: var(--warning);
-  box-shadow: 0 0 0 5px var(--warning-soft);
+  box-shadow: none;
   flex: 0 0 auto;
 }
 
 .live-dot.live {
   background: var(--accent);
-  box-shadow: 0 0 0 5px var(--accent-soft);
+  box-shadow: none;
 }
 
 .live-dot.offline {
   background: var(--danger);
-  box-shadow: 0 0 0 5px var(--danger-soft);
+  box-shadow: none;
 }
 
 .content-grid {
@@ -140,7 +137,7 @@ h2 {
 
 .job-card {
   border-right: 1px solid var(--line);
-  background: linear-gradient(180deg, #fff, #fbfcfd);
+  background: var(--surface);
 }
 
 .job-heading {
@@ -169,7 +166,7 @@ h2 {
   position: absolute;
   inset: 7px;
   border-radius: 999px;
-  background: #cbd5df;
+  background: #c7cbce;
 }
 
 .job-orbit span {
@@ -193,7 +190,7 @@ h2 {
 }
 
 .job-orbit.waiting span {
-  background: #94a3b8;
+  background: #969da1;
   animation: breathe 1.8s ease-in-out infinite;
 }
 
@@ -271,7 +268,7 @@ h2 {
 
 .window-control button.active {
   background: var(--text);
-  color: #fff;
+  color: #ffffff;
 }
 
 .window-control button:focus-visible {
@@ -289,7 +286,7 @@ h2 {
 .temperature-sensor {
   border: 1px solid var(--line);
   border-radius: 9px;
-  background: linear-gradient(180deg, #fff, var(--surface-soft));
+  background: var(--surface-soft);
   padding: 14px 14px 12px;
 }
 
@@ -325,7 +322,7 @@ h2 {
 
 .grid-line {
   fill: none;
-  stroke: #d7dee7;
+  stroke: #e1e3e4;
   stroke-width: 1;
 }
 
@@ -339,7 +336,7 @@ h2 {
 
 .axis-line {
   fill: none;
-  stroke: #bcc8d6;
+  stroke: #c7cbce;
   stroke-width: 1;
 }
 
@@ -374,7 +371,7 @@ h2 {
   margin: 0;
   padding: 16px 36px;
   border-top: 1px solid var(--line);
-  background: #fbfcfd;
+  background: var(--surface);
 }
 
 @media (max-width: 720px) {

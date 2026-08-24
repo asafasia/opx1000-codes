@@ -1,20 +1,45 @@
-# OPX1000 Lab Home
+# OPX1000 Quantum Coherence Lab
 
-This local hub starts and links the four browser-based lab tools: Data Review,
-Lab Monitor, Profile Studio, and Parameter Sweep.
+This local hub starts and links Data Review, Lab Monitor, Fridge Monitor,
+Oscilloscope, Profile Studio, and Parameter Sweep. It runs as a native Windows desktop app
+while keeping the services connected to the OPX1000 repository.
 
-From the repository root:
+## Desktop app
+
+Double-click `Quantum Coherence Lab.cmd` in the separate app directory. The launcher opens the
+packaged `dist/Quantum Coherence Lab.exe` in a
+dedicated **OPX1000 Quantum Coherence Lab** window with no browser tabs or address bar. Closing
+the window stops the hub and any linked services that it started; services
+that were already running are left alone.
+
+The desktop shell uses `pywebview` with the Microsoft Edge WebView2 runtime.
+To rebuild the executable, install the shell and build dependencies, then run
+the checked-in build script:
 
 ```powershell
-$env:PYTHONPATH = (Get-Location).Path
-python apps/super_app/server.py
+C:\Users\owner\miniconda3\envs\opx1000_env\python.exe -m pip install pywebview pyinstaller
+powershell -ExecutionPolicy Bypass -File build_desktop.ps1
+```
+
+For diagnostics, the native app can also be launched from its own directory:
+
+```powershell
+C:\Users\owner\miniconda3\envs\opx1000_env\python.exe desktop.py --debug
+```
+
+## Browser development mode
+
+From the separate app directory:
+
+```powershell
+python server.py
 ```
 
 Open <http://127.0.0.1:8890>. Stopping the hub also stops any app processes it
 started. Apps that were already running are detected and left alone.
 
-The hub verifies each app's identity, writes child-process output to
-`logs/super_app/`, and automatically restarts a crashed app up to four
+The hub verifies each app's identity, writes child-process output to the app's
+`logs/` directory when launched normally, and automatically restarts a crashed app up to four
 times with backoff. A port occupied by an unrelated service is reported in the
 UI instead of being mistaken for a healthy lab app.
 

@@ -3,45 +3,31 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#101a22">
-    <title>OPX1000 Lab Home</title>
-    <link rel="stylesheet" href="/styles.css?v=1">
+    <meta name="theme-color" content="#081722">
+    <title>OPX1000 Quantum Coherence Lab</title>
+    <link rel="stylesheet" href="/lab-tabs.css?v=5">
+    <link rel="stylesheet" href="/styles.css?v=7">
   </head>
-  <body>
+  <body data-lab-tab="overview">
+    <script src="/lab-tabs.js?v=4"></script>
     <main class="shell">
-      <header class="hero">
-        <div class="brand">
-          <img src="/assets/Q.png" alt="Quantum Machines">
-          <span>OPX1000 · Lab tools</span>
-        </div>
-        <div class="hero-copy">
-          <p class="kicker">One place for the whole workflow</p>
-          <h1>Your lab,<br><em>connected.</em></h1>
-          <p class="intro">Review experiments, watch the hardware, shape profiles, and run long sweeps from one calm control surface.</p>
-        </div>
-        <div class="system-state" aria-live="polite">
-          <span class="pulse" id="systemDot"></span>
-          <span id="systemText">Starting lab apps…</span>
-        </div>
-      </header>
-
       <section class="workspace" aria-labelledby="toolsTitle">
         <div class="section-heading">
           <div>
-            <p class="kicker">Workspace</p>
-            <h2 id="toolsTitle">Choose a tool</h2>
+            <p class="kicker">Instrument modules</p>
+            <h2 id="toolsTitle">Lab modules</h2>
+            <p class="section-note">Compact service directory with the primary submodules exposed.</p>
           </div>
-          <button class="refresh" id="refreshButton" type="button">Refresh status</button>
+          <button class="refresh" id="refreshButton" type="button"><span>↻</span> Refresh services</button>
         </div>
         <div class="app-grid" id="appGrid" aria-live="polite"></div>
       </section>
 
       <footer>
-        <span>OPX1000 control stack</span>
+        <span>MQC LAB // OPX1000 CONTROL STACK</span>
         <span id="lastChecked">Checking services…</span>
       </footer>
     </main>
-    <script src="/app.js?v=1"></script>
+    <script src="/app.js?v=6"></script>
   </body>
 </html>
-

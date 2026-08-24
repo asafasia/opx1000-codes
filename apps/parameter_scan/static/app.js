@@ -1,11 +1,12 @@
 const state = { experiments: [], selectedSeries: 0, lastStatus: null };
-document.querySelectorAll("[data-hub-link]").forEach(link => { link.href = `${location.protocol}//${location.hostname}:8890/`; });
+const desktopQuery = new URLSearchParams(location.search).has("desktop") ? "?desktop=1" : "";
+document.querySelectorAll("[data-hub-link]").forEach(link => { link.href = `${location.protocol}//${location.hostname}:8890/${desktopQuery}`; });
 const $ = id => document.getElementById(id);
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[c]));
 const fmt = value => value == null || !Number.isFinite(Number(value)) ? "--" : Number(value).toPrecision(5);
 
 function applyTheme(theme) {
-  const selected = theme || localStorage.getItem("parameterScanTheme") || "light";
+  const selected = theme || localStorage.getItem("parameterScanTheme") || "dark";
   localStorage.setItem("parameterScanTheme", selected);
   $("themeSelect").value = selected;
   const resolved = selected === "system" && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : selected;
@@ -225,7 +226,7 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
 });
 window.addEventListener("resize", () => renderPlot(state.lastStatus?.series || []));
 
-applyTheme(localStorage.getItem("parameterScanTheme") || "light");
+applyTheme("light");
 loadExperiments().catch(error => showErrors([error.message]));
 refreshStatus();
 setInterval(refreshStatus, 2000);

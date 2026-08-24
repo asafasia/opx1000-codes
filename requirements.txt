@@ -19,5 +19,8 @@ quam-builder
 pyvisa
 pyvisa-py
 
+# Native Windows shell for the connected lab app
+pywebview>=5.0
+
 # Optional plotting support used by legacy scripts
 plotly

@@ -13,7 +13,6 @@ class SimulationParameters:
     pulse_shape: str = "lorentzian"
     lorentzian_length_in_ns: int = 40
     waveform_template_length_in_ns: int | None = None
-    lorentzian_tau_in_ns: float = 8.0
     lorentzian_peak_amplitude: float = 0.15127819777954318
     cutoff: float = 0.2
     echo: bool = False

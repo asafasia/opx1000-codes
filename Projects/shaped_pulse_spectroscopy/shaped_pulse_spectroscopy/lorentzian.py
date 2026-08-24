@@ -44,16 +44,20 @@ MIN_FIT_SIGNAL_TO_NOISE = 3.5
 
 def lorentzian_envelope(
     length_ns: int,
-    tau_ns: float,
+    cutoff: float,
     peak_amplitude: float,
 ) -> list[float]:
-    """Return a centered Lorentzian envelope A / (1 + (t / tau)^2)."""
+    """Return a centered Lorentzian envelope with edge/peak ratio cutoff."""
     if length_ns < 4:
         raise ValueError("lorentzian_length_in_ns must be at least 4 ns.")
-    if tau_ns <= 0:
-        raise ValueError("lorentzian_tau_in_ns must be positive.")
+    if not 0 < cutoff <= 1:
+        raise ValueError("cutoff must satisfy 0 < cutoff <= 1.")
+    if cutoff == 1:
+        return [peak_amplitude] * length_ns
 
-    times = np.arange(length_ns, dtype=float) - (length_ns - 1) / 2
+    t_cut = length_ns / 2
+    tau_ns = t_cut / np.sqrt(1 / cutoff - 1)
+    times = np.linspace(-t_cut, t_cut, length_ns)
     envelope = peak_amplitude / (1 + (times / tau_ns) ** 2)
     return envelope.tolist()
 
@@ -104,7 +108,7 @@ def build_waveform(parameters) -> list[float]:
     if parameters.pulse_shape == "lorentzian":
         waveform = lorentzian_envelope(
             waveform_length,
-            parameters.lorentzian_tau_in_ns,
+            parameters.cutoff,
             parameters.lorentzian_peak_amplitude,
         )
     elif parameters.pulse_shape == "root_lorentzian":
@@ -193,14 +197,17 @@ def ac_stark_corrected_iq_waveforms(
     if not np.isfinite(kappa_mhz_inv):
         raise ValueError("stark_kappa_mhz_inv must be finite.")
 
-    played_rabi_mhz = np.asarray(
-        amplitude_to_rabi_frequency_hz(
-            amplitude_factor * samples,
-            pi_amplitude,
-            pi_length_ns,
-        ),
-        dtype=float,
-    ) / 1e6
+    played_rabi_mhz = (
+        np.asarray(
+            amplitude_to_rabi_frequency_hz(
+                amplitude_factor * samples,
+                pi_amplitude,
+                pi_length_ns,
+            ),
+            dtype=float,
+        )
+        / 1e6
+    )
     sample_duration_us = pulse_length_ns / samples.size / 1000.0
     accumulated_phase = np.zeros_like(samples)
     if samples.size > 1:
@@ -265,14 +272,17 @@ def ac_stark_chirp_parameters(
     if not np.isfinite(kappa_mhz_inv):
         raise ValueError("stark_kappa_mhz_inv must be finite.")
 
-    played_rabi_mhz = np.asarray(
-        amplitude_to_rabi_frequency_hz(
-            amplitude_factor * samples,
-            pi_amplitude,
-            pi_length_ns,
-        ),
-        dtype=float,
-    ) / 1e6
+    played_rabi_mhz = (
+        np.asarray(
+            amplitude_to_rabi_frequency_hz(
+                amplitude_factor * samples,
+                pi_amplitude,
+                pi_length_ns,
+            ),
+            dtype=float,
+        )
+        / 1e6
+    )
     correction_hz = kappa_mhz_inv * played_rabi_mhz**2 * 1e6
 
     pulse_cycles = pulse_length_ns // 4
@@ -330,9 +340,7 @@ def install_lorentzian_operation(
     node.namespace["lorentzian_play_duration_cycles"] = lorentzian_play_duration_cycles(
         node.parameters
     )
-    correction_enabled = bool(
-        getattr(node.parameters, "ac_stark_correction", False)
-    )
+    correction_enabled = bool(getattr(node.parameters, "ac_stark_correction", False))
     correction_factors = (
         sweep_factors
         if amplitude_factors is None
@@ -343,9 +351,7 @@ def install_lorentzian_operation(
 
     node.namespace["lorentzian_operation_names"] = [node.parameters.operation]
     node.namespace["lorentzian_stark_chirps"] = {}
-    reference_amplitude_factor = float(
-        np.max(np.abs(correction_factors), initial=0.0)
-    )
+    reference_amplitude_factor = float(np.max(np.abs(correction_factors), initial=0.0))
     for qubit in node.namespace["qubits"]:
         qubit.xy.operations[node.parameters.operation] = WaveformPulse(
             waveform_I=waveform,
@@ -434,8 +440,6 @@ def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode) -> xr.Dataset:
     return ds
 
 
-
-
 def process_amplitude_dataset(ds: xr.Dataset, node: QualibrationNode) -> xr.Dataset:
     """Add zero-detuning amplitude coordinates for a 1D Lorentzian sweep."""
     if not node.parameters.use_state_discrimination:
@@ -467,7 +471,6 @@ def _pulse_metadata(parameters) -> dict[str, object]:
         "lorentzian_length_in_ns": getattr(parameters, "lorentzian_length_in_ns", None),
         "waveform_template_length_in_ns": waveform_template_length(parameters),
         "lorentzian_play_duration_cycles": lorentzian_play_duration_cycles(parameters),
-        "lorentzian_tau_in_ns": getattr(parameters, "lorentzian_tau_in_ns", None),
         "cutoff": getattr(parameters, "cutoff", None),
         "lorentzian_peak_amplitude": getattr(
             parameters, "lorentzian_peak_amplitude", None
@@ -690,12 +693,7 @@ def _parameter_lines(ds: xr.Dataset, qubits: List[AnyTransmon]) -> list[str]:
     shape_parts = [
         f"peak amp={_format_mv(ds.attrs.get('lorentzian_peak_amplitude'))}",
     ]
-    if ds.attrs.get("pulse_shape") in {"root_lorentzian", "gaussian"}:
-        shape_parts.append(_format_value(ds.attrs.get("cutoff"), " cutoff"))
-    else:
-        shape_parts.append(
-            _format_value(ds.attrs.get("lorentzian_tau_in_ns"), " ns tau")
-        )
+    shape_parts.append(_format_value(ds.attrs.get("cutoff"), " cutoff"))
     lines.append(", ".join(part for part in shape_parts if part))
 
     sweep_parts = [
@@ -801,7 +799,9 @@ def _finish_figure_layout(
     parameter_lines = _parameter_lines(ds, qubits)
     add_calibration_parameter_box(figure, parameter_lines, gid="lorentzian_parameters")
     bottom = min(0.25, 0.055 + 0.018 * len(parameter_lines))
-    figure.subplots_adjust(top=0.95, bottom=bottom, right=0.86, hspace=0.35, wspace=0.45)
+    figure.subplots_adjust(
+        top=0.95, bottom=bottom, right=0.86, hspace=0.35, wspace=0.45
+    )
 
 
 def _t2_star_seconds(qubit: AnyTransmon) -> float | None:
@@ -1050,11 +1050,10 @@ if __name__ == "__main__":
     import matplotlib.pyplot as _plt
 
     LENGTH = 201
-    TAU = 20.0
     PEAK = 1
     CUTOFF = 0.25
 
-    lor = lorentzian_envelope(LENGTH, TAU, PEAK)
+    lor = lorentzian_envelope(LENGTH, CUTOFF, PEAK)
     root_lor = root_lorentzian_envelope(LENGTH, CUTOFF, PEAK)
     gauss = gaussian_envelope(LENGTH, CUTOFF, PEAK)
     echo_lor = apply_echo_phase_jump(root_lor)
@@ -1062,8 +1061,8 @@ if __name__ == "__main__":
     times = np.arange(LENGTH) - (LENGTH - 1) / 2
 
     fig, ax = _plt.subplots()
-    ax.axhline(CUTOFF, color="gray", linestyle=":", label="Lorentzian tau")
-    ax.plot(times, lor, label="Lorentzian")
+    ax.axhline(CUTOFF, color="gray", linestyle=":", label=f"Cutoff={CUTOFF}")
+    ax.plot(times, lor, label=f"Lorentzian cutoff={CUTOFF}")
     ax.plot(times, root_lor, label=f"Root-Lorentzian cutoff={CUTOFF}")
     ax.plot(times, gauss, label=f"Gaussian cutoff={CUTOFF}")
     ax.plot(times, echo_lor, label="Echo Lorentzian (phase-jump)", linestyle="--")

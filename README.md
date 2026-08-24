@@ -262,7 +262,19 @@ usual per-experiment raw data and figures as well.
 
 ## Local Tools
 
-Start the unified lab home screen (it launches and links all four local apps):
+Open the separate native Windows app (it launches and connects Data Review,
+Lab Monitor, Fridge Monitor, Profile Studio, and Parameter Sweep in a dedicated
+window without browser chrome):
+
+```powershell
+& ".\OPX1000 Lab.cmd"
+```
+
+The app project and executable live beside this repository in
+`C:\Users\owner\Developer\Quantum Coherence Lab`. The repository launcher
+forwards to that independent app directory.
+
+Or start the browser-based development server:
 
 ```powershell
 python apps/super_app/server.py

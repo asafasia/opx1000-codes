@@ -15,6 +15,13 @@ The standard Lorentzian pulse envelope is
 A / (1 + (t / tau)^2)
 ```
 
+where `tau` is derived from the requested edge cutoff:
+
+```text
+t_cut = lorentzian_length_in_ns / 2
+tau = t_cut / sqrt(1 / cutoff - 1)
+```
+
 The root-Lorentzian pulse envelope is
 
 ```text
@@ -48,8 +55,8 @@ parameters are:
 - `lorentzian_length_in_ns`: total waveform length.
 - `waveform_template_length_in_ns`: optional shorter stored waveform length;
   QUA stretches this template to `lorentzian_length_in_ns` with `duration`.
-- `lorentzian_tau_in_ns`: standard Lorentzian width parameter.
-- `cutoff`: shared edge/peak amplitude ratio for root-Lorentzian and Gaussian pulses.
+- `cutoff`: shared edge/peak amplitude ratio for Lorentzian, root-Lorentzian,
+  and Gaussian pulses.
 - `echo`: when `True`, multiply the waveform by a midpoint sign flip so the
   first half is positive and the second half is negative.
 - `lorentzian_peak_amplitude`: unscaled peak amplitude `A`.

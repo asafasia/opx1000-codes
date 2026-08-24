@@ -36,15 +36,19 @@ from shaped_pulse_spectroscopy.fwhm import add_gaussian_fwhm_analysis
 
 def lorentzian_envelope(
     length_ns: int,
-    tau_ns: float,
+    cutoff: float,
     peak_amplitude: float,
 ) -> np.ndarray:
     if length_ns < 4:
         raise ValueError("lorentzian_length_in_ns must be at least 4 ns.")
-    if tau_ns <= 0:
-        raise ValueError("lorentzian_tau_in_ns must be positive.")
+    if not 0 < cutoff <= 1:
+        raise ValueError("cutoff must satisfy 0 < cutoff <= 1.")
+    if cutoff == 1:
+        return np.full(length_ns, peak_amplitude, dtype=float)
 
-    times = np.arange(length_ns, dtype=float) - (length_ns - 1) / 2
+    t_cut = length_ns / 2
+    tau_ns = t_cut / np.sqrt(1 / cutoff - 1)
+    times = np.linspace(-t_cut, t_cut, length_ns)
     return peak_amplitude / (1 + (times / tau_ns) ** 2)
 
 
@@ -105,7 +109,7 @@ def build_waveform(parameters: SimulationParameters) -> np.ndarray:
     if parameters.pulse_shape == "lorentzian":
         waveform = lorentzian_envelope(
             waveform_length,
-            parameters.lorentzian_tau_in_ns,
+            parameters.cutoff,
             parameters.lorentzian_peak_amplitude,
         )
     elif parameters.pulse_shape == "root_lorentzian":

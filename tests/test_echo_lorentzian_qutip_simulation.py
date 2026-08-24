@@ -61,6 +61,20 @@ class EchoLorentzianQutipSimulationTests(unittest.TestCase):
         self.assertTrue(np.all(waveform[:4] > 0))
         self.assertTrue(np.all(waveform[4:] < 0))
 
+    def test_standard_lorentzian_uses_requested_cutoff(self):
+        parameters = parameters_module.SimulationParameters(
+            pulse_shape="lorentzian",
+            lorentzian_length_in_ns=9,
+            lorentzian_peak_amplitude=0.2,
+            cutoff=0.25,
+        )
+
+        waveform = simulator.build_waveform(parameters)
+
+        self.assertAlmostEqual(waveform[0], 0.05)
+        self.assertAlmostEqual(waveform[-1], 0.05)
+        self.assertAlmostEqual(waveform[4], 0.2)
+
     def test_sweep_axes_use_same_amplitude_and_detuning_parameters(self):
         parameters = parameters_module.SimulationParameters(
             min_amp_factor=0.0,

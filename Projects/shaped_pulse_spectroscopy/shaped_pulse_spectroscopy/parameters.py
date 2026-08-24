@@ -19,12 +19,10 @@ class NodeSpecificParameters(RunnableParameters):
     """User-chosen Lorentzian pulse length in ns."""
     waveform_template_length_in_ns: int | None = None
     """Optional shorter arbitrary-waveform template length stretched to pulse length."""
-    lorentzian_tau_in_ns: float = 8.0
-    """Lorentzian half-width parameter tau in ns."""
     lorentzian_peak_amplitude: float = 0.1
     """Peak amplitude A of the unscaled Lorentzian waveform in V."""
     cutoff: float = 0.2
-    """Shared edge/peak amplitude ratio for cutoff-based pulse shapes."""
+    """Shared edge/peak amplitude ratio for every supported pulse shape."""
     echo: bool = False
     """Apply a 180-degree phase jump at the waveform midpoint."""
     ac_stark_correction: bool = False

@@ -1,0 +1,114 @@
+.lab-tabs-shell,
+:root {
+  --lab-tabs-height: 52px;
+}
+
+.lab-tabs-shell {
+  position: sticky;
+  top: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: stretch;
+  min-height: 52px;
+  padding: 0 max(18px, calc((100vw - 1240px) / 2));
+  border-bottom: 1px solid #d9dcde;
+  color: #2c3134;
+  background: #fbfbfb;
+  box-shadow: none;
+  font-family: Inter, "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+.lab-tabs-shell * { box-sizing: border-box; }
+
+.lab-tabs-brand {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+  min-width: 194px;
+  padding-right: 20px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.lab-tabs-mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #bfc4c7;
+  border-radius: 4px;
+  color: #34393c;
+  background: #f0f1f2;
+  font: 750 .78rem/1 ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+.lab-tabs-brand-copy { display: flex; flex-direction: column; gap: 3px; }
+.lab-tabs-brand strong { color: #202427; font: 750 .68rem/1 ui-monospace, "Cascadia Code", Consolas, monospace; letter-spacing: .14em; }
+.lab-tabs-brand small { color: #747b7f; font: 650 .52rem/1 ui-monospace, "Cascadia Code", Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; }
+
+.lab-tabs-list {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: stretch;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.lab-tabs-list::-webkit-scrollbar { display: none; }
+
+.lab-tabs-link {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 0 14px;
+  border-right: 1px solid #e2e4e5;
+  color: #747b7f;
+  background: transparent;
+  font: 700 .62rem/1 ui-monospace, "Cascadia Code", Consolas, monospace;
+  letter-spacing: .055em;
+  text-decoration: none;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: color .15s ease, background .15s ease;
+}
+
+.lab-tabs-link:first-child { border-left: 1px solid #e2e4e5; }
+.lab-tabs-link:hover { color: #2f3437; background: #f4f5f5; }
+.lab-tabs-link.is-active { color: #171a1c; background: #eceeef; }
+.lab-tabs-link.is-active::after { content: ""; position: absolute; right: 12px; bottom: 0; left: 12px; height: 2px; background: #42484c; box-shadow: none; }
+
+.lab-tabs-telemetry {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 16px;
+  padding-left: 18px;
+  border-left: 1px solid #dfe1e2;
+}
+
+.lab-tabs-service { display: flex; align-items: baseline; gap: 7px; }
+.lab-tabs-service small { color: #858c90; font: 650 .5rem/1 ui-monospace, "Cascadia Code", Consolas, monospace; letter-spacing: .09em; text-transform: uppercase; }
+.lab-tabs-service strong { color: #4f565a; font: 700 .59rem/1 ui-monospace, "Cascadia Code", Consolas, monospace; }
+.lab-tabs-state { display: flex; align-items: center; gap: 8px; color: #656c70; font: 700 .57rem/1 ui-monospace, "Cascadia Code", Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.lab-tabs-pulse { width: 7px; height: 7px; border-radius: 50%; background: #a1a7aa; box-shadow: none; }
+.lab-tabs-pulse.ready { background: #555c60; box-shadow: none; }
+
+@media (max-width: 1060px) {
+  .lab-tabs-shell { padding-right: 12px; padding-left: 12px; }
+  .lab-tabs-brand { min-width: 172px; }
+  .lab-tabs-brand small { display: none; }
+  .lab-tabs-brand-copy { gap: 0; }
+  .lab-tabs-telemetry { display: none; }
+}
+
+@media (max-width: 680px) {
+  :root { --lab-tabs-height: 46px; }
+  .lab-tabs-shell { min-height: 46px; padding: 0; }
+  .lab-tabs-brand { min-width: auto; padding: 0 9px; }
+  .lab-tabs-brand-copy { display: none; }
+  .lab-tabs-mark { width: 27px; height: 27px; }
+  .lab-tabs-link { padding: 0 11px; font-size: .57rem; }
+}

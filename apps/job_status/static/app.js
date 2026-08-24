@@ -3,7 +3,8 @@ const state = {
   inFlight: false,
   windowSeconds: 15 * 60,
 };
-document.querySelectorAll("[data-hub-link]").forEach(link => { link.href = `${location.protocol}//${location.hostname}:8890/`; });
+const desktopQuery = new URLSearchParams(location.search).has("desktop") ? "?desktop=1" : "";
+document.querySelectorAll("[data-hub-link]").forEach(link => { link.href = `${location.protocol}//${location.hostname}:8890/${desktopQuery}`; });
 
 const WINDOW_LABELS = new Map([
   [15 * 60, "15 min"],
