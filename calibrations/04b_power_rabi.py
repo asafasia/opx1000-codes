@@ -336,7 +336,7 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
 
     parameters = Parameters()
-    parameters.reset_type = "active"
+    parameters.reset_type = "thermal"
     parameters.use_state_discrimination = True
     parameters.use_readout_mitigation = 0.4
     parameters.num_shots = 2000
@@ -349,6 +349,6 @@ if __name__ == "__main__":
     power_rabi = PowerRabi(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q6"),
+        machine=create_machine(qubit="q1"),
     )
     power_rabi.run()

@@ -471,6 +471,7 @@ def _pulse_metadata(parameters) -> dict[str, object]:
         "lorentzian_length_in_ns": getattr(parameters, "lorentzian_length_in_ns", None),
         "waveform_template_length_in_ns": waveform_template_length(parameters),
         "lorentzian_play_duration_cycles": lorentzian_play_duration_cycles(parameters),
+        "lorentzian_tau_in_ns": getattr(parameters, "lorentzian_tau_in_ns", None),
         "cutoff": getattr(parameters, "cutoff", None),
         "lorentzian_peak_amplitude": getattr(
             parameters, "lorentzian_peak_amplitude", None
@@ -734,6 +735,10 @@ def _parameter_lines(ds: xr.Dataset, qubits: List[AnyTransmon]) -> list[str]:
 
 
 def _t1_seconds(qubit: AnyTransmon) -> float | None:
+    profile_value = _profile_coherence_seconds(qubit.name, "t1_ns")
+    if profile_value is not None:
+        return profile_value
+
     for attribute in ("T1", "t1_ns"):
         value = getattr(qubit, attribute, None)
         if value is None:
@@ -742,10 +747,6 @@ def _t1_seconds(qubit: AnyTransmon) -> float | None:
         if not np.isfinite(value) or value <= 0:
             continue
         return value * 1e-9 if attribute.endswith("_ns") else value
-
-    profile_value = _profile_coherence_seconds(qubit.name, "t1_ns")
-    if profile_value is not None:
-        return profile_value
     return None
 
 
@@ -805,8 +806,15 @@ def _finish_figure_layout(
 
 
 def _t2_star_seconds(qubit: AnyTransmon) -> float | None:
-    """Return QuAM's Ramsey T2*, populated from the profile metrics."""
-    for attribute in ("T2ramsey", "t2_ramsey", "t2_ramsey_ns"):
+    """Return Ramsey T2* only; never substitute echo coherence."""
+    qubit_name = getattr(qubit, "name", None)
+    if qubit_name is not None:
+        for metric_name in ("t2_ramsey", "t2_ramsey_ns"):
+            profile_value = _profile_coherence_seconds(str(qubit_name), metric_name)
+            if profile_value is not None:
+                return profile_value
+
+    for attribute in ("t2_ramsey", "t2_ramsey_ns", "T2ramsey"):
         value = getattr(qubit, attribute, None)
         if value is None:
             continue
@@ -814,13 +822,6 @@ def _t2_star_seconds(qubit: AnyTransmon) -> float | None:
         if not np.isfinite(value) or value <= 0:
             continue
         return _coherence_value_to_seconds(value)
-
-    qubit_name = getattr(qubit, "name", None)
-    if qubit_name is not None:
-        for metric_name in ("t2_ramsey", "t2_ramsey_ns"):
-            profile_value = _profile_coherence_seconds(str(qubit_name), metric_name)
-            if profile_value is not None:
-                return profile_value
     return None
 
 
@@ -1049,9 +1050,9 @@ if __name__ == "__main__":
     # Example demonstration: plot Lorentzian, root-Lorentzian (echo) and Gaussian
     import matplotlib.pyplot as _plt
 
-    LENGTH = 201
+    LENGTH = 200
     PEAK = 1
-    CUTOFF = 0.25
+    CUTOFF = 0.1
 
     lor = lorentzian_envelope(LENGTH, CUTOFF, PEAK)
     root_lor = root_lorentzian_envelope(LENGTH, CUTOFF, PEAK)
@@ -1071,3 +1072,4 @@ if __name__ == "__main__":
     ax.set_title("Example pulse shapes")
     ax.legend()
     fig.tight_layout()
+    plt.show()

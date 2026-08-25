@@ -29,7 +29,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.14492756740161547,
+        "amplitude": 0.14579019103766283,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
