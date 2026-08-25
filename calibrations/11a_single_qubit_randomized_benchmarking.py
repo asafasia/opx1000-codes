@@ -18,7 +18,7 @@ from dataclasses import asdict, is_dataclass, replace
 from math import pi
 from qm.qua import *
 from qualang_tools.multi_user import qm_session
-from qualang_tools.results import progress_counter
+from calibrations.runtime_estimation import progress_counter
 from qualang_tools.units import unit
 from qualang_tools.bakery.randomized_benchmark_c1 import c1_table
 from quam_config import Quam, create_machine

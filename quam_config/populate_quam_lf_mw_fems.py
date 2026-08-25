@@ -41,24 +41,34 @@ def _optional_assign(component: Any, attribute: str, value: Any) -> None:
         setattr(component, attribute, value)
 
 
-def _apply_transmon_times(qubit: Any, transmon: dict[str, Any]) -> None:
-    """Apply profile times while respecting QuAM's seconds-based T1/T2 fields."""
+def _coherence_seconds(value: Any) -> float | None:
+    """Convert legacy mixed-unit coherence metrics to seconds."""
+    if value is None:
+        return None
+    value = float(value)
+    if not np.isfinite(value) or value <= 0:
+        return None
+    return value if value < 1e-3 else value * 1e-9
+
+
+def _apply_transmon_times(
+    qubit: Any,
+    transmon: dict[str, Any],
+    coherence: dict[str, Any] | None = None,
+) -> None:
+    """Apply coherence metrics to QuAM, falling back for legacy profiles."""
+    source = coherence if coherence is not None else transmon
     for profile_key, quam_attribute in (
         ("t1_ns", "T1"),
         ("t2_ramsey_ns", "T2ramsey"),
         ("t2_echo_ns", "T2echo"),
     ):
-        value_ns = transmon[profile_key]
-        _optional_assign(qubit, quam_attribute, None if value_ns is None else value_ns * 1e-9)
+        _optional_assign(qubit, quam_attribute, _coherence_seconds(source.get(profile_key)))
 
-    reference_t1_ns = transmon["t1_ns"] if transmon["t1_ns"] is not None else 10_000
+    reference_t1_s = _coherence_seconds(source.get("t1_ns")) or 10e-6
+    reference_t1_ns = reference_t1_s * 1e9
     requested_thermalization_ns = transmon["thermalization_time_ns"]
-    factor = round(requested_thermalization_ns / reference_t1_ns)
-    if factor < 1 or factor * reference_t1_ns != requested_thermalization_ns:
-        raise ProfileError(
-            f"{qubit.name} thermalization_time_ns must be a positive integer multiple of "
-            f"T1 ({reference_t1_ns} ns, or the 10000 ns default)"
-        )
+    factor = max(1, round(requested_thermalization_ns / reference_t1_ns))
     qubit.thermalization_time_factor = factor
 
 
@@ -203,6 +213,7 @@ def apply_profile(
     connectivity = profile["connectivity"]
     qubit_profiles = profile["qubits"]["qubits"]
     pulse_profiles = profile["pulses"]["pulses"]
+    metric_profiles = profile.get("metrics", {}).get("qubits", {})
     readout_discriminator = profile["manifest"].get(
         "readout_discriminator",
         "quam",
@@ -236,7 +247,8 @@ def apply_profile(
         qubit.f_12 = frequencies["qubit_f12"]
         qubit.anharmonicity = transmon["anharmonicity_hz"]
         qubit.grid_location = ",".join(str(value) for value in settings["grid_location"])
-        _apply_transmon_times(qubit, transmon)
+        coherence = metric_profiles.get(qubit_name, {}).get("coherence")
+        _apply_transmon_times(qubit, transmon, coherence)
 
         qubit.xy.RF_frequency = frequencies["qubit_f01"]
         qubit.xy.opx_output.upconverter_frequency = xy_port["lo_frequency_hz"]

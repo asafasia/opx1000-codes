@@ -18,7 +18,7 @@ from dataclasses import asdict
 from qm import generate_qua_script
 from qm.qua import *
 from qualang_tools.multi_user import qm_session
-from qualang_tools.results import progress_counter
+from calibrations.runtime_estimation import progress_counter
 from qualang_tools.units import unit
 from quam_config import Quam, create_machine
 from calibration_io import CalibrationSaver, current_profile_name
@@ -337,6 +337,6 @@ if __name__ == "__main__":
     calibration = TimeOfFlightMwFem(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q6"),
     )
     calibration.run()

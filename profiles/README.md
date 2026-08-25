@@ -214,6 +214,12 @@ cm = CreateMachine(profile_name="main")
 cm = CreateMachine(mode="main")
 ```
 
+Coherence values (`T1`, Ramsey `T2*`, and echo `T2`) have one operational source
+of truth: `metrics.json` under `qubits.<name>.coherence`. Machine construction
+copies those metrics into QuAM's `T1`, `T2ramsey`, and `T2echo` fields. The
+similarly named values under `qubits.json.transmon` are read only as a legacy
+fallback for profiles without a metrics document.
+
 Single-qubit work uses the independent `profiles/single_qubit` profile. Passing
 only a qubit name selects that profile automatically:
 
@@ -349,6 +355,40 @@ all configured qubits, exact XY ports, and shared resonator feedlines.
 `active_qubits` controls which qubits calibrations select by default, without
 removing inactive qubits from the physical wiring. Importing the module does
 not write configuration files; generation happens only when the module is run.
+
+## External DC Bias
+
+The optional `connectivity.dc_bias` object configures the host-side Arduino
+DC-bias QuAM component:
+
+```json
+"dc_bias": {
+  "port": "COM7",
+  "baud_rate": 115200,
+  "channel_count": 8,
+  "max_abs_voltage_v": 0.01
+}
+```
+
+Profile validation does not allow `max_abs_voltage_v` above 0.01 V. Building a
+machine attaches these settings as `machine.dc_bias` but does not open the
+serial port or change an output. Hardware access occurs only when host code
+calls methods such as `machine.dc_bias.set_voltage(...)` or enters
+`machine.dc_bias.applied(...)`.
+
+In the `single_qubit` profile, each qubit stores its bias voltage using a
+unit-suffixed field:
+
+```json
+"q3": {
+  "dc_bias_v": 0.0
+}
+```
+
+The hardware output is deliberately not part of the profile: channel 0 is
+hardcoded in `ArduinoDCBias` and shared by every qubit. Use
+`machine.dc_bias.applied_for_qubit("q3")` to apply the selected qubit's voltage
+and reliably return channel 0 to zero afterward.
 
 ## Recommended Workflow
 

@@ -5,6 +5,12 @@
     "port": null,
     "cluster_name": "katz_cluster"
   },
+  "dc_bias": {
+    "port": "COM7",
+    "baud_rate": 115200,
+    "channel_count": 8,
+    "max_abs_voltage_v": 0.01
+  },
   "controllers": {
     "con1": {
       "type": "opx1000",

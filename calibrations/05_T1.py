@@ -15,7 +15,7 @@ import xarray as xr
 from qm.qua import *
 from qualang_tools.multi_user import qm_session
 from qualang_tools.units import unit
-from qualang_tools.results import progress_counter
+from calibrations.runtime_estimation import progress_counter
 from quam_config import Quam
 from calibration_io import CalibrationSaver, current_profile_name
 from profiles import ProfileUpdater
@@ -312,6 +312,6 @@ if __name__ == "__main__":
     calibration = T1(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q6"),
     )
     calibration.run()

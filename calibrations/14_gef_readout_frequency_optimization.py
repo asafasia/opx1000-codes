@@ -24,7 +24,7 @@ from calibration_utils.readout_gef_frequency_optimization import (
 from qm.qua import *
 from qualang_tools.loops import from_array
 from qualang_tools.multi_user import qm_session
-from qualang_tools.results import progress_counter
+from calibrations.runtime_estimation import progress_counter
 from qualang_tools.units import unit
 from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.parameters import get_qubits

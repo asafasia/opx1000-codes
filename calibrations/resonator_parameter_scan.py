@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from pathlib import Path
 
 if __package__ in {None, ""}:
@@ -26,6 +27,7 @@ from qualibrate import NodeParameters
 from qualibration_libs.data import XarrayDataFetcher, convert_IQ_to_V
 
 from calibration_io import CalibrationSaver, current_profile_name
+from calibrations.runtime_estimation import progress_counter
 from quam_config import Quam, create_machine
 from utils.plotting_settings import FIGURE_SIZE
 
@@ -262,48 +264,68 @@ class ResonatorParameterScan(BaseCalibration[NodeParameters, Quam]):
     def create_qua_program(self):
         qubit = self.machine.qubits[QUBIT_NAME]
         self.namespace["qubits"] = [qubit]
-        self.namespace["qua_program"] = build_program(self.machine, qubit)
-        return self.namespace["qua_program"]
-
-    def run(self):
-        qubit = self.machine.qubits[QUBIT_NAME]
-        self.machine.connect()
-        self.machine.qmm.close_all_qms()
-
-        self.log(f"Running {len(READOUT_AMPLITUDE_FACTORS) * len(QUBIT_OFFSETS_HZ)} combinations")
-        self.create_qua_program()
-        self.execute_qua_program()
-        output_dir = CalibrationSaver().save_xarray(
-            self.name,
-            self.results["ds_raw"],
-            profile_name=current_profile_name(),
-            parameters=self.parameters,
-        )
-        self.namespace["calibration_run_directory"] = output_dir
-        self.log(f"Raw calibration results saved to {output_dir.resolve()}")
-        summary = analyze_and_save(self.results["ds_raw"], output_dir)
-        self.results["summary"] = summary
-        self.namespace["output_directory"] = output_dir
-        self.log(summary.to_string(index=False))
-        self.log(f"Completed scan: {output_dir.resolve()}")
-        return summary
-
-    def execute_qua_program(self) -> None:
-        qubit = self.machine.qubits[QUBIT_NAME]
-        axes = {
+        self.namespace["sweep_axes"] = {
             "qubit": xr.DataArray([QUBIT_NAME]),
             "readout_amplitude_factor": xr.DataArray(READOUT_AMPLITUDE_FACTORS),
             "qubit_offset_hz": xr.DataArray(QUBIT_OFFSETS_HZ),
             "resonator_detuning_hz": xr.DataArray(RESONATOR_DETUNINGS_HZ),
         }
+        self.namespace["qua_program"] = build_program(self.machine, qubit)
+        return self.namespace["qua_program"]
+
+    def progress_total(self) -> int:
+        return NUM_SHOTS
+
+    def run(self):
+        self._start_run_timer()
+        try:
+            self.machine.connect()
+            self.machine.qmm.close_all_qms()
+
+            self.log(f"Running {len(READOUT_AMPLITUDE_FACTORS) * len(QUBIT_OFFSETS_HZ)} combinations")
+            self.create_qua_program()
+            if self.options.report_runtime_estimate:
+                self.report_runtime_estimate()
+            execution_started_s = time.perf_counter()
+            try:
+                with self.automatic_dc_bias():
+                    self.execute_qua_program()
+            finally:
+                self.namespace["execution_duration_s"] = (
+                    time.perf_counter() - execution_started_s
+                )
+            output_dir = CalibrationSaver().save_xarray(
+                self.name,
+                self.results["ds_raw"],
+                profile_name=current_profile_name(),
+                parameters=self.parameters,
+                extra_metadata=self.run_timing_metadata(),
+            )
+            self.namespace["calibration_run_directory"] = output_dir
+            self.log(f"Raw calibration results saved to {output_dir.resolve()}")
+            summary = analyze_and_save(self.results["ds_raw"], output_dir)
+            self.results["summary"] = summary
+            self.namespace["output_directory"] = output_dir
+            self.log(summary.to_string(index=False))
+            self.log(f"Completed scan: {output_dir.resolve()}")
+            return summary
+        finally:
+            self._finish_run_timer()
+            self.cleanup()
+
+    def execute_qua_program(self) -> None:
+        qubit = self.machine.qubits[QUBIT_NAME]
         config = self.machine.generate_config()
         with qm_session(self.machine.connect(), config, timeout=300) as qm:
             job = qm.execute(self.namespace["qua_program"])
-            fetcher = XarrayDataFetcher(job, axes)
+            fetcher = XarrayDataFetcher(job, self.namespace["sweep_axes"])
             dataset = None
             for dataset in fetcher:
-                progress = int(fetcher.get("n", 0)) + 1
-                print(f"\rAverages: {min(progress, NUM_SHOTS)}/{NUM_SHOTS}", end="")
+                progress_counter(
+                    fetcher.get("n", 0),
+                    NUM_SHOTS,
+                    start_time=fetcher.t_start,
+                )
             print()
             self.log(job.execution_report())
 

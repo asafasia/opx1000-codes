@@ -7,6 +7,7 @@ from .core import (
     CalibrationError,
     CalibrationOptions,
     CalibrationStatus,
+    RuntimeEstimate,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "CalibrationError",
     "CalibrationOptions",
     "CalibrationStatus",
+    "RuntimeEstimate",
 ]

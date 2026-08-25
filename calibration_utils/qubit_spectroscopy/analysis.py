@@ -121,27 +121,27 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
         fit_I = xr.merge(
             [
                 peaks_dips(ds_fit.I, dim="detuning", prominence_factor=5),
-                _fit_maximum_with_measured_fallback(ds_fit.I),
+                _fit_extremum_with_measured_fallback(ds_fit.I),
             ]
         )
         fit_Q = xr.merge(
             [
                 peaks_dips(ds_fit.Q, dim="detuning", prominence_factor=5),
-                _fit_maximum_with_measured_fallback(ds_fit.Q),
+                _fit_extremum_with_measured_fallback(ds_fit.Q),
             ]
         )
         fit_vals = _select_best_quadrature_fit(fit_I, fit_Q)
 
     if node.parameters.use_state_discrimination:
         fit_vals = peaks_dips(fit_signal, dim="detuning", prominence_factor=5)
-        max_fit_vals = _fit_maximum_with_measured_fallback(fit_signal)
-        fit_vals = xr.merge([fit_vals, max_fit_vals])
+        extremum_fit_vals = _fit_extremum_with_measured_fallback(fit_signal)
+        fit_vals = xr.merge([fit_vals, extremum_fit_vals])
     fit_vals = fit_vals.assign(
         {
             "position": xr.where(
                 fit_vals.fit_r_squared >= MIN_FIT_R_SQUARED,
                 fit_vals.fit_position,
-                fit_vals.measured_max_position,
+                fit_vals.measured_extremum_position,
             ),
             "width": xr.where(
                 fit_vals.fit_r_squared >= MIN_FIT_R_SQUARED,
@@ -175,7 +175,7 @@ def _select_best_quadrature_fit(fit_I: xr.Dataset, fit_Q: xr.Dataset) -> xr.Data
     )
 
 
-def _fit_maximum_with_measured_fallback(fit_signal: xr.DataArray) -> xr.Dataset:
+def _fit_extremum_with_measured_fallback(fit_signal: xr.DataArray) -> xr.Dataset:
     qubits = list(fit_signal.qubit.values)
     measured_positions = []
     fit_positions = []
@@ -195,7 +195,7 @@ def _fit_maximum_with_measured_fallback(fit_signal: xr.DataArray) -> xr.Dataset:
             fit_offset,
             fit_amplitude,
             fit_gamma,
-        ) = _fit_trace_maximum(
+        ) = _fit_trace_extremum(
             np.asarray(trace.detuning.values, dtype=float),
             np.asarray(trace.values, dtype=float),
         )
@@ -209,6 +209,8 @@ def _fit_maximum_with_measured_fallback(fit_signal: xr.DataArray) -> xr.Dataset:
 
     return xr.Dataset(
         {
+            "measured_extremum_position": ("qubit", measured_positions),
+            # Retain the old field for consumers of previously saved fit data.
             "measured_max_position": ("qubit", measured_positions),
             "fit_position": ("qubit", fit_positions),
             "fit_width": ("qubit", fit_widths),
@@ -221,7 +223,7 @@ def _fit_maximum_with_measured_fallback(fit_signal: xr.DataArray) -> xr.Dataset:
     )
 
 
-def _fit_trace_maximum(
+def _fit_trace_extremum(
     x: np.ndarray, y: np.ndarray
 ) -> tuple[float, float, float, float, float, float, float]:
     finite = np.isfinite(x) & np.isfinite(y)
@@ -230,13 +232,18 @@ def _fit_trace_maximum(
     if x.size < 5 or np.ptp(x) <= 0 or np.ptp(y) <= 0:
         return np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
-    max_index = int(np.argmax(y))
-    measured_position = float(x[max_index])
+    median = float(np.median(y))
+    is_dip = median - float(np.min(y)) > float(np.max(y)) - median
+    extremum_index = int(np.argmin(y) if is_dip else np.argmax(y))
+    measured_position = float(x[extremum_index])
     span = float(np.ptp(x))
     step = _median_step(x)
-    baseline = float(np.percentile(y, 10))
-    amplitude = max(float(y[max_index] - baseline), np.finfo(float).eps)
+    baseline = float(np.percentile(y, 90 if is_dip else 10))
+    amplitude = float(y[extremum_index] - baseline)
+    if amplitude == 0:
+        amplitude = -np.finfo(float).eps if is_dip else np.finfo(float).eps
     gamma = max(span / 10, step)
+    amplitude_bounds = (-np.inf, 0.0) if is_dip else (0.0, np.inf)
 
     try:
         params, _ = curve_fit(
@@ -245,8 +252,13 @@ def _fit_trace_maximum(
             y,
             p0=[baseline, amplitude, measured_position, gamma],
             bounds=(
-                [-np.inf, 0.0, float(np.min(x)), max(step / 10, np.finfo(float).eps)],
-                [np.inf, np.inf, float(np.max(x)), span],
+                [
+                    -np.inf,
+                    amplitude_bounds[0],
+                    float(np.min(x)),
+                    max(step / 10, np.finfo(float).eps),
+                ],
+                [np.inf, amplitude_bounds[1], float(np.max(x)), span],
             ),
             maxfev=10000,
         )

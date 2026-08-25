@@ -17,7 +17,7 @@ from dataclasses import asdict
 from qm.qua import *
 from qualang_tools.loops import from_array
 from qualang_tools.multi_user import qm_session
-from qualang_tools.results import progress_counter
+from calibrations.runtime_estimation import progress_counter
 from qualang_tools.units import unit
 from quam_config import Quam, create_machine
 from calibration_io import CalibrationSaver, current_profile_name
@@ -330,6 +330,6 @@ if __name__ == "__main__":
     calibration = ReadoutFrequencyOptimization(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q3"),
+        machine=create_machine(qubit="q6"),
     )
     calibration.run()

@@ -16,6 +16,7 @@ if str(REPOSITORY_ROOT) not in sys.path:
 
 from profiles import Profile, load_profile
 from quam_config import Quam
+from quam_config.components import ArduinoDCBias
 from quam_config.populate_quam_lf_mw_fems import apply_profile
 from quam_config.wiring_lffem_mwfem import create_profile_connectivity
 
@@ -70,6 +71,18 @@ def create_machine_from_profile(
         )
         build_quam(machine)
         apply_profile(machine, profile, profile_root=profile_root)
+
+        dc_bias_config = profile["connectivity"].get("dc_bias")
+        if dc_bias_config is not None:
+            qubit_biases_v = {
+                qubit_name: qubit["dc_bias_v"]
+                for qubit_name, qubit in profile["qubits"]["qubits"].items()
+                if "dc_bias_v" in qubit
+            }
+            machine.dc_bias = ArduinoDCBias(
+                **dc_bias_config,
+                qubit_biases_v=qubit_biases_v,
+            )
 
         if save:
             machine.save()

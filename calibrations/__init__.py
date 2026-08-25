@@ -5,6 +5,7 @@ __all__ = [
     "CalibrationError",
     "CalibrationOptions",
     "CalibrationStatus",
+    "RuntimeEstimate",
 ]
 
 

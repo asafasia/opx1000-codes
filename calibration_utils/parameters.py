@@ -8,5 +8,5 @@ from qualibration_libs.parameters import (
 class QubitsExperimentNodeParameters(_QubitsExperimentNodeParameters):
     """Base parameters shared by qubit experiments in this repository."""
 
-    use_readout_mitigation: bool = False
-    """Correct discriminated state populations using the IQ-blobs assignment matrix."""
+    use_readout_mitigation: float | bool = False
+    """Readout-mitigation strength from 0 (off) to 1 (full matrix inversion)."""

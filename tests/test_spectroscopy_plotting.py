@@ -136,7 +136,53 @@ class SpectroscopyPlottingTests(unittest.TestCase):
         ]
 
         self.assertTrue(any(label.startswith("Lorentzian fit R^2=") for label in labels))
-        self.assertTrue(any(label.startswith("Measured max:") for label in labels))
+        self.assertTrue(any(label.startswith("Measured peak:") for label in labels))
+
+    def test_qubit_plot_labels_negative_resonance_as_dip(self):
+        detuning = np.linspace(-10e6, 10e6, 41)
+        current_frequency = 4.35e9
+        center = -1.37e6
+        gamma = 1.8e6
+        state = 0.9 - 0.8 * gamma**2 / ((detuning - center) ** 2 + gamma**2)
+        ds = xr.Dataset(
+            {"state": (("qubit", "detuning"), state[np.newaxis, :])},
+            coords={
+                "qubit": ["q1"],
+                "detuning": detuning,
+                "full_freq": (
+                    ("qubit", "detuning"),
+                    (current_frequency + detuning)[None, :],
+                ),
+            },
+        )
+        fits = xr.Dataset(
+            {
+                "res_freq": ("qubit", [current_frequency + center]),
+                "measured_extremum_position": (
+                    "qubit",
+                    [detuning[np.argmin(state)]],
+                ),
+                "fit_position": ("qubit", [center]),
+                "fit_width": ("qubit", [2 * gamma]),
+                "fit_r_squared": ("qubit", [0.999]),
+                "fit_offset": ("qubit", [0.9]),
+                "fit_amplitude": ("qubit", [-0.8]),
+                "fit_gamma": ("qubit", [gamma]),
+            },
+            coords={"qubit": ["q1"]},
+        )
+        qubit = SimpleNamespace(
+            name="q1",
+            f_01=current_frequency,
+            xy=SimpleNamespace(RF_frequency=current_frequency),
+        )
+
+        fig = plot_raw_data_with_fit(ds, [qubit], fits, use_state_discrimination=True)
+        labels = [
+            label for axis in fig.axes for label in axis.get_legend_handles_labels()[1]
+        ]
+
+        self.assertTrue(any(label.startswith("Measured dip:") for label in labels))
 
     def test_iq_qubit_plot_shows_lorentzian_fit_on_selected_quadrature(self):
         detuning = np.linspace(-10e6, 10e6, 41)

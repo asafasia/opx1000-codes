@@ -73,6 +73,26 @@ class QubitSpectroscopyAnalysisTests(unittest.TestCase):
         self.assertLess(abs(fit_results["q1"].relative_freq - true_center), 1e3)
         self.assertGreater(abs(fit_results["q1"].relative_freq - sampled_max), 1e5)
 
+    def test_good_negative_qubit_spectroscopy_fit_uses_fit_minimum(self):
+        node = self.make_node()
+        detuning = np.linspace(-10e6, 10e6, 41)
+        true_center = -1.37e6
+        gamma = 1.8e6
+        state = 0.9 - 0.8 * gamma**2 / ((detuning - true_center) ** 2 + gamma**2)
+        sampled_min = float(detuning[np.argmin(state)])
+        ds = xr.Dataset(
+            {"state": (("qubit", "detuning"), state[np.newaxis, :])},
+            coords={"qubit": ["q1"], "detuning": detuning},
+        )
+
+        fit_data, fit_results = fit_raw_data(ds, node)
+
+        selected = fit_data.sel(qubit="q1")
+        self.assertGreater(float(selected.fit_r_squared.values), 0.99)
+        self.assertLess(float(selected.fit_amplitude.values), 0)
+        self.assertLess(abs(fit_results["q1"].relative_freq - true_center), 1e3)
+        self.assertGreater(abs(fit_results["q1"].relative_freq - sampled_min), 1e5)
+
     def test_poor_qubit_spectroscopy_fit_uses_measured_maximum(self):
         node = self.make_node()
         detuning = np.linspace(-10e6, 10e6, 41)

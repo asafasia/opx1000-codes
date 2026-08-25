@@ -6,10 +6,12 @@ from .base import (
     CalibrationOptions,
     CalibrationStatus,
 )
+from calibrations.runtime_estimation import RuntimeEstimate
 
 __all__ = [
     "BaseCalibration",
     "CalibrationError",
     "CalibrationOptions",
     "CalibrationStatus",
+    "RuntimeEstimate",
 ]

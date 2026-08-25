@@ -32,6 +32,7 @@ class RunnerCalibrationOptions:
     propose_profile_update: bool = True
     apply_profile_update: bool = False
     ai_review: bool = False
+    report_runtime_estimate: bool = True
 
 
 OPTION_FIELDS = set(RunnerCalibrationOptions.__dataclass_fields__)

@@ -94,18 +94,25 @@ def _plot_lorentzian_fit(ax, trace: xr.Dataset, fit: xr.Dataset, scale: float) -
     )
 
 
-def _plot_measured_max(ax, fit: xr.Dataset, current_frequency_ghz: float) -> None:
-    if "measured_max_position" not in fit:
+def _plot_measured_extremum(ax, fit: xr.Dataset, current_frequency_ghz: float) -> None:
+    position_name = (
+        "measured_extremum_position"
+        if "measured_extremum_position" in fit
+        else "measured_max_position"
+    )
+    if position_name not in fit:
         return
-    measured_position = _fit_value(fit, "measured_max_position")
+    measured_position = _fit_value(fit, position_name)
     if not np.isfinite(measured_position):
         return
+    amplitude = _fit_value(fit, "fit_amplitude") if "fit_amplitude" in fit else np.nan
+    extremum_label = "dip" if np.isfinite(amplitude) and amplitude < 0 else "peak"
     ax.axvline(
         current_frequency_ghz + measured_position / u.GHz,
         color="tab:gray",
         linestyle=":",
         label=(
-            "Measured max: "
+            f"Measured {extremum_label}: "
             f"{current_frequency_ghz + measured_position / u.GHz:.6f} GHz"
         ),
     )
@@ -260,7 +267,7 @@ def plot_raw_data_with_fit(
                     else f"Fitted new ef: {fitted_frequency_ghz:.6f} GHz"
                 ),
             )
-            _plot_measured_max(ax, fit, current_frequency_ghz)
+            _plot_measured_extremum(ax, fit, current_frequency_ghz)
             if _is_selected_fit_trace(fit, variable) and _can_plot_lorentzian_fit(fit):
                 _plot_lorentzian_fit(ax, trace, fit, scale)
             ax.set_xlim(*sweep_limits)

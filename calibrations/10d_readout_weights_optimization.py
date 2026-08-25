@@ -15,7 +15,7 @@ import numpy as np
 import xarray as xr
 from qm.qua import *
 from qualang_tools.multi_user import qm_session
-from qualang_tools.results import progress_counter
+from calibrations.runtime_estimation import progress_counter
 from qualang_tools.units import unit
 
 from calibration_io import CalibrationSaver, current_profile_name
@@ -324,13 +324,13 @@ if __name__ == "__main__":
     parameters.num_shots = 10000
     parameters.division_length_clock_cycles = 10
     parameters.use_current_integration_weights = False
-    parameters.reset_type = "thermal"
+    parameters.reset_type = "active"
 
     options = CalibrationOptions()
 
     calibration = ReadoutWeightsOptimization(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q6"),
     )
     calibration.run()

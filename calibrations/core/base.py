@@ -63,6 +63,7 @@ class CalibrationOptions:
     propose_profile_update: bool = True
     apply_profile_update: bool = True
     ai_review: bool = False
+    report_runtime_estimate: bool = True
 
 
 class BaseCalibration(ABC, Generic[P, M]):
@@ -166,6 +167,52 @@ class BaseCalibration(ABC, Generic[P, M]):
     def should_execute(self) -> bool:
         return not self.simulate_requested and not self.should_load_data()
 
+    def _dc_bias_qubit_name(self, configured_names: set[str]) -> str:
+        if self.qubit in configured_names:
+            return str(self.qubit)
+        if len(configured_names) == 1:
+            return next(iter(configured_names))
+
+        active_names = set(getattr(self.machine, "active_qubit_names", ()))
+        active_configured = active_names & configured_names
+        if len(active_configured) == 1:
+            return next(iter(active_configured))
+
+        selected_qubits = self.namespace.get("qubits", ())
+        selected_names = {
+            str(getattr(qubit, "name", qubit)) for qubit in selected_qubits
+        }
+        selected_configured = selected_names & configured_names
+        if len(selected_configured) == 1:
+            return next(iter(selected_configured))
+
+        raise CalibrationError(
+            "Automatic DC bias requires exactly one selected qubit with a "
+            "configured dc_bias_v."
+        )
+
+    @contextmanager
+    def automatic_dc_bias(self) -> Iterable[None]:
+        """Apply the selected nonzero profile bias during real execution only."""
+        dc_bias = getattr(self.machine, "dc_bias", None)
+        qubit_biases_v = getattr(dc_bias, "qubit_biases_v", {})
+        if not qubit_biases_v:
+            yield
+            return
+
+        qubit_name = self._dc_bias_qubit_name(set(qubit_biases_v))
+        voltage_v = dc_bias.voltage_for_qubit(qubit_name)
+        if voltage_v == 0:
+            yield
+            return
+
+        self.log(
+            f"Applying DC bias for {qubit_name}: {voltage_v:g} V on "
+            f"channel {dc_bias.output_channel}."
+        )
+        with dc_bias.applied_for_qubit(qubit_name):
+            yield
+
     def run(self) -> CalibrationStatus:
         """Run the standard calibration lifecycle."""
         loaded = False
@@ -186,13 +233,22 @@ class BaseCalibration(ABC, Generic[P, M]):
                 if self.should_execute():
                     assert_outputs_allowed()
                 self.namespace["qua_program"] = self.create_qua_program()
+                if self.should_execute() and self.options.report_runtime_estimate:
+                    self.report_runtime_estimate()
                 if self.should_simulate():
                     self.simulate_qua_program()
                 elif self.should_execute():
                     # Re-check after QUA construction in case an operator
                     # engaged the latch while the program was being built.
                     assert_outputs_allowed()
-                    self.execute_qua_program()
+                    execution_started_s = time.perf_counter()
+                    try:
+                        with self.automatic_dc_bias():
+                            self.execute_qua_program()
+                    finally:
+                        self.namespace["execution_duration_s"] = (
+                            time.perf_counter() - execution_started_s
+                        )
                     if self.options.save_raw_data:
                         self.save_raw_results()
                         raw_data_saved = True
@@ -261,7 +317,7 @@ class BaseCalibration(ABC, Generic[P, M]):
     def execute_qua_program(self) -> None:
         """Execute the QUA program and fetch xarray data into ``ds_raw``."""
         from qualang_tools.multi_user import qm_session
-        from qualang_tools.results import progress_counter
+        from calibrations.runtime_estimation import progress_counter
         from qualibration_libs.data import XarrayDataFetcher
 
         if "sweep_axes" not in self.namespace:
@@ -290,18 +346,64 @@ class BaseCalibration(ABC, Generic[P, M]):
     def progress_total(self) -> int | None:
         return getattr(self.parameters, "num_shots", None)
 
+    def estimate_runtime(self) -> Any:
+        """Estimate execution time from sweep size and comparable saved runs."""
+        from calibrations.runtime_estimation import estimate_runtime
+
+        estimate = estimate_runtime(
+            experiment_name=self.name,
+            axes=self.namespace.get("sweep_axes"),
+            parameters=self.parameters,
+            progress_total=self.progress_total(),
+            output_root=self.saver.output_root,
+        )
+        self.namespace["runtime_estimate"] = estimate.to_dict()
+        return estimate
+
+    def report_runtime_estimate(self) -> None:
+        """Log workload immediately before hardware execution."""
+        from calibrations.runtime_estimation import format_duration
+
+        estimate = self.estimate_runtime()
+        self.log(
+            "Planned workload: "
+            f"{estimate.sweep_points:,} sweep points x "
+            f"{estimate.repetitions:,} repetitions = "
+            f"{estimate.workload_units:,} normalized workload units."
+        )
+        if estimate.estimated_seconds is None:
+            self.log(
+                "Estimated execution time: unavailable (no comparable saved run); "
+                "live ETA starts after one outer iteration completes."
+            )
+            return
+        self.log(
+            f"Estimated execution time: about {format_duration(estimate.estimated_seconds)} "
+            f"from {estimate.historical_runs} comparable saved run(s); "
+            "live ETA will refine it."
+        )
+
     def apply_readout_mitigation(self) -> None:
         """Correct binary state populations using calibrated assignment matrices.
 
         IQ-blobs stores a matrix whose rows are prepared states and whose columns
         are measured states.  Therefore ``p_measured = p_true @ matrix`` and the
-        mitigated population is obtained by applying the matrix inverse.  The
-        result is intentionally not clipped: finite-shot fluctuations outside
-        the physical interval are useful diagnostics and clipping would bias it.
+        fully mitigated population is obtained by applying the matrix inverse.
+        Numeric ``use_readout_mitigation`` values blend between the measured and
+        fully mitigated populations, which regularizes noisy assignment matrices.
+        The result is intentionally not clipped because clipping would bias it.
         """
         if not getattr(self.parameters, "use_state_discrimination", False):
             raise CalibrationError(
                 "Readout mitigation requires use_state_discrimination=True."
+            )
+
+        mitigation_strength = float(
+            getattr(self.parameters, "use_readout_mitigation", 1.0)
+        )
+        if not np.isfinite(mitigation_strength) or not 0 < mitigation_strength <= 1:
+            raise CalibrationError(
+                "use_readout_mitigation must be False or a strength in the interval (0, 1]."
             )
 
         dataset = self.results.get("ds_raw")
@@ -348,9 +450,12 @@ class BaseCalibration(ABC, Generic[P, M]):
 
             inverse = np.linalg.inv(matrix)
             measured_excited = state.sel(qubit=qubit_name) if has_qubit_axis else state
-            mitigated_excited = (
+            fully_mitigated_excited = (
                 (1.0 - measured_excited) * inverse[0, 1]
                 + measured_excited * inverse[1, 1]
+            )
+            mitigated_excited = measured_excited + mitigation_strength * (
+                fully_mitigated_excited - measured_excited
             )
             if has_qubit_axis:
                 corrected.loc[{"qubit": qubit_name}] = mitigated_excited
@@ -362,6 +467,7 @@ class BaseCalibration(ABC, Generic[P, M]):
             {
                 "readout_mitigated": True,
                 "readout_mitigation_method": "inverse_assignment_matrix",
+                "readout_mitigation_strength": mitigation_strength,
             }
         )
         self.results["ds_raw"] = dataset.assign(
@@ -626,6 +732,16 @@ class BaseCalibration(ABC, Generic[P, M]):
             **(
                 {"run_duration_s": self.namespace["run_duration_s"]}
                 if "run_duration_s" in self.namespace
+                else {}
+            ),
+            **(
+                {"execution_duration_s": self.namespace["execution_duration_s"]}
+                if "execution_duration_s" in self.namespace
+                else {}
+            ),
+            **(
+                {"runtime_estimate": self.namespace["runtime_estimate"]}
+                if "runtime_estimate" in self.namespace
                 else {}
             ),
         }

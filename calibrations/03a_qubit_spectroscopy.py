@@ -17,7 +17,7 @@ from dataclasses import asdict
 from qm.qua import *
 from qualang_tools.loops import from_array
 from qualang_tools.multi_user import qm_session
-from qualang_tools.results import progress_counter
+from calibrations.runtime_estimation import progress_counter
 from qualang_tools.units import unit
 from quam_config import Quam, create_machine
 from calibration_utils.qubit_spectroscopy import (
@@ -381,17 +381,17 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
-    qubit = "q1"
+    qubit = "q6"
 
     parameters.use_state_discrimination = False
     parameters.use_readout_mitigation = False
 
-    parameters.num_shots = 500
-    parameters.operation_amplitude_factor = 0.0005
+    parameters.num_shots = 300
+    parameters.operation_amplitude_factor = 0.05
     parameters.operation_len_in_ns = 30000
     parameters.frequency_span_in_mhz = 1
     parameters.frequency_step_in_mhz = 0.01
-    parameters.reset_type = "active"
+    parameters.reset_type = "thermal"
     parameters.transition = "ge"
 
     options = CalibrationOptions()

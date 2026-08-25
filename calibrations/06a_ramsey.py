@@ -16,7 +16,7 @@ from dataclasses import asdict
 from qm.qua import *
 from qualang_tools.loops import from_array
 from qualang_tools.multi_user import qm_session
-from qualang_tools.results import progress_counter
+from calibrations.runtime_estimation import progress_counter
 from qualang_tools.units import unit
 from quam_config import Quam, create_machine
 from calibration_utils.ramsey import (
@@ -332,7 +332,7 @@ if __name__ == "__main__":
 
     parameters.num_shots = 2000
     parameters.use_state_discrimination = True
-    parameters.use_readout_mitigation = True
+    parameters.use_readout_mitigation = 0.4
 
     parameters.reset_type = "active"
     parameters.max_wait_time_in_ns = 50e3
@@ -344,6 +344,6 @@ if __name__ == "__main__":
     calibration = Ramsey(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q6"),
     )
     calibration.run()

@@ -1,6 +1,7 @@
 """Load and validate versioned experiment profiles."""
 
 import json
+import math
 import os
 from copy import deepcopy
 from pathlib import Path
@@ -20,6 +21,7 @@ MW_FEM_BAND_RANGES_HZ = {
 }
 MW_FEM_SHARED_LO_OUTPUT_PAIRS = ((2, 3), (4, 5), (6, 7), (8, 9), (10, 11))
 MW_FEM_MAX_IF_HZ = 500e6
+MAX_DC_BIAS_ABS_VOLTAGE_V = 0.01
 _active_profile: "Profile | None" = None
 
 
@@ -72,6 +74,34 @@ def _validate_version(document: dict[str, Any], document_name: str) -> None:
     _require(
         document.get("schema_version") == SUPPORTED_SCHEMA_VERSION,
         f"{document_name}.schema_version must be {SUPPORTED_SCHEMA_VERSION}",
+    )
+
+
+def _validate_dc_bias(connectivity: dict[str, Any]) -> None:
+    dc_bias = connectivity.get("dc_bias")
+    if dc_bias is None:
+        return
+
+    _require(isinstance(dc_bias, dict), "connectivity.dc_bias must be an object")
+    _require(
+        isinstance(dc_bias.get("port"), str) and bool(dc_bias["port"].strip()),
+        "connectivity.dc_bias.port must be a non-empty string",
+    )
+    for field_name in ("baud_rate", "channel_count"):
+        value = dc_bias.get(field_name)
+        _require(
+            isinstance(value, int) and not isinstance(value, bool) and value > 0,
+            f"connectivity.dc_bias.{field_name} must be a positive integer",
+        )
+
+    max_abs_voltage_v = dc_bias.get("max_abs_voltage_v")
+    _require(
+        isinstance(max_abs_voltage_v, (int, float))
+        and not isinstance(max_abs_voltage_v, bool)
+        and math.isfinite(max_abs_voltage_v)
+        and 0 < max_abs_voltage_v <= MAX_DC_BIAS_ABS_VOLTAGE_V,
+        "connectivity.dc_bias.max_abs_voltage_v must be positive and no greater "
+        f"than {MAX_DC_BIAS_ABS_VOLTAGE_V:g} V",
     )
 
 
@@ -221,6 +251,7 @@ def _validate_connectivity(
     connections = connectivity.get("connections")
     qubits = qubits_document.get("qubits")
     _require(isinstance(connections, dict), "connectivity.json must define connections")
+    _validate_dc_bias(connectivity)
     _validate_shared_lo_output_pairs(connectivity)
 
     for qubit_name in qubits:
@@ -365,6 +396,32 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
             _require(target == expected_target, f"Qubit {name!r} operation {operation_name!r} must target {expected_target}")
 
 
+def _validate_qubit_dc_biases(
+    qubits_document: dict[str, Any], connectivity: dict[str, Any]
+) -> None:
+    dc_bias_config = connectivity.get("dc_bias")
+    for qubit_name, qubit in qubits_document["qubits"].items():
+        if "dc_bias_v" not in qubit:
+            continue
+
+        _require(
+            dc_bias_config is not None,
+            f"Qubit {qubit_name!r} defines dc_bias_v but connectivity.dc_bias is missing",
+        )
+        voltage_v = qubit["dc_bias_v"]
+        _require(
+            isinstance(voltage_v, (int, float))
+            and not isinstance(voltage_v, bool)
+            and math.isfinite(voltage_v),
+            f"Qubit {qubit_name!r} dc_bias_v must be finite and numeric",
+        )
+        _require(
+            abs(voltage_v) <= dc_bias_config["max_abs_voltage_v"],
+            f"Qubit {qubit_name!r} dc_bias_v exceeds the configured maximum "
+            f"of {dc_bias_config['max_abs_voltage_v']:g} V",
+        )
+
+
 def _validate_metrics(metrics_document: dict[str, Any], qubits_document: dict[str, Any]) -> None:
     metrics = metrics_document.get("qubits")
     qubits = qubits_document.get("qubits")
@@ -374,6 +431,14 @@ def _validate_metrics(metrics_document: dict[str, Any], qubits_document: dict[st
         _require(qubit_name in metrics, f"Qubit {qubit_name!r} has no metrics entry")
         qubit_metrics = metrics[qubit_name]
         _require(isinstance(qubit_metrics, dict), f"Metrics for {qubit_name!r} must be an object")
+        coherence = qubit_metrics.get("coherence", {})
+        _require(isinstance(coherence, dict), f"Metrics for {qubit_name!r} need coherence")
+        for metric_name in ("t1_ns", "t2_ramsey_ns", "t2_echo_ns"):
+            value = coherence.get(metric_name)
+            _require(
+                value is None or isinstance(value, (int, float)),
+                f"Metrics for {qubit_name!r} coherence.{metric_name} must be numeric or null",
+            )
         readout = qubit_metrics.get("readout", {})
         fidelity = readout.get("fidelity_percent", {})
         _require(isinstance(fidelity, dict), f"Metrics for {qubit_name!r} need readout.fidelity_percent")
@@ -410,6 +475,7 @@ def validate_profile(profile: dict[str, Any]) -> None:
         qubits,
         use_connection_los=manifest.get("build_mode") == "single_qubit",
     )
+    _validate_qubit_dc_biases(qubits, connectivity)
 
     active_qubits = manifest.get("active_qubits")
     _require(isinstance(active_qubits, list) and active_qubits, "profile.json must define active_qubits")

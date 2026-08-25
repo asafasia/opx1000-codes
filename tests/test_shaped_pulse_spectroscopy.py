@@ -1121,7 +1121,7 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         with patch.object(lorentzian, "load_profile", return_value=profile):
             self.assertIsNone(lorentzian._t2_star_seconds(qubit))
 
-    def test_inner_dataset_saves_t2_star_and_fwhm_limit(self):
+    def test_inner_dataset_uses_quam_t2_ramsey_populated_from_metrics(self):
         ds = xr.Dataset(coords={"qubit": ["q1"]})
         qubit = make_plot_qubit(name="q1", t2_ramsey=29.27e-6)
         profile = {
@@ -1139,15 +1139,15 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         with patch.object(lorentzian, "load_profile", return_value=profile):
             processed = lorentzian._add_t2_star_coordinates(ds, [qubit])
 
-        self.assertAlmostEqual(float(processed.t2_star_s.item()), 6.855588134130561e-6)
+        self.assertAlmostEqual(float(processed.t2_star_s.item()), 29.27e-6)
         self.assertAlmostEqual(
             float(processed.t2_star_fwhm_limit_hz.item()),
-            1 / (np.pi * 6.855588134130561e-6),
+            1 / (np.pi * 29.27e-6),
         )
         self.assertEqual(processed.t2_star_s.attrs["long_name"], "Ramsey T2*")
 
-    def test_profile_metrics_override_quam_default_coherence(self):
-        qubit = make_plot_qubit(name="q9", t1=1e-6, t2_ramsey=None)
+    def test_profile_metrics_are_fallback_when_quam_coherence_is_missing(self):
+        qubit = make_plot_qubit(name="q9", t1=None, t2_ramsey=None)
         qubit.T2ramsey = None
         profile = {
             "metrics": {

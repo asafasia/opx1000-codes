@@ -29,7 +29,7 @@
       "readout": {
         "fidelity_percent": {
           "active": 64.3,
-          "thermal": 72.845
+          "thermal": 72.94
         }
       }
     },
@@ -83,8 +83,8 @@
     },
     "q6": {
       "coherence": {
-        "t1_ns": null,
-        "t2_ramsey_ns": null,
+        "t1_ns": 12099.89078904083,
+        "t2_ramsey_ns": 1.3191201540603743e-05,
         "t2_echo_ns": null
       },
       "gates": {
@@ -92,8 +92,8 @@
       },
       "readout": {
         "fidelity_percent": {
-          "active": 77.685,
-          "thermal": 81.935
+          "active": 80.27,
+          "thermal": 73.795
         }
       }
     },
@@ -141,7 +141,7 @@
       "readout": {
         "fidelity_percent": {
           "active": 83.47,
-          "thermal": 81.545
+          "thermal": 60.95
         }
       }
     },

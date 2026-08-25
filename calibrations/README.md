@@ -49,6 +49,13 @@ The instance intentionally exposes `parameters`, `machine`, `namespace`,
 `results`, `outcomes`, `log()`, and `record_state_updates()` so existing
 analysis utilities can migrate gradually.
 
+For real single-qubit executions, the shared lifecycle also reads the selected
+qubit's `dc_bias_v` from the profile. A nonzero value is applied on the
+hardcoded DC-bias channel 0 immediately before `execute_qua_program()` and is
+returned to 0 V afterward, including when execution raises an exception.
+Simulation, dry-run, loaded-data analysis, missing bias configuration, and an
+exact `dc_bias_v` of 0 do not open the DC-bias serial connection.
+
 Useful inherited helpers include `get_qubits()`, `execute_qua_program()`,
 `simulate_qua_program()`, `save_raw_results()`, `save_arrays()`,
 `save_figures()`, `save_qua_debug_script()`, and `propose_profile_update()`.
@@ -101,6 +108,32 @@ python -m calibrations.runner run resonator --qubit q9 --option ai_review=true
 
 Parameter overrides use `--set name=value`. Runtime lifecycle switches use
 `--option name=value`, matching `CalibrationOptions`.
+
+### Runtime estimates
+
+Every class-based calibration reports its normalized sweep workload before the
+QM is opened. When comparable saved runs exist, it also scales their measured
+execution times to print an approximate duration. During execution, the progress
+line replaces that historical estimate with an adaptive ETA after the first outer
+iteration completes. Completed runs save `execution_duration_s` and the workload
+estimate in `metadata.json`, so later estimates improve automatically.
+
+The estimate is intentionally approximate: active reset, data transfer, dynamic
+control flow, and changed pulse durations can alter the rate. Disable only the
+pre-run message when needed with:
+
+```powershell
+python -m calibrations.runner run resonator --qubit q9 --option report_runtime_estimate=false
+```
+
+Code using a calibration object can inspect the estimate after building the QUA
+program:
+
+```python
+calibration.namespace["qua_program"] = calibration.create_qua_program()
+estimate = calibration.estimate_runtime()
+print(estimate.estimated_seconds, estimate.workload_units)
+```
 
 By default, profile updates may be staged but are not applied. Pass `--apply`
 only when you explicitly want the runner to apply a proposed profile update.

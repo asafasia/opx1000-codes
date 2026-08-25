@@ -393,6 +393,24 @@ class WiringProfileTests(unittest.TestCase):
             self.assertTrue(derived_gates.isdisjoint(qubit["operations"]))
             self.assertTrue(derived_gates.isdisjoint(profile["pulses"]["pulses"][qubit_name]))
 
+    def test_quam_coherence_uses_metrics_as_source_of_truth(self):
+        profile = load_profile("single_qubit", qubit="q6")
+        machine = create_machine_from_profile(
+            "single_qubit",
+            save=False,
+            qubit="q6",
+        )
+        qubit = machine.qubits["q6"]
+        coherence = profile["metrics"]["qubits"]["q6"]["coherence"]
+
+        self.assertAlmostEqual(qubit.T1, coherence["t1_ns"] * 1e-9)
+        self.assertAlmostEqual(qubit.T2ramsey, coherence["t2_ramsey_ns"])
+        self.assertNotAlmostEqual(
+            qubit.T2ramsey,
+            profile["qubits"]["qubits"]["q6"]["transmon"]["t2_ramsey_ns"]
+            * 1e-9,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

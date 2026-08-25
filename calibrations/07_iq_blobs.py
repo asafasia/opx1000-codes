@@ -16,7 +16,7 @@ import numpy as np
 import xarray as xr
 from qm.qua import *
 from qualang_tools.multi_user import qm_session
-from qualang_tools.results import progress_counter
+from calibrations.runtime_estimation import progress_counter
 from quam_config import Quam, create_machine
 from calibration_io import CalibrationSaver, current_profile_name
 from utils.plotting_settings import plot_per_qubit
@@ -643,14 +643,14 @@ if __name__ == "__main__":
 
     parameters.qubit_operation = "x180"
     parameters.states = ["g", "e"]
-    parameters.reset_type = "active"
+    parameters.reset_type = "thermal"
     # parameters.active_gef_reset_attempts = 3
     parameters.num_shots = 10000
 
     options = CalibrationOptions()
     # options.ai_review = True
 
-    machine = create_machine(qubit="q1")
+    machine = create_machine(qubit="q6")
 
     calibration = IqBlobs(
         parameters=parameters,

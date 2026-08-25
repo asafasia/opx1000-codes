@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 import json
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -71,8 +72,9 @@ class ManagedAnalysisCalibration(BaseCalibration[SimpleNamespace, object]):
 
 
 class FakeMachine:
-    def __init__(self):
+    def __init__(self, dc_bias=None):
         self.qmm = Mock()
+        self.dc_bias = dc_bias
 
     def connect(self):
         return self.qmm
@@ -81,9 +83,139 @@ class FakeMachine:
         return {"config": "fake"}
 
 
+class FakeDCBias:
+    output_channel = 0
+
+    def __init__(self, voltage_v):
+        self.qubit_biases_v = {"q1": voltage_v}
+        self.events = []
+        self.active = False
+
+    def voltage_for_qubit(self, qubit_name):
+        return self.qubit_biases_v[qubit_name]
+
+    @contextmanager
+    def applied_for_qubit(self, qubit_name):
+        self.events.append(("apply", qubit_name))
+        self.active = True
+        try:
+            yield
+        finally:
+            self.active = False
+            self.events.append(("zero", qubit_name))
+
+
+class BiasAwareCalibration(FakeCalibration):
+    def execute_qua_program(self):
+        self.assert_bias_active()
+        self.machine.dc_bias.events.append(("execute", "q1"))
+        super().execute_qua_program()
+
+    def assert_bias_active(self):
+        if not self.machine.dc_bias.active:
+            raise AssertionError("DC bias was not active during execution")
+
+
+class FailingBiasAwareCalibration(BiasAwareCalibration):
+    def execute_qua_program(self):
+        self.assert_bias_active()
+        self.machine.dc_bias.events.append(("execute", "q1"))
+        raise RuntimeError("execution failed")
+
+
 class CalibrationsBaseTests(unittest.TestCase):
     def tearDown(self):
         clear_active_profile()
+
+    @staticmethod
+    def no_side_effect_options():
+        return CalibrationOptions(
+            save_raw_data=False,
+            save_analysis_result=False,
+            save_figures=False,
+            analyse_data=False,
+            plot_data=False,
+            update_state=False,
+            propose_profile_update=False,
+            apply_profile_update=False,
+            report_runtime_estimate=False,
+        )
+
+    def test_run_applies_nonzero_profile_bias_during_execution(self):
+        bias = FakeDCBias(0.005)
+        calibration = BiasAwareCalibration(
+            name="biased",
+            parameters=SimpleNamespace(simulate=False, load_data_id=None),
+            machine=FakeMachine(dc_bias=bias),
+            logger=lambda message: None,
+            options=self.no_side_effect_options(),
+        )
+
+        calibration.run()
+
+        self.assertEqual(
+            bias.events,
+            [("apply", "q1"), ("execute", "q1"), ("zero", "q1")],
+        )
+        self.assertFalse(bias.active)
+
+    def test_run_zeros_profile_bias_when_execution_fails(self):
+        bias = FakeDCBias(0.005)
+        calibration = FailingBiasAwareCalibration(
+            name="biased_failure",
+            parameters=SimpleNamespace(simulate=False, load_data_id=None),
+            machine=FakeMachine(dc_bias=bias),
+            logger=lambda message: None,
+            options=self.no_side_effect_options(),
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "execution failed"):
+            calibration.run()
+
+        self.assertEqual(
+            bias.events,
+            [("apply", "q1"), ("execute", "q1"), ("zero", "q1")],
+        )
+        self.assertFalse(bias.active)
+
+    def test_run_does_not_connect_dc_bias_when_profile_voltage_is_zero(self):
+        bias = FakeDCBias(0.0)
+        calibration = FakeCalibration(
+            name="zero_bias",
+            parameters=SimpleNamespace(simulate=False, load_data_id=None),
+            machine=FakeMachine(dc_bias=bias),
+            logger=lambda message: None,
+            options=self.no_side_effect_options(),
+        )
+
+        calibration.run()
+
+        self.assertEqual(bias.events, [])
+        self.assertIn("ds_raw", calibration.results)
+
+    def test_simulation_does_not_connect_dc_bias(self):
+        bias = FakeDCBias(0.005)
+        calibration = FakeCalibration(
+            name="simulated_bias",
+            parameters=SimpleNamespace(
+                simulate=True,
+                load_data_id=None,
+                simulation_duration_ns=1000,
+                timeout=100,
+                use_waveform_report=False,
+            ),
+            machine=FakeMachine(dc_bias=bias),
+            logger=lambda message: None,
+            options=self.no_side_effect_options(),
+        )
+
+        with patch(
+            "utils.simulation.simulate_and_plot",
+            return_value=("samples", "figure", "report"),
+        ):
+            calibration.run()
+
+        self.assertEqual(bias.events, [])
 
     def test_run_executes_lifecycle_and_saves_raw_data(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -117,6 +249,8 @@ class CalibrationsBaseTests(unittest.TestCase):
             self.assertIn("run_started_at", saved_metadata)
             self.assertIn("run_finished_at", saved_metadata)
             self.assertGreaterEqual(saved_metadata["run_duration_s"], 0)
+            self.assertGreaterEqual(saved_metadata["execution_duration_s"], 0)
+            self.assertEqual(saved_metadata["runtime_estimate"]["workload_units"], 9)
 
     def test_run_saves_managed_analysis_result_with_raw_data(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -336,6 +470,36 @@ class CalibrationsBaseTests(unittest.TestCase):
             result.state_unmitigated.sel(qubit="q1"), measured_excited
         )
         self.assertTrue(result.state.attrs["readout_mitigated"])
+
+    def test_readout_mitigation_can_apply_half_strength_without_overstretching(self):
+        matrix = np.array([[0.9, 0.1], [0.2, 0.8]])
+        true_excited = np.array([0.0, 0.25, 0.75, 1.0])
+        measured_excited = (1.0 - true_excited) * matrix[0, 1] + true_excited * matrix[1, 1]
+        qubit = SimpleNamespace(
+            name="q1",
+            resonator=SimpleNamespace(confusion_matrix=matrix.tolist()),
+        )
+        calibration = FakeCalibration(
+            name="mitigated",
+            parameters=SimpleNamespace(
+                use_state_discrimination=True,
+                use_readout_mitigation=0.5,
+            ),
+            machine=object(),
+            logger=lambda message: None,
+        )
+        calibration.namespace["qubits"] = [qubit]
+        calibration.results["ds_raw"] = xr.Dataset(
+            {"state": (("qubit", "x"), measured_excited[None, :])},
+            coords={"qubit": ["q1"], "x": np.arange(true_excited.size)},
+        )
+
+        calibration.apply_readout_mitigation()
+
+        result = calibration.results["ds_raw"]
+        expected = measured_excited + 0.5 * (true_excited - measured_excited)
+        np.testing.assert_allclose(result.state.sel(qubit="q1"), expected)
+        self.assertEqual(result.state.attrs["readout_mitigation_strength"], 0.5)
 
     def test_readout_mitigation_requires_state_discrimination(self):
         calibration = FakeCalibration(

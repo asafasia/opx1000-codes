@@ -734,10 +734,6 @@ def _parameter_lines(ds: xr.Dataset, qubits: List[AnyTransmon]) -> list[str]:
 
 
 def _t1_seconds(qubit: AnyTransmon) -> float | None:
-    profile_value = _profile_coherence_seconds(qubit.name, "t1_ns")
-    if profile_value is not None:
-        return profile_value
-
     for attribute in ("T1", "t1_ns"):
         value = getattr(qubit, attribute, None)
         if value is None:
@@ -746,6 +742,10 @@ def _t1_seconds(qubit: AnyTransmon) -> float | None:
         if not np.isfinite(value) or value <= 0:
             continue
         return value * 1e-9 if attribute.endswith("_ns") else value
+
+    profile_value = _profile_coherence_seconds(qubit.name, "t1_ns")
+    if profile_value is not None:
+        return profile_value
     return None
 
 
@@ -805,15 +805,8 @@ def _finish_figure_layout(
 
 
 def _t2_star_seconds(qubit: AnyTransmon) -> float | None:
-    """Return Ramsey T2* only; never substitute echo coherence."""
-    qubit_name = getattr(qubit, "name", None)
-    if qubit_name is not None:
-        for metric_name in ("t2_ramsey", "t2_ramsey_ns"):
-            profile_value = _profile_coherence_seconds(str(qubit_name), metric_name)
-            if profile_value is not None:
-                return profile_value
-
-    for attribute in ("t2_ramsey", "t2_ramsey_ns", "T2ramsey"):
+    """Return QuAM's Ramsey T2*, populated from the profile metrics."""
+    for attribute in ("T2ramsey", "t2_ramsey", "t2_ramsey_ns"):
         value = getattr(qubit, attribute, None)
         if value is None:
             continue
@@ -821,6 +814,13 @@ def _t2_star_seconds(qubit: AnyTransmon) -> float | None:
         if not np.isfinite(value) or value <= 0:
             continue
         return _coherence_value_to_seconds(value)
+
+    qubit_name = getattr(qubit, "name", None)
+    if qubit_name is not None:
+        for metric_name in ("t2_ramsey", "t2_ramsey_ns"):
+            profile_value = _profile_coherence_seconds(str(qubit_name), metric_name)
+            if profile_value is not None:
+                return profile_value
     return None
 
 
