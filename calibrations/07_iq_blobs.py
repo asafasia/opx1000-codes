@@ -643,14 +643,14 @@ if __name__ == "__main__":
 
     parameters.qubit_operation = "x180"
     parameters.states = ["g", "e"]
-    parameters.reset_type = "acitve"
+    parameters.reset_type = "active"
     # parameters.active_gef_reset_attempts = 3
     parameters.num_shots = 10000
 
     options = CalibrationOptions()
     # options.ai_review = True
 
-    machine = create_machine(qubit="q6")
+    machine = create_machine(qubit="q1")
 
     calibration = IqBlobs(
         parameters=parameters,

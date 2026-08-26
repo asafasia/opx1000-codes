@@ -300,7 +300,7 @@ class T1(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
-    parameters.use_state_discrimination = True
+    parameters.use_state_discrimination = False
     parameters.reset_type = "active"
     parameters.use_readout_mitigation = 00
 
@@ -313,6 +313,6 @@ if __name__ == "__main__":
     calibration = T1(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q9"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()
