@@ -121,6 +121,11 @@ def plot_individual_data_with_fit_1D(ax: Axes, ds: xr.Dataset, variable: str, fi
         transition = transition_from_operation(operation)
         transition_color = TRANSITION_COLORS[transition]
         transition_label = transition.upper()
+        number_of_pulses = (
+            int(np.asarray(ds.nb_of_pulses.values).flat[0])
+            if "nb_of_pulses" in ds.coords
+            else 1
+        )
         if fit is not None:
             fit_variable = f"fit_{variable}" if f"fit_{variable}" in fit else "fit"
             channel_fit = fit[fit_variable]
@@ -137,21 +142,18 @@ def plot_individual_data_with_fit_1D(ax: Axes, ds: xr.Dataset, variable: str, fi
         selected = ds
         if "nb_of_pulses" in selected:
             selected = selected.isel(nb_of_pulses=0, drop=True)
-        selected = selected.assign_coords(amp_mV=selected.full_amp * 1e3)
+        selected = selected.assign_coords(
+            accumulated_amp_mV=selected.full_amp * number_of_pulses * 1e3
+        )
         scale = 1 if variable == "state" else 1e3
         (selected[variable] * scale).plot(
             ax=ax,
-            x="amp_mV",
+            x="accumulated_amp_mV",
             marker="o",
             color=transition_color,
             label=f"{transition_label} measured",
         )
         if variable == "state":
-            number_of_pulses = (
-                int(np.asarray(ds.nb_of_pulses.values).flat[0])
-                if "nb_of_pulses" in ds.coords
-                else 1
-            )
             ideal_state = ideal_state_response(
                 selected.amp_prefactor,
                 number_of_pulses,
@@ -159,7 +161,7 @@ def plot_individual_data_with_fit_1D(ax: Axes, ds: xr.Dataset, variable: str, fi
             )
             expected_cycles = expected_cycles_to_unit_prefactor(number_of_pulses, operation)
             ax.plot(
-                selected.amp_mV,
+                selected.accumulated_amp_mV,
                 ideal_state,
                 "k--",
                 alpha=0.6,
@@ -178,15 +180,27 @@ def plot_individual_data_with_fit_1D(ax: Axes, ds: xr.Dataset, variable: str, fi
             if selected:
                 label += " - selected"
             ax.plot(
-                fit.full_amp * 1e3,
+                fit.full_amp * number_of_pulses * 1e3,
                 scale * fitted_data,
                 linestyle="--",
                 color=transition_color,
                 label=f"{transition_label} {label}",
             )
+        if fit is not None and "opt_amp" in fit and np.isfinite(float(fit.opt_amp.values)):
+            target_amp_mv = float(fit.opt_amp.values) * 1e3
+            ax.axvline(
+                target_amp_mv,
+                color="tab:green",
+                linestyle=":",
+                linewidth=2,
+                label=f"Single-pulse {operation} target = {target_amp_mv:.1f} mV",
+            )
         ax.legend()
         ax.set_ylabel("Qubit state" if variable == "state" else f"{variable} [mV]")
-        ax.set_xlabel("Pulse amplitude [mV]")
+        ax.set_xlabel(
+            f"Accumulated pulse amplitude [mV] "
+            f"({number_of_pulses} pulses × per-pulse amplitude)"
+        )
         ax.grid(alpha=0.25)
 
 

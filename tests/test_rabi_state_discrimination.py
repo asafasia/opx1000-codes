@@ -99,6 +99,19 @@ class RabiStateDiscriminationTests(unittest.TestCase):
         figure = plot_raw_data_with_fit(ds, [SimpleNamespace(name="q9")], fits, True)
 
         np.testing.assert_allclose(figure.axes[0].lines[1].get_ydata(), expected, atol=1e-12)
+        np.testing.assert_allclose(
+            figure.axes[0].lines[0].get_xdata(),
+            4 * 0.1 * amp_prefactor * 1e3,
+            atol=1e-12,
+        )
+        labelled_lines = {line.get_label(): line for line in figure.axes[0].lines}
+        self.assertIn("Single-pulse x180 target = 100.0 mV", labelled_lines)
+        self.assertAlmostEqual(
+            float(labelled_lines["Single-pulse x180 target = 100.0 mV"].get_xdata()[0]),
+            100.0,
+        )
+        self.assertIn("4 pulses × per-pulse amplitude", figure.axes[0].get_xlabel())
+        plt.close(figure)
 
     def test_power_rabi_colors_ge_and_ef_points_differently(self):
         ge_figure = plot_raw_data_with_fit(
