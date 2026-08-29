@@ -338,7 +338,7 @@ if __name__ == "__main__":
     parameters = Parameters()
     parameters.reset_type = "active"
     parameters.use_state_discrimination = True
-    parameters.use_readout_mitigation = 0.4
+    parameters.use_readout_mitigation = 1
     parameters.num_shots = 2000
     parameters.transition = "ge"
     parameters.pi_repetitions = 3

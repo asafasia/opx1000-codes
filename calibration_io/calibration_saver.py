@@ -198,6 +198,68 @@ class CalibrationSaver:
             now=now,
         )
 
+    def save_readout_mitigated_xarray(
+        self,
+        run_directory: Path | str,
+        dataset: Any,
+        *,
+        strength: float,
+    ) -> Path:
+        """Save the mitigated companion to an already-saved raw dataset.
+
+        ``results.npz`` remains the directly measured, unmitigated data.  The
+        companion file contains the post-mitigation dataset, including
+        ``state_unmitigated`` when supplied by the calibration lifecycle.
+        """
+        run_directory = Path(run_directory)
+        if not run_directory.is_dir():
+            raise FileNotFoundError(
+                f"Calibration run directory does not exist: {run_directory}"
+            )
+
+        mitigation_strength = float(strength)
+        if not np.isfinite(mitigation_strength) or not 0 < mitigation_strength <= 1:
+            raise ValueError(
+                "Readout mitigation strength must be in the interval (0, 1]."
+            )
+
+        result_arrays = _as_arrays(
+            {name: variable.values for name, variable in dataset.data_vars.items()},
+            "results_mitigated",
+        )
+        output_path = run_directory / "results_mitigated.npz"
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            suffix=".npz",
+            prefix=".results_mitigated-",
+            dir=run_directory,
+            delete=False,
+        ) as stream:
+            temporary_path = Path(stream.name)
+            np.savez_compressed(stream, **result_arrays)
+        try:
+            temporary_path.replace(output_path)
+        except Exception:
+            temporary_path.unlink(missing_ok=True)
+            raise
+
+        metadata_path = run_directory / "metadata.json"
+        metadata = {}
+        if metadata_path.is_file():
+            with metadata_path.open(encoding="utf-8") as file:
+                metadata = json.load(file)
+        metadata["readout_mitigation"] = {
+            "method": "inverse_assignment_matrix",
+            "strength": mitigation_strength,
+            "unmitigated_results": "results.npz",
+            "mitigated_results": output_path.name,
+            "mitigated_arrays": _array_metadata(result_arrays),
+        }
+        with metadata_path.open("w", encoding="utf-8") as file:
+            json.dump(metadata, file, indent=2)
+            file.write("\n")
+        return output_path
+
     def save_figures(self, run_directory: Path | str, figures: Mapping[str, Any]) -> Path:
         """Save named Matplotlib figures into an existing calibration run."""
         run_directory = Path(run_directory)

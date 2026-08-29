@@ -47,7 +47,7 @@ def parameters_for(*, echo: bool) -> Parameters:
     parameters = Parameters()
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
-    parameters.use_readout_mitigation = 0.4
+    parameters.use_readout_mitigation = 1
     parameters.simulate = False
     parameters.pulse_shape = "root_lorentzian"
     parameters.echo = echo

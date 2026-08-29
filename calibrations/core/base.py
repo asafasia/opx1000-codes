@@ -256,6 +256,8 @@ class BaseCalibration(ABC, Generic[P, M]):
             if not self.simulate_requested:
                 if getattr(self.parameters, "use_readout_mitigation", False):
                     self.apply_readout_mitigation()
+                    if raw_data_saved:
+                        self.save_readout_mitigated_results()
                 if self.options.analyse_data:
                     self.analyse_data()
                     if self.options.save_analysis_result:
@@ -490,6 +492,22 @@ class BaseCalibration(ABC, Generic[P, M]):
         self.namespace["calibration_run_directory"] = run_directory
         self.log(f"Raw calibration results saved to {run_directory}")
         return run_directory
+
+    def save_readout_mitigated_results(self) -> Path:
+        """Save the mitigated companion while preserving raw ``results.npz``."""
+        run_directory = self.namespace.get("calibration_run_directory")
+        if run_directory is None:
+            raise CalibrationError(
+                "Cannot save mitigated results before the unmitigated run is saved."
+            )
+        output_path = self.saver.save_readout_mitigated_xarray(
+            run_directory,
+            self.results["ds_raw"],
+            strength=float(self.parameters.use_readout_mitigation),
+        )
+        self.namespace["readout_mitigated_results_path"] = output_path
+        self.log(f"Readout-mitigated results saved to {output_path}")
+        return output_path
 
     def save_arrays(
         self,

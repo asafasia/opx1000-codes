@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+import xarray as xr
 from matplotlib.figure import Figure
 
 from profiles import Profile, clear_active_profile, set_active_profile
@@ -118,6 +119,47 @@ class CalibrationSaverTests(unittest.TestCase):
             np.testing.assert_array_equal(
                 np.load(run_directory / "sweep.npz", allow_pickle=False)["qubit"],
                 ["q1", "q2"],
+            )
+
+    def test_save_readout_mitigated_xarray_keeps_unmitigated_results(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            profile = root / "profiles" / "main"
+            profile.mkdir(parents=True)
+            (profile / "profile.json").write_text("{}\n", encoding="utf-8")
+            saver = CalibrationSaver(root / "data" / "calibrations", root / "profiles")
+            raw = xr.Dataset(
+                {"state": ("x", np.array([0.2, 0.7]))},
+                coords={"x": [0, 1]},
+            )
+            run_directory = saver.save_xarray("mitigated", raw, profile_name="main")
+            mitigated = raw.assign(
+                state_unmitigated=raw.state.copy(deep=True),
+                state=("x", np.array([0.1, 0.8])),
+            )
+
+            output_path = saver.save_readout_mitigated_xarray(
+                run_directory,
+                mitigated,
+                strength=1,
+            )
+
+            np.testing.assert_allclose(
+                np.load(run_directory / "results.npz")["state"],
+                [0.2, 0.7],
+            )
+            with np.load(output_path) as saved:
+                np.testing.assert_allclose(saved["state"], [0.1, 0.8])
+                np.testing.assert_allclose(saved["state_unmitigated"], [0.2, 0.7])
+            metadata = json.loads((run_directory / "metadata.json").read_text())
+            self.assertEqual(metadata["readout_mitigation"]["strength"], 1.0)
+            self.assertEqual(
+                metadata["readout_mitigation"]["unmitigated_results"],
+                "results.npz",
+            )
+            self.assertEqual(
+                metadata["readout_mitigation"]["mitigated_results"],
+                "results_mitigated.npz",
             )
 
     def test_save_defaults_to_active_profile(self):
