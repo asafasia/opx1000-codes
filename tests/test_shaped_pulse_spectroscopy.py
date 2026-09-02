@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
-
 REPOSITORY_ROOT = Path(__file__).parent.parent
 PROJECT_ROOT = REPOSITORY_ROOT / "Projects" / "shaped_pulse_spectroscopy"
 PACKAGE_ROOT = PROJECT_ROOT / "shaped_pulse_spectroscopy"
@@ -355,8 +354,12 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         negative_fwhm = float(processed.gaussian_negative_fwhm_hz.values[0, 0])
         selected_fwhm = float(processed.gaussian_fwhm_hz.values[0, 0])
         fit_model = str(processed.gaussian_fit_model.values[0, 0])
-        self.assertGreater(float(processed.gaussian_positive_fit_amplitude.values[0, 0]), 0)
-        self.assertLess(float(processed.gaussian_negative_fit_amplitude.values[0, 0]), 0)
+        self.assertGreater(
+            float(processed.gaussian_positive_fit_amplitude.values[0, 0]), 0
+        )
+        self.assertLess(
+            float(processed.gaussian_negative_fit_amplitude.values[0, 0]), 0
+        )
         self.assertLess(negative_fwhm, positive_fwhm)
         self.assertAlmostEqual(selected_fwhm, negative_fwhm)
         self.assertEqual(fit_model, "superposition")
@@ -385,8 +388,12 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         )
 
         self.assertEqual(str(processed.gaussian_fit_model.values[0, 0]), "separate")
-        self.assertTrue(np.isfinite(float(processed.gaussian_positive_fwhm_hz.values[0, 0])))
-        self.assertTrue(np.isnan(float(processed.gaussian_negative_fwhm_hz.values[0, 0])))
+        self.assertTrue(
+            np.isfinite(float(processed.gaussian_positive_fwhm_hz.values[0, 0]))
+        )
+        self.assertTrue(
+            np.isnan(float(processed.gaussian_negative_fwhm_hz.values[0, 0]))
+        )
 
     def test_gaussian_fwhm_scans_initial_widths_for_best_r_squared(self):
         detuning = np.linspace(-4e6, 4e6, 161)
@@ -476,13 +483,13 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertTrue(
             np.isnan(float(processed.gaussian_positive_fwhm_hz.values[0, 0]))
         )
-        self.assertLess(float(processed.gaussian_negative_fit_amplitude.values[0, 0]), 0)
+        self.assertLess(
+            float(processed.gaussian_negative_fit_amplitude.values[0, 0]), 0
+        )
 
     def test_sequence_installs_waveform_pulse_and_sweeps_detuning_and_amplitude(self):
         v2_source = (EXPERIMENTS_ROOT / "detuning_amplitude_sweep.py").read_text()
-        amplitude_source = (
-            EXPERIMENTS_ROOT / "amplitude_sweep.py"
-        ).read_text()
+        amplitude_source = (EXPERIMENTS_ROOT / "amplitude_sweep.py").read_text()
         fixed_source = (
             EXPERIMENTS_ROOT / "fixed_amplitude_spectroscopy.py"
         ).read_text()
@@ -493,7 +500,9 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
             v2_source,
         )
         self.assertIn("class EchoLorentzianAmplitude(BaseCalibration", amplitude_source)
-        self.assertIn("class EchoLorentzianFixedAmplitude(BaseCalibration", fixed_source)
+        self.assertIn(
+            "class EchoLorentzianFixedAmplitude(BaseCalibration", fixed_source
+        )
         self.assertIn("fixed_rabi_frequency_mhz", fixed_source)
         self.assertIn("rabi_frequency_hz_to_amplitude", fixed_source)
         self.assertIn("with for_(*from_array(a, amps)):", amplitude_source)
@@ -513,6 +522,11 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertIn("parameters.amp_factor_points", v2_source)
         self.assertIn("parameters.amp_factor_spacing", v2_source)
         self.assertIn("parameters.frequency_points", v2_source)
+        self.assertIn(
+            'getattr(self.parameters, "frequency_points", None)', fixed_source
+        )
+        self.assertIn("for_each_(df, dfs.tolist())", fixed_source)
+        self.assertIn("else for_(*from_array(df, dfs))", fixed_source)
         self.assertIn("duration=play_duration", v2_source)
         self.assertIn("duration=play_duration", amplitude_source)
         self.assertIn('"detuning": xr.DataArray(', v2_source)
@@ -552,29 +566,15 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertIn(
             "run_domain_from_args", (scripts_root / "run_domain.py").read_text()
         )
-        self.assertIn(
-            "high_cutoff", (scripts_root / "run_high_cutoff.py").read_text()
-        )
-        self.assertIn(
-            "low_cutoff", (scripts_root / "run_low_cutoff.py").read_text()
-        )
-        self.assertIn(
-            "--no-echo", (scripts_root / "01_high_no_echo.py").read_text()
-        )
-        self.assertIn(
-            "--echo", (scripts_root / "02_high_echo.py").read_text()
-        )
-        self.assertIn(
-            "--no-echo", (scripts_root / "03_low_no_echo.py").read_text()
-        )
-        self.assertIn(
-            "--echo", (scripts_root / "04_low_echo.py").read_text()
-        )
+        self.assertIn("high_cutoff", (scripts_root / "run_high_cutoff.py").read_text())
+        self.assertIn("low_cutoff", (scripts_root / "run_low_cutoff.py").read_text())
+        self.assertIn("--no-echo", (scripts_root / "01_high_no_echo.py").read_text())
+        self.assertIn("--echo", (scripts_root / "02_high_echo.py").read_text())
+        self.assertIn("--no-echo", (scripts_root / "03_low_no_echo.py").read_text())
+        self.assertIn("--echo", (scripts_root / "04_low_echo.py").read_text())
 
     def test_fixed_amplitude_set_loops_over_echo_modes_and_rabi_amplitudes(self):
-        source = (
-            EXPERIMENTS_ROOT / "fixed_amplitude_batch.py"
-        ).read_text()
+        source = (EXPERIMENTS_ROOT / "fixed_amplitude_batch.py").read_text()
 
         self.assertIn("EchoLorentzianFixedAmplitude", source)
         self.assertIn("default=[2.32, 4.64, 7.58, 11.45]", source)
@@ -594,6 +594,64 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertIn("_t2_star_seconds(machine.qubits[args.qubit])", source)
         self.assertIn("T2* limit:", source)
         self.assertIn("1 / (2 * np.pi * t2_star_seconds)", source)
+
+    def test_paper_slice_runner_has_requested_hardware_and_simulation_defaults(self):
+        source = (SCRIPTS_ROOT / "run_paper_figure3_slices.py").read_text()
+
+        self.assertIn("DEFAULT_RABI_MHZ = (3.0, 20.0, 40.0)", source)
+        self.assertIn(
+            'parser.add_argument("--num-shots", type=int, default=10_000)', source
+        )
+        self.assertIn(
+            'parser.add_argument("--frequency-points", type=int, default=501)', source
+        )
+        self.assertIn("parameters.echo = bool(echo)", source)
+        self.assertIn("parameters.use_readout_mitigation = 1.0", source)
+        self.assertIn("simulate_qutrit_slices", source)
+        self.assertIn("total_excited_probability", source)
+        self.assertIn('"--unmitigated-only"', source)
+        self.assertIn('"--optimize-mitigation-only"', source)
+        self.assertIn("load_saved_unmitigated_experiment", source)
+        self.assertIn("least_squares_mitigation_strength", source)
+        self.assertIn("mitigation_strength_fit.json", source)
+        self.assertIn('run_directory / "results.npz"', source)
+        self.assertIn("plt.subplots(\n        3,\n        2,", source)
+        self.assertIn('("Root-Lorentzian", "#00838f", "#00474e")', source)
+        self.assertIn('("Echo-root-Lorentzian", "#6a1b9a", "#350b4e")', source)
+        self.assertIn('"mathtext.fontset": "stix"', source)
+        self.assertIn("MAX_SAFE_AMPLITUDE_V = 0.7", source)
+
+    def test_paper_slice_global_mitigation_fit_recovers_known_strength(self):
+        script_path = SCRIPTS_ROOT / "run_paper_figure3_slices.py"
+        spec = importlib.util.spec_from_file_location("paper_slice_runner", script_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        raw = np.array([0.2, 0.4, 0.6])
+        fully_mitigated = np.array([0.1, 0.5, 0.8])
+        expected_strength = 0.35
+        simulation = raw + expected_strength * (fully_mitigated - raw)
+
+        strength, unconstrained = module.least_squares_mitigation_strength(
+            raw, fully_mitigated, simulation
+        )
+
+        self.assertAlmostEqual(strength, expected_strength)
+        self.assertAlmostEqual(unconstrained, expected_strength)
+
+    def test_paper_slice_affine_alignment_recovers_gain_and_offset(self):
+        script_path = SCRIPTS_ROOT / "run_paper_figure3_slices.py"
+        spec = importlib.util.spec_from_file_location("paper_slice_runner", script_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        measured = np.array([0.2, 0.4, 0.6, 0.8])
+        simulation = 1.2 * measured - 0.15
+
+        gain, offset = module.least_squares_affine_alignment(measured, simulation)
+
+        self.assertAlmostEqual(gain, 1.2)
+        self.assertAlmostEqual(offset, -0.15)
 
     def test_cutoff_amp_fwhm_map_uses_ten_log_points_and_summarizes_fit_signal(self):
         source = (EXPERIMENTS_ROOT / "cutoff_amp_fwhm_map.py").read_text()
@@ -818,7 +876,7 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
             {
                 "state": (
                     ("qubit", "detuning", "amp_prefactor"),
-                    np.zeros((1, 2, 3)),
+                    np.linspace(0.1, 0.8, 6).reshape(1, 2, 3),
                 )
             },
             coords={
@@ -867,6 +925,8 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertIn("RF frequency [GHz]", secondary_labels)
         self.assertIn("Lorentzian peak amplitude [V]", secondary_ylabels)
         self.assertEqual(figure.axes[0].collections[0].get_array().shape, (3, 2))
+        self.assertEqual(figure.axes[0].collections[0].norm.vmin, 0)
+        self.assertEqual(figure.axes[0].collections[0].norm.vmax, 0.8)
         figure_text = " ".join(text.get_text() for text in figure.texts)
         self.assertIn("root_lorentzian", figure_text)
         self.assertIn("80 ns", figure_text)
@@ -1163,9 +1223,9 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
             }
         }
 
-        with patch.object(lorentzian, "current_profile_name", return_value="single_qubit"), patch.object(
-            lorentzian, "load_profile", return_value=profile
-        ):
+        with patch.object(
+            lorentzian, "current_profile_name", return_value="single_qubit"
+        ), patch.object(lorentzian, "load_profile", return_value=profile):
             self.assertAlmostEqual(lorentzian._t1_seconds(qubit), 38.82321730255817e-6)
             self.assertAlmostEqual(
                 lorentzian._t2_star_seconds(qubit),

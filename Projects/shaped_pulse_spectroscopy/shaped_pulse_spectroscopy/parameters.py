@@ -26,9 +26,13 @@ class NodeSpecificParameters(RunnableParameters):
     echo: bool = False
     """Apply a 180-degree phase jump at the waveform midpoint."""
     ac_stark_correction: bool = False
-    """Apply accumulated-phase AC-Stark compensation to the pulse IQ waveform."""
+    """Apply quadratic AC-Stark compensation as a real-time QUA chirp."""
     stark_kappa_mhz_inv: float = 0.00225
     """Quadratic AC-Stark correction coefficient in inverse MHz."""
+    drag_beta: float = 0.0
+    """Dimensionless DRAG coefficient; zero preserves the legacy waveform."""
+    echo_transition_time_ns: float = 16.0
+    """Smooth echo-inversion duration used only when DRAG is nonzero."""
     stark_chirp_max_error_hz: float = 100.0
     """Maximum interpolation error for the piecewise-linear Stark chirp."""
     min_amp_factor: float = 0.0
@@ -53,6 +57,8 @@ class NodeSpecificParameters(RunnableParameters):
     """Optional exact number of detuning points, including both span endpoints."""
     fit_fwhm: bool = True
     """Run Gaussian FWHM fitting during detuning-sweep analysis."""
+    use_three_state_discrimination: bool = False
+    """Measure P_f when every selected qubit has calibrated G/E/F readout."""
 
 
 class Parameters(

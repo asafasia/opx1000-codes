@@ -21,6 +21,7 @@ from qualang_tools.units import unit
 
 from calibrations.base import BaseCalibration, CalibrationOptions
 from shaped_pulse_spectroscopy.lorentzian import (
+    _pulse_metadata,
     amplitude_prefactors,
     install_lorentzian_operation,
     plot_raw_data,
@@ -29,6 +30,7 @@ from shaped_pulse_spectroscopy.lorentzian import (
 from shaped_pulse_spectroscopy.parameters import Parameters
 from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
+from utils.readout_macro import readout_state_configured
 
 DESCRIPTION = """
         ECHO LORENTZIAN - FREQUENCY VS AMPLITUDE
@@ -95,6 +97,17 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
         stark_chirps = self.namespace["lorentzian_stark_chirps"]
         play_duration = self.namespace["lorentzian_play_duration_cycles"]
         correction_enabled = bool(self.parameters.ac_stark_correction)
+        three_state_requested = bool(
+            getattr(self.parameters, "use_three_state_discrimination", False)
+        )
+        three_state_available = three_state_requested and all(
+            callable(getattr(qubit, "readout_state_gef", None))
+            and getattr(qubit.resonator, "GEF_frequency_shift", None) is not None
+            and getattr(qubit.resonator, "gef_centers", None) is not None
+            and len(qubit.resonator.gef_centers) >= 3
+            for qubit in qubits
+        )
+        self.namespace["three_state_discrimination_available"] = three_state_available
 
         span = int(round(self.parameters.frequency_span_in_mhz * u.MHz))
         points = getattr(self.parameters, "frequency_points", None)
@@ -132,6 +145,11 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
             if self.parameters.use_state_discrimination:
                 state = [declare(int) for _ in range(num_qubits)]
                 state_st = [declare_stream() for _ in range(num_qubits)]
+                leakage_st = (
+                    [declare_stream() for _ in range(num_qubits)]
+                    if three_state_available
+                    else None
+                )
             a = declare(fixed)
             df = declare(int)
             if correction_enabled:
@@ -229,8 +247,26 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
 
                             for i, qubit in multiplexed_qubits.items():
                                 if self.parameters.use_state_discrimination:
-                                    qubit.readout_state(state[i])
-                                    save(state[i], state_st[i])
+                                    if three_state_available:
+                                        readout_state_configured(
+                                            qubit,
+                                            state[i],
+                                            num_states=3,
+                                        )
+                                    else:
+                                        # Keep the legacy beta=0/two-state QUA
+                                        # program on its original call path.
+                                        qubit.readout_state(state[i])
+                                    save(
+                                        (
+                                            state[i] > 0
+                                            if three_state_available
+                                            else state[i]
+                                        ),
+                                        state_st[i],
+                                    )
+                                    if leakage_st is not None:
+                                        save(state[i] == 2, leakage_st[i])
                                 else:
                                     qubit.resonator.measure(
                                         "readout", qua_vars=(I[i], Q[i])
@@ -246,6 +282,10 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
                         state_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(
                             f"state{i + 1}"
                         )
+                        if leakage_st is not None:
+                            leakage_st[i].buffer(len(amps)).buffer(
+                                len(dfs)
+                            ).average().save(f"leakage{i + 1}")
                     else:
                         I_st[i].buffer(len(amps)).buffer(len(dfs)).average().save(
                             f"I{i + 1}"
@@ -263,6 +303,23 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
             self.results["ds_raw"],
             self.parameters.use_state_discrimination,
         )
+
+    def save_raw_results(self, *, now=None) -> Path:
+        """Save arrays plus the exact applied pulse metadata and headroom."""
+        run_directory = self.saver.save_xarray(
+            self.name,
+            self.results["ds_raw"],
+            profile_name=self.active_profile_name(),
+            parameters=self.parameters,
+            extra_metadata={
+                **self.run_timing_metadata(),
+                "pulse": _pulse_metadata(self.parameters, self.namespace),
+            },
+            now=now,
+        )
+        self.namespace["calibration_run_directory"] = run_directory
+        self.log(f"Raw calibration results saved to {run_directory}")
+        return run_directory
 
     def analyse(self) -> None:
         validate_readout_dataset(
@@ -287,30 +344,39 @@ if __name__ == "__main__":
     parameters = Parameters()
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
-    parameters.use_readout_mitigation = 0.4
+    parameters.use_readout_mitigation = 0
 
     parameters.simulate = False
     parameters.pulse_shape = "root_lorentzian"
     parameters.echo = True
-    parameters.ac_stark_correction = False
-    parameters.stark_kappa_mhz_inv = 0
-    parameters.stark_chirp_max_error_hz = 0
-    parameters.cutoff = 0.005
-    parameters.num_shots = 500
-    parameters.lorentzian_length_in_ns = 20000
-    parameters.waveform_template_length_in_ns = 20000
-    parameters.lorentzian_peak_amplitude = 1
+    parameters.ac_stark_correction = True
+    parameters.stark_kappa_mhz_inv = 0.0025
+    parameters.stark_chirp_max_error_hz = 10
+    parameters.cutoff = 0.001
+    parameters.num_shots = 50
+    parameters.lorentzian_length_in_ns = 30000
+    parameters.waveform_template_length_in_ns = 30000
+    parameters.lorentzian_peak_amplitude = 0.7
     parameters.min_amp_factor = 0.0
     parameters.max_amp_factor = 1
-    parameters.amp_factor_step = 1 / 50
+    parameters.amp_factor_step = 1 / 100
     parameters.amp_factor_points = None
     parameters.amp_factor_spacing = "linear"
-    parameters.frequency_span_in_mhz = 1
-    parameters.frequency_step_in_mhz = 0.005
-    parameters.frequency_points = None
+    parameters.frequency_span_in_mhz = 0.2
+    parameters.frequency_step_in_mhz = 0.2 / 199
+    parameters.frequency_points = 200
     parameters.fit_fwhm = False
 
-    options = CalibrationOptions()
+    options = CalibrationOptions(
+        save_raw_data=True,
+        save_analysis_result=True,
+        save_figures=False,
+        analyse_data=True,
+        plot_data=False,
+        update_state=False,
+        propose_profile_update=False,
+        apply_profile_update=False,
+    )
 
     calibration = EchoLorentzian(
         parameters=parameters,

@@ -4,6 +4,7 @@ import json
 import re
 import shutil
 import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
@@ -18,6 +19,25 @@ REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT_ROOT = REPOSITORY_ROOT / "data" / "calibrations"
 DEFAULT_PROFILES_ROOT = REPOSITORY_ROOT / "profiles"
 _VALID_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+
+def _replace_directory_with_retries(
+    temporary_directory: Path,
+    run_directory: Path,
+    *,
+    attempts: int = 5,
+) -> None:
+    """Atomically publish a run directory, tolerating transient Windows locks."""
+    for attempt in range(attempts):
+        try:
+            temporary_directory.replace(run_directory)
+            return
+        except PermissionError:
+            # Never retry into an already-created destination.  The retry is
+            # solely for transient scanners/indexers holding the temp folder.
+            if run_directory.exists() or attempt == attempts - 1:
+                raise
+            time.sleep(0.1 * (2**attempt))
 
 
 def _validate_name(name: str, label: str) -> str:
@@ -169,7 +189,7 @@ class CalibrationSaver:
                 json.dump(metadata, file, indent=2)
                 file.write("\n")
 
-            temporary_directory.replace(run_directory)
+            _replace_directory_with_retries(temporary_directory, run_directory)
         except Exception:
             shutil.rmtree(temporary_directory, ignore_errors=True)
             raise

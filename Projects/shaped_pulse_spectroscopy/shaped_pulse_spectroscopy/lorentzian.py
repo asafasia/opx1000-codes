@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import List
 
 import matplotlib.pyplot as plt
@@ -36,6 +37,10 @@ MAX_GAUSSIAN_CENTER_FRACTION_OF_SPAN = 0.5
 MAX_GAUSSIAN_FWHM_FRACTION_OF_SPAN = 0.3
 MAX_SUPERPOSITION_COMPONENT_FWHM_FRACTION_OF_SPAN = 0.8
 MAX_WAVEFORM_SAMPLE_V = 1.0
+PROJECT_PULSE_AMPLITUDE_CEILING_V = 0.7
+MIN_ECHO_TRANSITION_TIME_NS = 4.0
+COMPLEX_ENVELOPE_SIGN = "I+iQ"
+DRAG_DERIVATIVE_CONVENTION = "physical time in microseconds; centered finite difference"
 GAUSSIAN_FIT_CANDIDATES = 5
 MIN_POLARITY_PROMINENCE_FRACTION = 0.05
 GAUSSIAN_INITIAL_FWHM_GUESSES = 24
@@ -129,7 +134,17 @@ def build_waveform(parameters) -> list[float]:
         )
 
     if getattr(parameters, "echo", False):
-        waveform = apply_echo_phase_jump(waveform)
+        drag_beta = float(getattr(parameters, "drag_beta", 0.0))
+        transition_time_ns = (
+            float(getattr(parameters, "echo_transition_time_ns", 0.0))
+            if drag_beta != 0.0
+            else 0.0
+        )
+        waveform = apply_echo_phase_jump(
+            waveform,
+            transition_time_ns=transition_time_ns,
+            pulse_length_ns=int(parameters.lorentzian_length_in_ns),
+        )
     return waveform
 
 
@@ -165,12 +180,117 @@ def lorentzian_play_duration_cycles(parameters) -> int | None:
     return pulse_length // 4
 
 
-def apply_echo_phase_jump(waveform: list[float]) -> list[float]:
-    """Flip the sign of the second half of a waveform for an echo pulse."""
+def apply_echo_phase_jump(
+    waveform: list[float],
+    *,
+    transition_time_ns: float = 0.0,
+    pulse_length_ns: int | None = None,
+) -> list[float]:
+    """Apply the echo inversion, optionally using a smooth finite transition.
+
+    A zero transition retains the historical instantaneous sign flip exactly.
+    Nonzero DRAG pulses use a raised-cosine sign transition so differentiating
+    the complete signed I envelope never differentiates a discontinuity.
+    """
     envelope = np.asarray(waveform, dtype=float)
+    if envelope.ndim != 1 or envelope.size == 0:
+        raise ValueError("waveform must be a non-empty one-dimensional sequence.")
+    if transition_time_ns == 0.0:
+        signs = np.ones_like(envelope)
+        signs[len(envelope) // 2 :] = -1
+        return (envelope * signs).tolist()
+    if not np.isfinite(transition_time_ns) or transition_time_ns < 0:
+        raise ValueError("echo_transition_time_ns must be finite and non-negative.")
+    if pulse_length_ns is None or pulse_length_ns <= 0:
+        raise ValueError("pulse_length_ns is required for a smooth echo transition.")
+    sample_duration_ns = float(pulse_length_ns) / envelope.size
+    minimum_transition_ns = max(MIN_ECHO_TRANSITION_TIME_NS, 4 * sample_duration_ns)
+    if transition_time_ns < minimum_transition_ns:
+        raise ValueError(
+            "echo_transition_time_ns must be at least "
+            f"{minimum_transition_ns:g} ns for this stored waveform."
+        )
+    if transition_time_ns >= pulse_length_ns:
+        raise ValueError("echo_transition_time_ns must be shorter than the pulse.")
+
+    times_ns = (np.arange(envelope.size, dtype=float) + 0.5) * sample_duration_ns
+    midpoint_ns = pulse_length_ns / 2.0
+    half_transition_ns = transition_time_ns / 2.0
     signs = np.ones_like(envelope)
-    signs[len(envelope) // 2 :] = -1
+    signs[times_ns >= midpoint_ns + half_transition_ns] = -1.0
+    transition = np.abs(times_ns - midpoint_ns) < half_transition_ns
+    signs[transition] = -np.sin(
+        np.pi * (times_ns[transition] - midpoint_ns) / transition_time_ns
+    )
     return (envelope * signs).tolist()
+
+
+def drag_quadrature_waveform(
+    signed_i_waveform: list[float] | np.ndarray,
+    *,
+    drag_beta: float = 0.0,
+    anharmonicity_mhz: float,
+    pulse_length_ns: int,
+) -> list[float]:
+    """Construct DRAG Q from the complete signed I waveform.
+
+    The stored waveform is in volts, but the linear volts-to-cyclic-MHz Rabi
+    conversion cancels between ``dI/dt`` and Q. With physical time in us and
+    alpha in cyclic MHz this is Q=-beta*dI/dt/(2*pi*alpha_mhz).
+    """
+    samples = np.asarray(signed_i_waveform, dtype=float)
+    if samples.ndim != 1 or samples.size < 2:
+        raise ValueError("signed_i_waveform must contain at least two samples.")
+    if not np.all(np.isfinite(samples)):
+        raise ValueError("signed_i_waveform must contain only finite samples.")
+    if not np.isfinite(drag_beta):
+        raise ValueError("drag_beta must be finite.")
+    if pulse_length_ns <= 0:
+        raise ValueError("pulse_length_ns must be positive.")
+    if not np.isfinite(anharmonicity_mhz) or anharmonicity_mhz <= 0:
+        raise ValueError("anharmonicity_mhz must be a positive finite magnitude.")
+    if drag_beta == 0.0:
+        return np.zeros_like(samples).tolist()
+
+    sample_duration_us = pulse_length_ns / samples.size / 1000.0
+    edge_order = 2 if samples.size >= 3 else 1
+    derivative_v_per_us = np.gradient(
+        samples,
+        sample_duration_us,
+        edge_order=edge_order,
+    )
+    quadrature = -drag_beta * derivative_v_per_us / (2.0 * np.pi * anharmonicity_mhz)
+    return quadrature.tolist()
+
+
+def complex_waveform_headroom(
+    waveform_i: list[float] | np.ndarray,
+    waveform_q: list[float] | np.ndarray,
+    *,
+    amplitude_factor: float = 1.0,
+    limit_v: float = MAX_WAVEFORM_SAMPLE_V,
+) -> dict[str, float]:
+    """Return peak complex-envelope magnitude and remaining hardware headroom."""
+    i_samples = np.asarray(waveform_i, dtype=float)
+    q_samples = np.asarray(waveform_q, dtype=float)
+    if i_samples.shape != q_samples.shape or i_samples.ndim != 1:
+        raise ValueError("waveform_i and waveform_q must be same-length 1D arrays.")
+    if not np.isfinite(amplitude_factor) or not np.isfinite(limit_v) or limit_v <= 0:
+        raise ValueError("amplitude_factor and limit_v must be finite; limit_v > 0.")
+    magnitude = np.abs(i_samples + 1j * q_samples) * abs(amplitude_factor)
+    peak = float(np.max(magnitude, initial=0.0))
+    return {
+        "max_abs_complex_waveform_v": peak,
+        "complex_waveform_limit_v": float(limit_v),
+        "complex_waveform_headroom_v": float(limit_v - peak),
+        "complex_waveform_headroom_fraction": float((limit_v - peak) / limit_v),
+        "max_abs_i_v": float(
+            np.max(np.abs(i_samples), initial=0.0) * abs(amplitude_factor)
+        ),
+        "max_abs_q_v": float(
+            np.max(np.abs(q_samples), initial=0.0) * abs(amplitude_factor)
+        ),
+    }
 
 
 def ac_stark_corrected_iq_waveforms(
@@ -181,6 +301,8 @@ def ac_stark_corrected_iq_waveforms(
     pi_length_ns: float,
     pulse_length_ns: int,
     kappa_mhz_inv: float,
+    drag_beta: float = 0.0,
+    anharmonicity_mhz: float | None = None,
 ) -> tuple[list[float], list[float]]:
     """Return I/Q samples with accumulated-phase AC-Stark compensation.
 
@@ -196,6 +318,8 @@ def ac_stark_corrected_iq_waveforms(
         raise ValueError("pulse_length_ns must be positive.")
     if not np.isfinite(kappa_mhz_inv):
         raise ValueError("stark_kappa_mhz_inv must be finite.")
+    if drag_beta != 0.0 and anharmonicity_mhz is None:
+        raise ValueError("anharmonicity_mhz is required when drag_beta is nonzero.")
 
     played_rabi_mhz = (
         np.asarray(
@@ -220,10 +344,17 @@ def ac_stark_corrected_iq_waveforms(
             * np.cumsum(0.5 * (squared_rabi[:-1] + squared_rabi[1:]))
         )
 
-    # The played hardware envelope is (I + iQ) exp(-i phi).
-    waveform_i = samples * np.cos(accumulated_phase)
-    waveform_q = -samples * np.sin(accumulated_phase)
-    return waveform_i.tolist(), waveform_q.tolist()
+    drag_q = np.asarray(
+        drag_quadrature_waveform(
+            samples,
+            drag_beta=drag_beta,
+            anharmonicity_mhz=(1.0 if anharmonicity_mhz is None else anharmonicity_mhz),
+            pulse_length_ns=pulse_length_ns,
+        )
+    )
+    # WaveformPulse maps the complex envelope as I+iQ.
+    played = (samples + 1j * drag_q) * np.exp(-1j * accumulated_phase)
+    return played.real.tolist(), played.imag.tolist()
 
 
 def _piecewise_linear_indices(values: np.ndarray, max_error: float) -> list[int]:
@@ -351,11 +482,60 @@ def install_lorentzian_operation(
 
     node.namespace["lorentzian_operation_names"] = [node.parameters.operation]
     node.namespace["lorentzian_stark_chirps"] = {}
+    node.namespace["lorentzian_drag_waveforms_q"] = {}
+    node.namespace["lorentzian_waveform_metrics"] = {}
     reference_amplitude_factor = float(np.max(np.abs(correction_factors), initial=0.0))
-    for qubit in node.namespace["qubits"]:
+    drag_beta = float(getattr(node.parameters, "drag_beta", 0.0))
+    for qubit_index, qubit in enumerate(node.namespace["qubits"]):
+        qubit_name = getattr(qubit, "name", f"qubit_{qubit_index}")
+        anharmonicity_hz = getattr(qubit, "anharmonicity", None)
+        if drag_beta == 0.0:
+            # Preserve the legacy operation without adding a new qubit-field
+            # dependency to the beta=0 path.
+            waveform_q = [0.0] * len(waveform)
+        else:
+            if anharmonicity_hz is None:
+                raise ValueError(f"{qubit_name} has no anharmonicity for DRAG.")
+            waveform_q = drag_quadrature_waveform(
+                waveform,
+                drag_beta=drag_beta,
+                anharmonicity_mhz=abs(float(anharmonicity_hz)) / 1e6,
+                pulse_length_ns=int(node.parameters.lorentzian_length_in_ns),
+            )
+        metrics = complex_waveform_headroom(
+            waveform,
+            waveform_q,
+            amplitude_factor=max_factor,
+        )
+        metrics["project_ceiling_headroom_v"] = (
+            PROJECT_PULSE_AMPLITUDE_CEILING_V - metrics["max_abs_complex_waveform_v"]
+        )
+        if metrics["complex_waveform_headroom_v"] <= 0:
+            raise ValueError(
+                f"{qubit_name} swept complex waveform reaches "
+                f"{metrics['max_abs_complex_waveform_v']:.9g} V; keep "
+                f"abs(I+1j*Q) below {MAX_WAVEFORM_SAMPLE_V:g} V."
+            )
+        if drag_beta != 0.0 and metrics["project_ceiling_headroom_v"] < 0:
+            raise ValueError(
+                f"{qubit_name} swept DRAG waveform reaches "
+                f"{metrics['max_abs_complex_waveform_v']:.9g} V; keep "
+                f"abs(I+1j*Q) at or below the project ceiling "
+                f"{PROJECT_PULSE_AMPLITUDE_CEILING_V:g} V."
+            )
+        metrics.update(
+            {
+                "anharmonicity_hz": (
+                    None if anharmonicity_hz is None else float(anharmonicity_hz)
+                ),
+                "drag_beta": drag_beta,
+            }
+        )
+        node.namespace["lorentzian_drag_waveforms_q"][qubit_name] = waveform_q
+        node.namespace["lorentzian_waveform_metrics"][qubit_name] = metrics
         qubit.xy.operations[node.parameters.operation] = WaveformPulse(
             waveform_I=waveform,
-            waveform_Q=[0.0] * len(waveform),
+            waveform_Q=waveform_q,
         )
         if correction_enabled:
             pi_pulse = qubit.xy.operations["x180"]
@@ -369,7 +549,7 @@ def install_lorentzian_operation(
                 max_error_hz=float(node.parameters.stark_chirp_max_error_hz),
             )
             chirp["reference_amplitude_factor"] = reference_amplitude_factor
-            node.namespace["lorentzian_stark_chirps"][qubit.name] = chirp
+            node.namespace["lorentzian_stark_chirps"][qubit_name] = chirp
     return waveform
 
 
@@ -430,7 +610,7 @@ def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode) -> xr.Dataset:
     )
     ds.full_freq.attrs = {"long_name": "RF frequency", "units": "Hz"}
     ds.full_amp.attrs = {"long_name": "Lorentzian peak amplitude", "units": "V"}
-    ds.attrs.update(_pulse_metadata(node.parameters))
+    ds.attrs.update(_pulse_metadata(node.parameters, node.namespace))
     ds = _add_t2_star_coordinates(ds, node.namespace["qubits"])
     if getattr(node.parameters, "fit_fwhm", True):
         ds = add_gaussian_fwhm_analysis(
@@ -458,14 +638,15 @@ def process_amplitude_dataset(ds: xr.Dataset, node: QualibrationNode) -> xr.Data
     )
     ds.full_amp.attrs = {"long_name": "Lorentzian peak amplitude", "units": "V"}
     ds.full_freq.attrs = {"long_name": "RF frequency at zero detuning", "units": "Hz"}
-    ds.attrs.update(_pulse_metadata(node.parameters))
+    ds.attrs.update(_pulse_metadata(node.parameters, node.namespace))
     ds.attrs["detuning_hz"] = 0
     ds = _add_t2_star_coordinates(ds, node.namespace["qubits"])
     return ds
 
 
-def _pulse_metadata(parameters) -> dict[str, object]:
-    return {
+def _pulse_metadata(parameters, namespace: dict | None = None) -> dict[str, object]:
+    drag_beta = float(getattr(parameters, "drag_beta", 0.0))
+    metadata: dict[str, object] = {
         "operation": getattr(parameters, "operation", None),
         "pulse_shape": getattr(parameters, "pulse_shape", None),
         "lorentzian_length_in_ns": getattr(parameters, "lorentzian_length_in_ns", None),
@@ -479,6 +660,18 @@ def _pulse_metadata(parameters) -> dict[str, object]:
         "echo": getattr(parameters, "echo", False),
         "ac_stark_correction": getattr(parameters, "ac_stark_correction", False),
         "stark_kappa_mhz_inv": getattr(parameters, "stark_kappa_mhz_inv", None),
+        "stark_correction_convention": "real-time detuning via QUA chirp",
+        "drag_beta": drag_beta,
+        "echo_transition_time_ns": getattr(parameters, "echo_transition_time_ns", 0.0),
+        "applied_echo_transition_time_ns": (
+            getattr(parameters, "echo_transition_time_ns", 0.0)
+            if drag_beta != 0.0
+            else 0.0
+        ),
+        "drag_derivative_convention": DRAG_DERIVATIVE_CONVENTION,
+        "complex_envelope_sign": COMPLEX_ENVELOPE_SIGN,
+        "waveform_hardware_limit_v": MAX_WAVEFORM_SAMPLE_V,
+        "project_pulse_amplitude_ceiling_v": PROJECT_PULSE_AMPLITUDE_CEILING_V,
         "stark_chirp_max_error_hz": getattr(
             parameters, "stark_chirp_max_error_hz", None
         ),
@@ -491,7 +684,38 @@ def _pulse_metadata(parameters) -> dict[str, object]:
         "frequency_step_in_mhz": getattr(parameters, "frequency_step_in_mhz", None),
         "frequency_points": getattr(parameters, "frequency_points", None),
         "fit_fwhm": getattr(parameters, "fit_fwhm", True),
+        "use_three_state_discrimination": getattr(
+            parameters, "use_three_state_discrimination", False
+        ),
     }
+    if namespace is not None:
+        metadata["three_state_discrimination_available"] = bool(
+            namespace.get("three_state_discrimination_available", False)
+        )
+    metrics = (
+        {} if namespace is None else namespace.get("lorentzian_waveform_metrics", {})
+    )
+    if metrics:
+        metadata["drag_anharmonicity_hz_by_qubit"] = json.dumps(
+            {name: values["anharmonicity_hz"] for name, values in metrics.items()},
+            sort_keys=True,
+        )
+        metadata["max_abs_complex_waveform_v"] = max(
+            values["max_abs_complex_waveform_v"] for values in metrics.values()
+        )
+        metadata["complex_waveform_headroom_v"] = min(
+            values["complex_waveform_headroom_v"] for values in metrics.values()
+        )
+        metadata["project_ceiling_headroom_v"] = min(
+            values["project_ceiling_headroom_v"] for values in metrics.values()
+        )
+        metadata["max_abs_i_v"] = max(
+            values["max_abs_i_v"] for values in metrics.values()
+        )
+        metadata["max_abs_q_v"] = max(
+            values["max_abs_q_v"] for values in metrics.values()
+        )
+    return metadata
 
 
 def plot_raw_data(
@@ -953,7 +1177,6 @@ def _plot_state(ds: xr.Dataset, qubits: List[AnyTransmon]):
                     y="rabi_frequency_MHz",
                     cmap="magma",
                     vmin=0,
-                    vmax=0.6,
                     add_colorbar=True,
                     cbar_kwargs={"pad": 0.16},
                 )

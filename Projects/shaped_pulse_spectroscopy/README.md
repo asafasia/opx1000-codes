@@ -59,6 +59,12 @@ parameters are:
   and Gaussian pulses.
 - `echo`: when `True`, multiply the waveform by a midpoint sign flip so the
   first half is positive and the second half is negative.
+- `drag_beta`: optional dimensionless DRAG coefficient. `0.0` retains the
+  historical I-only waveform and instantaneous echo inversion exactly.
+- `echo_transition_time_ns`: hardware-resolvable smooth echo inversion used
+  only when `drag_beta` is nonzero (16 ns by default).
+- `stark_kappa_mhz_inv`: quadratic AC-Stark coefficient applied as a QUA
+  real-time frequency chirp. It is not also applied as IQ phase modulation.
 - `lorentzian_peak_amplitude`: unscaled peak amplitude `A`.
 - `min_amp_factor`, `max_amp_factor`, `amp_factor_step`: y-axis amplitude sweep.
 - `frequency_span_in_mhz`, `frequency_step_in_mhz`: x-axis detuning sweep.
@@ -75,6 +81,35 @@ general_amp_hz = (general_amp / pi_amp) * pi_amp_hz
 The right y-axis shows the absolute Lorentzian peak amplitude in V. When a
 qubit has a Ramsey T2* value, dashed vertical lines mark
 `+-1 / (2 * pi * T2*)`.
+
+`WaveformPulse` defines the complex envelope as `I + iQ`. DRAG differentiates
+the complete smooth signed I waveform with respect to physical time:
+
+```text
+Q = -drag_beta * dI/dt_us / (2*pi*abs(anharmonicity_MHz))
+```
+
+Both lanes are arbitrary-waveform samples in volts and QUA's amplitude
+prefactor scales I and Q together. The pulse factory checks
+`max(abs(I + 1j*Q))` after the largest sweep prefactor against the existing
+1 V OPX waveform bound and records the peak and remaining headroom. The wider
+repository's conservative pulse-amplitude ceiling is 0.7 V; proposed DRAG
+grids should remain below that ceiling before approval.
+
+The two-stage DRAG/AC-Stark workflow fixes `L=20 us` and `cutoff=0.0025` and is
+approval gated. First write a review-only coarse plan:
+
+```powershell
+python Projects\shaped_pulse_spectroscopy\scripts\plan_drag_beta_kappa_calibration.py --target-qubit qX --existing-kappa-mhz-inv KAPPA --output proposed_drag_plan.json
+```
+
+The manifest includes the exact target, waveform, beta values, and shared
+detuning-amplitude grid plus a SHA-256 approval token. Acquisition accepts only
+an exact matching token. The joint grid is generated around the measured best
+fixed-kappa beta and has its own manifest/token, so it must be reviewed again.
+All runs disable profile updates and proposals. Three-state readout records
+measured `P_f` when calibrated G/E/F discrimination is available; selection
+then minimizes leakage subject to center-RMS and contrast gates.
 Figures include a compact parameter banner with the pulse shape, pulse length,
 cutoff or tau, echo flag, peak amplitude, sweep span/step, and square pi pulse.
 When available, the banner also includes T1, Ramsey T2*, and
@@ -114,6 +149,20 @@ or loop over the plotted amplitudes for both no-echo and echo with:
 ```powershell
 python Projects\shaped_pulse_spectroscopy\scripts\run_fixed_amplitude_set.py
 ```
+
+To acquire the paper-style six-panel fixed-amplitude comparison at 3, 20, and
+40 MHz, with 10,000 shots for each echo/no-echo trace and a matched three-level
+simulation, run:
+
+```powershell
+python Projects\shaped_pulse_spectroscopy\scripts\run_paper_figure3_slices.py
+```
+
+The script uses the narrow-map settings (`L=20 us`, `c=0.005`, 501 points over
+1 MHz, active reset, and full readout mitigation), saves every hardware run,
+and writes PNG/PDF/SVG versions of the 3-by-2 comparison under
+`data/paper_figure3_fixed_slices/`. The simulation uses the same vectorized
+three-level Lindblad model as the paper figure workflow.
 
 The set runner defaults to `cutoff=0.005`, `20 us` pulse/template length,
 `100` shots, `100` detuning points across `1 MHz`, and Rabi amplitudes

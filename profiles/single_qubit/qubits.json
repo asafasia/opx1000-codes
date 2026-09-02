@@ -243,9 +243,9 @@
         2
       ],
       "frequencies_hz": {
-        "qubit_f01": 3945142098.1517005,
+        "qubit_f01": 3945150060.29655,
         "qubit_f12": 3707202098.1517005,
-        "resonator": 7174350000.0,
+        "resonator": 7174950000.0,
         "resonator_bare": null
       },
       "transmon": {
@@ -259,30 +259,30 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": -0.0005467555686741818,
-        "rus_exit_threshold": -0.0005467555686741818,
+        "threshold": -0.0001178238772090437,
+        "rus_exit_threshold": -0.0001178238772090437,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": -1.3661348520702241,
+        "integration_weights_angle_rad": -3.1559049971271906,
         "use_kernel": true,
         "gef_frequency_shift_hz": 0,
         "confusion_matrix": [
           [
-            0.8713,
-            0.1287
+            0.9102,
+            0.0898
           ],
           [
-            0.124,
-            0.876
+            0.1094,
+            0.8906
           ]
         ],
         "gef_centers": [
           [
-            -0.0006831122048601618,
-            9.023077910950965e-05
+            -0.00024033493186370952,
+            -5.15991343652829e-05
           ],
           [
-            -0.0004025684921342501,
-            9.023077910950962e-05
+            1.4437063372345826e-05,
+            -5.15991343652829e-05
           ]
         ]
       },

@@ -387,10 +387,10 @@ if __name__ == "__main__":
     parameters.use_readout_mitigation = False
 
     parameters.num_shots = 500
-    parameters.operation_amplitude_factor = 0.002
-    parameters.operation_len_in_ns = 30000
+    parameters.operation_amplitude_factor = 0.001
+    parameters.operation_len_in_ns = 50000
     parameters.frequency_span_in_mhz = 1
-    parameters.frequency_step_in_mhz = 0.0025
+    parameters.frequency_step_in_mhz = 0.002
     parameters.reset_type = "active"
     parameters.transition = "ge"
 
