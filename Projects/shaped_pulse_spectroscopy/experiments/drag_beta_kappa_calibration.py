@@ -49,6 +49,7 @@ class SpectroscopyGrid:
     min_amp_factor: float = 0.05
     max_amp_factor: float = 1.0
     amplitude_points: int = 20
+    amplitude_spacing: Literal["linear", "log"] = "linear"
     num_shots: int = 500
 
 
@@ -171,6 +172,68 @@ def joint_plan(
     )
 
 
+def beta_only_plan(
+    *,
+    target_qubit: str,
+    betas: Iterable[float] = DEFAULT_BETAS,
+    waveform: WaveformSpec = WaveformSpec(),
+    grid: SpectroscopyGrid = SpectroscopyGrid(),
+) -> CalibrationPlan:
+    """Build an exact no-kappa reference plus symmetric DRAG-beta scan."""
+    beta_values = _finite_unique(betas, "betas")
+    if not any(beta == 0.0 for beta in beta_values):
+        raise ValueError("The symmetric beta scan must contain beta=0.")
+    if not np.allclose(beta_values, -np.asarray(beta_values)[::-1]):
+        raise ValueError("betas must be symmetric about zero and sorted ascending.")
+    points = tuple(
+        CalibrationPoint(
+            label=("no_correction" if beta == 0.0 else f"drag_beta_{beta:+.9g}"),
+            category=("no_correction" if beta == 0.0 else "drag_same_kappa"),
+            drag_beta=beta,
+            stark_kappa_mhz_inv=0.0,
+            ac_stark_correction=False,
+        )
+        for beta in beta_values
+    )
+    return CalibrationPlan(
+        stage="coarse",
+        target_qubit=_validated_target(target_qubit),
+        waveform=waveform,
+        grid=grid,
+        points=points,
+    )
+
+
+def beta_refinement_plan(
+    *,
+    target_qubit: str,
+    betas: Iterable[float],
+    waveform: WaveformSpec = WaveformSpec(),
+    grid: SpectroscopyGrid = SpectroscopyGrid(),
+) -> CalibrationPlan:
+    """Build an ordered no-kappa fine scan without requiring symmetry."""
+    beta_values = _finite_unique(betas, "betas")
+    if tuple(sorted(beta_values)) != beta_values:
+        raise ValueError("refinement betas must be sorted ascending.")
+    points = tuple(
+        CalibrationPoint(
+            label=("no_correction" if beta == 0.0 else f"drag_beta_{beta:+.9g}"),
+            category=("no_correction" if beta == 0.0 else "drag_same_kappa"),
+            drag_beta=beta,
+            stark_kappa_mhz_inv=0.0,
+            ac_stark_correction=False,
+        )
+        for beta in beta_values
+    )
+    return CalibrationPlan(
+        stage="joint",
+        target_qubit=_validated_target(target_qubit),
+        waveform=waveform,
+        grid=grid,
+        points=points,
+    )
+
+
 def plan_sha256(plan: CalibrationPlan) -> str:
     """Return the approval token for the exact target, waveform, and grids."""
     payload = json.dumps(asdict(plan), sort_keys=True, separators=(",", ":"))
@@ -210,7 +273,7 @@ def parameters_for_point(plan: CalibrationPlan, point: CalibrationPoint) -> Para
     parameters.min_amp_factor = plan.grid.min_amp_factor
     parameters.max_amp_factor = plan.grid.max_amp_factor
     parameters.amp_factor_points = plan.grid.amplitude_points
-    parameters.amp_factor_spacing = "linear"
+    parameters.amp_factor_spacing = plan.grid.amplitude_spacing
     parameters.frequency_span_in_mhz = plan.grid.detuning_span_mhz
     parameters.frequency_points = plan.grid.detuning_points
     parameters.fit_fwhm = False
@@ -343,10 +406,13 @@ def select_comparison_records(
                 minimum_contrast=minimum_contrast,
             )
         )
-    if joint_records:
+    retuned_joint_records = [
+        record for record in joint_records if record["category"] == "drag_retuned_kappa"
+    ]
+    if retuned_joint_records:
         selected.append(
             select_best(
-                joint_records,
+                retuned_joint_records,
                 acceptable_center_rms_hz=acceptable_center_rms_hz,
                 minimum_contrast=minimum_contrast,
             )
@@ -440,6 +506,7 @@ def run_approved_plan(
             parameters=parameters,
             options=options,
             machine=machine,
+            qubit=plan.target_qubit,
             auto_connect=True,
             name=f"drag_kappa_{plan.stage}_{index:02d}",
         )

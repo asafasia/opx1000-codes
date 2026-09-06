@@ -77,17 +77,52 @@ def _integrate_half(
     sigma_us: float,
     drive_sign: float,
     pulse_shape: str,
+    echo: bool,
+    drag_beta: float,
+    echo_transition_time_us: float,
 ) -> np.ndarray:
     """Integrate one pulse half with vectorized RK4."""
     step = (time_stop_us - time_start_us) / num_steps
 
     def derivative(current_state: np.ndarray, time_us: float) -> np.ndarray:
         if pulse_shape == "root_lorentzian":
-            scale = drive_sign / np.sqrt(1.0 + (time_us / sigma_us) ** 2)
+            envelope = 1.0 / np.sqrt(1.0 + (time_us / sigma_us) ** 2)
+            envelope_derivative = (
+                -time_us * envelope / (sigma_us**2 + time_us**2)
+            )
         elif pulse_shape == "constant":
-            scale = drive_sign
+            envelope = 1.0
+            envelope_derivative = 0.0
         else:  # Guarded by simulate_qutrit_slices; keeps this helper defensive.
             raise ValueError(f"Unsupported pulse_shape: {pulse_shape!r}")
+
+        if drag_beta == 0.0:
+            # Preserve the established beta=0 simulation exactly.
+            scale = drive_sign * envelope
+        else:
+            if not echo:
+                sign = 1.0
+                sign_derivative = 0.0
+            elif time_us <= -0.5 * echo_transition_time_us:
+                sign = 1.0
+                sign_derivative = 0.0
+            elif time_us >= 0.5 * echo_transition_time_us:
+                sign = -1.0
+                sign_derivative = 0.0
+            else:
+                phase = np.pi * time_us / echo_transition_time_us
+                sign = -np.sin(phase)
+                sign_derivative = -(np.pi / echo_transition_time_us) * np.cos(
+                    phase
+                )
+            signed_i = envelope * sign
+            signed_i_derivative = envelope_derivative * sign + envelope * sign_derivative
+            drag_q = (
+                -drag_beta
+                * signed_i_derivative
+                / abs(anharmonicity)
+            )
+            scale = signed_i + 1j * drag_q
         return _rhs(
             current_state,
             detuning=detuning,
@@ -120,6 +155,8 @@ def simulate_qutrit_slices(
     cutoff: float,
     echo: bool,
     pulse_shape: str = "root_lorentzian",
+    drag_beta: float = 0.0,
+    echo_transition_time_ns: float = 0.0,
 ) -> QutritSliceResult:
     """Simulate root-Lorentzian or constant slices with the qutrit model."""
     if duration_us <= 0:
@@ -136,6 +173,16 @@ def simulate_qutrit_slices(
         raise ValueError("pulse_shape must be 'root_lorentzian' or 'constant'.")
     if anharmonicity_mhz == 0:
         raise ValueError("anharmonicity_mhz must be nonzero.")
+    if not np.isfinite(drag_beta):
+        raise ValueError("drag_beta must be finite.")
+    if not np.isfinite(echo_transition_time_ns) or echo_transition_time_ns < 0:
+        raise ValueError("echo_transition_time_ns must be finite and nonnegative.")
+    if echo_transition_time_ns >= duration_us * 1e3:
+        raise ValueError("echo_transition_time_ns must be shorter than the pulse.")
+    if echo and drag_beta != 0.0 and echo_transition_time_ns <= 0:
+        raise ValueError(
+            "Nonzero DRAG beta on an echo requires a positive transition time."
+        )
 
     detuning, rabi = np.meshgrid(
         2.0 * np.pi * np.asarray(detuning_mhz, dtype=float),
@@ -156,6 +203,9 @@ def simulate_qutrit_slices(
         "inv_t_phi": inv_t_phi,
         "sigma_us": sigma_us,
         "pulse_shape": pulse_shape,
+        "echo": echo,
+        "drag_beta": drag_beta,
+        "echo_transition_time_us": echo_transition_time_ns / 1e3,
     }
     state = _integrate_half(
         state,

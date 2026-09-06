@@ -13,6 +13,10 @@ for path in (REPOSITORY_ROOT, PROJECT_ROOT):
         sys.path.insert(0, str(path))
 
 from experiments.drag_beta_kappa_calibration import (
+    SpectroscopyGrid,
+    WaveformSpec,
+    beta_only_plan,
+    beta_refinement_plan,
     coarse_plan,
     joint_plan,
     plan_sha256,
@@ -216,6 +220,28 @@ def test_two_stage_plan_is_exact_hashable_and_joint_grid_centers_on_best_beta() 
     assert len(plan_sha256(coarse)) == 64
     assert len(joint.points) == 9
     assert {point.drag_beta for point in joint.points} == {0.25, 0.5, 0.75}
+
+
+def test_beta_only_plan_disables_kappa_and_preserves_requested_grid() -> None:
+    plan = beta_only_plan(
+        target_qubit="q6",
+        waveform=WaveformSpec(duration_ns=2_000, template_length_ns=2_000, cutoff=0.005),
+        grid=SpectroscopyGrid(amplitude_points=200, amplitude_spacing="log"),
+    )
+
+    assert all(not point.ac_stark_correction for point in plan.points)
+    assert all(point.stark_kappa_mhz_inv == 0.0 for point in plan.points)
+    assert plan.waveform.duration_ns == 2_000
+    assert plan.grid.amplitude_spacing == "log"
+
+
+def test_beta_refinement_plan_accepts_ordered_asymmetric_grid() -> None:
+    betas = (-0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0)
+    plan = beta_refinement_plan(target_qubit="q6", betas=betas)
+
+    assert tuple(point.drag_beta for point in plan.points) == betas
+    assert all(point.stark_kappa_mhz_inv == 0.0 for point in plan.points)
+    assert all(not point.ac_stark_correction for point in plan.points)
 
 
 def test_selection_minimizes_leakage_only_after_center_and_contrast_gates() -> None:
