@@ -335,9 +335,9 @@ if __name__ == "__main__":
     parameters.use_readout_mitigation = 0.4
 
     parameters.reset_type = "active"
-    parameters.max_wait_time_in_ns = 150e3
+    parameters.max_wait_time_in_ns = 20e3
     parameters.wait_time_num_points = 250
-    parameters.frequency_detuning_in_mhz = 0.2
+    parameters.frequency_detuning_in_mhz = 1
 
     options = CalibrationOptions()
 

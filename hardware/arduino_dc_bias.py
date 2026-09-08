@@ -6,27 +6,20 @@ import math
 import time
 from typing import Protocol
 
-
 DEFAULT_PORT = "COM7"
 DEFAULT_BAUD_RATE = 115_200
 DEFAULT_CHANNEL_COUNT = 8
-MAX_ABS_VOLTAGE_V = 0.01
 
 
-def _validate_controller_limits(
-    channel_count: int, max_abs_voltage_v: float
-) -> None:
+def _validate_controller_limits(channel_count: int, max_abs_voltage_v: float) -> None:
     if channel_count <= 0:
         raise ValueError("channel_count must be positive.")
     if (
-        not math.isfinite(max_abs_voltage_v)
+        isinstance(max_abs_voltage_v, bool)
+        or not math.isfinite(max_abs_voltage_v)
         or max_abs_voltage_v <= 0
-        or max_abs_voltage_v > MAX_ABS_VOLTAGE_V
     ):
-        raise ValueError(
-            "max_abs_voltage_v must be positive and no greater than "
-            f"{MAX_ABS_VOLTAGE_V:g} V."
-        )
+        raise ValueError("max_abs_voltage_v must be finite and positive.")
 
 
 class SerialConnection(Protocol):
@@ -47,7 +40,7 @@ class DCBiasController:
         connection: SerialConnection,
         *,
         channel_count: int = DEFAULT_CHANNEL_COUNT,
-        max_abs_voltage_v: float = MAX_ABS_VOLTAGE_V,
+        max_abs_voltage_v: float,
         response_delay_s: float = 0.005,
     ) -> None:
         _validate_controller_limits(channel_count, max_abs_voltage_v)
@@ -102,10 +95,10 @@ def open_controller(
     baud_rate: int = DEFAULT_BAUD_RATE,
     *,
     channel_count: int = DEFAULT_CHANNEL_COUNT,
-    max_abs_voltage_v: float = MAX_ABS_VOLTAGE_V,
+    max_abs_voltage_v: float,
     startup_delay_s: float = 2.0,
 ) -> DCBiasController:
-    """Open the serial port and wait for the Arduino to initialize."""
+    """Open the source with the limit supplied by the selected profile."""
     _validate_controller_limits(channel_count, max_abs_voltage_v)
     try:
         import serial

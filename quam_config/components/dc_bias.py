@@ -13,7 +13,6 @@ from hardware.arduino_dc_bias import (
     DEFAULT_BAUD_RATE,
     DEFAULT_CHANNEL_COUNT,
     DEFAULT_PORT,
-    MAX_ABS_VOLTAGE_V,
     DCBiasController,
     open_controller,
 )
@@ -30,10 +29,10 @@ class ArduinoDCBias(QuamComponent):
 
     output_channel: ClassVar[int] = 0
 
+    max_abs_voltage_v: float
     port: str = DEFAULT_PORT
     baud_rate: int = DEFAULT_BAUD_RATE
     channel_count: int = DEFAULT_CHANNEL_COUNT
-    max_abs_voltage_v: float = MAX_ABS_VOLTAGE_V
     qubit_biases_v: dict[str, float] = field(default_factory=dict)
     _controller: DCBiasController | None = field(
         default=None,
@@ -57,6 +56,12 @@ class ArduinoDCBias(QuamComponent):
         return self._controller
 
     def _validate_setting(self, channel: int, voltage_v: float) -> None:
+        if (
+            isinstance(self.max_abs_voltage_v, bool)
+            or not math.isfinite(self.max_abs_voltage_v)
+            or self.max_abs_voltage_v <= 0
+        ):
+            raise ValueError("max_abs_voltage_v must be finite and positive.")
         if not 0 <= channel < self.channel_count:
             raise ValueError(
                 f"Channel must be between 0 and {self.channel_count - 1}; got {channel}."

@@ -95,6 +95,57 @@ profile, normally proposed by the IQ-blobs calibration.
 
 ## Terminal runner
 
+### Spectroscopy versus external DC bias
+
+`03d_qubit_spectroscopy_vs_external_flux.py` combines the spectroscopy map and
+periodic flux fit from `03b` with the host-controlled outer loop from `03c`.
+It uses the profile's Arduino DC-bias source on channel 0. Select exactly one
+qubit; an OPX Z line is not required. The original scripts remain available.
+
+Preview parameters without connecting to either device:
+
+```powershell
+python -m calibrations.runner run qubit-external-flux --profile single_qubit --qubit q3 --set flux_offset_span_in_v=0.002 --set num_flux_points=11 --dry-run
+```
+
+Remove `--dry-run` when ready to acquire on the hardware. The important settings are:
+
+| Parameter | Meaning | Default |
+| --- | --- | --- |
+| `flux_bias_center_in_v` | Absolute voltage at the center; `None` uses the selected qubit's profile `dc_bias_v` | `None` |
+| `flux_offset_span_in_v` | Total voltage span around that center | 0.002 V |
+| `num_flux_points` | Number of external voltage settings, including endpoints | 11 |
+| `bias_settle_time_s` | Host settling delay after setting each voltage | 0.1 s |
+| `pause_timeout_s` | Timeout waiting for each pause or I/Q result pair | 300 s |
+| `num_shots` | Averages at each voltage | 50 |
+| `frequency_span_in_mhz` / `frequency_step_in_mhz` | Detuning sweep around the profile qubit frequency | 100 / 0.5 MHz |
+
+For example, a profile bias of 0.003 V and span of 0.002 V sweeps from 0.002 to
+0.004 V. All points must satisfy `dc_bias.max_abs_voltage_v` in the selected
+profile's `connectivity.json`, which is the sole source of the voltage limit.
+Pulse operation, amplitude factor and duration use the usual spectroscopy parameters.
+This calibration uses thermal reset and IQ readout.
+
+One QUA job pauses before each voltage point. Python sets the source, waits for
+settling, resumes the job, and fetches an independently averaged frequency row.
+Results use `save_all` and indexed fetching so asynchronous I/Q streams cannot
+mix different voltage points; see the
+[QM stream-processing documentation](https://docs.quantum-machines.co/latest/docs/Guides/stream_proc/).
+A final pause has no extra measurement. Cleanup halts the job and attempts to
+return the source to zero, including on exceptions. Simulation omits the pauses
+and never connects to the bias source; it checks the pulse sequence, not the
+external source or the physical frequency response.
+
+The external bias remains applied during reset, spectroscopy, and readout.
+The resonator frequency is held at its profile setting throughout the scan;
+large bias changes may therefore need separate readout characterization.
+Saved maps use absolute source voltage in volts. Analysis reuses the original
+peak extraction and periodic fit around the scan center, and plots the measured
+peaks and fitted sweet spot. A failed fit or a sweet spot outside the scan leaves
+the map available without proposing a profile change. Successful fits stage
+`dc_bias_v` and `qubit_f01`; they are not applied by default. Narrow scans may
+not contain enough flux dependence for a meaningful periodic fit.
+
 The lightweight terminal wrapper is meant for Codex and quick lab use:
 
 ```powershell

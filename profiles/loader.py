@@ -21,7 +21,6 @@ MW_FEM_BAND_RANGES_HZ = {
 }
 MW_FEM_SHARED_LO_OUTPUT_PAIRS = ((2, 3), (4, 5), (6, 7), (8, 9), (10, 11))
 MW_FEM_MAX_IF_HZ = 500e6
-MAX_DC_BIAS_ABS_VOLTAGE_V = 0.01
 _active_profile: "Profile | None" = None
 
 
@@ -99,9 +98,8 @@ def _validate_dc_bias(connectivity: dict[str, Any]) -> None:
         isinstance(max_abs_voltage_v, (int, float))
         and not isinstance(max_abs_voltage_v, bool)
         and math.isfinite(max_abs_voltage_v)
-        and 0 < max_abs_voltage_v <= MAX_DC_BIAS_ABS_VOLTAGE_V,
-        "connectivity.dc_bias.max_abs_voltage_v must be positive and no greater "
-        f"than {MAX_DC_BIAS_ABS_VOLTAGE_V:g} V",
+        and max_abs_voltage_v > 0,
+        "connectivity.dc_bias.max_abs_voltage_v must be finite and positive",
     )
 
 

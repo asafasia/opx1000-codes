@@ -60,6 +60,13 @@ CALIBRATIONS: dict[str, CalibrationEntry] = {
         "Qubit spectroscopy.",
         "calibration_utils.qubit_spectroscopy.parameters",
     ),
+    "qubit-external-flux": CalibrationEntry(
+        "qubit-external-flux",
+        "calibrations.03d_qubit_spectroscopy_vs_external_flux",
+        "QubitSpectroscopyVsExternalFlux",
+        "Qubit spectroscopy versus external DC bias with OPX pause/resume.",
+        "calibration_utils.qubit_spectroscopy_vs_flux.external_parameters",
+    ),
     "rabi-chevron": CalibrationEntry(
         "rabi-chevron",
         "calibrations.04a_rabi_chevron",

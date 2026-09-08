@@ -28,7 +28,7 @@ class FakeSerialConnection:
 class DCBiasControllerTests(unittest.TestCase):
     def test_voltage_at_limit_is_sent(self):
         connection = FakeSerialConnection()
-        controller = DCBiasController(connection, response_delay_s=0)
+        controller = DCBiasController(connection, max_abs_voltage_v=0.01, response_delay_s=0)
 
         controller.set_voltage(0, 0.01, verbose=False)
 
@@ -36,25 +36,34 @@ class DCBiasControllerTests(unittest.TestCase):
 
     def test_voltage_above_limit_is_rejected_before_write(self):
         connection = FakeSerialConnection()
-        controller = DCBiasController(connection, response_delay_s=0)
+        controller = DCBiasController(connection, max_abs_voltage_v=0.01, response_delay_s=0)
 
         with self.assertRaisesRegex(ValueError, "must not exceed 0.01 V"):
             controller.set_voltage(0, 0.010001, verbose=False)
 
         self.assertEqual(connection.writes, [])
 
-    def test_limit_cannot_be_configured_above_hard_maximum(self):
-        with self.assertRaisesRegex(ValueError, "no greater than 0.01 V"):
-            DCBiasController(
-                FakeSerialConnection(),
-                max_abs_voltage_v=0.02,
-                response_delay_s=0,
-            )
+    def test_explicit_limit_has_no_additional_hardcoded_ceiling(self):
+        connection = FakeSerialConnection()
+        controller = DCBiasController(connection, max_abs_voltage_v=0.2, response_delay_s=0)
+        controller.set_voltage(0, -0.2, verbose=False)
+        self.assertEqual(connection.writes, [b"SET,0,-0.2\r"])
+        with self.assertRaisesRegex(ValueError, "must not exceed 0.2 V"):
+            controller.set_voltage(0, 0.200001, verbose=False)
+
+    def test_limit_is_required(self):
+        with self.assertRaises(TypeError):
+            DCBiasController(FakeSerialConnection())
+
+    def test_invalid_limits_are_rejected(self):
+        for limit in (0, -0.1, float("nan"), float("inf"), True):
+            with self.subTest(limit=limit), self.assertRaisesRegex(ValueError, "finite and positive"):
+                DCBiasController(FakeSerialConnection(), max_abs_voltage_v=limit)
 
 
 class ArduinoDCBiasComponentTests(unittest.TestCase):
     def test_runtime_connection_is_not_serialized(self):
-        bias = ArduinoDCBias()
+        bias = ArduinoDCBias(max_abs_voltage_v=0.01)
         bias._controller = MagicMock(spec=DCBiasController)
 
         state = bias.to_dict()
@@ -67,7 +76,7 @@ class ArduinoDCBiasComponentTests(unittest.TestCase):
     def test_applied_zeros_channel_and_disconnects(self, open_controller):
         controller = MagicMock(spec=DCBiasController)
         open_controller.return_value = controller
-        bias = ArduinoDCBias(port="COM7")
+        bias = ArduinoDCBias(port="COM7", max_abs_voltage_v=0.01)
 
         with bias.applied(channel=0, voltage_v=0.0025):
             self.assertTrue(bias.is_connected)
@@ -94,7 +103,7 @@ class ArduinoDCBiasComponentTests(unittest.TestCase):
     def test_profile_bias_uses_hardcoded_channel_zero(self, open_controller):
         controller = MagicMock(spec=DCBiasController)
         open_controller.return_value = controller
-        bias = ArduinoDCBias(qubit_biases_v={"q3": 0.0025})
+        bias = ArduinoDCBias(max_abs_voltage_v=0.01, qubit_biases_v={"q3": 0.0025})
 
         with bias.applied_for_qubit("q3"):
             pass
@@ -104,18 +113,22 @@ class ArduinoDCBiasComponentTests(unittest.TestCase):
             [call(0, 0.0025), call(0, 0.0)],
         )
 
-    def test_profile_rejects_dc_bias_limit_above_hard_maximum(self):
+    def test_profile_limit_has_no_additional_hardcoded_ceiling(self):
         connectivity = {
             "dc_bias": {
                 "port": "COM7",
                 "baud_rate": 115200,
                 "channel_count": 8,
-                "max_abs_voltage_v": 0.02,
+                "max_abs_voltage_v": 0.2,
             }
         }
 
-        with self.assertRaisesRegex(ProfileError, "no greater than 0.01 V"):
-            _validate_dc_bias(connectivity)
+        _validate_dc_bias(connectivity)
+        _validate_qubit_dc_biases({"qubits": {"q3": {"dc_bias_v": 0.2}}}, connectivity)
+        for limit in (None, 0, -0.1, float("nan"), float("inf"), True):
+            connectivity["dc_bias"]["max_abs_voltage_v"] = limit
+            with self.subTest(limit=limit), self.assertRaisesRegex(ProfileError, "finite and positive"):
+                _validate_dc_bias(connectivity)
 
     def test_profile_rejects_qubit_bias_above_configured_maximum(self):
         qubits = {"qubits": {"q3": {"dc_bias_v": 0.010001}}}
@@ -140,11 +153,22 @@ class ArduinoDCBiasComponentTests(unittest.TestCase):
 
         self.assertIsInstance(machine.dc_bias, ArduinoDCBias)
         self.assertEqual(machine.dc_bias.port, "COM7")
-        self.assertEqual(machine.dc_bias.max_abs_voltage_v, 0.01)
+        self.assertEqual(
+            machine.dc_bias.max_abs_voltage_v,
+            load_profile("single_qubit")["connectivity"]["dc_bias"]["max_abs_voltage_v"],
+        )
         self.assertEqual(machine.dc_bias.output_channel, 0)
         self.assertEqual(machine.dc_bias.qubit_biases_v, {"q3": 0.0})
         self.assertIn("controllers", config)
         open_controller.assert_not_called()
+
+    @patch("quam_config.components.dc_bias.open_controller")
+    def test_profile_limit_is_forwarded_unchanged_to_driver(self, open_controller):
+        machine = create_machine_from_profile("single_qubit", save=False, qubit="q3")
+        limit = load_profile("single_qubit")["connectivity"]["dc_bias"]["max_abs_voltage_v"]
+        machine.dc_bias.set_voltage(0, limit)
+        self.assertEqual(open_controller.call_args.kwargs["max_abs_voltage_v"], limit)
+        open_controller.return_value.set_voltage.assert_called_once_with(0, limit)
 
 
 if __name__ == "__main__":

@@ -370,7 +370,10 @@ DC-bias QuAM component:
 }
 ```
 
-Profile validation does not allow `max_abs_voltage_v` above 0.01 V. Building a
+`connectivity.dc_bias.max_abs_voltage_v` in the selected profile is the single
+source of the voltage limit. It must be finite and positive; qubit bias values,
+external-bias sweeps, and the Arduino driver all enforce this same value.
+There is no separate hardcoded ceiling. Building a
 machine attaches these settings as `machine.dc_bias` but does not open the
 serial port or change an output. Hardware access occurs only when host code
 calls methods such as `machine.dc_bias.set_voltage(...)` or enters
