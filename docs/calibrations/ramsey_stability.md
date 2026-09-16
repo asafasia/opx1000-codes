@@ -49,6 +49,14 @@ fit uncertainties, rolling variance, frequency offset, candidate jumps, and Alla
 deviation where applicable. It also shows mean, median, standard deviation,
 coefficient of variation, robust spread, peak-to-peak span, and linear drift.
 
+The HTML and live chart are rewritten after every experiment; an open browser
+reloads them every 15 seconds. Rejected experiments also save their Ramsey trace
+and available fit to `points/NNNNNN/ramsey.png`, with the rejection reason. If
+acquisition produced no data, the figure records that instead. Every 15th
+experiment (15, 30, 45, ...) saves a Ramsey plot in its point folder and a
+permanent copy of the T2* stability chart in `figures/stability_NNNNNN.png`.
+These figures are saved without opening plot windows.
+
 The durable measurement record is `points.jsonl` plus each `points/000001/point.json`.
 Point JSON is atomically replaced and the journal is flushed/fsynced before the
 next measurement. CSV, summaries, and plots are replaceable views. On abrupt process
@@ -70,7 +78,7 @@ No calibration objects, raw histories, or GUI figures accumulate in memory.
 The runner retains only scalar rows. Disk write failures stop acquisition. Runtime
 exceptions stop immediately after attempting to record the failure. Rejected fits
 remain in the record and acquisition continues until
-`--max-consecutive-failures` (default 5) is reached. Fix the cause before starting a
+`--max-consecutive-failures` (default 15) is reached. Fix the cause before starting a
 new run. Keep the computer awake and ensure disk capacity for the intended duration.
 
 ## Interpretation of diagnostics

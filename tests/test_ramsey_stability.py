@@ -8,7 +8,7 @@ import xarray as xr
 
 from sweeps.ramsey_stability import (
     RamseyStabilityRun, StabilitySettings, main, persistent_ramsey_class,
-    render_report, save_dataset,
+    render_report, render_point_figure, save_dataset,
 )
 from sweeps.stability_analysis import overlapping_allan, point_diagnostics, summarize
 
@@ -114,9 +114,9 @@ def test_existing_run_cannot_be_overwritten(tmp_path):
 
 def test_repeated_rejections_stop(tmp_path):
     runner, _, starts = make_runner(tmp_path, duration=100, rejected=True)
-    with pytest.raises(RuntimeError, match="consecutive rejected"):
+    with pytest.raises(RuntimeError, match="15 consecutive rejected"):
         runner.run()
-    assert len(starts) == 5
+    assert len(starts) == 15
     assert summarize(runner.rows)["mean_t2_us"] is None
 
 
@@ -265,4 +265,66 @@ def test_dry_run_never_constructs_machine(monkeypatch, capsys):
     assert main(["--qubit", "q3", "--duration-hours", "24", "--dry-run"]) == 0
     result = json.loads(capsys.readouterr().out)
     assert result["stability"]["duration_seconds"] == 86400
+    assert result["stability"]["max_consecutive_failures"] == 15
     assert result["hardware_execution"] is False
+
+
+def test_report_updates_each_experiment_and_figures_every_15(tmp_path, monkeypatch):
+    import sweeps.ramsey_stability as stability
+
+    published = []
+    plotted = []
+
+    def report(directory, rows, summary):
+        published.append((len(rows), summary["status"]))
+        (directory / "stability.png").write_bytes(f"chart at {len(rows)}".encode())
+
+    monkeypatch.setattr(stability, "render_report", report)
+    monkeypatch.setattr(stability, "render_point_figure",
+                        lambda directory, row, results: plotted.append(row["point"]))
+    runner, _, _ = make_runner(tmp_path, duration=100, max_points=31, render=True)
+    runner.run()
+    assert published == [(0, "running")] + [
+        (point, "running") for point in range(1, 32)
+    ] + [(31, "completed")]
+    assert plotted == [15, 30]
+    assert sorted(p.name for p in (tmp_path / "figures").iterdir()) == [
+        "stability_000015.png", "stability_000030.png"
+    ]
+    assert (tmp_path / "figures/stability_000015.png").read_bytes() == b"chart at 15"
+    assert (tmp_path / "figures/stability_000030.png").read_bytes() == b"chart at 30"
+
+
+def test_rejected_points_save_figures_even_before_15(tmp_path):
+    runner, _, _ = make_runner(tmp_path, duration=100, max_points=5, rejected=True, render=True)
+    runner.run()
+    for point in range(1, 6):
+        assert (tmp_path / f"points/{point:06d}/ramsey.png").stat().st_size > 1000
+    assert not (tmp_path / "figures").exists()
+
+
+@pytest.mark.parametrize("fit_kind", ["missing", "valid", "malformed"])
+def test_ramsey_figure_saves_trace_with_optional_fit_without_gui(tmp_path, fit_kind):
+    import matplotlib.pyplot as plt
+
+    delay = np.linspace(16, 3000, 50)
+    signal = .5 + .3 * np.exp(-delay / 2000) * np.cos(2*np.pi*.001*delay)
+    dataset = xr.Dataset(
+        {"state": (("qubit", "detuning_signs", "idle_time"), [[signal, signal]])},
+        coords={"qubit": ["q3"], "detuning_signs": [-1, 1], "idle_time": delay},
+    )
+    results = {"ds_raw": dataset}
+    if fit_kind == "valid":
+        results["ds_fit"] = xr.Dataset(
+            {"fit": (("qubit", "detuning_signs", "fit_vals"),
+                     [[[.3, .001, 0, .5, .0005]] * 2])},
+            coords={"qubit": ["q3"], "detuning_signs": [-1, 1],
+                    "fit_vals": ["a", "f", "phi", "offset", "decay"]},
+        )
+    elif fit_kind == "malformed":
+        results["ds_fit"] = xr.Dataset()
+    existing = plt.get_fignums()
+    render_point_figure(tmp_path, dict(point=1, qubit="q3", accepted=False,
+                                     rejection_reason="relative_uncertainty_exceeds_limit"), results)
+    assert (tmp_path / "ramsey.png").stat().st_size > 1000
+    assert plt.get_fignums() == existing

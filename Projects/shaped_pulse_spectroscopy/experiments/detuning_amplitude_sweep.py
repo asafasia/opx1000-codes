@@ -355,16 +355,16 @@ if __name__ == "__main__":
     parameters.cutoff = 0.00075
     parameters.num_shots = 200
     parameters.drag_beta = -0.25
-    parameters.lorentzian_length_in_ns = 60000
-    parameters.waveform_template_length_in_ns = 60000
+    parameters.lorentzian_length_in_ns = 20000
+    parameters.waveform_template_length_in_ns = 20000
     parameters.lorentzian_peak_amplitude = 1
     parameters.min_amp_factor = 0.0
     parameters.max_amp_factor = 1
     parameters.amp_factor_step = 1 / 100
     parameters.amp_factor_points = None
     parameters.amp_factor_spacing = "linear"
-    parameters.frequency_span_in_mhz = 0.2
-    parameters.frequency_step_in_mhz = 0.2 / 199
+    parameters.frequency_span_in_mhz = 1
+    parameters.frequency_step_in_mhz = 1.0 / 199
     parameters.frequency_points = 200
     parameters.fit_fwhm = False
 

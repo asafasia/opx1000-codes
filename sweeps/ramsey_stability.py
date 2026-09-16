@@ -111,7 +111,7 @@ class StabilitySettings:
     rolling_window: int = 20
     jump_sigma: float = 5.0
     max_relative_error: float = 0.5
-    max_consecutive_failures: int = 5
+    max_consecutive_failures: int = 15
 
     def __post_init__(self):
         for name in ("duration_seconds", "jump_sigma", "max_relative_error"):
@@ -253,7 +253,16 @@ class RamseyStabilityRun:
             stream.flush()
             os.fsync(stream.fileno())
         self.rows.append(row)
+        if self.render_reports and (not row["accepted"] or point % 15 == 0):
+            render_point_figure(directory, row, getattr(calibration, "results", {}))
         self._publish()
+        if self.render_reports and point % 15 == 0:
+            snapshots = self.run_directory / "figures"
+            snapshots.mkdir(exist_ok=True)
+            atomic_write(
+                snapshots / f"stability_{point:06d}.png",
+                (self.run_directory / "stability.png").read_bytes(),
+            )
         print(
             f"Point {point}: T2*={t2} +/- {uncertainty} us; "
             f"{'accepted' if row['accepted'] else row['rejection_reason']}",
@@ -347,6 +356,45 @@ class RamseyStabilityRun:
         finally:
             self._publish()
         return summarize(self.rows)
+
+
+def render_point_figure(directory: Path, row: dict, results: dict) -> None:
+    """Save a Ramsey trace/fit without opening a GUI, including failed fits."""
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+    from calibration_utils.ramsey.plotting import plot_individual_data_with_fit
+
+    figure = Figure(figsize=(10, 6), constrained_layout=True)
+    FigureCanvasAgg(figure)
+    ax = figure.subplots()
+    dataset = results.get("ds_raw")
+    fit = results.get("ds_fit")
+    if dataset is not None and "qubit" in dataset.dims:
+        dataset = dataset.sel(qubit=row["qubit"])
+    if fit is not None and "qubit" in fit.dims:
+        fit = fit.sel(qubit=row["qubit"])
+    if dataset is None:
+        ax.text(.5, .5, "No Ramsey trace available: acquisition did not produce data.",
+                ha="center", va="center", transform=ax.transAxes)
+        ax.set_axis_off()
+    else:
+        try:
+            plot_individual_data_with_fit(ax, dataset, {"qubit": row["qubit"]}, fit)
+        except (KeyError, ValueError, TypeError, RuntimeError):
+            # A malformed/missing fit must not prevent saving the measured trace.
+            ax.clear()
+            plot_individual_data_with_fit(ax, dataset, {"qubit": row["qubit"]})
+            ax.set_title(f"{row['qubit']} Ramsey trace (fit unavailable)")
+        ax.grid(alpha=.25)
+    status = "accepted" if row["accepted"] else "rejected"
+    figure.suptitle(f"Experiment {row['point']} — {status}")
+    if not row["accepted"]:
+        import textwrap
+
+        figure.supxlabel(textwrap.fill(row["rejection_reason"], width=100), fontsize=9)
+    buffer = io.BytesIO()
+    figure.savefig(buffer, format="png", dpi=120)
+    atomic_write(directory / "ramsey.png", buffer.getvalue())
 
 
 def render_report(directory: Path, rows: list[dict], summary: dict) -> None:
@@ -509,7 +557,7 @@ def main(argv=None) -> int:
     parser.add_argument("--rolling-window", type=int, default=20)
     parser.add_argument("--jump-sigma", type=float, default=5)
     parser.add_argument("--max-relative-error", type=float, default=0.5)
-    parser.add_argument("--max-consecutive-failures", type=int, default=5)
+    parser.add_argument("--max-consecutive-failures", type=int, default=15)
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -665,7 +713,7 @@ if __name__ == "__main__":
     settings = StabilitySettings(
         qubit="q6",
         duration_seconds=24 * 3600,
-        interval_seconds=60,
+        interval_seconds=5,
         max_points=None,  # Set a small limit for a short initial run.
         rolling_window=20,
     )
@@ -673,12 +721,12 @@ if __name__ == "__main__":
     parameters = Parameters()
     parameters.qubits = [settings.qubit]
     parameters.num_shots = 1000
-    parameters.reset_type = "thermal"
-    parameters.use_state_discrimination = False
+    parameters.reset_type = "active"
+    parameters.use_state_discrimination = True
     parameters.use_readout_mitigation = 0
     parameters.min_wait_time_in_ns = 16
-    parameters.max_wait_time_in_ns = 3000
-    parameters.wait_time_num_points = 50
+    parameters.max_wait_time_in_ns = 100000
+    parameters.wait_time_num_points = 150
     parameters.frequency_detuning_in_mhz = 1.0
     parameters.log_or_linear_sweep = "linear"
     parameters.timeout = 120

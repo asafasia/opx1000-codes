@@ -84,7 +84,7 @@
     "q6": {
       "coherence": {
         "t1_ns": 41711.94395819269,
-        "t2_ramsey_ns": 6.121784257658573e-06,
+        "t2_ramsey_ns": 7.852595794206938e-06,
         "t2_echo_ns": null
       },
       "gates": {
@@ -92,7 +92,7 @@
       },
       "readout": {
         "fidelity_percent": {
-          "active": 85.445,
+          "active": 81.795,
           "thermal": 77.56
         }
       }

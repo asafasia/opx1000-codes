@@ -301,11 +301,12 @@ if __name__ == "__main__":
 
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
-    parameters.use_readout_mitigation = False
+    parameters.use_readout_mitigation = True
 
     parameters.max_wait_time_in_ns = 250e3
     parameters.wait_time_num_points = 300
     parameters.log_or_linear_sweep = "log"
+    parameters.initial_state = "g"
 
     options = CalibrationOptions()
 
