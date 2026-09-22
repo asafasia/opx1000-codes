@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import math
 from pathlib import Path
 
 if __package__ in {None, ""}:
@@ -30,7 +31,6 @@ from qualibration_libs.parameters import get_qubits, get_idle_times_in_clock_cyc
 from qualibration_libs.runtime import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 from calibration_io import CalibrationSaver, current_profile_name
-from profiles import ProfileUpdater
 from utils.plotting_settings import plot_per_qubit
 
 if __package__ in {None, ""}:
@@ -97,8 +97,11 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
         # Class containing tools to help handle units and conversions.
         u = unit(coerce_to_integer=True)
         # Get the active qubits from the node and organize them by batches
-        node.namespace["qubits"] = qubits = get_qubits(node)
+        node.namespace["qubits"] = qubits = self.get_qubits()
         num_qubits = len(qubits)
+        node.namespace["drive_frequencies_hz"] = {
+            q.name: float(q.xy.RF_frequency) for q in qubits
+        }
 
         n_avg = node.parameters.num_shots
 
@@ -124,7 +127,7 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
 
             if node.parameters.use_state_discrimination:
                 state = [declare(int) for _ in range(num_qubits)]
-                state_st = [declare_stream() for _ in range(num_qubits)]
+                state_st = [self.declare_state_stream() for _ in range(num_qubits)]
 
             for multiplexed_qubits in qubits.batch():
                 # Initialize the QPU in terms of flux points (flux tunable transmons and/or tunable couplers)
@@ -140,11 +143,7 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
                             # Qubit initialization
                             for i, qubit in multiplexed_qubits.items():
                                 reset_frame(qubit.xy.name)
-                                qubit.reset(
-                                    node.parameters.reset_type,
-                                    node.parameters.simulate,
-                                    # log_callable=node.log,
-                                )
+                                self.reset_qubit(qubit)
                             align()
                             # Qubit manipulation
                             for i, qubit in multiplexed_qubits.items():
@@ -174,12 +173,10 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
                             align()
                             for i, qubit in multiplexed_qubits.items():
                                 if node.parameters.use_state_discrimination:
-                                    qubit.readout_state(state[i])
-                                    save(state[i], state_st[i])
+                                    self.readout_state(qubit, state[i])
+                                    self.save_readout_state(state[i], state_st[i])
                                 else:
-                                    qubit.resonator.measure(
-                                        "readout", qua_vars=(I[i], Q[i])
-                                    )
+                                    self.measure_readout(qubit, qua_vars=(I[i], Q[i]))
                                     save(I[i], I_st[i])
                                     save(Q[i], Q_st[i])
 
@@ -242,7 +239,16 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
             # Display the execution report to expose possible runtime errors
             node.log(job.execution_report())
         # Register the raw dataset
-        node.results["ds_raw"] = dataset
+        node.results["ds_raw"] = self.annotate_readout_dataset(dataset).assign_coords(
+            drive_frequency_hz=(
+                "qubit",
+                [
+                    node.namespace["drive_frequencies_hz"][str(name)]
+                    for name in dataset.qubit.values
+                ],
+            )
+        )
+        node.results["ds_raw"].drive_frequency_hz.attrs["units"] = "Hz"
 
     def save_raw_results(self):
         node = self
@@ -264,7 +270,7 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
         node.load_from_id(node.parameters.load_data_id)
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
-        node.namespace["qubits"] = get_qubits(node)
+        node.namespace["qubits"] = self.get_qubits()
 
     def analyse_data(self):
         node = self
@@ -272,6 +278,8 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
         node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
         node.results["ds_fit"], fit_results = fit_raw_data(node.results["ds_raw"], node)
         node.results["fit_results"] = {k: asdict(v) for k, v in fit_results.items()}
+
+        self._add_frequency_corrections()
 
         # Log the relevant information extracted from the data analysis
         log_fitted_results(node.results["fit_results"], log_callable=node.log)
@@ -298,33 +306,66 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
             )
             node.log(f"Calibration figures saved to {figures_directory}")
 
-    def update_state(self):
-        node = self
-        """Update the relevant parameters if the qubit data analysis was successful."""
-        with node.record_state_updates():
-            for q in node.namespace["qubits"]:
-                if node.results["fit_results"][q.name]["success"]:
-                    q.f_01 -= float(node.results["fit_results"][q.name]["freq_offset"])
-                    q.xy.RF_frequency -= float(
-                        node.results["fit_results"][q.name]["freq_offset"]
-                    )
-                    q.T2ramsey = float(node.results["fit_results"][q.name]["decay"])
+    def _add_frequency_corrections(self):
+        """Freeze absolute targets before any in-memory state update occurs."""
+        ds = self.results["ds_raw"]
+        for name, result in self.results["fit_results"].items():
+            if not result["success"]:
+                continue
+            if "drive_frequency_hz" in ds.coords:
+                source = float(ds.drive_frequency_hz.sel(qubit=name))
+            elif name in self.namespace.get("drive_frequencies_hz", {}):
+                source = self.namespace["drive_frequencies_hz"][name]
+            else:
+                self.log(
+                    f"{name}: acquisition frequency unavailable; no frequency update proposed."
+                )
+                continue
+            offset = float(result["freq_offset"])
+            target = source - offset
+            if (
+                not all(math.isfinite(value) for value in (source, offset, target))
+                or target <= 0
+            ):
+                self.log(
+                    f"{name}: invalid frequency correction; no frequency update proposed."
+                )
+                continue
+            result["drive_frequency_hz"] = source
+            result["frequency_correction_hz"] = -offset
+            result["qubit_frequency_hz"] = target
+            self.log(
+                f"{name}: Ramsey frequency proposal {source / 1e6:.6f} -> "
+                f"{target / 1e6:.6f} MHz (correction {-offset / 1e6:+.6f} MHz; "
+                f"configured virtual detuning {self.parameters.frequency_detuning_in_mhz:g} MHz)."
+            )
 
-    def propose_profile_update(self):
-        node = self
-        """Stage fitted Ramsey T2 values in profile metrics."""
-        updates = {
-            f"metrics.json.qubits.{q.name}.coherence.t2_ramsey_ns": float(
-                node.results["fit_results"][q.name]["decay"]
+    def update_state(self):
+        """Apply absolute fitted targets in memory without subtracting twice."""
+        with self.record_state_updates():
+            for q in self.namespace["qubits"]:
+                result = self.results["fit_results"][q.name]
+                if result["success"]:
+                    if "qubit_frequency_hz" in result:
+                        q.f_01 = float(result["qubit_frequency_hz"])
+                        q.xy.RF_frequency = float(result["qubit_frequency_hz"])
+                    q.T2ramsey = float(result["decay"])
+
+    def profile_updates(self):
+        """Include the signed Ramsey correction in the shared yes/no proposal."""
+        updates = {}
+        for name, result in self.results.get("fit_results", {}).items():
+            if not result["success"]:
+                continue
+            updates[f"metrics.json.qubits.{name}.coherence.t2_ramsey_ns"] = float(
+                result["decay"]
             )
-            for q in node.namespace["qubits"]
-            if node.outcomes[q.name] == "successful"
-        }
-        if updates:
-            proposal = ProfileUpdater().stage(
-                node.name, updates, profile_name=current_profile_name()
-            )
-            ProfileUpdater().confirm_and_apply(proposal)
+            target = result.get("qubit_frequency_hz")
+            if target is not None and math.isfinite(target) and target > 0:
+                updates[f"qubits.json.qubits.{name}.frequencies_hz.qubit_f01"] = float(
+                    target
+                )
+        return updates
 
 
 if __name__ == "__main__":
@@ -344,6 +385,6 @@ if __name__ == "__main__":
     calibration = Ramsey(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q6"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

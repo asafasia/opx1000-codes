@@ -34,7 +34,7 @@ def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.D
     for ax, qubit in grid_iter(grid):
         plot_individual_data_with_fit(ax, ds, qubit, fits.sel(qubit=qubit["qubit"]))
 
-    grid.fig.suptitle("T1 vs. idle time")
+    grid.fig.suptitle(f"{fits.attrs.get('t1_label', 'T1')} vs. idle time")
     grid.fig.set_size_inches(*FIGURE_SIZE)
     grid.fig.tight_layout()
     return grid.fig
@@ -105,7 +105,7 @@ def _add_fit_text(ax, fit):
     ax.text(
         0.1,
         0.9,
-        f"T1 = {1e-3 * fit.tau.values:.1f} ± {1e-3 * fit.tau_error.values:.1f} µs\nSuccess: {fit.success.values}",
+        f"{fit.attrs.get('t1_label', 'T1')} = {1e-3 * fit.tau.values:.1f} ± {1e-3 * fit.tau_error.values:.1f} µs\nSuccess: {fit.success.values}",
         transform=ax.transAxes,
         fontsize=10,
         verticalalignment="top",

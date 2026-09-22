@@ -25,7 +25,7 @@ class PiTrainTests(unittest.TestCase):
         self.assertIn("with for_(count, 0, count < pulse_count, count + 1):", self.source)
         self.assertIn("operation = node.parameters.operation", self.source)
         self.assertIn("qubit.xy.play(operation)", self.source)
-        self.assertIn("node.parameters.reset_type", self.source)
+        self.assertIn("self.reset_qubit(qubit)", self.source)
         self.assertNotIn("qubit.reset(10000)", self.source)
 
     def test_parameters_offer_pi_and_pi_over_two_gates(self):
@@ -37,8 +37,8 @@ class PiTrainTests(unittest.TestCase):
 
     def test_sequence_supports_state_and_iq_readout(self):
         self.assertIn("if node.parameters.use_state_discrimination:", self.source)
-        self.assertIn("qubit.readout_state(state[i])", self.source)
-        self.assertIn('save(f"state{i + 1}")', self.source)
+        self.assertIn("self.readout_state(qubit, state[i])", self.source)
+        self.assertIn('f"state{i + 1}"', self.source)
         self.assertIn('save(f"I{i + 1}")', self.source)
         self.assertIn('save(f"Q{i + 1}")', self.source)
 

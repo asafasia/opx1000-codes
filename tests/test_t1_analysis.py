@@ -23,6 +23,56 @@ def make_fit(decay):
 
 
 class T1AnalysisTests(unittest.TestCase):
+    def test_ground_population_fit_recovers_rise_with_free_offset(self):
+        rng = np.random.default_rng(21)
+        for idle_time in (np.linspace(16, 250_000, 300), np.geomspace(16, 250_000, 300)):
+            with self.subTest(log_sweep=idle_time[1] < 100):
+                expected_tau = np.array([30_000.0, 55_000.0])
+                expected_offset = np.array([0.1, 0.17])
+                expected_amplitude = np.array([-0.095, -0.15])
+                population = (
+                    expected_amplitude[:, None] * np.exp(-idle_time / expected_tau[:, None])
+                    + expected_offset[:, None]
+                    + rng.normal(0, 0.001, (2, idle_time.size))
+                )
+                ds = xr.Dataset(
+                    {"state": (("qubit", "idle_time"), population)},
+                    coords={"qubit": ["q1", "q2"], "idle_time": idle_time},
+                )
+                node = SimpleNamespace(
+                    parameters=SimpleNamespace(use_state_discrimination=True, initial_state="g"),
+                    log=lambda message: None,
+                )
+
+                fit, results = fit_raw_data(ds, node)
+
+                np.testing.assert_allclose(fit.tau, expected_tau, rtol=0.03)
+                np.testing.assert_allclose(fit.fit_data.sel(fit_vals="offset"), expected_offset, atol=0.002)
+                np.testing.assert_allclose(fit.fit_data.sel(fit_vals="a"), expected_amplitude, atol=0.002)
+                self.assertTrue(all(result.success for result in results.values()))
+                self.assertTrue(bool((fit.tau_error > 0).all()))
+
+    def test_flat_ground_trace_does_not_abort_other_qubits(self):
+        idle_time = np.linspace(16, 250_000, 100)
+        ds = xr.Dataset(
+            {"state": (("qubit", "idle_time"), [
+                np.full(idle_time.size, 0.1),
+                0.1 - 0.1 * np.exp(-idle_time / 30_000),
+            ])},
+            coords={"qubit": ["q1", "q2"], "idle_time": idle_time},
+        )
+        node = SimpleNamespace(
+            parameters=SimpleNamespace(use_state_discrimination=True, initial_state="g"),
+            log=lambda message: None,
+        )
+
+        fit, results = fit_raw_data(ds, node)
+
+        self.assertFalse(results["q1"].success)
+        self.assertTrue(np.isnan(float(fit.sel(qubit="q1").tau)))
+        self.assertTrue(results["q2"].success)
+        self.assertAlmostEqual(results["q2"].t1_ge, 30_000, places=1)
+
     def test_failed_fit_is_marked_failed_without_raising(self):
         idle_time = np.arange(20.0)
         ds = xr.Dataset(

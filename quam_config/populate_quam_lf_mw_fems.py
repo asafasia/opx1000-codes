@@ -20,9 +20,10 @@ from quam.components.pulses import (
 )
 
 from profiles import MAX_PROFILE_PULSE_AMPLITUDE, ProfileError, load_profile
-from profiles.loader import PROFILES_ROOT
+from profiles.loader import PROFILES_ROOT, selected_readout_pulse
 from quam_config import Quam
 from quam_config.derived_gates import add_derived_single_qubit_gates
+from quam_config.readout_pulses import FlatTopGaussianReadoutPulse
 
 
 DEFAULT_PROFILE = "main"
@@ -65,6 +66,11 @@ def _apply_transmon_times(
     ):
         _optional_assign(qubit, quam_attribute, _coherence_seconds(source.get(profile_key)))
 
+    # T1_ge is a separate measurement and must not alter T1-based reset timing.
+    t1_ge_ns = source.get("t1_ge_ns")
+    if t1_ge_ns is not None and np.isfinite(t1_ge_ns) and t1_ge_ns > 0:
+        qubit.extras["T1_ge"] = float(t1_ge_ns) * 1e-9
+
     reference_t1_s = _coherence_seconds(source.get("t1_ns")) or 10e-6
     reference_t1_ns = reference_t1_s * 1e9
     requested_thermalization_ns = transmon["thermalization_time_ns"]
@@ -86,7 +92,7 @@ def _optimized_kernel_segments(
     pulse_name: str,
     pulse: dict[str, Any],
 ) -> list[list[float | int]]:
-    kernel_path = profile_root / profile_name / "kernels" / f"{qubit_name}_readout_kernel.npz"
+    kernel_path = profile_root / profile_name / "kernels" / f"{qubit_name}_{pulse_name}_kernel.npz"
     if not kernel_path.is_file():
         raise ProfileError(
             f"{qubit_name}.{pulse_name} has readout.use_kernel=true, but optimized kernel "
@@ -125,9 +131,10 @@ def _readout_integration_weights(
     pulse_name: str,
     pulse: dict[str, Any],
     readout: dict[str, Any],
-) -> list[list[float | int]]:
+) -> str | list[list[float | int]]:
     if not readout.get("use_kernel", False):
-        return pulse["integration_weights"]
+        # QuAM resolves this property whenever needed, so length changes stay in sync.
+        return "#./default_integration_weights"
     return _optimized_kernel_segments(
         profile_name=profile_name,
         profile_root=profile_root,
@@ -144,6 +151,7 @@ def _create_pulse(
     readout: dict[str, Any],
     profile_name: str,
     profile_root: Path,
+    kernel_pulse_name: str | None = None,
 ):
     if abs(pulse["amplitude"]) > MAX_PROFILE_PULSE_AMPLITUDE:
         raise ProfileError(
@@ -159,7 +167,11 @@ def _create_pulse(
     axis_angle = pulse.get("axis_angle_rad")
 
     if pulse["target"] == "resonator":
-        return SquareReadoutPulse(
+        pulse_class = SquareReadoutPulse
+        if pulse["type"] == "flat_top_gaussian":
+            pulse_class = FlatTopGaussianReadoutPulse
+            common["edge_length_ns"] = pulse.get("edge_length_ns", 100)
+        return pulse_class(
             **common,
             digital_marker=pulse.get("digital_marker", "ON"),
             axis_angle=axis_angle,
@@ -169,7 +181,7 @@ def _create_pulse(
                 profile_name=profile_name,
                 profile_root=profile_root,
                 qubit_name=qubit.name,
-                pulse_name=pulse_name,
+                pulse_name=kernel_pulse_name or pulse_name,
                 pulse=pulse,
                 readout=readout,
             ),
@@ -266,6 +278,12 @@ def apply_profile(
             "gef_frequency_shift_hz",
             0,
         )
+        qubit.resonator.readout_ge = dict(readout)
+        if "readout_gef" in settings:
+            qubit.resonator.readout_gef = dict(settings["readout_gef"])
+            qubit.resonator.GEF_frequency_shift = (
+                settings["readout_gef"]["frequency_hz"] - frequencies["resonator"]
+            )
         qubit.resonator.gef_centers = readout.get("gef_centers")
         qubit.resonator.use_kernel = bool(readout.get("use_kernel", False))
         # QUA readout macros usually receive only a qubit, so mirror the
@@ -287,14 +305,19 @@ def apply_profile(
 
         qubit.xy.operations.clear()
         qubit.resonator.operations.clear()
+        qubit.resonator.readout_pulse_names = {}
         for operation_name, pulse_name in settings["operations"].items():
+            pulse_name = selected_readout_pulse(profile["manifest"], settings["operations"], operation_name)
+            if operation_name in {"readout", "readout_GEF"}:
+                qubit.resonator.readout_pulse_names[operation_name] = pulse_name
             pulse = _create_pulse(
                 pulse_name,
                 qubit_pulse_profiles[pulse_name],
                 qubit,
-                readout,
+                settings["readout_gef"] if operation_name == "readout_GEF" else readout,
                 profile_name,
                 profile_root,
+                kernel_pulse_name=operation_name if operation_name in {"readout", "readout_GEF"} else None,
             )
             target_operations = (
                 qubit.resonator.operations

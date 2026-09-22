@@ -111,7 +111,8 @@ def main() -> int:
         readout.length = int(args.readout_length_ns)
 
     if args.flat_integration_weights:
-        readout.integration_weights = [[1.0, int(readout.length)]]
+        readout.integration_weights = None
+        readout.integration_weights = "#./default_integration_weights"
         readout.integration_weights_angle = 0.0
     elif args.readout_length_ns is not None:
         remaining = int(readout.length)
@@ -127,6 +128,7 @@ def main() -> int:
                 "Existing integration weights do not cover requested readout length "
                 f"{readout.length} ns."
             )
+        readout.integration_weights = None
         readout.integration_weights = truncated_weights
 
     if args.dry_run:

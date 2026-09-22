@@ -12,7 +12,7 @@
       "EF_x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.014802869927137885,
+        "amplitude": 0.0362158703504118,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -22,22 +22,22 @@
         "amplitude": 0.6458004921713766,
         "length_ns": 40,
         "sigma_ns": 4,
-        "beta": 1.160000000000002,
+        "beta": 1.1000000000000019,
         "detuning_hz": 0,
         "axis_angle_rad": 0
       },
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.4563514501054948,
+        "amplitude": 0.4571135211323505,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
       "saturation": {
         "target": "qubit",
         "type": "saturation",
-        "amplitude": 0.5,
-        "length_ns": 50000,
+        "amplitude": 1,
+        "length_ns": 100000,
         "axis_angle_rad": 0
       },
       "readout": {
@@ -45,13 +45,30 @@
         "type": "constant",
         "amplitude": 0.1,
         "length_ns": 2000,
+        "digital_marker": "ON"
+      },
+      "readout_GEF": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.1,
+        "length_ns": 2000,
+        "digital_marker": "ON"
+      },
+      "readout_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.1,
+        "length_ns": 2000,
         "digital_marker": "ON",
-        "integration_weights": [
-          [
-            1,
-            2000
-          ]
-        ]
+        "edge_length_ns": 100
+      },
+      "readout_GEF_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.1,
+        "length_ns": 2000,
+        "digital_marker": "ON",
+        "edge_length_ns": 100
       }
     },
     "q2": {
@@ -98,13 +115,30 @@
         "type": "constant",
         "amplitude": 0.1,
         "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_GEF": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.1,
+        "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.1,
+        "length_ns": 3000,
         "digital_marker": "ON",
-        "integration_weights": [
-          [
-            1,
-            3000
-          ]
-        ]
+        "edge_length_ns": 100
+      },
+      "readout_GEF_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.1,
+        "length_ns": 3000,
+        "digital_marker": "ON",
+        "edge_length_ns": 100
       }
     },
     "q3": {
@@ -151,13 +185,30 @@
         "type": "constant",
         "amplitude": 0.07,
         "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_GEF": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.07,
+        "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.07,
+        "length_ns": 3000,
         "digital_marker": "ON",
-        "integration_weights": [
-          [
-            1,
-            3000
-          ]
-        ]
+        "edge_length_ns": 100
+      },
+      "readout_GEF_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.07,
+        "length_ns": 3000,
+        "digital_marker": "ON",
+        "edge_length_ns": 100
       }
     },
     "q4": {
@@ -204,13 +255,30 @@
         "type": "constant",
         "amplitude": 0.1,
         "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_GEF": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.1,
+        "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.1,
+        "length_ns": 3000,
         "digital_marker": "ON",
-        "integration_weights": [
-          [
-            1,
-            3000
-          ]
-        ]
+        "edge_length_ns": 100
+      },
+      "readout_GEF_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.1,
+        "length_ns": 3000,
+        "digital_marker": "ON",
+        "edge_length_ns": 100
       }
     },
     "q5": {
@@ -257,13 +325,30 @@
         "type": "constant",
         "amplitude": 0.15,
         "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_GEF": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.15,
+        "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.15,
+        "length_ns": 3000,
         "digital_marker": "ON",
-        "integration_weights": [
-          [
-            1,
-            3000
-          ]
-        ]
+        "edge_length_ns": 100
+      },
+      "readout_GEF_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.15,
+        "length_ns": 3000,
+        "digital_marker": "ON",
+        "edge_length_ns": 100
       }
     },
     "q6": {
@@ -277,46 +362,63 @@
       "EF_x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.1,
+        "amplitude": 0.1485358601731476,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
       "x180_drag": {
         "target": "qubit",
         "type": "drag",
-        "amplitude": 0.1,
+        "amplitude": 0.8259381595321322,
         "length_ns": 40,
         "sigma_ns": 4,
-        "beta": 0,
+        "beta": 0.08000000000000096,
         "detuning_hz": 0,
         "axis_angle_rad": 0
       },
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.7,
+        "amplitude": 0.42236867728681726,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
       "saturation": {
         "target": "qubit",
         "type": "saturation",
-        "amplitude": 0.1,
-        "length_ns": 50000,
+        "amplitude": 1,
+        "length_ns": 100000,
         "axis_angle_rad": 0
       },
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.2376731301939058,
+        "amplitude": 0.2733333333333334,
         "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_GEF": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.3,
+        "length_ns": 2000,
+        "digital_marker": "ON"
+      },
+      "readout_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.3,
+        "length_ns": 2000,
         "digital_marker": "ON",
-        "integration_weights": [
-          [
-            1,
-            3000
-          ]
-        ]
+        "edge_length_ns": 500
+      },
+      "readout_GEF_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.3,
+        "length_ns": 2000,
+        "digital_marker": "ON",
+        "edge_length_ns": 100
       }
     },
     "q7": {
@@ -363,13 +465,30 @@
         "type": "constant",
         "amplitude": 0.15,
         "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_GEF": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.15,
+        "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.15,
+        "length_ns": 3000,
         "digital_marker": "ON",
-        "integration_weights": [
-          [
-            1,
-            3000
-          ]
-        ]
+        "edge_length_ns": 100
+      },
+      "readout_GEF_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.15,
+        "length_ns": 3000,
+        "digital_marker": "ON",
+        "edge_length_ns": 100
       }
     },
     "q8": {
@@ -416,13 +535,30 @@
         "type": "constant",
         "amplitude": 0.15,
         "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_GEF": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.15,
+        "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.15,
+        "length_ns": 3000,
         "digital_marker": "ON",
-        "integration_weights": [
-          [
-            1,
-            3000
-          ]
-        ]
+        "edge_length_ns": 100
+      },
+      "readout_GEF_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.15,
+        "length_ns": 3000,
+        "digital_marker": "ON",
+        "edge_length_ns": 100
       }
     },
     "q9": {
@@ -469,13 +605,30 @@
         "type": "constant",
         "amplitude": 0.207202216066482,
         "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_GEF": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.207202216066482,
+        "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.207202216066482,
+        "length_ns": 3000,
         "digital_marker": "ON",
-        "integration_weights": [
-          [
-            1,
-            3000
-          ]
-        ]
+        "edge_length_ns": 100
+      },
+      "readout_GEF_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.207202216066482,
+        "length_ns": 3000,
+        "digital_marker": "ON",
+        "edge_length_ns": 100
       }
     },
     "q10": {
@@ -522,13 +675,30 @@
         "type": "constant",
         "amplitude": 0.07,
         "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_GEF": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.07,
+        "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.07,
+        "length_ns": 3000,
         "digital_marker": "ON",
-        "integration_weights": [
-          [
-            1,
-            3000
-          ]
-        ]
+        "edge_length_ns": 100
+      },
+      "readout_GEF_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.07,
+        "length_ns": 3000,
+        "digital_marker": "ON",
+        "edge_length_ns": 100
       }
     },
     "q11": {
@@ -575,13 +745,30 @@
         "type": "constant",
         "amplitude": 0.1,
         "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_GEF": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.1,
+        "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.1,
+        "length_ns": 3000,
         "digital_marker": "ON",
-        "integration_weights": [
-          [
-            1,
-            3000
-          ]
-        ]
+        "edge_length_ns": 100
+      },
+      "readout_GEF_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.1,
+        "length_ns": 3000,
+        "digital_marker": "ON",
+        "edge_length_ns": 100
       }
     },
     "q12": {
@@ -628,13 +815,30 @@
         "type": "constant",
         "amplitude": 0.12,
         "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_GEF": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.12,
+        "length_ns": 3000,
+        "digital_marker": "ON"
+      },
+      "readout_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.12,
+        "length_ns": 3000,
         "digital_marker": "ON",
-        "integration_weights": [
-          [
-            1,
-            3000
-          ]
-        ]
+        "edge_length_ns": 100
+      },
+      "readout_GEF_flattop": {
+        "target": "resonator",
+        "type": "flat_top_gaussian",
+        "amplitude": 0.12,
+        "length_ns": 3000,
+        "digital_marker": "ON",
+        "edge_length_ns": 100
       }
     }
   }

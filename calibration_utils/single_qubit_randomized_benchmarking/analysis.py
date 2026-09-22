@@ -1,3 +1,4 @@
+from utils.experiment_readout import ground_population
 import logging
 from dataclasses import dataclass
 from typing import Tuple, Dict
@@ -5,7 +6,7 @@ import numpy as np
 import xarray as xr
 
 from qualibrate import QualibrationNode
-from qualibration_libs.data import convert_IQ_to_V
+from utils.experiment_readout import convert_IQ_to_V
 from qualibration_libs.analysis import fit_decay_exp
 
 
@@ -74,7 +75,7 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     """
     ds_fit = ds
     if node.parameters.use_state_discrimination:
-        ds_fit["population"] = 1 - ds.state
+        ds_fit["population"] = ground_population(ds)
         ds_fit["averaged_data"] = ds_fit.population.mean(dim="nb_of_sequences")
     else:
         ds_fit["averaged_data"] = 1 - ds.I.mean(dim="nb_of_sequences")
@@ -151,7 +152,7 @@ def _estimate_fidelity_std(
     if hasattr(fit, "population"):
         sequence_data = fit.population
     elif hasattr(fit, "state"):
-        sequence_data = 1 - fit.state
+        sequence_data = ground_population(fit)
     elif hasattr(fit, "I"):
         sequence_data = 1 - fit.I
     else:

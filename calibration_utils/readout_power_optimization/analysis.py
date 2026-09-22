@@ -1,3 +1,4 @@
+from utils.experiment_readout import selected_readout_frequency
 import logging
 from dataclasses import dataclass
 from typing import Tuple, Dict
@@ -6,7 +7,7 @@ import xarray as xr
 from sklearn.mixture import GaussianMixture
 
 from qualibrate import QualibrationNode
-from qualibration_libs.data import convert_IQ_to_V
+from utils.experiment_readout import convert_IQ_to_V
 from calibration_utils.iq_blobs import fit_raw_data as fit_iq_blobs
 from calibration_utils.iq_blobs.analysis import FitParameters as FitParametersIQblobs
 
@@ -50,7 +51,7 @@ def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
     ds = convert_IQ_to_V(ds, node.namespace["qubits"], IQ_list=["Ig", "Qg", "Ie", "Qe"])
     # Add the absolute readout power to the dataset
     readout_amplitudes = np.array(
-        [ds.amp_prefactor * q.resonator.operations["readout"].amplitude for q in node.namespace["qubits"]]
+        [ds.amp_prefactor * q.resonator.operations[getattr(q.resonator, "selected_readout_operation", "readout")].amplitude for q in node.namespace["qubits"]]
     )
     ds = ds.assign_coords(readout_amplitude=(["qubit", "amp_prefactor"], readout_amplitudes))
     ds.readout_amplitude.attrs = {"long_name": "readout amplitude", "units": "V"}

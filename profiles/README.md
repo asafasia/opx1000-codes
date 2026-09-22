@@ -30,6 +30,12 @@ experiments use this value through `qubit.reset_qubit_thermal()`. Because QuAM
 represents thermalization as an integer multiple of T1, the configured value
 must be an integer multiple of `t1_ns`, or of 10,000 ns when T1 is unknown.
 
+T1 runs with `initial_state="e"` retain the standard `coherence.t1_ns`
+metric and `qubit.T1`. Runs with `initial_state="g"` save their fitted rise
+constant separately as `T1_ge`, using `coherence.t1_ge_ns` in `metrics.json`
+and `qubit.extras["T1_ge"]` in seconds in QuAM snapshots. This optional metric
+does not affect the standard T1 or thermalization timing.
+
 Readout acquisition timing is configured per qubit with
 `readout.time_of_flight_ns`, `readout.smearing_ns`, and
 `readout.depletion_time_ns`. The profile population step applies these values
@@ -41,7 +47,7 @@ MW-FEM acquisition gain is configured per physical input as
 all resonators sharing that physical input use the same gain.
 
 The profile-level `readout_discriminator` selects the QUA state classifier for
-all qubits. `"quam"` keeps the QuAM-provided readout methods and is the default.
+all qubits. `"quam"` selects binary I-threshold discrimination and is the default.
 `"nearest_center"` selects the repository macro, which assigns the measured IQ
 point to the nearest calibrated blob center. The optional per-qubit
 `readout.gef_centers` contains either the G/E centers (2x2) or G/E/F centers
@@ -57,7 +63,8 @@ Pulse definitions are grouped by qubit name in `pulses.json`. Each qubit
 references pulse names from its own group under `operations`, so the same
 operation names can be calibrated independently. Supported pulse types are:
 
-- `constant`: rectangular envelope; the only allowed resonator/readout type.
+- `constant`: rectangular envelope for qubit control or readout.
+- `flat_top_gaussian`: readout envelope with Gaussian edges; `edge_length_ns` defaults to 100 ns.
 - `drag`: requires `sigma_ns`, `beta`, and `detuning_hz`.
 - `cosine`: cosine-shaped qubit-control envelope.
 - `saturation`: long constant qubit drive.
@@ -69,22 +76,77 @@ builder from applying unsafe profile values. If a calibration proposes a larger
 amplitude, review the profile, full-scale power, and calibration result before
 changing the limit.
 
-Readout pulses define piecewise-constant integration kernels as
-`integration_weights: [[weight, length_ns], ...]`. The segment lengths must
-span the full readout pulse. The per-qubit
-`readout.integration_weights_angle_rad` rotates this kernel when the QuAM
-configuration is generated.
+Select the readout pulses in `profile.json`, next to `readout_discriminator`:
+
+```json
+"readout_discriminator": "nearest_center",
+"readout_pulse": "readout_flattop",
+"readout_gef_pulse": "readout_GEF"
+```
+
+- `readout_pulse`: `"readout"` (square) or `"readout_flattop"` (Gaussian edges).
+- `readout_gef_pulse`: `"readout_GEF"` (square) or `"readout_GEF_flattop"` (Gaussian edges).
+
+These choices apply to every selected qubit in that profile. Experiment operation
+names remain `readout` and `readout_GEF`; rebuilding the machine applies the
+selection automatically. Profiles without these selectors retain their existing
+per-qubit operation mappings.
+
+Each shape has a separate entry under `pulses.json.pulses.<qubit>`, with its own
+amplitude and length. For example, `readout_flattop` contains:
+
+```json
+{
+  "target": "resonator",
+  "type": "flat_top_gaussian",
+  "amplitude": 0.1,
+  "length_ns": 2000,
+  "edge_length_ns": 100,
+  "digital_marker": "ON"
+}
+```
+
+Amplitude calibration proposals target the selected pulse definition. GE and GEF
+retain their respective readout settings and frequencies. Optimized kernel files
+remain keyed by the experiment operation (`readout` or `readout_GEF`); switching
+shape does not select a separate stored IQ calibration or kernel. Recalibrate
+those for the newly selected shape before using discrimination or optimized weights.
+
+`length_ns` includes both edges: this example has a 100 ns rise, an 1800 ns
+plateau, and a 100 ns fall. Gaussian sigma is `edge_length_ns / 5`.
+The amplitude is the plateau amplitude; no area normalization is applied.
+Edge and total durations must be multiples of 4 ns, with a positive plateau;
+total duration must be at least 16 ns. The Gaussian readout amplitude is capped
+at 0.7. Each readout mode selects its shape independently.
+
+Changing shape or edge duration changes the IQ response. Recalibrate IQ blobs
+with thermal reset and, if used, optimized integration weights before relying
+on the new pulse for discrimination. Recorded IQ calibration signatures include
+the Gaussian shape and edge duration. Use a square pulse for time-of-flight
+calibration; the MW-FEM diagnostic can override either profile shape locally.
+
+Readout pulse entries do not need `integration_weights`. With `use_kernel: false`,
+QuAM automatically uses constant unit weights across the full pulse length,
+including both Gaussian edges when selected. The weights also follow changes to
+`pulse.length` in memory. The per-qubit `integration_weights_angle_rad` still
+rotates the weights. Legacy inline `integration_weights` fields are ignored.
+When assigning custom weights directly to a QuAM pulse, clear its automatic
+reference first (`pulse.integration_weights = None`), then assign the segments.
 
 The optional `readout.confusion_matrix` is the 2x2 assignment matrix produced
 by binary IQ-blobs analysis. Rows identify prepared `g/e` states and columns
 identify discriminated `g/e` states. It is loaded onto the resonator for
 readout-error mitigation.
 
-Set `qubits.json.qubits.<qubit>.readout.use_kernel` to choose the kernel source
-for the default readout operation. `false` uses the basic `pulses.json`
-`integration_weights`. `true` loads the optimized kernel from
-`profiles/<profile>/kernels/<qubit>_readout_kernel.npz`; that kernel must span
-the readout pulse length.
+Set `qubits.json.qubits.<qubit>.readout.use_kernel` for GE readout, or
+`readout_gef.use_kernel` for GEF readout:
+
+- `false`: automatically use constant integration weights spanning the pulse.
+- `true`: load the optimized `profile_kernel` and `time_ns` arrays from
+  `profiles/<profile>/kernels/<qubit>_<pulse_name>_kernel.npz`
+  (normally `<qubit>_readout_kernel.npz` or `<qubit>_readout_GEF_kernel.npz`).
+  The saved kernel must span the selected pulse length; missing or mismatched
+  kernels produce an error.
 
 Validate the main profile:
 
@@ -388,10 +450,10 @@ unit-suffixed field:
 }
 ```
 
-The hardware output is deliberately not part of the profile: channel 0 is
+The hardware output is deliberately not part of the profile: channel 0 (physical output 1) is
 hardcoded in `ArduinoDCBias` and shared by every qubit. Use
 `machine.dc_bias.applied_for_qubit("q3")` to apply the selected qubit's voltage
-and reliably return channel 0 to zero afterward.
+and reliably return channel 0 (physical output 1) to zero afterward.
 
 ## Recommended Workflow
 
@@ -417,3 +479,43 @@ python apps/profile_studio/server.py
 Then open <http://127.0.0.1:8766>. The HTML editor exposes the profile files as
 Profile, Qubits, Pulses, and Connectivity tabs and saves changes back to the
 selected profile JSON.
+
+
+## Two readout modes
+
+Experiments select `parameters.readout_states = ["g", "e"]` (default) or
+`["g", "e", "f"]`. The selection chooses the measurement pulse, its IQ centers,
+frequency, and active-reset basis together. `reset_type="active"` is sufficient;
+`active_gef` is a legacy alias and also follows `readout_states`.
+
+| Setting | G/E | G/E/F |
+| --- | --- | --- |
+| Operation / pulse in `pulses.json` | `readout` | `readout_GEF` |
+| RF frequency in `qubits.json` | `frequencies_hz.resonator` | `readout_gef.frequency_hz` |
+| Amplitude / duration | `pulses.<qubit>.readout.amplitude` / `length_ns` | `pulses.<qubit>.readout_GEF.amplitude` / `length_ns` |
+| Centers / assignment matrix | `readout.gef_centers` / `confusion_matrix` | `readout_gef.gef_centers` / `confusion_matrix` |
+| Angle / depletion / kernel switch | `readout` section | `readout_gef` section |
+| Optimized kernel file | `kernels/<qubit>_readout_kernel.npz` | `kernels/<qubit>_readout_GEF_kernel.npz` |
+
+Both centers arrays use demodulation units; their row order is G/E or G/E/F.
+The legacy name `readout.gef_centers` is retained for compatibility but belongs
+to the GE pulse. It is never used as the new GEF pulse's calibration. GEF uses
+nearest-center classification. Time of flight, smearing, ports, LO, and input
+gain remain shared resonator/hardware settings.
+
+New GEF pulses start with a copy of the existing amplitude and length, flat
+weights, zero integration angle, and the existing resonator frequency plus
+its legacy GEF shift. These are initial settings, not a calibrated GEF readout.
+The new GEF centers and confusion matrix are deliberately null. Tune frequency,
+amplitude, and duration, then acquire all three IQ clouds using thermal reset.
+Changing the length also requires integration weights covering the new length;
+optimized kernels must be recalibrated for that duration.
+
+Profiles with missing centers can load for calibration. Discrimination and
+active reset reject a mode without its calibrated centers. New IQ calibrations
+also save `calibration_signature`; a change to frequency, amplitude, duration,
+weights, integration angle, acquisition timing, smearing, input gain, or output power rejects the stale
+calibration. Older GE calibrations without this signature remain readable.
+Readout tuning proposals clear the selected mode's centers/matrix, requiring
+fresh IQ calibration before discrimination. Check profile proposals before
+applying them; no hardware calibration is launched by changing these files.

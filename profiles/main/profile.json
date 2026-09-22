@@ -3,6 +3,8 @@
   "name": "main",
   "description": "Primary OPX1000 profile for the multi-qubit device.",
   "readout_discriminator": "quam",
+  "readout_pulse": "readout_flattop",
+  "readout_gef_pulse": "readout_GEF",
   "files": {
     "connectivity": "connectivity.json",
     "qubits": "qubits.json",

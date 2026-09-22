@@ -1,31 +1,20 @@
-import unittest
-from pathlib import Path
+from importlib import import_module
+from types import SimpleNamespace
+import pytest
+from quam_config import create_machine
 
-
-REPOSITORY_ROOT = Path(__file__).parent.parent
-
-
-class ReadoutPowerProfileUpdateTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.source = (
-            REPOSITORY_ROOT / "calibrations" / "08b_readout_power_optimization.py"
-        ).read_text()
-
-    def test_profile_update_stages_optimized_readout_amplitude(self):
-        self.assertIn("pulses.json.pulses.{q.name}.readout.amplitude", self.source)
-        self.assertIn('fit_result["optimal_amplitude"]', self.source)
-        self.assertIn("ProfileUpdater().stage", self.source)
-        self.assertIn("ProfileUpdater().confirm_and_apply(proposal)", self.source)
-
-    def test_profile_update_keeps_reset_specific_fidelity_metric(self):
-        self.assertIn('node.parameters.reset_type in {"active", "thermal"}', self.source)
-        self.assertIn(
-            "metrics.json.qubits.{q.name}.readout.fidelity_percent.{node.parameters.reset_type}",
-            self.source,
-        )
-        self.assertIn('fit_result["readout_fidelity"]', self.source)
-
-
-if __name__ == "__main__":
-    unittest.main()
+@pytest.mark.parametrize("states, section, pulse", [(["g","e"],"readout","readout"),(["g","e","f"],"readout_gef","readout_GEF")])
+def test_power_update_targets_only_selected_pulse_and_invalidates_centers(states, section, pulse):
+    module = import_module("calibrations.08b_readout_power_optimization")
+    machine = create_machine(profile_name="single_qubit", qubit="q1")
+    node = module.ReadoutPowerOptimization(parameters=module.Parameters(readout_states=states), machine=machine)
+    node.namespace["qubits"] = [machine.qubits["q1"]]
+    node.outcomes = {"q1":"successful"}
+    node.results["fit_results"] = {"q1":{"optimal_amplitude":.12,"readout_fidelity":95}}
+    updates = node.profile_updates()
+    selected_pulse = machine.qubits["q1"].resonator.readout_pulse_names[pulse]
+    assert updates[f"pulses.json.pulses.q1.{selected_pulse}.amplitude"] == .12
+    assert updates[f"qubits.json.qubits.q1.{section}.gef_centers"] is None
+    assert updates[f"qubits.json.qubits.q1.{section}.confusion_matrix"] is None
+    if len(states)==2:
+        assert updates["metrics.json.qubits.q1.readout.fidelity_percent.thermal"] == 95

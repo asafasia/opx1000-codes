@@ -1,4 +1,5 @@
 from typing import Optional
+from pydantic import Field
 from qualibrate import NodeParameters
 from qualibrate.core.parameters import RunnableParameters
 from qualibration_libs.parameters import CommonNodeParameters
@@ -10,6 +11,8 @@ class NodeSpecificParameters(RunnableParameters):
     """Transition to scan: "ge" for |g>->|e>, or "ef" for |e>->|f>. Default is "ge"."""
     num_shots: int = 1000
     """Number of averages to perform. Default is 100."""
+    target_frequency_in_mhz: Optional[float] = Field(default=None, gt=0, allow_inf_nan=False)
+    """Absolute spectroscopy scan center in MHz; None uses the configured GE/EF frequency."""
     frequency_span_in_mhz: float = 500
     """Span of frequencies to sweep in MHz. Default is 100 MHz."""
     frequency_step_in_mhz: float = 0.5

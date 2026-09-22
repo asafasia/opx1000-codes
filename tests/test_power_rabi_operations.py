@@ -26,7 +26,7 @@ class PowerRabiOperationTests(unittest.TestCase):
         ).read_text()
 
         self.assertIn('operation.startswith("x180_")', source)
-        self.assertIn("ensure_operation_available(qubit, operation, node.parameters.transition)", source)
+        self.assertIn("ensure_operation_available(qubit, operation, self.parameters.transition)", source)
 
 
 if __name__ == "__main__":

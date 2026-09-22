@@ -30,7 +30,6 @@ from calibration_utils.power_rabi import (
 from profiles import load_profile
 from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
-from utils.readout_macro import active_reset_configured, readout_state_configured
 
 if __package__ in {None, ""}:
     from calibrations.core import BaseCalibration, CalibrationOptions
@@ -68,17 +67,6 @@ def validate_readout_dataset(ds: xr.Dataset, use_state_discrimination: bool) -> 
 def active_operation(parameters: Parameters) -> str:
     """Return the operation calibrated by the selected transition."""
     return "EF_x180" if parameters.transition == "ef" else parameters.operation
-
-
-def has_gef_readout_calibration(qubit: Any) -> bool:
-    """Return whether the qubit has the data needed for dedicated GEF readout."""
-    centers = getattr(qubit.resonator, "gef_centers", None)
-    return (
-        callable(getattr(qubit, "readout_state_gef", None))
-        and getattr(qubit.resonator, "GEF_frequency_shift", None) is not None
-        and centers is not None
-        and len(centers) >= 3
-    )
 
 
 def ensure_operation_available(qubit: Any, operation: str, transition: str) -> None:
@@ -170,7 +158,7 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
             I, I_st, Q, Q_st, n, n_st = self.machine.declare_qua_variables()
             if self.parameters.use_state_discrimination:
                 state = [declare(int) for _ in range(num_qubits)]
-                state_st = [declare_stream() for _ in range(num_qubits)]
+                state_st = [self.declare_state_stream() for _ in range(num_qubits)]
             a = declare(fixed)
             npi = declare(int)
             count = declare(int)
@@ -185,26 +173,7 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
                     with for_(*from_array(npi, n_pi_vec)):
                         with for_(*from_array(a, amps)):
                             for _, qubit in multiplexed_qubits.items():
-                                if (
-                                    not self.parameters.simulate
-                                    and self.parameters.reset_type
-                                    in {"active", "active_gef"}
-                                ):
-                                    active_reset_configured(
-                                        qubit,
-                                        num_states=(
-                                            3
-                                            if self.parameters.reset_type
-                                            == "active_gef"
-                                            else 2
-                                        ),
-                                        pulse_name="readout",
-                                    )
-                                else:
-                                    qubit.reset(
-                                        self.parameters.reset_type,
-                                        self.parameters.simulate,
-                                    )
+                                self.reset_qubit(qubit)
 
                             align()
 
@@ -227,23 +196,10 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
 
                             for i, qubit in multiplexed_qubits.items():
                                 if self.parameters.use_state_discrimination:
-                                    num_readout_states = (
-                                        3
-                                        if self.parameters.transition == "ef"
-                                        and has_gef_readout_calibration(qubit)
-                                        else 2
-                                    )
-                                    readout_state_configured(
-                                        qubit,
-                                        state[i],
-                                        num_states=num_readout_states,
-                                        pulse_name="readout",
-                                    )
-                                    save(state[i], state_st[i])
+                                    self.readout_state(qubit, state[i])
+                                    self.save_readout_state(state[i], state_st[i])
                                 else:
-                                    qubit.resonator.measure(
-                                        "readout", qua_vars=(I[i], Q[i])
-                                    )
+                                    self.measure_readout(qubit, qua_vars=(I[i], Q[i]))
                                     save(I[i], I_st[i])
                                     save(Q[i], Q_st[i])
 
@@ -336,11 +292,11 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
 
     parameters = Parameters()
-    parameters.reset_type = "active"
-    parameters.use_state_discrimination = True
-    parameters.use_readout_mitigation = 1
+    parameters.reset_type = "thermal"
+    parameters.use_state_discrimination = False
+    parameters.use_readout_mitigation = 0
     parameters.num_shots = 2000
-    parameters.transition = "ge"
+    parameters.transition = "ef"
     parameters.pi_repetitions = 3
     parameters.operation = "x180"
 

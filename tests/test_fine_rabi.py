@@ -44,7 +44,7 @@ class FineRabiTests(unittest.TestCase):
 
     def test_sequence_supports_state_and_iq_readout(self):
         self.assertIn("if node.parameters.use_state_discrimination:", self.source)
-        self.assertIn("qubit.readout_state(state[i])", self.source)
+        self.assertIn("self.readout_state(qubit, state[i])", self.source)
         self.assertIn('save(f"state{i + 1}")', self.source)
         self.assertIn('save(f"I{i + 1}")', self.source)
         self.assertIn('save(f"Q{i + 1}")', self.source)

@@ -1,7 +1,7 @@
 import xarray as xr
 
 from qualibrate import QualibrationNode
-from qualibration_libs.data import convert_IQ_to_V
+from utils.experiment_readout import convert_IQ_to_V
 
 
 def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode) -> xr.Dataset:

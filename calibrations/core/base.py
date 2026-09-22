@@ -156,7 +156,33 @@ class BaseCalibration(ABC, Generic[P, M]):
         from qualibration_libs.parameters import get_qubits
 
         self.namespace["qubits"] = qubits = get_qubits(self)
+        from utils.experiment_readout import readout_operation
+        for qubit in qubits:
+            qubit.resonator.selected_readout_operation = readout_operation(self.parameters)
         return qubits
+
+    def reset_qubit(self, qubit):
+        from utils.experiment_readout import reset_qubit
+        return reset_qubit(qubit, self.parameters)
+
+    def readout_state(self, qubit, state):
+        from utils.experiment_readout import readout_operation, readout_states
+        from utils.readout_macro import readout_state_configured
+        return readout_state_configured(qubit, state,
+            num_states=len(readout_states(self.parameters)),
+            pulse_name=readout_operation(self.parameters))
+
+    def measure_readout(self, qubit, **kwargs):
+        from utils.experiment_readout import readout_operation
+        from utils.readout_macro import measure_readout
+        return measure_readout(qubit, readout_operation(self.parameters), **kwargs)
+
+    def declare_state_stream(self):
+        from utils.experiment_readout import PopulationStreams, readout_states
+        return PopulationStreams(readout_states(self.parameters))
+
+    def save_readout_state(self, state, streams):
+        streams.save_shot(state)
 
     def should_load_data(self) -> bool:
         return self.load_data_id is not None
@@ -343,7 +369,7 @@ class BaseCalibration(ABC, Generic[P, M]):
 
         if dataset is None:
             raise CalibrationError("Execution finished without fetched data.")
-        self.results["ds_raw"] = dataset
+        self.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
     def progress_total(self) -> int | None:
         return getattr(self.parameters, "num_shots", None)
@@ -385,8 +411,50 @@ class BaseCalibration(ABC, Generic[P, M]):
             "live ETA will refine it."
         )
 
+    def annotate_readout_dataset(self, dataset):
+        from utils.experiment_readout import readout_operation, readout_states
+        dataset.attrs.update(readout_states=readout_states(self.parameters),
+                             readout_operation=readout_operation(self.parameters))
+        if "state" in dataset:
+            dataset["state"].attrs.update(long_name="excited-state population", population_state="e")
+        return dataset
+
+    def _mitigate_population_dataset(self, dataset, qubits, strength):
+        from utils.experiment_readout import readout_operation, readout_states
+        from utils.readout_macro import readout_settings
+        states = list(dataset.attrs.get("readout_states", readout_states(self.parameters)))
+        operation = dataset.attrs.get("readout_operation", readout_operation(self.parameters))
+        names = [f"population_{label}" for label in states]
+        if not all(name in dataset for name in names):
+            raise CalibrationError("Three-state mitigation requires separately measured population_g/e/f.")
+        corrected = {name: dataset[name].astype(float).copy(deep=True) for name in names}
+        for q in qubits:
+            matrix = np.asarray(readout_settings(q, operation).get("confusion_matrix"), dtype=float)
+            size = len(states)
+            if matrix.shape != (size, size) or not np.isfinite(matrix).all() or np.linalg.matrix_rank(matrix) < size:
+                raise CalibrationError(f"{q.name} {operation} needs a finite invertible {size}x{size} confusion matrix")
+            has_qubit = "qubit" in dataset[names[0]].dims
+            if not has_qubit and len(qubits) != 1:
+                raise CalibrationError("Multiple qubits require a qubit dimension for mitigation")
+            measured = [dataset[name].sel(qubit=q.name) if has_qubit else dataset[name] for name in names]
+            inverse = np.linalg.inv(matrix)
+            for index, name in enumerate(names):
+                fully_corrected = sum(measured[j] * inverse[j, index] for j in range(size))
+                result = measured[index] + strength * (fully_corrected - measured[index])
+                if has_qubit:
+                    corrected[name].loc[{"qubit": q.name}] = result
+                else:
+                    corrected[name] = result
+        additions = {f"{name}_unmitigated": dataset[name].copy(deep=True) for name in names}
+        additions.update(corrected)
+        additions["state_unmitigated"] = dataset["state"].copy(deep=True)
+        additions["state"] = corrected["population_e"].copy(deep=True)
+        additions["state"].attrs.update(readout_mitigated=True,
+            readout_mitigation_method="inverse_assignment_matrix", readout_mitigation_strength=strength)
+        self.results["ds_raw"] = dataset.assign(additions)
+
     def apply_readout_mitigation(self) -> None:
-        """Correct binary state populations using calibrated assignment matrices.
+        """Correct GE or GEF populations using the matching assignment matrix.
 
         IQ-blobs stores a matrix whose rows are prepared states and whose columns
         are measured states.  Therefore ``p_measured = p_true @ matrix`` and the
@@ -422,6 +490,10 @@ class BaseCalibration(ABC, Generic[P, M]):
         qubits = list(qubits)
         if not qubits:
             raise CalibrationError("Readout mitigation requires at least one selected qubit.")
+
+        if "population_g" in dataset or len(getattr(self.parameters, "readout_states", ["g", "e"])) == 3:
+            self._mitigate_population_dataset(dataset, qubits, mitigation_strength)
+            return
 
         state = dataset["state"]
         corrected = state.astype(float).copy(deep=True)

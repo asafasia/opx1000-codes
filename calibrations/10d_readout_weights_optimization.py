@@ -28,7 +28,6 @@ from calibration_utils.readout_weights_optimization import (
 )
 from profiles import ProfileUpdater
 from qualibration_libs.data import XarrayDataFetcher
-from qualibration_libs.parameters import get_qubits
 from quam_config import Quam, create_machine
 from utils.simulation import simulate_and_plot
 
@@ -76,18 +75,24 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
             self.log("Using current profile integration weights for sliced readout.")
             return
 
+        if self.parameters.reset_type in {"active", "active_gef"}:
+            raise ValueError(
+                "Use thermal reset when replacing integration weights with flat weights; active-reset centers would be stale"
+            )
         for qubit in qubits:
             operation = qubit.resonator.operations[operation_name]
-            operation.integration_weights = [[1.0, int(operation.length)]]
+            operation.integration_weights = None
+            operation.integration_weights = "#./default_integration_weights"
             operation.integration_weights_angle = 0.0
         self.log("Using flat integration weights with zero angle for sliced readout.")
 
     def create_qua_program(self):
         node = self
         u = unit(coerce_to_integer=True)
-        node.namespace["qubits"] = qubits = get_qubits(node)
+        node.namespace["qubits"] = qubits = self.get_qubits()
         num_qubits = len(qubits)
-        operation_name = node.parameters.operation
+        operation_name = node.parameters.readout_operation
+        node.parameters.operation = operation_name
         division_length = int(node.parameters.division_length_clock_cycles)
         slice_length_ns = 4 * division_length
         n_avg = int(node.parameters.num_shots)
@@ -149,15 +154,16 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
                     save(n, n_st)
 
                     for qubit in multiplexed_qubits.values():
-                        # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
-                        pass
+                        self.reset_qubit(qubit)
+                        # pass
                     align()
 
                     for i, qubit in multiplexed_qubits.items():
-                        qubit.resonator.measure_sliced(
-                            operation_name,
+                        self.measure_readout(
+                            qubit,
                             segment_length=division_length,
                             qua_vars=(IIg[i], IQg[i], QIg[i], QQg[i]),
+                            sliced=True,
                         )
                         with for_(ind, 0, ind < number_of_divisions, ind + 1):
                             save(IIg[i][ind], streams["IIg"][i])
@@ -168,8 +174,8 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
                     align()
 
                     for qubit in multiplexed_qubits.values():
-                        # qubit.reset(node.parameters.reset_type, node.parameters.simulate)
-                        pass
+                        self.reset_qubit(qubit)
+                        # pass
                     align()
                     for qubit in multiplexed_qubits.values():
                         qubit.xy.play("x180")
@@ -180,10 +186,11 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
                         )
 
                     for i, qubit in multiplexed_qubits.items():
-                        qubit.resonator.measure_sliced(
-                            operation_name,
+                        self.measure_readout(
+                            qubit,
                             segment_length=division_length,
                             qua_vars=(IIe[i], IQe[i], QIe[i], QQe[i]),
+                            sliced=True,
                         )
                         with for_(ind, 0, ind < number_of_divisions, ind + 1):
                             save(IIe[i][ind], streams["IIe"][i])
@@ -231,7 +238,7 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
                     start_time=data_fetcher.t_start,
                 )
             node.log(job.execution_report())
-        node.results["ds_raw"] = dataset
+        node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
     def save_raw_results(self):
         node = self
@@ -249,7 +256,7 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
         load_data_id = node.parameters.load_data_id
         node.load_from_id(node.parameters.load_data_id)
         node.parameters.load_data_id = load_data_id
-        node.namespace["qubits"] = get_qubits(node)
+        node.namespace["qubits"] = self.get_qubits()
 
     def analyse_data(self):
         node = self
@@ -290,41 +297,36 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
         with node.record_state_updates():
             for q in node.namespace["qubits"]:
                 weights = node.results["ds_fit"].profile_kernel.sel(qubit=q.name).values
-                q.resonator.operations[
-                    node.parameters.operation
-                ].integration_weights = kernel_to_segments(
+                operation = q.resonator.operations[node.parameters.operation]
+                operation.integration_weights = None
+                operation.integration_weights = kernel_to_segments(
                     weights,
                     node.slice_length_ns,
                 )
+                from utils.readout_macro import readout_settings
 
-    def propose_profile_update(self):
-        node = self
-        if node.parameters.operation != "readout":
-            node.log(
-                f"Profile update skipped: operation {node.parameters.operation!r} "
-                "does not use the profile's default readout pulse."
-            )
-            return
+                settings = readout_settings(q, node.parameters.readout_operation)
+                settings["gef_centers"] = None
+                settings["confusion_matrix"] = None
 
+    def profile_updates(self):
+        section = (
+            "readout_gef" if len(self.parameters.readout_states) == 3 else "readout"
+        )
         updates = {}
-        for q in node.namespace["qubits"]:
-            updates[f"qubits.json.qubits.{q.name}.readout.use_kernel"] = True
-
-        if updates:
-            proposal = ProfileUpdater().stage(
-                node.name,
-                updates,
-                profile_name=current_profile_name(),
-            )
-            ProfileUpdater().confirm_and_apply(proposal)
+        for q in self.namespace["qubits"]:
+            updates[f"qubits.json.qubits.{q.name}.{section}.use_kernel"] = True
+            updates[f"qubits.json.qubits.{q.name}.{section}.gef_centers"] = None
+            updates[f"qubits.json.qubits.{q.name}.{section}.confusion_matrix"] = None
+        return updates
 
 
 if __name__ == "__main__":
     parameters = Parameters()
     parameters.num_shots = 10000
-    parameters.division_length_clock_cycles = 10
+    parameters.division_length_clock_cycles = 5
     parameters.use_current_integration_weights = False
-    parameters.reset_type = "active"
+    parameters.reset_type = "thermal"
 
     options = CalibrationOptions()
 

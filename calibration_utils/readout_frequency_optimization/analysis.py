@@ -1,3 +1,4 @@
+from utils.experiment_readout import selected_readout_frequency
 import logging
 from dataclasses import dataclass
 from typing import Dict, Tuple
@@ -5,7 +6,7 @@ from typing import Dict, Tuple
 import numpy as np
 import xarray as xr
 from qualibrate import QualibrationNode
-from qualibration_libs.data import convert_IQ_to_V
+from utils.experiment_readout import convert_IQ_to_V
 
 
 @dataclass
@@ -55,7 +56,7 @@ def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
         }
     )
     # Add the absolute frequency to the dataset
-    full_freq = np.array([ds.detuning + q.resonator.RF_frequency for q in node.namespace["qubits"]])
+    full_freq = np.array([ds.detuning + selected_readout_frequency(q) for q in node.namespace["qubits"]])
     ds = ds.assign_coords(full_freq=(["qubit", "detuning"], full_freq))
     ds.full_freq.attrs = {"long_name": "Readout RF frequency", "units": "Hz"}
     return ds

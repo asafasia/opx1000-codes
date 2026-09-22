@@ -10,7 +10,6 @@ class PowerRabiEFSequenceTests(unittest.TestCase):
         ).read_text()
 
     def test_combined_node_selects_ef_transition_by_parameter(self):
-        self.assertIn('parameters.transition = "ef"', self.source)
         self.assertIn('return "EF_x180" if parameters.transition == "ef" else parameters.operation', self.source)
         self.assertIn('if self.parameters.transition == "ef":', self.source)
 
@@ -24,13 +23,10 @@ class PowerRabiEFSequenceTests(unittest.TestCase):
         self.assertIn("self._validate_readout_dataset(ds)", self.source)
         self.assertIn("self.parameters.use_state_discrimination", self.source)
 
-    def test_missing_optional_readout_shifts_do_not_break_program_creation(self):
-        self.assertNotIn("qubit.resonator.intermediate_frequency\n                    +", self.source)
-        self.assertIn("and has_gef_readout_calibration(qubit)", self.source)
-        self.assertIn('getattr(qubit.resonator, "GEF_frequency_shift", None) is not None', self.source)
-        self.assertIn("and len(centers) >= 3", self.source)
-        self.assertIn("readout_state_configured(", self.source)
-        self.assertIn("num_states=num_readout_states", self.source)
+    def test_readout_basis_is_explicit_for_either_drive_transition(self):
+        self.assertIn("self.readout_state(qubit, state[i])", self.source)
+        self.assertIn("self.reset_qubit(qubit)", self.source)
+        self.assertNotIn("and has_gef_readout_calibration(qubit)", self.source)
 
     def test_saves_raw_data_and_figures_like_standard_power_rabi(self):
         self.assertIn("class PowerRabi(BaseCalibration", self.source)

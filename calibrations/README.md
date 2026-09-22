@@ -51,7 +51,7 @@ analysis utilities can migrate gradually.
 
 For real single-qubit executions, the shared lifecycle also reads the selected
 qubit's `dc_bias_v` from the profile. A nonzero value is applied on the
-hardcoded DC-bias channel 0 immediately before `execute_qua_program()` and is
+hardcoded DC-bias channel 0 (physical output 1) immediately before `execute_qua_program()` and is
 returned to 0 V afterward, including when execution raises an exception.
 Simulation, dry-run, loaded-data analysis, missing bias configuration, and an
 exact `dc_bias_v` of 0 do not open the DC-bias serial connection.
@@ -98,8 +98,8 @@ profile, normally proposed by the IQ-blobs calibration.
 ### Spectroscopy versus external DC bias
 
 `03d_qubit_spectroscopy_vs_external_flux.py` combines the spectroscopy map and
-periodic flux fit from `03b` with the host-controlled outer loop from `03c`.
-It uses the profile's Arduino DC-bias source on channel 0. Select exactly one
+peak extraction from `03b` with a robust local parabola fit and the host-controlled outer loop from `03c`.
+It uses the profile's Arduino DC-bias source on channel 0 (physical output 1). Select exactly one
 qubit; an OPX Z line is not required. The original scripts remain available.
 
 Preview parameters without connecting to either device:
@@ -139,12 +139,20 @@ external source or the physical frequency response.
 The external bias remains applied during reset, spectroscopy, and readout.
 The resonator frequency is held at its profile setting throughout the scan;
 large bias changes may therefore need separate readout characterization.
-Saved maps use absolute source voltage in volts. Analysis reuses the original
-peak extraction and periodic fit around the scan center, and plots the measured
-peaks and fitted sweet spot. A failed fit or a sweet spot outside the scan leaves
-the map available without proposing a profile change. Successful fits stage
-`dc_bias_v` and `qubit_f01`; they are not applied by default. Narrow scans may
-not contain enough flux dependence for a meaningful periodic fit.
+Saved maps use absolute source voltage in volts. Analysis extracts spectroscopy
+peaks independently from I and Q and fits each with a local parabola using a trimmed-residual initialization, outlier
+rejection, and a refit to the consistent peaks. The vertex gives the extremum
+voltage and fitted frequency, rather than selecting the highest measured point.
+The valid I or Q fit with the higher R² on retained inlier peaks supplies the
+extremum and profile-update proposal. Both candidates, point counts, and R²
+scores (inlier and all-peak) are retained. Stacked I/Q plots show their own
+parabolas, accepted/excluded peaks, R², and the selected quadrature.
+At least five consistent peaks, significant curvature, and two inliers on each
+side of the extremum are required. Flat data, uncertain or unbracketed extrema,
+and extrema outside the measured frequency range do not produce profile updates.
+The voltage uncertainty is a local fit estimate, not a hardware accuracy claim.
+Successful fits stage `dc_bias_v` and `qubit_f01`; they are not applied by default.
+Use a scan around one extremum: a parabola does not model a full flux period.
 
 The lightweight terminal wrapper is meant for Codex and quick lab use:
 
@@ -258,3 +266,133 @@ power_rabi = PowerRabi(
 )
 power_rabi.run()
 ```
+
+
+## AC Stark shift from the power Rabi chevron
+
+`04d_power_rabi_chevron.py` (`power-rabi-chevron` in the runner) now extracts
+one spectral maximum per amplitude and fits
+`peak_detuning_hz = offset_hz + c * amplitude**2`, with a free offset.
+It also fits `offset + k * abs(amplitude)**p` to test whether the measured
+exponent is consistent with 2. It reports an inconclusive result when the
+shift or exponent is unresolved. Edge, weak, split and unstable peaks are
+rejected, and every decision is saved in `stark_peaks.csv`.
+
+Use a plain square `saturation` operation for the weak-drive comparison.
+A short coherent Rabi pulse can have two off-resonant maxima; fitting its
+brightest fringe does not reliably measure a Stark shift. IQ data are analyzed
+using the magnitude of the complex displacement from the off-resonant
+baseline, so a dip or rotated readout response works too.
+
+For a calibrated reference pi pulse and linear drive gain, the analysis uses
+its actual sampled in-phase area to convert amplitude to Rabi frequency.
+This handles cosine/Gaussian references rather than assuming a square pulse.
+The reference is selected by `stark_reference_pi_operation` (default `x180`).
+For a DRAG reference this area conversion is approximate. Verify the reference
+calibration and configured anharmonicity before interpreting the coefficient;
+fit error bars exclude their systematic uncertainties.
+
+With `f_R = Omega/(2*pi)` and `Delta_f = f12-f01 < 0`, the weak, uncorrected
+square-drive prediction is
+`shift_hz = -f_R**2/(2*Delta_f) = C*f_R**2/abs(Delta_f)`, with `C = 0.5`.
+All frequencies in this comparison are Hz; no additional `2*pi` is needed.
+See [Chen, thesis chapter 7, Eqs. 7.1-7.5](https://web.physics.ucsb.edu/~martinisgroup/theses/Chen2018.pdf)
+for the perturbative level shift, accounting for the factor-of-two Rabi
+Hamiltonian convention. Shaped/DRAG scan pulses retain an empirical fit, with
+no universal 0.5 comparison. A single fixed-anharmonicity scan tests quadratic
+amplitude scaling, but cannot independently establish inverse-anharmonicity
+scaling; that needs calibrated measurements at several anharmonicities.
+
+A starting configuration for a finer scan is below. This command is a dry run;
+check the selected qubit's existing saturation amplitude, pulse length and
+calibrated pi reference before removing `--dry-run` to acquire data. The
+amplitude prefactors below multiply the existing pulse amplitude. A 0.1 MHz
+frequency step is more useful for sub-MHz shifts than the old 1-2 MHz scans.
+
+```powershell
+python -m calibrations.runner run power-rabi-chevron --qubit q1 --dry-run `
+  --set operation=saturation --set frequency_span_in_mhz=40 `
+  --set frequency_step_in_mhz=0.1 --set min_amp_factor=0 `
+  --set max_amp_factor=0.6 --set amp_factor_step=0.02 --set num_shots=500 `
+  --set stark_peak_window_mhz=18 --set fit_stark_shift=true `
+  --option update_state=false --option propose_profile_update=false `
+  --option apply_profile_update=false
+```
+
+Each amplitude trace is fitted to a positive Gaussian plus a linear background
+using bounded, multistart `scipy.optimize.least_squares` with `soft_l1` loss.
+Prominence and half-height widths supply center/width guesses; a median of up to
+five neighboring amplitude traces supplies additional guesses only. Each final
+fit uses its own unsmoothed measurements, without enforcing a smooth or
+quadratic center trajectory. The full frequency scan constrains the background
+and broad tails; `stark_peak_window_mhz` now bounds the fitted center, rather
+than cropping the fitted samples. `None` allows a center anywhere in the scan.
+The extracted frequency is the Gaussian center. Its error is a local robust
+Jacobian covariance approximation, inflated by residual MAD with a 0.1-bin
+floor; it is not a bootstrap confidence interval. Unresolved, edge-truncated,
+and competing peaks are rejected. `stark_peaks.csv` also records fitted width,
+height, background, significance, and the winning initial center and width,
+including rejected candidate fits where available. More accepted peaks alone
+do not establish a physical Stark shift.
+`stark_min_peak_snr` is the fitted Gaussian height divided by its standard error.
+`stark_peak_fit_points` (odd) controls minimum sample count and competing-peak
+separation; it no longer limits the fit to a few samples around the maximum.
+Other fit controls include
+`stark_min_amp_factor`, `stark_max_amp_factor`,
+`stark_max_rabi_to_anharmonicity` (default 0.2), and
+`stark_min_valid_points` (default 6). Set `fit_stark_shift=false` for the
+original heatmap-only analysis. Fit coefficients, uncertainties, exponent and
+consistency verdict are in `analysis_result.json`; the chevron overlay and
+`ac_stark_shift_<qubit>` figure show the extracted peaks and scaling test.
+The experiment makes no profile or pulse updates.
+
+
+## Choosing two-state or three-state readout
+
+Use the same parameter in qubit experiments and IQ/readout calibrations:
+
+```python
+parameters.readout_states = ["g", "e", "f"]  # use ["g", "e"] for GE
+parameters.use_state_discrimination = True
+parameters.reset_type = "active"
+parameters.active_reset_max_attempts = 15
+```
+
+The mode selects `readout` or `readout_GEF`, each with independent frequency,
+amplitude, duration, weights, centers, and confusion matrix. Active reset uses
+the same pulse and basis: E -> G in GE mode, E -> G or F -> E -> G in GEF mode.
+GEF reset requires an `EF_x180` operation. Thermal reset remains available and
+is required for the first calibration of an uncalibrated mode.
+
+For the first GEF IQ calibration, select `readout_states=["g", "e", "f"]` and
+`reset_type="thermal"` in `iq-blobs` (or use `iq-blobs-gef`). The standard
+`iq-blobs` node acquires all three clouds automatically in this mode. Review
+and apply its profile proposal before using GEF discrimination. The existing
+q1/q6 GE centers do not calibrate their new GEF pulses. Frequency/amplitude
+optimizers can tune either pulse; the two-cloud optimizers score G/E contrast,
+while `gef-readout-frequency` scores three-state separation. The sliced-weight
+optimizer still optimizes G/E contrast, with a separate kernel file per pulse.
+Recalibrate all three IQ clouds after changing a GEF pulse or kernel.
+
+A runner dry-run example (no hardware connection):
+
+```powershell
+python -m calibrations.runner run t1 --profile single_qubit --qubit q6 --set 'readout_states=["g","e","f"]' --set use_state_discrimination=true --set reset_type=active --dry-run
+```
+
+Discriminated datasets contain `population_g`, `population_e`, and, in GEF
+mode, `population_f`. All are shot fractions. `state` remains an alias for
+`population_e`, so existing fits and plots retain their P(e) meaning; it is
+never an average of the integer labels 0/1/2. Inspect `population_f` to see
+leakage. Randomized benchmarking uses measured P(g), so f leakage is not
+counted as ground. Readout mitigation uses the selected pulse's full 2x2 or 3x3 matrix and
+retains unmitigated populations. Raw IQ acquisition also uses the selected
+pulse and its correct length for voltage conversion. Saved metadata includes
+the readout basis and pulse name.
+
+Select the mode through `readout_states`; IQ/weight calibration's legacy
+`operation` field is resolved from that selection at program construction.
+For IQ blobs, leave `states=None` (the default) to follow each mode switch
+automatically. The `states` field on IQ/resonator spectroscopy describes prepared clouds;
+it is distinct from the readout basis. Dedicated raw-IQ diagnostics remain
+raw-IQ diagnostics even when the GEF pulse is selected.

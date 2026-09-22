@@ -19,12 +19,14 @@ from qualang_tools.multi_user import qm_session
 from calibrations.runtime_estimation import progress_counter
 from qualang_tools.units import unit
 from qualibration_libs.data import XarrayDataFetcher
-from qualibration_libs.parameters import get_qubits
 from calibration_utils.power_rabi_chevron import (
     Parameters,
     plot_raw_data,
+    plot_stark_shift,
+    fit_stark_shift,
     process_raw_dataset,
 )
+from calibration_utils.analysis_base import AnalysisResult
 from quam_config import Quam, create_machine
 from calibration_io import CalibrationSaver, current_profile_name
 from utils.plotting_settings import plot_per_qubit
@@ -41,8 +43,10 @@ This sequence plays a fixed-duration qubit operation while sweeping both its
 amplitude and the qubit-drive frequency. It is the amplitude-sweep counterpart
 of the duration-based Rabi chevron.
 
-The experiment is intended for visual selection of a resonant frequency and a
-useful pulse-amplitude range. It does not automatically update pulse parameters.
+The analysis fits Gaussian spectral centers versus amplitude squared and tests a free
+power-law exponent. For a plain square drive it compares the apparent shift
+with f_Rabi^2 / |f12-f01|. Weak, ambiguous and edge peaks are excluded.
+It does not automatically update pulse parameters.
 """
 
 
@@ -83,7 +87,7 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
         node = self
         """Create the frequency-versus-amplitude Rabi-chevron QUA program."""
         u = unit(coerce_to_integer=True)
-        node.namespace["qubits"] = qubits = get_qubits(node)
+        node.namespace["qubits"] = qubits = self.get_qubits()
         num_qubits = len(qubits)
         operation = node.parameters.operation
         for qubit in qubits:
@@ -123,7 +127,7 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
             I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
             if node.parameters.use_state_discrimination:
                 state = [declare(int) for _ in range(num_qubits)]
-                state_st = [declare_stream() for _ in range(num_qubits)]
+                state_st = [self.declare_state_stream() for _ in range(num_qubits)]
             a = declare(fixed)
             df = declare(int)
 
@@ -140,11 +144,7 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
                                 qubit.xy.update_frequency(
                                     qubit.xy.intermediate_frequency
                                 )
-                                qubit.reset(
-                                    node.parameters.reset_type,
-                                    node.parameters.simulate,
-                                    # log_callable=node.log,
-                                )
+                                self.reset_qubit(qubit)
                                 qubit.xy.update_frequency(
                                     qubit.xy.intermediate_frequency + df
                                 )
@@ -156,12 +156,10 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
 
                             for i, qubit in multiplexed_qubits.items():
                                 if node.parameters.use_state_discrimination:
-                                    qubit.readout_state(state[i])
-                                    save(state[i], state_st[i])
+                                    self.readout_state(qubit, state[i])
+                                    self.save_readout_state(state[i], state_st[i])
                                 else:
-                                    qubit.resonator.measure(
-                                        "readout", qua_vars=(I[i], Q[i])
-                                    )
+                                    self.measure_readout(qubit, qua_vars=(I[i], Q[i]))
                                     save(I[i], I_st[i])
                                     save(Q[i], Q_st[i])
 
@@ -215,7 +213,7 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
                 )
             node.log(job.execution_report())
         validate_readout_dataset(dataset, node.parameters.use_state_discrimination)
-        node.results["ds_raw"] = dataset
+        node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
     def save_raw_results(self):
         node = self
@@ -233,14 +231,72 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
         load_data_id = node.parameters.load_data_id
         node.load_from_id(load_data_id)
         node.parameters.load_data_id = load_data_id
-        node.namespace["qubits"] = get_qubits(node)
+        node.namespace["qubits"] = self.get_qubits()
 
     def analyse_data(self):
         node = self
         validate_readout_dataset(
             node.results["ds_raw"], node.parameters.use_state_discrimination
         )
-        node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
+        processed = process_raw_dataset(node.results["ds_raw"], node)
+        ds_fit, reports = (
+            fit_stark_shift(processed, node)
+            if node.parameters.fit_stark_shift
+            else (None, {})
+        )
+        node.results.pop("ds_fit", None)
+        result = AnalysisResult(
+            ds_processed=processed,
+            ds_fit=ds_fit,
+            fit_results=reports,
+            outcomes={
+                q: "successful" if r["success"] else "failed"
+                for q, r in reports.items()
+            },
+            summary={
+                "observable": "Gaussian center of fixed-duration excitation spectrum",
+                "model": "peak_detuning_hz = intercept_hz + coefficient * amplitude**2",
+                "theory": "shift_hz = C * f_Rabi_hz**2 / abs(f12_hz-f01_hz); weak square-drive C=0.5",
+                "caveat": "Quadratic scaling alone cannot establish inverse-anharmonicity scaling. Physical comparison assumes calibrated pi area and linear drive gain.",
+            },
+        )
+        node.apply_analysis_result(result)
+        for name, report in reports.items():
+            node.log(
+                f"{name}: {report['n_fit_points']} spectral peaks used; "
+                f"quadratic {report['quadratic_consistency']}; "
+                f"power exponent={report['exponent']}; C={report['theory_coefficient']}. "
+                f"{report['reason']}"
+            )
+
+    def save_analysis_result(self):
+        saved = super().save_analysis_result()
+        ds_fit = self.results.get("ds_fit")
+        if saved and ds_fit is not None:
+            # Persist numeric peaks, uncertainties, masks and rejection reasons,
+            # not just the compact dataset summary in analysis_result.json.
+            columns = [
+                "peak_detuning_hz",
+                "peak_frequency_hz",
+                "peak_frequency_std_hz",
+                "peak_valid",
+                "peak_fit_used",
+                "peak_status",
+                "quadratic_fit_detuning_hz",
+                "theory_shift_hz",
+            ]
+            columns += [
+                name for name in ds_fit.data_vars if name.startswith("gaussian_")
+            ]
+            table = (
+                ds_fit[columns].drop_dims("detuning", errors="ignore").to_dataframe()
+            )
+            output = (
+                Path(self.namespace["calibration_run_directory"]) / "stark_peaks.csv"
+            )
+            table.to_csv(output)
+            self.log(f"Spectral peaks and fit selection saved to {output}")
+        return saved
 
     def plot_data(self):
         node = self
@@ -250,7 +306,18 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
             node.namespace["qubits"],
             figure_name="power_rabi_chevron",
             use_state_discrimination=node.parameters.use_state_discrimination,
+            ds_fit=node.results.get("ds_fit"),
         )
+        if node.results.get("ds_fit") is not None:
+            figures.update(
+                plot_per_qubit(
+                    plot_stark_shift,
+                    node.results["ds_fit"],
+                    node.namespace["qubits"],
+                    figure_name="ac_stark_shift",
+                    fit_results=node.results["fit_results"],
+                )
+            )
         node.results["figures"] = figures
         if "calibration_run_directory" in node.namespace:
             figures_directory = CalibrationSaver().save_figures(
@@ -265,13 +332,15 @@ if __name__ == "__main__":
     parameters = Parameters()
 
     parameters.operation = "saturation"
-    parameters.frequency_span_in_mhz = 500
-    parameters.frequency_step_in_mhz = 1
+    parameters.reset_type = "active"
+
+    parameters.frequency_span_in_mhz = 200
+    parameters.frequency_step_in_mhz = 0.2
     parameters.min_amp_factor = 0
-    parameters.amp_factor_step = 0.05
+    parameters.amp_factor_step = 0.01
     parameters.max_amp_factor = 1
-    parameters.num_shots = 40
-    parameters.use_state_discrimination = False
+    parameters.num_shots = 100
+    parameters.use_state_discrimination = True
 
     options = CalibrationOptions()
     # options.ai_review = True
@@ -279,6 +348,6 @@ if __name__ == "__main__":
     calibration = PowerRabiChevron(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q3"),
+        machine=create_machine(qubit="q6"),
     )
     calibration.run()

@@ -1,27 +1,8 @@
-"""Parameter definitions for IQ blobs GEF calibration experiment."""
-
+"""Compatibility parameters for the G/E/F IQ calibration entry point."""
+from pydantic import Field
 from typing import Literal
-from qualibrate import NodeParameters
-from qualibrate.core.parameters import RunnableParameters
-from qualibration_libs.parameters import CommonNodeParameters
-from calibration_utils.parameters import QubitsExperimentNodeParameters
+from calibration_utils.iq_blobs.parameters import Parameters as IqParameters
 
-
-class NodeSpecificParameters(RunnableParameters):
-    """IQ blobs GEF specific parameters for three-state measurement."""
-
-    num_shots: int = 2000
-    """Number of runs to perform. Default is 2000."""
+class Parameters(IqParameters):
+    readout_states: list[Literal["g", "e", "f"]] = Field(default_factory=lambda: ["g", "e", "f"])
     operation: Literal["readout", "readout_QND", "readout_GEF"] = "readout_GEF"
-    """Type of operation to perform. Default is "readout_GEF"."""
-
-
-class Parameters(
-    NodeParameters,
-    CommonNodeParameters,
-    NodeSpecificParameters,
-    QubitsExperimentNodeParameters,
-):
-    """Combined parameters for IQ blobs GEF calibration node."""
-
-    pass

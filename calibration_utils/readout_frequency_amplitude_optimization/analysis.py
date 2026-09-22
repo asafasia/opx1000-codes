@@ -1,3 +1,4 @@
+from utils.experiment_readout import selected_readout_frequency
 import logging
 from dataclasses import dataclass
 from typing import Dict, Tuple
@@ -5,7 +6,7 @@ from typing import Dict, Tuple
 import numpy as np
 import xarray as xr
 from qualibrate import QualibrationNode
-from qualibration_libs.data import convert_IQ_to_V
+from utils.experiment_readout import convert_IQ_to_V
 
 
 @dataclass
@@ -42,11 +43,11 @@ def log_fitted_results(fit_results: Dict, log_callable=None):
 def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
     ds = convert_IQ_to_V(ds, node.namespace["qubits"], IQ_list=["Ig", "Qg", "Ie", "Qe"])
     full_freq = np.array(
-        [ds.detuning + q.resonator.RF_frequency for q in node.namespace["qubits"]]
+        [ds.detuning + selected_readout_frequency(q) for q in node.namespace["qubits"]]
     )
     readout_amplitude = np.array(
         [
-            ds.amp_prefactor * q.resonator.operations["readout"].amplitude
+            ds.amp_prefactor * q.resonator.operations[getattr(q.resonator, "selected_readout_operation", "readout")].amplitude
             for q in node.namespace["qubits"]
         ]
     )

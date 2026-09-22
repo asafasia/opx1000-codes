@@ -5,7 +5,8 @@ import numpy as np
 import xarray as xr
 
 from qualibrate import QualibrationNode
-from qualibration_libs.data import add_amplitude_and_phase, convert_IQ_to_V
+from utils.experiment_readout import convert_IQ_to_V, selected_readout_frequency
+from qualibration_libs.data import add_amplitude_and_phase
 from qualibration_libs.analysis import peaks_dips
 from calibration_utils.iq_blobs.analysis import _optimal_threshold
 
@@ -234,7 +235,7 @@ def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
     ds["IQ_separation"] = calculate_iq_separation(ds)
     ds["pairwise_readout_fidelity"] = _calculate_pairwise_readout_fidelities(ds)
     ds["readout_fidelity"] = calculate_readout_fidelity(ds)
-    full_freq = np.array([ds.detuning + q.resonator.RF_frequency for q in node.namespace["qubits"]])
+    full_freq = np.array([ds.detuning + selected_readout_frequency(q) for q in node.namespace["qubits"]])
     ds = ds.assign_coords(full_freq=(["qubit", "detuning"], full_freq))
     ds.full_freq.attrs = {"long_name": "RF frequency", "units": "Hz"}
     return ds
@@ -277,7 +278,7 @@ def _extract_relevant_fit_parameters(
     # Add metadata to fit results
     fit.attrs = {"long_name": "frequency", "units": "Hz"}
     # Choose the readout frequency that maximizes normalized state separation.
-    full_freq = np.array([q.resonator.RF_frequency for q in node.namespace["qubits"]])
+    full_freq = np.array([selected_readout_frequency(q) for q in node.namespace["qubits"]])
     separation_detuning = spectroscopy_data.detuning.isel(
         detuning=spectroscopy_data.IQ_separation.argmax(dim="detuning")
     )

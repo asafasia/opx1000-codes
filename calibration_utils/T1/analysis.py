@@ -4,8 +4,9 @@ import xarray as xr
 from dataclasses import dataclass
 from typing import Tuple
 from qualibrate import QualibrationNode
-from qualibration_libs.data import convert_IQ_to_V
+from utils.experiment_readout import convert_IQ_to_V
 from qualibration_libs.analysis import decay_exp, fit_decay_exp
+from scipy.optimize import curve_fit
 
 
 FIT_VALUES = [
@@ -33,6 +34,15 @@ class T1Fit:
     success: bool
 
 
+@dataclass
+class T1GeFit:
+    """Ground-state rise fit, saved independently of standard T1 (e to g)."""
+
+    t1_ge: float
+    t1_ge_error: float
+    success: bool
+
+
 def log_fitted_results(ds: xr.Dataset, log_callable=None):
     """
     Logs the node-specific fitted results for all qubits from the fit xarray Dataset.
@@ -56,14 +66,15 @@ def log_fitted_results(ds: xr.Dataset, log_callable=None):
     """
     if log_callable is None:
         log_callable = logging.getLogger(__name__).info
+    label = ds.attrs.get("t1_label", "T1")
     for q in ds.qubit.values:
         if ds.sel(qubit=q).success.values:
             log_callable(
-                f"T1 for qubit {q} : {1e-3 * ds.sel(qubit=q).tau.values:.2f} +/- {1e-3 * ds.sel(qubit=q).tau_error.values:.2f} us --> SUCCESS!"
+                f"{label} for qubit {q} : {1e-3 * ds.sel(qubit=q).tau.values:.2f} +/- {1e-3 * ds.sel(qubit=q).tau_error.values:.2f} us --> SUCCESS!"
             )
         else:
             log_callable(
-                f"T1 for qubit {q} : {1e-3 * ds.sel(qubit=q).tau.values:.2f} +/- {1e-3 * ds.sel(qubit=q).tau_error.values:.2f} us --> FAIL!"
+                f"{label} for qubit {q} : {1e-3 * ds.sel(qubit=q).tau.values:.2f} +/- {1e-3 * ds.sel(qubit=q).tau_error.values:.2f} us --> FAIL!"
             )
 
 
@@ -82,13 +93,52 @@ def _failed_fit(data: xr.DataArray, dim: str) -> xr.DataArray:
     ).transpose(..., "fit_vals")
 
 
-def _fit_decay_per_qubit(data: xr.DataArray, dim: str, log_callable=None) -> xr.DataArray:
+def _fit_ground_population(data: xr.DataArray, dim: str) -> xr.DataArray:
+    """Fit a rising population with A <= 0 and B initially guessed as 0.1.
+
+    The exponential time constant describes approach to equilibrium; it is
+    not, in general, the inverse of the upward transition rate alone.
+    """
+    times = np.asarray(data[dim].values, dtype=float)
+    population = np.asarray(data.values, dtype=float).reshape(-1)
+    if times.size < 4 or not (np.isfinite(times).all() and np.isfinite(population).all()):
+        raise ValueError("At least four finite time/population samples are required.")
+    scale = float(np.ptp(times))
+    if scale <= 0 or np.ptp(population) <= np.finfo(float).eps:
+        raise ValueError("The ground-state trace has no time or population variation.")
+
+    # Scale time to keep the rate numerically comparable to A and B.
+    offset_guess = 0.1
+    amplitude_guess = min(float(population[np.argmin(times)]) - offset_guess, -0.01)
+    parameters, covariance = curve_fit(
+        decay_exp,
+        times / scale,
+        population,
+        p0=[amplitude_guess, offset_guess, -4.0],
+        bounds=([-np.inf, -np.inf, -np.inf], [0.0, np.inf, -np.finfo(float).eps]),
+        maxfev=50_000,
+    )
+    # Preserve the shared [A, B, decay] result and covariance format in ns.
+    conversion = np.array([1.0, 1.0, 1.0 / scale])
+    parameters *= conversion
+    covariance *= np.outer(conversion, conversion)
+    return xr.DataArray(
+        np.concatenate([parameters, covariance.ravel()])[None, :],
+        dims=["qubit", "fit_vals"],
+        coords={"qubit": data.qubit.values, "fit_vals": FIT_VALUES},
+    )
+
+
+def _fit_decay_per_qubit(
+    data: xr.DataArray, dim: str, log_callable=None, *, ground_population: bool = False
+) -> xr.DataArray:
     """Fit each qubit independently so one failed fit does not abort the node."""
     fits = []
     for qubit in data.qubit.values:
         qubit_data = data.sel(qubit=[qubit])
         try:
-            fit = fit_decay_exp(qubit_data, dim)
+            fitter = _fit_ground_population if ground_population else fit_decay_exp
+            fit = fitter(qubit_data, dim)
         except Exception as error:
             if log_callable is not None:
                 log_callable(f"T1 decay fit failed for {qubit}: {error}")
@@ -111,7 +161,7 @@ def _fit_r_squared(data: xr.DataArray, fit: xr.DataArray, dim: str) -> xr.DataAr
     return xr.where(valid & (total_sum > 0), 1 - residual_sum / total_sum, np.nan)
 
 
-def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, dict[str, T1Fit]]:
+def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, dict[str, T1Fit | T1GeFit]]:
     """
     Fit the T1 relaxation time for each qubit according to ``a * np.exp(t * decay) + offset``.
 
@@ -131,7 +181,12 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     # Fit the exponential decay. The library fitter can return None for one
     # failed trace, so fit qubits independently and preserve the raw data.
     if node.parameters.use_state_discrimination:
-        fit_data = _fit_decay_per_qubit(ds.state, "idle_time", node.log)
+        fit_data = _fit_decay_per_qubit(
+            ds.state,
+            "idle_time",
+            node.log,
+            ground_population=getattr(node.parameters, "initial_state", "e") == "g",
+        )
         selected_quadrature = xr.full_like(ds.state.isel(idle_time=0, drop=True), "state", dtype="<U5")
     else:
         fit_I = _fit_decay_per_qubit(ds.I, "idle_time", node.log)
@@ -144,6 +199,11 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
 
     ds_fit = xr.merge([ds, fit_data.rename("fit_data")])
     ds_fit = ds_fit.assign({"selected_quadrature": selected_quadrature})
+    initial_state = getattr(node.parameters, "initial_state", "e")
+    ds_fit.attrs.update(
+        initial_state=initial_state,
+        t1_label="T1_ge" if initial_state == "g" else "T1",
+    )
     # Extract the relevant fitted parameters
     fit_data, fit_results = _extract_relevant_fit_parameters(ds_fit)
 
@@ -162,15 +222,17 @@ def _fit_t1_with_exponential_decay(ds, use_state_discrimination):
 def _extract_relevant_fit_parameters(fit: xr.Dataset):
     """Add metadata to the dataset and fit results."""
     # Add metadata to fit results
-    fit.attrs = {"long_name": "time", "units": "ns"}
+    fit.attrs.update(long_name="time", units="ns")
+    ground_state = fit.attrs.get("initial_state", "e") == "g"
+    label = "T1_ge" if ground_state else "T1"
     # Get the fitted T1
     tau = -1 / fit.fit_data.sel(fit_vals="decay")
     fit = fit.assign_coords(tau=("qubit", tau.data))
-    fit.tau.attrs = {"long_name": "T1", "units": "ns"}
+    fit.tau.attrs = {"long_name": label, "units": "ns"}
     # Get the error on T1
     tau_error = -tau * (np.sqrt(fit.fit_data.sel(fit_vals="decay_decay")) / fit.fit_data.sel(fit_vals="decay"))
     fit = fit.assign_coords(tau_error=("qubit", tau_error.data))
-    fit.tau_error.attrs = {"long_name": "T1 error", "units": "ns"}
+    fit.tau_error.attrs = {"long_name": f"{label} error", "units": "ns"}
     # Assess whether the fit was successful or not
     success_criteria = (
         np.isfinite(tau.data)
@@ -181,11 +243,14 @@ def _extract_relevant_fit_parameters(fit: xr.Dataset):
     )
     fit = fit.assign_coords(success=("qubit", success_criteria))
 
+    result_type = T1GeFit if ground_state else T1Fit
+    if ground_state:
+        fit = fit.assign(T1_ge=fit.tau.copy(), T1_ge_error=fit.tau_error.copy())
     fit_results = {
-        q: T1Fit(
-            t1=fit.sel(qubit=q).tau.values.__float__(),
-            t1_error=fit.sel(qubit=q).tau_error.values.__float__(),
-            success=fit.sel(qubit=q).success.values.__bool__(),
+        q: result_type(
+            float(fit.sel(qubit=q).tau.values),
+            float(fit.sel(qubit=q).tau_error.values),
+            bool(fit.sel(qubit=q).success.values),
         )
         for q in fit.qubit.values
     }

@@ -30,7 +30,6 @@ from calibration_utils.resonator_spectroscopy_vs_amplitude import (
     plot_raw_data_with_fit,
 )
 from quam_builder.tools.power_tools import calculate_voltage_scaling_factor
-from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.core import tracked_updates
@@ -117,7 +116,7 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
         # Class containing tools to help handle units and conversions.
         u = unit(coerce_to_integer=True)
         # Get the active qubits from the node and organize them by batches
-        node.namespace["qubits"] = qubits = get_qubits(node)
+        node.namespace["qubits"] = qubits = self.get_qubits()
         num_qubits = len(qubits)
         # Update the readout power to match the desired range, this change will be reverted at the end of the node.
         node.namespace["tracked_resonators"] = []
@@ -135,6 +134,7 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
                     power_in_dbm=node.parameters.max_power_dbm,
                     full_scale_power_dbm=full_scale_power_dbm,
                     max_amplitude=node.parameters.max_amp,
+                    operation=node.parameters.readout_operation,
                 )
                 node.namespace["tracked_resonators"].append(resonator)
 
@@ -193,9 +193,7 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
                             # with for_(*from_array(a, amps)):
                             with for_each_(a, amps):
                                 # readout the resonator
-                                rr.measure(
-                                    "readout", qua_vars=(I[i], Q[i]), amplitude_scale=a
-                                )
+                                self.measure_readout(qubit, frequency_offset=df, qua_vars=(I[i], Q[i]), amplitude_scale=a)
                                 # wait for the resonator to deplete
                                 rr.wait(rr.depletion_time * u.ns)
                                 # save data
@@ -254,7 +252,7 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
             # Display the execution report to expose possible runtime errors
             node.log(job.execution_report())
         # Register the raw dataset
-        node.results["ds_raw"] = dataset
+        node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
     def save_raw_results(self):
         node = self
@@ -276,7 +274,7 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
         node.load_from_id(node.parameters.load_data_id)
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
-        node.namespace["qubits"] = get_qubits(node)
+        node.namespace["qubits"] = self.get_qubits()
 
     def analyse_data(self):
         node = self
@@ -334,14 +332,19 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
                     power_in_dbm=node.results["fit_results"][q.name]["optimal_power"],
                     full_scale_power_dbm=full_scale_power_dbm,
                     max_amplitude=node.parameters.max_amp,
+                    operation=node.parameters.readout_operation,
                 )
-                # Update the readout frequency for the given flux point
-                q.resonator.f_01 += node.results["fit_results"][q.name][
-                    "frequency_shift"
-                ]
-                q.resonator.RF_frequency += node.results["fit_results"][q.name][
-                    "frequency_shift"
-                ]
+                shift = node.results["fit_results"][q.name]["frequency_shift"]
+                if len(node.parameters.readout_states) == 3:
+                    q.resonator.readout_gef["frequency_hz"] += shift
+                    q.resonator.readout_gef["gef_centers"] = None
+                    q.resonator.readout_gef["confusion_matrix"] = None
+                else:
+                    q.resonator.f_01 += shift
+                    q.resonator.RF_frequency += shift
+                    q.resonator.readout_ge["gef_centers"] = None
+                    q.resonator.readout_ge["confusion_matrix"] = None
+
 
 
 if __name__ == "__main__":

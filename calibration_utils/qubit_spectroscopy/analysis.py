@@ -6,7 +6,8 @@ import xarray as xr
 from scipy.optimize import curve_fit
 
 from qualibrate import QualibrationNode
-from qualibration_libs.data import add_amplitude_and_phase, convert_IQ_to_V
+from utils.experiment_readout import convert_IQ_to_V
+from qualibration_libs.data import add_amplitude_and_phase
 from qualibration_libs.analysis import peaks_dips
 
 MIN_FIT_R_SQUARED = 0.8
@@ -19,6 +20,18 @@ def _spectroscopy_center_frequency(qubit, transition: str) -> float:
             return float(qubit.f_12)
         return float(qubit.f_01 - qubit.anharmonicity)
     return float(qubit.xy.RF_frequency)
+
+
+def _scan_center_frequencies(ds, node):
+    """Prefer the recorded acquisition center over mutable profile settings."""
+    if "scan_center_frequency_hz" in ds.coords:
+        return np.asarray(ds.scan_center_frequency_hz.sel(qubit=ds.qubit).values, dtype=float)
+    target = getattr(node.parameters, "target_frequency_in_mhz", None)
+    if target is not None:
+        return np.full(ds.sizes["qubit"], float(round(target * 1e6)))
+    transition = getattr(node.parameters, "transition", "ge")
+    by_name = {q.name: _spectroscopy_center_frequency(q, transition) for q in node.namespace["qubits"]}
+    return np.array([by_name[str(name)] for name in ds.qubit.values])
 
 
 @dataclass
@@ -66,13 +79,8 @@ def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
     if not node.parameters.use_state_discrimination:
         ds = convert_IQ_to_V(ds, node.namespace["qubits"])
         ds = add_amplitude_and_phase(ds, "detuning", subtract_slope_flag=True)
-    transition = getattr(node.parameters, "transition", "ge")
-    full_freq = np.array(
-        [
-            ds.detuning + _spectroscopy_center_frequency(q, transition)
-            for q in node.namespace["qubits"]
-        ]
-    )
+    centers = _scan_center_frequencies(ds, node)
+    full_freq = centers[:, None] + ds.detuning.values[None, :]
     ds = ds.assign_coords(full_freq=(["qubit", "detuning"], full_freq))
     ds.full_freq.attrs = {"long_name": "RF frequency", "units": "Hz"}
     return ds
@@ -296,13 +304,7 @@ def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
     # Add metadata to fit results
     fit.attrs = {"long_name": "frequency", "units": "Hz"}
     # Get the fitted resonator frequency
-    transition = getattr(node.parameters, "transition", "ge")
-    full_freq = np.array(
-        [
-            _spectroscopy_center_frequency(q, transition)
-            for q in node.namespace["qubits"]
-        ]
-    )
+    full_freq = _scan_center_frequencies(fit, node)
     res_freq = fit.position + full_freq
     rel_freq = fit.position
     fit = fit.assign({"res_freq": ("qubit", res_freq.data)})

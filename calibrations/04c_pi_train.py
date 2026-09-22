@@ -18,7 +18,6 @@ from qualang_tools.loops import from_array
 from qualang_tools.multi_user import qm_session
 from calibrations.runtime_estimation import progress_counter
 from qualibration_libs.data import XarrayDataFetcher
-from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
 from calibration_utils.pi_train import Parameters, plot_pi_train, process_raw_dataset
 from quam_config import Quam, create_machine
@@ -87,7 +86,7 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
         if node.parameters.max_number_of_pulses < 1:
             raise ValueError("max_number_of_pulses must be at least 1.")
 
-        node.namespace["qubits"] = qubits = get_qubits(node)
+        node.namespace["qubits"] = qubits = self.get_qubits()
         num_qubits = len(qubits)
         operation = node.parameters.operation
         for qubit in qubits:
@@ -110,7 +109,7 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
             count = declare(int)
             if node.parameters.use_state_discrimination:
                 state = [declare(int) for _ in range(num_qubits)]
-                state_st = [declare_stream() for _ in range(num_qubits)]
+                state_st = [self.declare_state_stream() for _ in range(num_qubits)]
 
             for multiplexed_qubits in qubits.batch():
                 for qubit in multiplexed_qubits.values():
@@ -121,11 +120,7 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
                     save(n, n_st)
                     with for_(*from_array(pulse_count, pulse_counts)):
                         for _, qubit in multiplexed_qubits.items():
-                            qubit.reset(
-                                node.parameters.reset_type,
-                                node.parameters.simulate,
-                                # log_callable=node.log,
-                            )
+                            self.reset_qubit(qubit)
                             # qubit.wait(10000)  # Wait for reset to complete
                         align()
 
@@ -137,12 +132,10 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
 
                         for i, qubit in multiplexed_qubits.items():
                             if node.parameters.use_state_discrimination:
-                                qubit.readout_state(state[i])
-                                save(state[i], state_st[i])
+                                self.readout_state(qubit, state[i])
+                                self.save_readout_state(state[i], state_st[i])
                             else:
-                                qubit.resonator.measure(
-                                    "readout", qua_vars=(I[i], Q[i])
-                                )
+                                self.measure_readout(qubit, qua_vars=(I[i], Q[i]))
                                 save(I[i], I_st[i])
                                 save(Q[i], Q_st[i])
 
@@ -190,14 +183,14 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
                 )
             node.log(job.execution_report())
         validate_readout_dataset(dataset, node.parameters.use_state_discrimination)
-        node.results["ds_raw"] = dataset
+        node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
     def load_data(self):
         node = self
         load_data_id = node.parameters.load_data_id
         node.load_from_id(load_data_id)
         node.parameters.load_data_id = load_data_id
-        node.namespace["qubits"] = get_qubits(node)
+        node.namespace["qubits"] = self.get_qubits()
 
     def save_raw_results(self):
         node = self

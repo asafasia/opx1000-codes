@@ -6,7 +6,6 @@ import sys
 import time
 from pathlib import Path
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
@@ -14,8 +13,8 @@ if str(REPOSITORY_ROOT) not in sys.path:
 from quam_config import create_machine
 
 # The voltage comes from profiles/single_qubit/qubits.json.
-QUBIT = "q3"
-HOLD_TIME_S = 60.0
+QUBIT = "q6"
+HOLD_TIME_S = 10000
 
 
 def main() -> None:

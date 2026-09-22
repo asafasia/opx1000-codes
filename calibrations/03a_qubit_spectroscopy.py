@@ -30,7 +30,6 @@ from calibration_utils.qubit_spectroscopy import (
 from calibration_io import CalibrationSaver, current_profile_name
 from utils.plotting_settings import plot_per_qubit
 from profiles import ProfileUpdater
-from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 
@@ -98,7 +97,9 @@ def validate_transition(transition: str) -> None:
         )
 
 
-def transition_frequency_offset(qubit, transition: str):
+def transition_frequency_offset(qubit, transition: str, target_frequency_in_mhz=None):
+    if target_frequency_in_mhz is not None:
+        return int(round(target_frequency_in_mhz * 1e6 - qubit.xy.RF_frequency))
     if transition == "ef":
         return -qubit.anharmonicity
     return 0
@@ -127,15 +128,26 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
         # Class containing tools to help handle units and conversions.
         u = unit(coerce_to_integer=True)
         # Get the active qubits from the node and organize them by batches
-        node.namespace["qubits"] = qubits = get_qubits(node)
+        node.namespace["qubits"] = qubits = self.get_qubits()
         num_qubits = len(qubits)
 
         operation = node.parameters.operation  # The qubit operation to play
         transition = node.parameters.transition
         validate_transition(transition)
-        if transition == "ef" and node.parameters.use_state_discrimination:
+        target = node.parameters.target_frequency_in_mhz
+        node.namespace["scan_centers_hz"] = {
+            q.name: float(
+                q.xy.RF_frequency + transition_frequency_offset(q, transition, target)
+            )
+            for q in qubits
+        }
+        if (
+            transition == "ef"
+            and node.parameters.use_state_discrimination
+            and len(node.parameters.readout_states) != 3
+        ):
             raise ValueError(
-                "EF qubit spectroscopy currently supports resonator IQ readout only."
+                "EF spectroscopy with discrimination requires readout_states=['g', 'e', 'f']."
             )
         n_avg = node.parameters.num_shots  # The number of averages
         # Adjust the pulse duration and amplitude to drive the qubit into a mixed state - can be None
@@ -160,7 +172,7 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
             I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
             if node.parameters.use_state_discrimination:
                 state = [declare(int) for _ in range(num_qubits)]
-                state_st = [declare_stream() for _ in range(num_qubits)]
+                state_st = [self.declare_state_stream() for _ in range(num_qubits)]
             df = declare(int)  # QUA variable for the qubit frequency
 
             for multiplexed_qubits in qubits.batch():
@@ -175,11 +187,7 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
                         for i, qubit in multiplexed_qubits.items():
                             qubit.xy.update_frequency(qubit.xy.intermediate_frequency)
 
-                            qubit.reset(
-                                node.parameters.reset_type,
-                                node.parameters.simulate,
-                                # log_callable=node.log,
-                            )
+                            self.reset_qubit(qubit)
                             # Get the duration of the operation from the node parameters or the state
                             duration = (
                                 operation_len
@@ -191,7 +199,7 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
                             # Update the qubit frequency
                             qubit.xy.update_frequency(
                                 df
-                                + transition_frequency_offset(qubit, transition)
+                                + transition_frequency_offset(qubit, transition, target)
                                 + qubit.xy.intermediate_frequency
                             )
                             # Play the saturation pulse
@@ -205,12 +213,10 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
                         for i, qubit in multiplexed_qubits.items():
                             # readout the resonator
                             if node.parameters.use_state_discrimination:
-                                qubit.readout_state(state[i])
-                                save(state[i], state_st[i])
+                                self.readout_state(qubit, state[i])
+                                self.save_readout_state(state[i], state_st[i])
                             else:
-                                qubit.resonator.measure(
-                                    "readout", qua_vars=(I[i], Q[i])
-                                )
+                                self.measure_readout(qubit, qua_vars=(I[i], Q[i]))
                                 save(I[i], I_st[i])
                                 save(Q[i], Q_st[i])
 
@@ -270,7 +276,16 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
             node.log(job.execution_report())
         # Register the raw dataset
         validate_readout_dataset(dataset, node.parameters.use_state_discrimination)
-        node.results["ds_raw"] = dataset
+        node.results["ds_raw"] = self.annotate_readout_dataset(dataset).assign_coords(
+            scan_center_frequency_hz=(
+                "qubit",
+                [
+                    node.namespace["scan_centers_hz"][str(name)]
+                    for name in dataset.qubit.values
+                ],
+            )
+        )
+        node.results["ds_raw"].scan_center_frequency_hz.attrs["units"] = "Hz"
 
     def load_data(self):
         node = self
@@ -280,7 +295,7 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
         node.load_from_id(node.parameters.load_data_id)
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
-        node.namespace["qubits"] = get_qubits(node)
+        node.namespace["qubits"] = self.get_qubits()
 
     def save_raw_results(self):
         node = self
@@ -388,11 +403,11 @@ if __name__ == "__main__":
 
     parameters.num_shots = 500
     parameters.operation_amplitude_factor = 0.002
-    parameters.operation_len_in_ns = 60000
-    parameters.frequency_span_in_mhz = 1
-    parameters.frequency_step_in_mhz = 0.001
-    parameters.reset_type = "active"
-    parameters.transition = "ge"
+    parameters.operation_len_in_ns = 30000
+    parameters.frequency_span_in_mhz = 10
+    parameters.frequency_step_in_mhz = 0.1
+    parameters.reset_type = "thermal"
+    parameters.transition = "ef"
 
     options = CalibrationOptions()
 

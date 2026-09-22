@@ -354,7 +354,7 @@ if __name__ == "__main__":
     parameters.stark_chirp_max_error_hz = 10
     parameters.cutoff = 0.00075
     parameters.num_shots = 200
-    parameters.drag_beta = -0.25
+    parameters.drag_beta = 0
     parameters.lorentzian_length_in_ns = 20000
     parameters.waveform_template_length_in_ns = 20000
     parameters.lorentzian_peak_amplitude = 1

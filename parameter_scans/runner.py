@@ -44,6 +44,8 @@ SUMMARY_FIELDS = [
 PARAMETER_ALIASES = {
     "t1": ("T1", "ns"),
     "t1_error": ("T1 error", "ns"),
+    "t1_ge": ("T1_ge", "ns"),
+    "t1_ge_error": ("T1_ge error", "ns"),
     "decay": ("decay", ""),
     "decay_error": ("decay error", ""),
     "freq_offset": ("frequency offset", "Hz"),

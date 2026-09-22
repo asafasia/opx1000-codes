@@ -202,7 +202,7 @@ class SingleQubitRandomizedBenchmarkingInterleaved(BaseCalibration[Parameters, Q
         with program() as qua_program:
             I, I_st, Q, Q_st, n, n_st = self.machine.declare_qua_variables()
             state = [declare(int) for _ in range(num_qubits)]
-            state_st = [declare_stream() for _ in range(num_qubits)]
+            state_st = [self.declare_state_stream() for _ in range(num_qubits)]
             depth = declare(int)
             depth_target = declare(int)
             saved_gate = declare(int)
@@ -227,10 +227,7 @@ class SingleQubitRandomizedBenchmarkingInterleaved(BaseCalibration[Parameters, Q
                         with if_(depth == depth_target):
                             with for_(n, 0, n < n_avg, n + 1):
                                 for _, qubit in multiplexed_qubits.items():
-                                    qubit.reset(
-                                        self.parameters.reset_type,
-                                        self.parameters.simulate,
-                                    )
+                                    self.reset_qubit(qubit)
                                 align()
 
                                 for _, qubit in multiplexed_qubits.items():
@@ -243,13 +240,10 @@ class SingleQubitRandomizedBenchmarkingInterleaved(BaseCalibration[Parameters, Q
 
                                 for i, qubit in multiplexed_qubits.items():
                                     if self.parameters.use_state_discrimination:
-                                        qubit.readout_state(state[i])
-                                        save(state[i], state_st[i])
+                                        self.readout_state(qubit, state[i])
+                                        self.save_readout_state(state[i], state_st[i])
                                     else:
-                                        qubit.resonator.measure(
-                                            "readout",
-                                            qua_vars=(I[i], Q[i]),
-                                        )
+                                        self.measure_readout(qubit, qua_vars=(I[i], Q[i]))
                                         save(I[i], I_st[i])
                                         save(Q[i], Q_st[i])
                                 align()

@@ -31,7 +31,6 @@ from calibration_utils.readout_power_optimization import (
     plot_raw_data_with_fit,
 )
 from calibration_utils.iq_blobs.plotting import plot_iq_blobs, plot_confusion_matrices
-from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 
@@ -97,7 +96,7 @@ class ReadoutPowerOptimization(BaseCalibration[Parameters, Quam]):
         # Class containing tools to help handle units and conversions.
         u = unit(coerce_to_integer=True)
         # Get the active qubits from the node and organize them by batches
-        node.namespace["qubits"] = qubits = get_qubits(node)
+        node.namespace["qubits"] = qubits = self.get_qubits()
         num_qubits = len(qubits)
 
         n_runs = node.parameters.num_shots  # Number of runs
@@ -131,29 +130,19 @@ class ReadoutPowerOptimization(BaseCalibration[Parameters, Quam]):
                     with for_(*from_array(a, amps)):
                         # Qubit initialization
                         for i, qubit in multiplexed_qubits.items():
-                            qubit.reset(
-                                node.parameters.reset_type,
-                                node.parameters.simulate,
-                                # log_callable=node.log,
-                            )
+                            self.reset_qubit(qubit)
                         align()
                         # Qubit readout
                         for i, qubit in multiplexed_qubits.items():
                             # Measure the state of the resonators
-                            qubit.resonator.measure(
-                                "readout", qua_vars=(Ig[i], Qg[i]), amplitude_scale=a
-                            )
+                            self.measure_readout(qubit, qua_vars=(Ig[i], Qg[i]), amplitude_scale=a)
                             # save data to their respective streams
                             save(Ig[i], Ig_st[i])
                             save(Qg[i], Qg_st[i])
 
                         # Qubit initialization
                         for i, qubit in multiplexed_qubits.items():
-                            qubit.reset(
-                                node.parameters.reset_type,
-                                node.parameters.simulate,
-                                # log_callable=node.log,
-                            )
+                            self.reset_qubit(qubit)
                         align()
                         # Qubit readout
                         for i, qubit in multiplexed_qubits.items():
@@ -162,9 +151,7 @@ class ReadoutPowerOptimization(BaseCalibration[Parameters, Quam]):
                             # Align the elements to measure after playing the qubit pulses.
                             qubit.align()
                             # Measure the state of the resonators
-                            qubit.resonator.measure(
-                                "readout", qua_vars=(Ie[i], Qe[i]), amplitude_scale=a
-                            )
+                            self.measure_readout(qubit, qua_vars=(Ie[i], Qe[i]), amplitude_scale=a)
                             # save data to their respective streams
                             save(Ie[i], Ie_st[i])
                             save(Qe[i], Qe_st[i])
@@ -219,7 +206,7 @@ class ReadoutPowerOptimization(BaseCalibration[Parameters, Quam]):
             # Display the execution report to expose possible runtime errors
             node.log(job.execution_report())
         # Register the raw dataset
-        node.results["ds_raw"] = dataset
+        node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
     def save_raw_results(self):
         node = self
@@ -241,7 +228,7 @@ class ReadoutPowerOptimization(BaseCalibration[Parameters, Quam]):
         node.load_from_id(node.parameters.load_data_id)
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
-        node.namespace["qubits"] = get_qubits(node)
+        node.namespace["qubits"] = self.get_qubits()
 
     def analyse_data(self):
         node = self
@@ -297,51 +284,31 @@ class ReadoutPowerOptimization(BaseCalibration[Parameters, Quam]):
             node.log(f"Calibration figures saved to {figures_directory}")
 
     def update_state(self):
-        node = self
-        """Update the relevant parameters if the qubit data analysis was successful."""
-        with node.record_state_updates():
-            for q in node.namespace["qubits"]:
-                if node.outcomes[q.name] == "failed":
-                    continue
-
-                fit_results = node.results["fit_results"][q.name]
-                operation = q.resonator.operations["readout"]
-                operation.integration_weights_angle -= float(fit_results["iw_angle"])
-                operation.threshold = (
-                    float(fit_results["ge_threshold"]) * operation.length / 2**12
-                )
-                operation.rus_exit_threshold = (
-                    float(fit_results["rus_threshold"]) * operation.length / 2**12
-                )
-                operation.amplitude = float(fit_results["optimal_amplitude"])
-                q.resonator.confusion_matrix = fit_results["fidelity_matrix"]
-
-    def propose_profile_update(self):
-        node = self
-        """Stage optimized readout amplitude and readout fidelity in the active profile."""
-        updates = {}
-        for q in node.namespace["qubits"]:
-            if node.outcomes[q.name] != "successful":
+        for q in self.namespace["qubits"]:
+            if self.outcomes[q.name] != "successful":
                 continue
+            q.resonator.operations[self.parameters.readout_operation].amplitude = float(
+                self.results["fit_results"][q.name]["optimal_amplitude"])
+            from utils.readout_macro import readout_settings
+            settings = readout_settings(q, self.parameters.readout_operation)
+            settings["gef_centers"] = None
+            settings["confusion_matrix"] = None
 
-            fit_result = node.results["fit_results"][q.name]
-            updates[f"pulses.json.pulses.{q.name}.readout.amplitude"] = float(
-                fit_result["optimal_amplitude"]
-            )
-            updates[f"qubits.json.qubits.{q.name}.readout.confusion_matrix"] = (
-                fit_result["fidelity_matrix"]
-            )
-
-            if node.parameters.reset_type in {"active", "thermal"}:
-                updates[
-                    f"metrics.json.qubits.{q.name}.readout.fidelity_percent.{node.parameters.reset_type}"
-                ] = float(fit_result["readout_fidelity"])
-
-        if updates:
-            proposal = ProfileUpdater().stage(
-                node.name, updates, profile_name=current_profile_name()
-            )
-            ProfileUpdater().confirm_and_apply(proposal)
+    def profile_updates(self):
+        section = "readout_gef" if len(self.parameters.readout_states) == 3 else "readout"
+        operation = self.parameters.readout_operation
+        updates = {}
+        for q in self.namespace["qubits"]:
+            if self.outcomes[q.name] != "successful":
+                continue
+            fit = self.results["fit_results"][q.name]
+            pulse_name = getattr(q.resonator, "readout_pulse_names", {}).get(operation, operation)
+            updates[f"pulses.json.pulses.{q.name}.{pulse_name}.amplitude"] = float(fit["optimal_amplitude"])
+            updates[f"qubits.json.qubits.{q.name}.{section}.gef_centers"] = None
+            updates[f"qubits.json.qubits.{q.name}.{section}.confusion_matrix"] = None
+            if section == "readout" and self.parameters.reset_type in {"active", "thermal"}:
+                updates[f"metrics.json.qubits.{q.name}.readout.fidelity_percent.{self.parameters.reset_type}"] = float(fit["readout_fidelity"])
+        return updates
 
 
 if __name__ == "__main__":

@@ -190,16 +190,19 @@ def test_saved_map_round_trip_keeps_dimensions_and_frequency(calibration, tmp_pa
     expected = calibration._dataset(rows, 3)
     np.savez(tmp_path / "sweep.npz", **{name: value.values for name, value in expected.coords.items()})
     np.savez(tmp_path / "results.npz", **{name: value.values for name, value in expected.data_vars.items()})
+    calibration.machine.dc_bias.qubit_biases_v["q3"] = 0.007
     calibration.load_data(tmp_path)
     actual = calibration.results["ds_raw"]
     assert actual.I.dims == expected.I.dims
     assert actual.drive_frequency_hz.dims == ("qubit",)
+    assert float(actual.configured_bias_v.sel(qubit="q3")) == pytest.approx(0.003)
     np.testing.assert_array_equal(actual.I, expected.I)
     calibration.analyse_data()
     assert calibration.results["ds_raw"].full_freq.dims == ("qubit", "detuning")
 
 
-def test_periodic_map_fits_absolute_bias_near_nonzero_center(calibration):
+@pytest.mark.parametrize("quadrature", ["I", "Q"])
+def test_parabolic_map_rejects_false_high_peak_and_fits_absolute_bias(calibration, quadrature):
     calibration.parameters.num_flux_points = 31
     calibration.parameters.frequency_span_in_mhz = 20
     calibration.parameters.frequency_step_in_mhz = 0.1
@@ -208,14 +211,20 @@ def test_periodic_map_fits_absolute_bias_near_nonzero_center(calibration):
     voltage = axes["flux_bias"].values
     detuning = axes["detuning"].values
     sweet_spot = 0.00315
-    peak = 4e6 * np.cos(2 * np.pi * (voltage - sweet_spot) / 0.002)
+    peak = 4e6 - 6e12 * (voltage - sweet_spot)**2
+    peak[4] = 8e6  # Strong false peak, above the true maximum.
     signal = 0.01 + 0.1 * np.exp(-((detuning[:, None] - peak) / 2e5) ** 2)
     calibration.results["ds_raw"] = calibration._dataset(
-        {"I": signal.T, "Q": np.zeros_like(signal.T)}, len(voltage),
+        {"I": signal.T if quadrature == "I" else np.zeros_like(signal.T),
+         "Q": -signal.T if quadrature == "Q" else np.zeros_like(signal.T)}, len(voltage),
     )
     calibration.analyse_data()
     result = calibration.results["fit_results"]["q3"]
     assert result["success"], result
+    assert result["selected_quadrature"] == quadrature
+    assert result["r_squared"] > 0.99
+    assert result["num_outliers"] >= 1
+    assert not calibration.results["ds_fit"].fit_inlier.sel(qubit="q3").values[4]
     assert result["idle_offset"] == pytest.approx(sweet_spot, abs=5e-5)
     updates = calibration.profile_updates()
     assert updates["qubits.json.qubits.q3.dc_bias_v"] == result["idle_offset"]
@@ -225,3 +234,38 @@ def test_periodic_map_fits_absolute_bias_near_nonzero_center(calibration):
     with patch.object(module.plt, "show"):
         calibration.plot_data()
     module.plt.close("all")
+
+
+@pytest.mark.parametrize("shape", ["flat", "outside"])
+def test_unreliable_parabola_does_not_propose_profile_updates(calibration, shape):
+    calibration.parameters.num_flux_points = 11
+    calibration.parameters.frequency_span_in_mhz = 30
+    calibration.parameters.frequency_step_in_mhz = 0.1
+    calibration.create_qua_program()
+    axes = calibration.namespace["sweep_axes"]
+    voltage, detuning = axes["flux_bias"].values, axes["detuning"].values
+    peak = np.full(len(voltage), 2e6) if shape == "flat" else -1e12 * (voltage - 0.005)**2
+    signal = 0.01 + 0.1 * np.exp(-((detuning[:, None] - peak) / 2e5)**2)
+    calibration.results["ds_raw"] = calibration._dataset(
+        {"I": signal.T, "Q": np.zeros_like(signal.T)}, len(voltage),
+    )
+    calibration.analyse_data()
+    assert not calibration.results["fit_results"]["q3"]["success"]
+    assert calibration.profile_updates() == {}
+
+
+@pytest.mark.parametrize("scale", [-1.6, 1.6])
+def test_mw_drive_allows_unit_amplitude(calibration, scale):
+    q = calibration.namespace["qubits"][0]
+    q.xy.operations[calibration.parameters.operation].amplitude = 0.625
+    calibration.parameters.operation_amplitude_factor = scale
+    calibration.create_qua_program()
+
+
+@pytest.mark.parametrize("scale", [-1.7, 1.7])
+def test_mw_drive_rejects_amplitude_above_one(calibration, scale):
+    q = calibration.namespace["qubits"][0]
+    q.xy.operations[calibration.parameters.operation].amplitude = 0.625
+    calibration.parameters.operation_amplitude_factor = scale
+    with pytest.raises(ValueError, match="Scaled pulse amplitude must not exceed 1"):
+        calibration.create_qua_program()

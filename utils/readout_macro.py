@@ -1,5 +1,7 @@
 """QUA macros for threshold and nearest-center state discrimination."""
 
+import hashlib
+import json
 import math
 from collections.abc import Sequence
 from typing import Literal
@@ -100,6 +102,67 @@ def discriminate_nearest_center(
     return Math.argmin(squared_distances)
 
 
+def readout_settings(qubit, pulse_name="readout"):
+    """Return calibration belonging to the measured pulse, without cross-mode fallback."""
+    if pulse_name == "readout_GEF":
+        settings = getattr(qubit.resonator, "readout_gef", None)
+        if settings is None:
+            raise ValueError(f"{qubit.name} needs an independent readout_gef configuration")
+        return settings
+    return getattr(qubit.resonator, "readout_ge", {
+        "gef_centers": getattr(qubit.resonator, "gef_centers", None),
+        "confusion_matrix": getattr(qubit.resonator, "confusion_matrix", None),
+    })
+
+
+def readout_signature(qubit, pulse_name, *, angle=None):
+    """Identify the acquisition settings under which IQ centers were calibrated."""
+    rr = qubit.resonator
+    pulse = rr.operations[pulse_name]
+    settings = readout_settings(qubit, pulse_name)
+    values = {
+        "frequency_hz": float(settings["frequency_hz"] if pulse_name == "readout_GEF" else rr.RF_frequency),
+        "amplitude": float(pulse.amplitude), "length_ns": int(pulse.length),
+        "angle_rad": float(pulse.integration_weights_angle if angle is None else angle),
+        "weights": [[float(row[0]), int(row[1])] for row in pulse.integration_weights],
+        "time_of_flight_ns": int(rr.time_of_flight), "smearing_ns": int(rr.smearing),
+        "gain_db": getattr(rr.opx_input, "gain_db", None),
+        "full_scale_power_dbm": getattr(rr.opx_output, "full_scale_power_dbm", None),
+    }
+    # Preserve existing square-pulse signatures; shaped pulses need their own calibration.
+    edge_length_ns = getattr(pulse, "edge_length_ns", None)
+    if edge_length_ns is not None:
+        values["pulse_shape"] = "flat_top_gaussian"
+        values["edge_length_ns"] = int(edge_length_ns)
+    return hashlib.sha256(json.dumps(values, sort_keys=True).encode()).hexdigest()
+
+
+def validate_readout_calibration(qubit, pulse_name):
+    settings = readout_settings(qubit, pulse_name)
+    signature = settings.get("calibration_signature")
+    if signature is not None and signature != readout_signature(qubit, pulse_name):
+        raise ValueError(f"{qubit.name} {pulse_name} pulse settings changed after IQ calibration; "
+                         "recalibrate IQ blobs with thermal reset")
+
+
+def measure_readout(qubit, pulse_name="readout", *, frequency_offset=None, sliced=False, **kwargs):
+    """Measure at the pulse's RF frequency and restore the normal resonator IF."""
+    if pulse_name not in qubit.resonator.operations:
+        raise ValueError(f"{qubit.name} has no {pulse_name} pulse configured")
+    resonator = qubit.resonator
+    frequency = resonator.intermediate_frequency
+    if pulse_name == "readout_GEF":
+        settings = readout_settings(qubit, pulse_name)
+        frequency = int(frequency + settings["frequency_hz"] - resonator.RF_frequency)
+    # Explicitly select the base frequency too: resets may run inside frequency sweeps.
+    resonator.update_frequency(frequency if frequency_offset is None else frequency + frequency_offset)
+    if sliced:
+        resonator.measure_sliced(pulse_name, **kwargs)
+    else:
+        resonator.measure(pulse_name, **kwargs)
+    resonator.update_frequency(int(resonator.intermediate_frequency))
+
+
 def readout_state_nearest_center(
     qubit,
     state,
@@ -109,33 +172,20 @@ def readout_state_nearest_center(
     pulse_name: str | None = None,
 ) -> None:
     """Measure and assign ``state`` using the closest IQ blob center."""
+    pulse_name = pulse_name or ("readout_GEF" if num_states == 3 else "readout")
+    settings = readout_settings(qubit, pulse_name)
     if centers is None:
-        centers = getattr(qubit.resonator, "gef_centers", None)
+        centers = settings.get("gef_centers")
     if centers is None:
         raise ValueError(
-            f"{qubit.name} has no calibrated IQ centers; run IQ blobs and apply "
-            "its profile update first"
+            f"{qubit.name} {pulse_name} has no calibrated IQ centers; run IQ blobs "
+            "with the matching readout_states and reset_type='thermal', then apply its proposal"
         )
+    validate_readout_calibration(qubit, pulse_name)
     selected_centers = _validated_centers(centers, num_states)
-    if pulse_name is None:
-        pulse_name = "readout_GEF" if num_states == 3 else "readout"
-
     i_quadrature = declare(fixed)
     q_quadrature = declare(fixed)
-    uses_gef_frequency = num_states == 3
-    if uses_gef_frequency:
-        qubit.resonator.update_frequency(
-            int(
-                qubit.resonator.intermediate_frequency
-                + qubit.resonator.GEF_frequency_shift
-            )
-        )
-    qubit.resonator.measure(
-        pulse_name,
-        qua_vars=(i_quadrature, q_quadrature),
-    )
-    if uses_gef_frequency:
-        qubit.resonator.update_frequency(qubit.resonator.intermediate_frequency)
+    measure_readout(qubit, pulse_name, qua_vars=(i_quadrature, q_quadrature))
     assign(
         state,
         discriminate_nearest_center(
@@ -145,7 +195,7 @@ def readout_state_nearest_center(
             num_states=num_states,
         ),
     )
-    wait(qubit.resonator.depletion_time // 4, qubit.resonator.name)
+    wait(int(settings.get("depletion_time_ns", qubit.resonator.depletion_time)) // 4, qubit.resonator.name)
 
 
 def readout_state_configured(
@@ -163,9 +213,18 @@ def readout_state_configured(
     """
     if num_states not in {2, 3}:
         raise ValueError(f"num_states must be 2 or 3, got {num_states!r}")
+    expected_pulse = "readout_GEF" if num_states == 3 else "readout"
+    if hasattr(qubit.resonator, "readout_gef") and pulse_name not in {None, expected_pulse}:
+        raise ValueError(f"{num_states}-state readout requires {expected_pulse}, got {pulse_name}")
     if discriminator is None:
         discriminator = getattr(qubit.resonator, "readout_discriminator", "quam")
 
+    if num_states == 3 and hasattr(qubit.resonator, "readout_gef"):
+        # G/E/F requires centers for its own pulse for either classifier choice.
+        if discriminator not in {"quam", "nearest_center"}:
+            raise ValueError(f"Unknown discriminator {discriminator!r}")
+        readout_state_nearest_center(qubit, state, num_states=3, pulse_name=pulse_name)
+        return
     if discriminator == "nearest_center":
         readout_state_nearest_center(
             qubit,
@@ -173,6 +232,17 @@ def readout_state_configured(
             num_states=num_states,
             pulse_name=pulse_name,
         )
+        return
+    if discriminator == "quam" and num_states == 2 and hasattr(qubit.resonator, "readout_ge"):
+        selected_pulse = pulse_name or "readout"
+        settings = readout_settings(qubit, selected_pulse)
+        validate_readout_calibration(qubit, selected_pulse)
+        i_value, q_value = declare(fixed), declare(fixed)
+        measure_readout(qubit, selected_pulse, qua_vars=(i_value, q_value))
+        assign(state, discriminate_i(i_value, qubit.resonator.operations[selected_pulse].threshold,
+                                    settings.get("state_1_when", "above_threshold")))
+        wait(int(settings.get("depletion_time_ns", qubit.resonator.depletion_time)) // 4,
+             qubit.resonator.name)
         return
     if discriminator == "quam":
         if num_states == 2:

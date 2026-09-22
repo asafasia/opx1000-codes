@@ -50,7 +50,8 @@ Prerequisites:
     - Having specified the desired flux point if relevant (qubit.z.flux_point).
 
 State update:
-    - The T1 relaxation time: qubit.T1
+    - Excited-state runs: qubit.T1 (standard e-to-g T1).
+    - Ground-state runs: qubit.extras["T1_ge"] (seconds).
 """
 
 # Be sure to include [Parameters, Quam] so the node has proper type hinting
@@ -108,7 +109,7 @@ class T1(BaseCalibration[Parameters, Quam]):
         # Class containing tools to help handle units and conversions.
         u = unit(coerce_to_integer=True)
         # Get the active qubits from the node and organize them by batches
-        node.namespace["qubits"] = qubits = get_qubits(node)
+        node.namespace["qubits"] = qubits = self.get_qubits()
         num_qubits = len(node.namespace["qubits"])
         # Extract the sweep parameters and axes from the node parameters
         n_avg = node.parameters.num_shots
@@ -127,7 +128,7 @@ class T1(BaseCalibration[Parameters, Quam]):
             t = declare(int)
             if node.parameters.use_state_discrimination:
                 state = [declare(int) for _ in range(num_qubits)]
-                state_st = [declare_stream() for _ in range(num_qubits)]
+                state_st = [self.declare_state_stream() for _ in range(num_qubits)]
 
             for multiplexed_qubits in qubits.batch():
                 # Initialize the QPU in terms of flux points (flux tunable transmons and/or tunable couplers)
@@ -139,11 +140,7 @@ class T1(BaseCalibration[Parameters, Quam]):
                     with for_each_(t, idle_times):
                         # Reset the qubits to the ground state
                         for i, qubit in multiplexed_qubits.items():
-                            qubit.reset(
-                                node.parameters.reset_type,
-                                node.parameters.simulate,
-                                # log_callable=node.log,
-                            )
+                            self.reset_qubit(qubit)
                         # Multiplexed sync: every qubit must finish reset (possibly different durations, e.g. active reset)
                         # before any manipulation starts; also keeps shared resources (e.g. TWPA sticky elements) coherent.
                         align()
@@ -162,12 +159,10 @@ class T1(BaseCalibration[Parameters, Quam]):
                         # Measure the state of the resonators
                         for i, qubit in multiplexed_qubits.items():
                             if node.parameters.use_state_discrimination:
-                                qubit.readout_state(state[i])
-                                save(state[i], state_st[i])
+                                self.readout_state(qubit, state[i])
+                                self.save_readout_state(state[i], state_st[i])
                             else:
-                                qubit.resonator.measure(
-                                    "readout", qua_vars=(I[i], Q[i])
-                                )
+                                self.measure_readout(qubit, qua_vars=(I[i], Q[i]))
                                 # save data
                                 save(I[i], I_st[i])
                                 save(Q[i], Q_st[i])
@@ -226,7 +221,7 @@ class T1(BaseCalibration[Parameters, Quam]):
             # Display the execution report to expose possible runtime errors
             node.log(job.execution_report())
         # Register the raw dataset
-        node.results["ds_raw"] = dataset
+        node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
     def save_raw_results(self):
         node = self
@@ -248,7 +243,7 @@ class T1(BaseCalibration[Parameters, Quam]):
         node.load_from_id(node.parameters.load_data_id)
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
-        node.namespace["qubits"] = get_qubits(node)
+        node.namespace["qubits"] = self.get_qubits()
 
     def plot_data(self):
         """Plot all acquired qubits in one grid figure."""
@@ -277,13 +272,18 @@ class T1(BaseCalibration[Parameters, Quam]):
                 if node.outcomes[q.name] == "failed":
                     continue
 
-                q.T1 = float(node.results["ds_fit"].sel(qubit=q.name).tau.values) * 1e-9
+                fitted_time_s = float(node.results["ds_fit"].sel(qubit=q.name).tau.values) * 1e-9
+                if node.parameters.initial_state == "g":
+                    q.extras["T1_ge"] = fitted_time_s
+                else:
+                    q.T1 = fitted_time_s
 
     def propose_profile_update(self):
         node = self
-        """Stage fitted T1 values in profile metrics."""
+        """Stage ground-state T1_ge separately from standard T1 metrics."""
+        metric = "t1_ge_ns" if node.parameters.initial_state == "g" else "t1_ns"
         updates = {
-            f"metrics.json.qubits.{q.name}.coherence.t1_ns": float(
+            f"metrics.json.qubits.{q.name}.coherence.{metric}": float(
                 node.results["ds_fit"].sel(qubit=q.name).tau.values
             )
             for q in node.namespace["qubits"]
@@ -301,7 +301,7 @@ if __name__ == "__main__":
 
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
-    parameters.use_readout_mitigation = True
+    parameters.use_readout_mitigation = False
 
     parameters.max_wait_time_in_ns = 250e3
     parameters.wait_time_num_points = 300

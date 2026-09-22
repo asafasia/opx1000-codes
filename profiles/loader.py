@@ -10,7 +10,7 @@ from typing import Any, Mapping
 
 PROFILES_ROOT = Path(__file__).resolve().parent
 SUPPORTED_SCHEMA_VERSION = 1
-PULSE_TYPES = {"constant", "drag", "cosine", "saturation"}
+PULSE_TYPES = {"constant", "drag", "cosine", "saturation", "flat_top_gaussian"}
 STATE_1_RULES = {"above_threshold", "below_threshold"}
 READOUT_DISCRIMINATORS = {"quam", "nearest_center"}
 MAX_PROFILE_PULSE_AMPLITUDE = 1.0
@@ -127,29 +127,25 @@ def _validate_pulse(name: str, pulse: Any) -> None:
         f"Maximum allowed absolute amplitude is {MAX_PROFILE_PULSE_AMPLITUDE}.",
     )
     _require(isinstance(pulse.get("length_ns"), int) and pulse["length_ns"] > 0, f"Pulse {name!r} needs positive integer length_ns")
-    _require(target != "resonator" or pulse_type == "constant", f"Readout pulse {name!r} must use type 'constant'")
+    _require(
+        target != "resonator" or pulse_type in {"constant", "flat_top_gaussian"},
+        f"Readout pulse {name!r} must use type 'constant' or 'flat_top_gaussian'",
+    )
+    if pulse_type == "flat_top_gaussian":
+        _require(target == "resonator", f"Flat-top Gaussian pulse {name!r} must target 'resonator'")
+        edge = pulse.get("edge_length_ns", 100)
+        _require(
+            isinstance(edge, int) and not isinstance(edge, bool) and edge > 0 and edge % 4 == 0,
+            f"Readout pulse {name!r} needs positive integer edge_length_ns in multiples of 4 ns",
+        )
+        _require(
+            pulse["length_ns"] >= 16 and pulse["length_ns"] % 4 == 0 and 2 * edge < pulse["length_ns"],
+            f"Readout pulse {name!r} length_ns must be a multiple of 4 ns, at least 16 ns, and leave a positive flat top",
+        )
+        _require(abs(pulse["amplitude"]) <= 0.7, f"Flat-top Gaussian readout pulse {name!r} amplitude must be at most 0.7")
 
-    if target == "resonator":
-        integration_weights = pulse.get("integration_weights")
-        _require(
-            isinstance(integration_weights, list) and integration_weights,
-            f"Readout pulse {name!r} needs integration_weights",
-        )
-        _require(
-            all(
-                isinstance(segment, list)
-                and len(segment) == 2
-                and isinstance(segment[0], (int, float))
-                and isinstance(segment[1], int)
-                and segment[1] > 0
-                for segment in integration_weights
-            ),
-            f"Readout pulse {name!r} integration_weights must contain [weight, length_ns] segments",
-        )
-        _require(
-            sum(segment[1] for segment in integration_weights) == pulse["length_ns"],
-            f"Readout pulse {name!r} integration_weights must span length_ns",
-        )
+    # Integration weights are derived from length or loaded from the kernel file.
+    # Ignore legacy inline weights when reading older profiles.
 
     if pulse_type == "drag":
         _require(isinstance(pulse.get("sigma_ns"), (int, float)) and pulse["sigma_ns"] > 0, f"DRAG pulse {name!r} needs positive sigma_ns")
@@ -394,6 +390,45 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
             _require(target == expected_target, f"Qubit {name!r} operation {operation_name!r} must target {expected_target}")
 
 
+def _validate_gef_readout(qubits_document, pulses_document, connectivity):
+    """Validate independent GEF calibration and its actual output LO/band."""
+    for name, qubit in qubits_document["qubits"].items():
+        settings = qubit.get("readout_gef")
+        if settings is None:
+            _require("readout_GEF" not in qubit["operations"],
+                     f"Qubit {name!r} readout_GEF needs readout_gef settings")
+            continue
+        label = f"Qubit {name!r} readout_gef"
+        _require(isinstance(settings, dict), f"{label} must be an object")
+        _require("readout_GEF" in qubit["operations"], f"{label} needs a readout_GEF operation")
+        for key in ("frequency_hz", "threshold", "rus_exit_threshold", "integration_weights_angle_rad"):
+            value = settings.get(key)
+            _require(isinstance(value, (int, float)) and not isinstance(value, bool)
+                     and math.isfinite(value), f"{label}.{key} must be finite and numeric")
+        _require(settings.get("state_1_when") in STATE_1_RULES, f"{label}.state_1_when is invalid")
+        _require(isinstance(settings.get("use_kernel", False), bool), f"{label}.use_kernel must be boolean")
+        depletion = settings.get("depletion_time_ns")
+        _require(isinstance(depletion, int) and depletion >= 0 and depletion % 4 == 0,
+                 f"{label}.depletion_time_ns must be a nonnegative multiple of 4")
+        for key, width in (("gef_centers", 2), ("confusion_matrix", 3)):
+            value = settings.get(key)
+            _require(value is None or (isinstance(value, list) and len(value) == 3 and
+                     all(isinstance(row, list) and len(row) == width and
+                         all(isinstance(x, (int, float)) and math.isfinite(x) for x in row)
+                         for row in value)), f"{label}.{key} must be null or a finite 3x{width} list")
+        connection = connectivity["connections"][name]
+        port = _get_port(connectivity, connection["resonator_output"], "outputs", label)
+        lo = connection.get("lo_frequencies_hz", {}).get("resonator_output", port["lo_frequency_hz"])
+        frequency = settings["frequency_hz"]
+        band_min, band_max = MW_FEM_BAND_RANGES_HZ[port["band"]]
+        _require(band_min <= frequency <= band_max and abs(frequency - lo) <= MW_FEM_MAX_IF_HZ,
+                 f"{label}.frequency_hz is outside the output band or allowed IF range")
+        pulse = pulses_document["pulses"][name][qubit["operations"]["readout_GEF"]]
+        _require(abs(pulse["amplitude"]) <= 0.7, f"{label} pulse amplitude must not exceed 0.7")
+        _require(qubit["operations"]["readout_GEF"] != qubit["operations"]["readout"],
+                 f"{label} must use an independent pulse")
+
+
 def _validate_qubit_dc_biases(
     qubits_document: dict[str, Any], connectivity: dict[str, Any]
 ) -> None:
@@ -431,7 +466,7 @@ def _validate_metrics(metrics_document: dict[str, Any], qubits_document: dict[st
         _require(isinstance(qubit_metrics, dict), f"Metrics for {qubit_name!r} must be an object")
         coherence = qubit_metrics.get("coherence", {})
         _require(isinstance(coherence, dict), f"Metrics for {qubit_name!r} need coherence")
-        for metric_name in ("t1_ns", "t2_ramsey_ns", "t2_echo_ns"):
+        for metric_name in ("t1_ns", "t1_ge_ns", "t2_ramsey_ns", "t2_echo_ns"):
             value = coherence.get(metric_name)
             _require(
                 value is None or isinstance(value, (int, float)),
@@ -446,6 +481,39 @@ def _validate_metrics(metrics_document: dict[str, Any], qubits_document: dict[st
                 value is None or isinstance(value, (int, float)),
                 f"Metrics for {qubit_name!r} readout.fidelity_percent.{reset_name} must be numeric or null",
             )
+
+
+READOUT_PULSE_CHOICES = {
+    "readout": ("readout_pulse", {"readout", "readout_flattop"}),
+    "readout_GEF": ("readout_gef_pulse", {"readout_GEF", "readout_GEF_flattop"}),
+}
+
+
+def selected_readout_pulse(manifest, operations, operation_name):
+    """Resolve the experiment readout operation to its selected profile pulse."""
+    if operation_name in READOUT_PULSE_CHOICES:
+        field, _ = READOUT_PULSE_CHOICES[operation_name]
+        if field in manifest:
+            return manifest[field]
+    return operations[operation_name]
+
+
+def _validate_readout_pulse_selection(manifest, qubits, pulses):
+    for operation, (field, choices) in READOUT_PULSE_CHOICES.items():
+        if field not in manifest:
+            continue  # Older profiles continue using their operation mappings.
+        selected = manifest[field]
+        _require(isinstance(selected, str) and selected in choices,
+                 f"profile.json {field} must be one of {sorted(choices)}")
+        for name, settings in qubits["qubits"].items():
+            if operation not in settings["operations"]:
+                continue
+            definition = pulses["pulses"][name].get(selected)
+            _require(definition is not None,
+                     f"Qubit {name!r} is missing selected readout pulse {selected!r}")
+            expected_type = "flat_top_gaussian" if selected.endswith("_flattop") else "constant"
+            _require(definition["target"] == "resonator" and definition["type"] == expected_type,
+                     f"Selected readout pulse {name}.{selected} must target resonator and use type {expected_type!r}")
 
 
 def validate_profile(profile: dict[str, Any]) -> None:
@@ -466,6 +534,7 @@ def validate_profile(profile: dict[str, Any]) -> None:
 
     _validate_pulses(pulses)
     _validate_qubits(qubits, pulses)
+    _validate_readout_pulse_selection(manifest, qubits, pulses)
     if metrics is not None:
         _validate_metrics(metrics, qubits)
     _validate_connectivity(
@@ -474,18 +543,12 @@ def validate_profile(profile: dict[str, Any]) -> None:
         use_connection_los=manifest.get("build_mode") == "single_qubit",
     )
     _validate_qubit_dc_biases(qubits, connectivity)
+    _validate_gef_readout(qubits, pulses, connectivity)
 
     active_qubits = manifest.get("active_qubits")
     _require(isinstance(active_qubits, list) and active_qubits, "profile.json must define active_qubits")
     for qubit_name in active_qubits:
         _require(qubit_name in qubits["qubits"], f"Active qubit {qubit_name!r} is undefined")
-        if manifest.get("readout_discriminator", "quam") == "nearest_center":
-            centers = qubits["qubits"][qubit_name]["readout"].get("gef_centers")
-            _require(
-                centers is not None and len(centers) >= 2,
-                f"Active qubit {qubit_name!r} needs readout.gef_centers for "
-                "nearest_center discrimination",
-            )
 
 
 def _load_profile_documents(name: str, root: Path = PROFILES_ROOT) -> dict[str, Any]:

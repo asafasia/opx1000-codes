@@ -1,4 +1,5 @@
 from typing import Literal
+from pydantic import Field, field_validator
 
 from qualibrate import NodeParameters
 from qualibrate.core.parameters import RunnableParameters
@@ -23,6 +24,30 @@ class NodeSpecificParameters(RunnableParameters):
     """Total qubit-frequency span in MHz."""
     frequency_step_in_mhz: float = 2
     """Qubit-frequency step in MHz."""
+
+
+    fit_stark_shift: bool = True
+    """Extract spectral peaks and test their amplitude dependence."""
+    stark_reference_pi_operation: str = "x180"
+    """Calibrated pi operation used to convert amplitude to Rabi frequency."""
+    stark_peak_window_mhz: float | None = Field(default=50.0, gt=0)
+    """Gaussian-center search half-width; background and width use the full scan. None allows any center."""
+    stark_min_peak_snr: float = Field(default=5.0, gt=0)
+    """Minimum fitted Gaussian height divided by its standard error."""
+    stark_peak_fit_points: int = Field(default=5, ge=3)
+    """Minimum finite samples and separation for competing peaks; fit uses the full scan (at least 8 finite samples)."""
+    stark_min_amp_factor: float | None = None
+    stark_max_amp_factor: float | None = None
+    stark_max_rabi_to_anharmonicity: float | None = Field(default=0.2, gt=0)
+    """Restrict the fit to weak drive; None disables this cut."""
+    stark_min_valid_points: int = Field(default=6, ge=4)
+
+    @field_validator("stark_peak_fit_points")
+    @classmethod
+    def odd_peak_window(cls, value):
+        if value % 2 != 1:
+            raise ValueError("stark_peak_fit_points must be odd")
+        return value
 
 
 class Parameters(

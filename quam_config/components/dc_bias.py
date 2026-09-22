@@ -27,7 +27,7 @@ class ArduinoDCBias(QuamComponent):
     code, outside QUA program construction.
     """
 
-    output_channel: ClassVar[int] = 0
+    output_channel: ClassVar[int] = 0  # Physical output 1 (zero-based protocol).
 
     max_abs_voltage_v: float
     port: str = DEFAULT_PORT

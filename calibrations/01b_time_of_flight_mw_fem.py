@@ -31,6 +31,7 @@ from calibration_utils.time_of_flight_mw import (
     plot_single_run_with_fit,
     plot_averaged_run_with_fit,
 )
+from quam_config.readout_pulses import with_gaussian_edges, with_square_envelope
 from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
@@ -123,8 +124,10 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
         num_qubits = len(qubits)
 
         node.namespace["tracked_resonators"] = []
+        node.namespace["original_readout_pulses"] = []
         full_scale_power_dbm = select_full_scale_power_dbm(
-            node.parameters.readout_amplitude_in_dBm
+            node.parameters.readout_amplitude_in_dBm,
+            max_amplitude=0.7,
         )
         for q in qubits:
             resonator = q.resonator
@@ -132,6 +135,7 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
             with tracked_updates(
                 resonator, auto_revert=False, dont_assign_to_none=True
             ) as resonator:
+                node.namespace["tracked_resonators"].append(resonator)
                 if node.parameters.time_of_flight_in_ns is not None:
                     resonator.time_of_flight = node.parameters.time_of_flight_in_ns
                 resonator.operations["readout"].length = (
@@ -142,7 +146,17 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
                     full_scale_power_dbm=full_scale_power_dbm,
                     operation="readout",
                 )
-                node.namespace["tracked_resonators"].append(resonator)
+            original_pulse = q.resonator.operations["readout"]
+            if node.parameters.readout_pulse_shape == "flat_top_gaussian":
+                experiment_pulse = with_gaussian_edges(
+                    original_pulse, node.parameters.readout_edge_length_in_ns
+                )
+            else:
+                experiment_pulse = with_square_envelope(original_pulse)
+            node.namespace["original_readout_pulses"].append(
+                (q.resonator, original_pulse)
+            )
+            q.resonator.operations["readout"] = experiment_pulse
 
         # Register the sweep axes to be added to the dataset when fetching data
         node.namespace["sweep_axes"] = {
@@ -307,13 +321,26 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
             )
             node.log(f"Calibration figures saved to {figures_directory}")
 
+    def cleanup(self):
+        """Restore temporary pulses/settings, including after a failed or preview run."""
+        for resonator, pulse in self.namespace.pop("original_readout_pulses", []):
+            resonator.operations["readout"] = pulse
+        for tracked in self.namespace.pop("tracked_resonators", []):
+            tracked.revert_changes()
+        super().cleanup()
+
     def update_state(self):
         node = self
         """Update the relevant parameters if the qubit data analysis was successful."""
 
-        # Revert the change done at the beginning of the node
-        for tracked_resonator in node.namespace.get("tracked_resonators", []):
-            tracked_resonator.revert_changes()
+        self.cleanup()
+
+        if node.parameters.readout_pulse_shape == "flat_top_gaussian":
+            node.log(
+                "Skipping time-of-flight update: Gaussian edges shift the arrival "
+                "threshold. Use readout_pulse_shape='square' to calibrate the delay."
+            )
+            return
 
         with node.record_state_updates():
             for q in node.namespace["qubits"]:
@@ -331,12 +358,15 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
 
 if __name__ == "__main__":
     parameters = Parameters()
+    parameters.num_shots = 1000
+    # parameters.time_of_flight_in_ns = 4
+    parameters.readout_edge_length_in_ns = 500
 
     options = CalibrationOptions()
 
     calibration = TimeOfFlightMwFem(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q6"),
     )
     calibration.run()

@@ -31,7 +31,6 @@ from calibration_utils.resonator_spectroscopy import (
 from calibration_io import CalibrationSaver, current_profile_name
 from utils.plotting_settings import plot_per_qubit
 from profiles import ProfileUpdater
-from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 
@@ -88,7 +87,7 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
         # Class containing tools to help handle units and conversions.
         u = unit(coerce_to_integer=True)
         # Get the active qubits from the node and organize them by batches
-        node.namespace["qubits"] = qubits = get_qubits(node)
+        node.namespace["qubits"] = qubits = self.get_qubits()
         num_qubits = len(qubits)
         # Extract the sweep parameters and axes from the node parameters
         n_runs = node.parameters.num_shots
@@ -131,7 +130,9 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
                     )
             if "e" in states and selected_operation == "saturation":
                 saturation_length = qubit.xy.operations["saturation"].length
-                readout_length = qubit.resonator.operations["readout"].length
+                readout_length = qubit.resonator.operations[
+                    node.parameters.readout_operation
+                ].length
                 required_length = (
                     node.parameters.saturation_lead_time_in_ns + readout_length
                 )
@@ -170,17 +171,15 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
                         # Complete ground-state resonator spectroscopy scan.
                         with for_(*from_array(df, dfs)):
                             for i, qubit in multiplexed_qubits.items():
-                                qubit.reset(
-                                    "thermal",
-                                    node.parameters.simulate,
-                                    # log_callable=node.log,
-                                )
+                                self.reset_qubit(qubit)
 
                                 rr = qubit.resonator
                                 # Update the resonator frequencies for all resonators
                                 rr.update_frequency(df + rr.intermediate_frequency)
                                 # Measure the resonator
-                                rr.measure("readout", qua_vars=(Ig[i], Qg[i]))
+                                self.measure_readout(
+                                    qubit, frequency_offset=df, qua_vars=(Ig[i], Qg[i])
+                                )
                                 # wait for the resonator to deplete
                                 # rr.wait(rr.depletion_time * u.ns)
 
@@ -193,10 +192,7 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
                         # Complete the driven-state resonator spectroscopy scan.
                         with for_(*from_array(df, dfs)):
                             for i, qubit in multiplexed_qubits.items():
-                                qubit.reset(
-                                    "thermal",
-                                    node.parameters.simulate,
-                                )
+                                self.reset_qubit(qubit)
 
                                 rr = qubit.resonator
                                 rr.update_frequency(df + rr.intermediate_frequency)
@@ -216,7 +212,9 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
                                         amplitude_scale=node.parameters.saturation_amplitude_factor,
                                     )
                                     qubit.align()
-                                rr.measure("readout", qua_vars=(Im[i], Qm[i]))
+                                self.measure_readout(
+                                    qubit, frequency_offset=df, qua_vars=(Im[i], Qm[i])
+                                )
                                 # rr.wait(rr.depletion_time * u.ns)
                                 save(Im[i], Im_st[i])
                                 save(Qm[i], Qm_st[i])
@@ -228,10 +226,7 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
                         # Complete the f-state resonator spectroscopy scan.
                         with for_(*from_array(df, dfs)):
                             for i, qubit in multiplexed_qubits.items():
-                                qubit.reset(
-                                    "thermal",
-                                    node.parameters.simulate,
-                                )
+                                self.reset_qubit(qubit)
 
                                 rr = qubit.resonator
                                 rr.update_frequency(df + rr.intermediate_frequency)
@@ -246,7 +241,9 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
                                     qubit.xy.name, qubit.xy.intermediate_frequency
                                 )
                                 qubit.align()
-                                rr.measure("readout", qua_vars=(If[i], Qf[i]))
+                                self.measure_readout(
+                                    qubit, frequency_offset=df, qua_vars=(If[i], Qf[i])
+                                )
                                 save(If[i], If_st[i])
                                 save(Qf[i], Qf_st[i])
 
@@ -308,7 +305,7 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
             # Display the execution report to expose possible runtime errors
             node.log(job.execution_report())
         # Register the raw dataset
-        node.results["ds_raw"] = dataset
+        node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
     def load_data(self):
         node = self
@@ -318,7 +315,7 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
         node.load_from_id(node.parameters.load_data_id)
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
-        node.namespace["qubits"] = get_qubits(node)
+        node.namespace["qubits"] = self.get_qubits()
 
     def save_raw_results(self):
         node = self
@@ -375,7 +372,7 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
                 "No resonator spectroscopy data loaded. Run or load data first."
             )
         if "qubits" not in node.namespace:
-            node.namespace["qubits"] = get_qubits(node)
+            node.namespace["qubits"] = self.get_qubits()
         if "full_freq" not in node.results["ds_raw"].coords:
             node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
 
@@ -399,21 +396,26 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
         """Backward-compatible notebook helper for plotting one frequency point."""
         return self.plot_for_freq(frequency)
 
-    def propose_profile_update(self):
-        node = self
-        """Stage fitted resonator frequencies and apply them only after confirmation."""
-        updates = {
-            f"qubits.json.qubits.{q.name}.frequencies_hz.resonator": float(
-                node.results["fit_results"][q.name]["frequency"]
+    def profile_updates(self):
+        section = (
+            "readout_gef" if len(self.parameters.readout_states) == 3 else "readout"
+        )
+        frequency_field = (
+            "readout_gef.frequency_hz"
+            if section == "readout_gef"
+            else "frequencies_hz.resonator"
+        )
+        updates = {}
+        for q in self.namespace["qubits"]:
+            fit = self.results["fit_results"][q.name]
+            if not fit["success"]:
+                continue
+            updates[f"qubits.json.qubits.{q.name}.{frequency_field}"] = float(
+                fit["frequency"]
             )
-            for q in node.namespace["qubits"]
-            if node.outcomes[q.name] == "successful"
-        }
-        if updates:
-            proposal = ProfileUpdater().stage(
-                node.name, updates, profile_name=current_profile_name()
-            )
-            ProfileUpdater().confirm_and_apply(proposal)
+            updates[f"qubits.json.qubits.{q.name}.{section}.gef_centers"] = None
+            updates[f"qubits.json.qubits.{q.name}.{section}.confusion_matrix"] = None
+        return updates
 
 
 if __name__ == "__main__":
@@ -421,9 +423,9 @@ if __name__ == "__main__":
 
     parameters.qubit_operation = "x180"
     parameters.num_shots = 200
-    parameters.frequency_span_in_mhz = 10
-    parameters.frequency_step_in_mhz = 0.2
-    parameters.states = ["g", "e"]
+    parameters.frequency_span_in_mhz = 30
+    parameters.frequency_step_in_mhz = 0.3
+    parameters.states = ["g", "e", "f"]
 
     options = CalibrationOptions()
     # options.ai_review = True
@@ -431,7 +433,7 @@ if __name__ == "__main__":
     calibration = ResonatorSpectroscopy(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q6"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()
 

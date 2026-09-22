@@ -18,7 +18,6 @@ from qualang_tools.loops import from_array
 from qualang_tools.multi_user import qm_session
 from calibrations.runtime_estimation import progress_counter
 from qualibration_libs.data import XarrayDataFetcher
-from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
 from calibration_io import CalibrationSaver, current_profile_name
 from calibration_utils.fine_rabi import (
@@ -101,7 +100,7 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
     def create_qua_program(self):
         node = self
         """Create the fine-Rabi amplitude and repetition-group sweep."""
-        node.namespace["qubits"] = qubits = get_qubits(node)
+        node.namespace["qubits"] = qubits = self.get_qubits()
         num_qubits = len(qubits)
 
         operation = operation_for_rotation(node.parameters.rotation_type)
@@ -134,7 +133,7 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
             a = declare(fixed)
             if node.parameters.use_state_discrimination:
                 state = [declare(int) for _ in range(num_qubits)]
-                state_st = [declare_stream() for _ in range(num_qubits)]
+                state_st = [self.declare_state_stream() for _ in range(num_qubits)]
 
             for multiplexed_qubits in qubits.batch():
                 for qubit in multiplexed_qubits.values():
@@ -146,11 +145,7 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
                     with for_(*from_array(group_count, repetition_groups)):
                         with for_each_(a, amps.tolist()):
                             for _, qubit in multiplexed_qubits.items():
-                                qubit.reset(
-                                    node.parameters.reset_type,
-                                    node.parameters.simulate,
-                                    # log_callable=node.log,
-                                )
+                                self.reset_qubit(qubit)
                             align()
 
                             for _, qubit in multiplexed_qubits.items():
@@ -171,12 +166,10 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
 
                             for i, qubit in multiplexed_qubits.items():
                                 if node.parameters.use_state_discrimination:
-                                    qubit.readout_state(state[i])
-                                    save(state[i], state_st[i])
+                                    self.readout_state(qubit, state[i])
+                                    self.save_readout_state(state[i], state_st[i])
                                 else:
-                                    qubit.resonator.measure(
-                                        "readout", qua_vars=(I[i], Q[i])
-                                    )
+                                    self.measure_readout(qubit, qua_vars=(I[i], Q[i]))
                                     save(I[i], I_st[i])
                                     save(Q[i], Q_st[i])
                             align()
@@ -227,14 +220,14 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
                 )
             node.log(job.execution_report())
         validate_readout_dataset(dataset, node.parameters.use_state_discrimination)
-        node.results["ds_raw"] = dataset
+        node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
     def load_data(self):
         node = self
         load_data_id = node.parameters.load_data_id
         node.load_from_id(load_data_id)
         node.parameters.load_data_id = load_data_id
-        node.namespace["qubits"] = get_qubits(node)
+        node.namespace["qubits"] = self.get_qubits()
 
     def save_raw_results(self):
         node = self

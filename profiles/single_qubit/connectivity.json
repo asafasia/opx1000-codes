@@ -9,7 +9,7 @@
     "port": "COM7",
     "baud_rate": 115200,
     "channel_count": 8,
-    "max_abs_voltage_v": 0.4
+    "max_abs_voltage_v": 5.0
   },
   "controllers": {
     "con1": {
@@ -21,7 +21,7 @@
             "1": {
               "band": 3,
               "lo_frequency_hz": 7125000000,
-              "full_scale_power_dbm": 0,
+              "full_scale_power_dbm": 10,
               "sampling_rate_hz": 1000000000
             },
             "2": {
@@ -70,7 +70,7 @@
           "inputs": {
             "1": {
               "band": 3,
-              "gain_db": 0,
+              "gain_db": 10,
               "sampling_rate_hz": 1000000000
             },
             "2": {

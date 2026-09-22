@@ -264,7 +264,7 @@ class WiringProfileTests(unittest.TestCase):
         pulse_profile = profile["pulses"]["pulses"][qubit_name]["readout"]
         pulse = machine.qubits[qubit_name].resonator.operations["readout"]
 
-        self.assertEqual(pulse.integration_weights, pulse_profile["integration_weights"])
+        self.assertEqual(pulse.integration_weights, [(1, pulse_profile["length_ns"])])
         self.assertEqual(
             pulse.integration_weights_angle,
             readout["integration_weights_angle_rad"],
@@ -272,7 +272,7 @@ class WiringProfileTests(unittest.TestCase):
         self.assertEqual(pulse.threshold, readout["threshold"])
         self.assertEqual(pulse.rus_exit_threshold, readout["rus_exit_threshold"])
 
-    def test_readout_use_kernel_false_uses_profile_integration_weights(self):
+    def test_readout_use_kernel_false_uses_automatic_constant_weights(self):
         profile = load_profile("main")
         qubit_name = profile["manifest"]["active_qubits"][0]
         readout = deepcopy(profile["qubits"]["qubits"][qubit_name]["readout"])
@@ -288,7 +288,7 @@ class WiringProfileTests(unittest.TestCase):
             readout=readout,
         )
 
-        self.assertEqual(weights, pulse["integration_weights"])
+        self.assertEqual(weights, "#./default_integration_weights")
 
     def test_readout_use_kernel_true_loads_optimized_kernel_file(self):
         profile = load_profile("main")

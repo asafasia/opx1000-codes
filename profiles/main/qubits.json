@@ -20,7 +20,7 @@
         "thermalization_time_ns": 308700
       },
       "readout": {
-        "time_of_flight_ns": 320,
+        "time_of_flight_ns": 500,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
         "threshold": -0.0002758320845562632,
@@ -36,7 +36,19 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 6668800000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q2": {
@@ -74,7 +86,19 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 6780000000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q3": {
@@ -112,7 +136,19 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 6875600000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q4": {
@@ -150,7 +186,19 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 6977600000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q5": {
@@ -188,7 +236,19 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 7071300000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q6": {
@@ -226,7 +286,19 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 7176300000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q7": {
@@ -264,7 +336,19 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 7267300000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q8": {
@@ -302,7 +386,19 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 7381000000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q9": {
@@ -340,7 +436,19 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 7471500000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q10": {
@@ -378,7 +486,19 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 7585480000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q11": {
@@ -416,7 +536,19 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 7674300000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q12": {
@@ -454,7 +586,19 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 7774600000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     }
   }

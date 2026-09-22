@@ -5,7 +5,8 @@ import numpy as np
 import xarray as xr
 
 from qualibrate import QualibrationNode
-from qualibration_libs.data import add_amplitude_and_phase, convert_IQ_to_V
+from utils.experiment_readout import convert_IQ_to_V, selected_readout_frequency
+from qualibration_libs.data import add_amplitude_and_phase
 from qualibration_libs.analysis import peaks_dips
 
 
@@ -53,7 +54,7 @@ def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
     # Add the amplitude and phase to the raw dataset
     ds = add_amplitude_and_phase(ds, "detuning", subtract_slope_flag=True)
     # Add the RF frequency as a coordinate of the raw dataset
-    full_freq = np.array([ds.detuning + q.resonator.RF_frequency for q in node.namespace["qubits"]])
+    full_freq = np.array([ds.detuning + selected_readout_frequency(q) for q in node.namespace["qubits"]])
     ds = ds.assign_coords(full_freq=(["qubit", "detuning"], full_freq))
     ds.full_freq.attrs = {"long_name": "RF frequency", "units": "Hz"}
     # Normalize the IQ_abs with respect to the amplitude axis
@@ -127,7 +128,7 @@ def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
     """Add metadata to the fit dataset and fit result dictionary."""
 
     # Get the fitted resonator frequency
-    full_freq = np.array([q.resonator.RF_frequency for q in node.namespace["qubits"]])
+    full_freq = np.array([selected_readout_frequency(q) for q in node.namespace["qubits"]])
     res_freq = fit.freq_shift + full_freq
     fit = fit.assign_coords(res_freq=("qubit", res_freq.data))
     fit.res_freq.attrs = {"long_name": "resonator frequency", "units": "Hz"}

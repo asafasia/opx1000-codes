@@ -29,7 +29,6 @@ from calibration_utils.rabi_chevron import (
     log_fitted_results,
     plot_raw_data_with_fit,
 )
-from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.core import tracked_updates
@@ -111,7 +110,7 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
         # Class containing tools to help handle units and conversions.
         u = unit(coerce_to_integer=True)
         # Get the active qubits from the node and organize them by batches
-        node.namespace["qubits"] = qubits = get_qubits(node)
+        node.namespace["qubits"] = qubits = self.get_qubits()
         num_qubits = len(qubits)
 
         # Update the readout power to match the desired range, this change will be reverted at the end of the node.
@@ -150,7 +149,7 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
             I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
             if state_discrimination:
                 state = [declare(int) for _ in range(num_qubits)]
-                state_st = [declare_stream() for _ in range(num_qubits)]
+                state_st = [self.declare_state_stream() for _ in range(num_qubits)]
             t = declare(int)
             df = declare(int)
 
@@ -170,11 +169,7 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
                                 qubit.xy.update_frequency(
                                     qubit.xy.intermediate_frequency
                                 )
-                                qubit.reset(
-                                    node.parameters.reset_type,
-                                    node.parameters.simulate,
-                                    # log_callable=node.log,
-                                )
+                                self.reset_qubit(qubit)
 
                                 # Update the xy drive frequency
                                 qubit.xy.update_frequency(
@@ -189,12 +184,10 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
                             # Qubit readout
                             for i, qubit in multiplexed_qubits.items():
                                 if state_discrimination:
-                                    qubit.readout_state(state[i])
-                                    save(state[i], state_st[i])
+                                    self.readout_state(qubit, state[i])
+                                    self.save_readout_state(state[i], state_st[i])
                                 else:
-                                    qubit.resonator.measure(
-                                        "readout", qua_vars=(I[i], Q[i])
-                                    )
+                                    self.measure_readout(qubit, qua_vars=(I[i], Q[i]))
                                     save(I[i], I_st[i])
                                     save(Q[i], Q_st[i])
 
@@ -258,7 +251,7 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
             node.log(job.execution_report())
         # Register the raw dataset
         validate_readout_dataset(dataset, node.parameters.use_state_discrimination)
-        node.results["ds_raw"] = dataset
+        node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
     def save_raw_results(self):
         node = self
@@ -280,7 +273,7 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
         node.load_from_id(node.parameters.load_data_id)
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
-        node.namespace["qubits"] = get_qubits(node)
+        node.namespace["qubits"] = self.get_qubits()
 
     def analyse_data(self):
         node = self

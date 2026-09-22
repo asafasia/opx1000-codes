@@ -124,7 +124,6 @@ class ProfileTests(unittest.TestCase):
                                 "type": "constant",
                                 "amplitude": 0.1,
                                 "length_ns": 1000,
-                                "integration_weights": [[1, 1000]],
                             },
                         }
                     },
@@ -256,7 +255,7 @@ class ProfileTests(unittest.TestCase):
             with self.assertRaisesRegex(ProfileError, "readout_discriminator"):
                 Profile("main", root=root).load()
 
-    def test_nearest_center_discriminator_requires_active_qubit_centers(self):
+    def test_nearest_center_profile_can_load_for_thermal_iq_calibration(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self._write_profile(root)
@@ -265,8 +264,8 @@ class ProfileTests(unittest.TestCase):
             manifest["readout_discriminator"] = "nearest_center"
             manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
 
-            with self.assertRaisesRegex(ProfileError, "needs readout.gef_centers"):
-                Profile("main", root=root).load()
+            profile = Profile("main", root=root).load()
+            self.assertEqual(profile["manifest"]["readout_discriminator"], "nearest_center")
 
     def test_profile_accepts_optional_readout_confusion_matrix(self):
         with tempfile.TemporaryDirectory() as directory:

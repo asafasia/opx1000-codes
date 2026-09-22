@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 import time
 from typing import Protocol
 
@@ -66,12 +67,31 @@ class DCBiasController:
             )
 
         if verbose:
-            print(f"DC: setting channel {channel} to {voltage:g} V")
+            print(f"DC: requesting channel {channel} = {voltage:g} V", flush=True)
 
         command = f"SET,{channel},{voltage:.12g}\r"
-        self.connection.write(command.encode("ascii"))
-        time.sleep(self.response_delay_s)
-        self._print_responses()
+        payload = command.encode("ascii")
+        for attempt in range(2):
+            written = self.connection.write(payload)
+            if written != len(payload):
+                raise IOError(
+                    f"Incomplete DC-bias command: wrote {written}/{len(payload)} bytes."
+                )
+            time.sleep(self.response_delay_s)
+            responses = self._print_responses()
+            # This device answers NOP to the first command after opening the
+            # port. Retry only this explicit response, once, at the same voltage.
+            if responses == ["NOP"] and attempt == 0:
+                print("DC: received NOP; retrying the same command once.", flush=True)
+                continue
+            for response in responses:
+                match = re.fullmatch(r"DAC (\d+) UPDATED TO ([+-]?\d+(?:\.\d+)?)V", response)
+                if match and int(match.group(1)) == channel:
+                    return
+            raise IOError(
+                f"DC bias channel {channel} request {voltage:g} V was not acknowledged: "
+                + ("; ".join(responses) or "no reply before serial timeout")
+            )
 
     def zero_all(self) -> None:
         print("DC: setting all channels to zero")
@@ -81,13 +101,27 @@ class DCBiasController:
     def close(self) -> None:
         self.connection.close()
 
-    def _print_responses(self) -> None:
-        while self.connection.in_waiting:
-            response = (
-                self.connection.readline().decode("utf-8", errors="replace").strip()
+    def _print_responses(self) -> list[str]:
+        # Wait using the finite serial timeout, even if no bytes have arrived
+        # after the post-write delay. A reply is not measured voltage readback.
+        response = self.connection.readline()
+        if not response:
+            print(
+                "DC WARNING: no Arduino reply before the serial timeout; "
+                "the requested voltage is unconfirmed.",
+                flush=True,
             )
-            if response:
-                print(f"Arduino responded: {response}")
+            return []
+        responses = []
+        while response:
+            decoded = response.decode("utf-8", errors="replace").strip()
+            if decoded:
+                responses.append(decoded)
+                print(f"Arduino responded: {decoded}", flush=True)
+            if not self.connection.in_waiting:
+                break
+            response = self.connection.readline()
+        return responses
 
 
 def open_controller(

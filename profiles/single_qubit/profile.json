@@ -2,7 +2,9 @@
   "schema_version": 1,
   "name": "single_qubit",
   "description": "Independent calibration profile for single-qubit experiments.",
-  "readout_discriminator": "quam",
+  "readout_discriminator": "nearest_center",
+  "readout_pulse": "readout",
+  "readout_gef_pulse": "readout_GEF",
   "build_mode": "single_qubit",
   "files": {
     "connectivity": "connectivity.json",
@@ -11,6 +13,7 @@
     "metrics": "metrics.json"
   },
   "active_qubits": [
-    "q10"
+    "q1",
+    "q6"
   ]
 }

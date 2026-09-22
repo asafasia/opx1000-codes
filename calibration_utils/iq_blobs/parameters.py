@@ -10,16 +10,16 @@ class NodeSpecificParameters(RunnableParameters):
     """Number of runs to perform. Default is 2000."""
     operation: Literal["readout", "readout_QND", "readout_GEF"] = "readout"
     """Type of operation to perform. Default is "readout"."""
-    states: list[Literal["g", "e", "f"]] = ["g", "e"]
-    """Prepared states to acquire. Use any two-state pair or ["g", "e", "f"]."""
+    states: list[Literal["g", "e", "f"]] | None = None
+    """Prepared clouds; None follows readout_states. An explicit list can select a diagnostic pair."""
     qubit_operation: Literal["saturation", "x180_const"] = "x180_const"
     """Qubit operation used to prepare the second IQ blob."""
     qubit_amplitude_factor: float = 1
     """Amplitude factor applied to the selected qubit operation."""
     pi_repetitions: int = 1
     """Number of x180_const pulses used to prepare the excited-state blob. Default is 1."""
-    active_gef_reset_attempts: int = 2
-    """Maximum reset attempts when reset_type is active_gef."""
+    active_gef_reset_attempts: int | None = None
+    """Deprecated alias for active_reset_max_attempts. None uses the shared setting."""
 
 
 class Parameters(

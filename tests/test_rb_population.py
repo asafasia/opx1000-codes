@@ -53,6 +53,7 @@ class TestRbPopulation(unittest.TestCase):
         population = np.array([[0.9, 0.8], [0.7, 0.6], [0.5, 0.4]])
         fit = xr.Dataset(
             {
+                "success": xr.DataArray(True),
                 "population": (("depths", "nb_of_sequences"), population),
                 "averaged_data": ("depths", population.mean(axis=1)),
                 "fit_data": ("fit_vals", [0.5, 0.4, -0.1]),

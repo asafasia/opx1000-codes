@@ -28,4 +28,4 @@ class Parameters(
 ):
     """Combined parameters for GEF readout frequency optimization node."""
 
-    pass
+    readout_states: list[Literal["g", "e", "f"]] = ["g", "e", "f"]

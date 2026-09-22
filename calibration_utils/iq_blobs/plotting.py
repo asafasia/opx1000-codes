@@ -4,6 +4,9 @@ import xarray as xr
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.collections import LineCollection
+from matplotlib.colors import to_rgb
+from matplotlib.patches import Polygon
 
 from qualang_tools.units import unit
 from qualibration_libs.plotting import QubitGrid, grid_iter
@@ -63,7 +66,7 @@ def plot_iq_blobs_dashboard(
     outer_grid = fig.add_gridspec(
         len(qubits),
         1,
-        hspace=0.35,
+        hspace=0.9,
     )
 
     for row, qubit in enumerate(qubits):
@@ -75,7 +78,7 @@ def plot_iq_blobs_dashboard(
                 2,
                 6,
                 height_ratios=[1.5, 1],
-                hspace=0.35,
+                hspace=0.9,
                 wspace=0.35,
             )
             iq_ax = fig.add_subplot(qubit_grid[0, :4])
@@ -91,7 +94,7 @@ def plot_iq_blobs_dashboard(
                 2,
                 height_ratios=[1.5, 1],
                 width_ratios=[1.4, 1],
-                hspace=0.35,
+                hspace=0.9,
                 wspace=0.25,
             )
             iq_ax = fig.add_subplot(qubit_grid[0, 0])
@@ -125,9 +128,9 @@ def plot_iq_blobs_dashboard(
         add_calibration_parameter_box(fig, metadata_lines, gid="iq_blobs_parameters")
         calibration_plot = CalibrationPlot(fig)
         calibration_plot.add_timestamp()
-        calibration_plot.tight_layout_for_parameters(len(metadata_lines), top=0.93)
+        calibration_plot.tight_layout_for_parameters(len(metadata_lines), top=0.88)
     else:
-        fig.subplots_adjust(top=0.93)
+        fig.subplots_adjust(top=0.88)
     return fig
 
 
@@ -144,7 +147,8 @@ def _format_iq_blobs_run_metadata(
     readout_mode_summaries = []
     for qubit in qubits:
         resonator = getattr(qubit, "resonator", None)
-        use_kernel = getattr(resonator, "use_kernel", None)
+        use_kernel = (getattr(resonator, "readout_gef", {}).get("use_kernel")
+                      if operation_name == "readout_GEF" else getattr(resonator, "use_kernel", None))
         xy_operations = getattr(getattr(qubit, "xy", None), "operations", {})
         pi_pulse = (
             xy_operations.get("x180") if hasattr(xy_operations, "get") else None
@@ -228,6 +232,36 @@ def plot_iq_blobs(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
     return grid.fig
 
 
+def _robust_iq_limits(raw: xr.Dataset, sigma_extent: float = 4.0):
+    """Frame the cloud cores using medians and robust per-quadrature sigma.
+
+    MAD/IQR estimates avoid the outlier sensitivity of ordinary variance.
+    Only the viewport changes; all shots and calibrated centers are retained.
+    """
+    centers, widths = [], []
+    for spec in _available_state_specs(raw):
+        cloud = 1e3 * np.column_stack((raw[spec[1]].values.ravel(), raw[spec[2]].values.ravel()))
+        cloud = cloud[np.isfinite(cloud).all(axis=1)]
+        if not len(cloud):
+            continue
+        center = np.median(cloud, axis=0)
+        mad_sigma = 1.4826 * np.median(np.abs(cloud - center), axis=0)
+        quartiles = np.percentile(cloud, [25, 75], axis=0)
+        iqr_sigma = (quartiles[1] - quartiles[0]) / 1.349
+        centers.append(center)
+        widths.append(np.maximum(mad_sigma, iqr_sigma))
+    if not centers:
+        return None
+    centers, widths = np.asarray(centers), np.asarray(widths)
+    # Keep zero-width/quantized clouds visible without falling back to extrema.
+    scale = max(float(np.max(np.ptp(centers, axis=0))), float(np.max(widths)), 1e-3)
+    half_width = np.maximum(sigma_extent * widths, 0.02 * scale)
+    lower = np.min(centers - half_width, axis=0)
+    upper = np.max(centers + half_width, axis=0)
+    padding = 0.06 * (upper - lower)
+    return tuple(zip(lower - padding, upper + padding))
+
+
 def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fit: xr.Dataset = None):
     """
     Plots individual qubit data on a given axis with optional fit.
@@ -249,17 +283,29 @@ def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fi
     """
 
     raw = ds.sel(qubit=qubit["qubit"])
-    for _, i_name, q_name, _, _, label, color, _, alpha in _available_state_specs(raw):
-        ax.plot(
-            1e3 * raw[i_name],
-            1e3 * raw[q_name],
-            ".",
-            alpha=alpha,
-            label=label,
-            markersize=2,
-            color=color,
-            zorder=1,
+    specs = _available_state_specs(raw)
+    # Render one mixed collection, rather than putting every F point on top of
+    # all G/E points. A local fixed seed makes saved plots reproducible and does
+    # not modify acquisition ordering or the global random state.
+    points, colors = [], []
+    for _, i_name, q_name, _, _, label, color, _, _ in specs:
+        cloud = 1e3 * np.column_stack((raw[i_name].values.ravel(), raw[q_name].values.ravel()))
+        cloud = cloud[np.isfinite(cloud).all(axis=1)]
+        points.append(cloud)
+        colors.append(np.tile(to_rgb(color), (len(cloud), 1)))
+    if points and sum(len(cloud) for cloud in points):
+        points = np.concatenate(points)
+        colors = np.concatenate(colors)
+        order = np.random.default_rng(0).permutation(len(points))
+        cloud_artist = ax.scatter(
+            points[order, 0], points[order, 1], c=colors[order],
+            s=4, alpha=0.16, edgecolors="none", linewidths=0,
+            rasterized=True, zorder=1,
         )
+        cloud_artist.set_gid("iq_mixed_clouds")
+    for _, i_name, q_name, _, _, label, color, _, _ in specs:
+        # Readable legend swatches are independent of the faint data markers.
+        ax.plot([], [], ".", color=color, markersize=6, label=label, zorder=1)
         center = (float(raw[i_name].mean()) * 1e3, float(raw[q_name].mean()) * 1e3)
         ax.plot(
             *center,
@@ -285,15 +331,27 @@ def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fi
         ax.plot([], [], color=contour_color, linewidth=1.5, label=f"{label} 95% KDE")
 
     ax.axis("equal")
+    limits = _robust_iq_limits(raw)
+    if limits is not None:
+        ax.set_xlim(limits[0])
+        ax.set_ylim(limits[1])
     if "If" in raw and "Qf" in raw:
-        _plot_pairwise_threshold_lines(ax, fit)
+        if _is_three_state_fit(fit):
+            ax.set_aspect("equal", adjustable="box")
+            _plot_nearest_center_boundary(ax, fit, raw)
+        else:
+            _plot_pairwise_threshold_lines(ax, fit)
     else:
         _plot_raw_threshold(ax, fit.rus_threshold, fit.iw_angle, color="k", label="RUS Threshold")
         _plot_raw_threshold(ax, fit.ge_threshold, fit.iw_angle, color="r", label="Threshold")
     ax.set_xlabel("I [mV]")
     ax.set_ylabel("Q [mV]")
     ax.set_title(f"{qubit['qubit']}\nFitted rotation={np.degrees(float(fit.iw_angle)):.1f} deg")
-    ax.legend(fontsize="small")
+    ax.legend(
+        fontsize="small", loc="upper center", bbox_to_anchor=(0.5, -0.18),
+        ncol=3, frameon=False, borderaxespad=0, columnspacing=1.2,
+        handletextpad=0.5,
+    ).set_zorder(20)
 
 
 def _plot_raw_threshold(ax: Axes, threshold, angle, color: str, label: str):
@@ -311,6 +369,144 @@ def _plot_raw_threshold(ax: Axes, threshold, angle, color: str, label: str):
         i_values = np.asarray(i_limits)
         q_values = (cosine * i_values - threshold_mv) / sine
         ax.plot(i_values, q_values, color=color, linestyle="--", lw=0.5, label=label)
+    ax.set_xlim(i_limits)
+    ax.set_ylim(q_limits)
+
+
+def _nearest_center_boundary_segments(centers, i_limits, q_limits):
+    """Clip pair bisectors to where that pair is jointly closest, and to the view.
+
+    For three noncollinear centers this is the Voronoi Y junction, not three
+    intersecting infinite lines. Collinear centers correctly give parallel
+    separators. Work in normalized plot coordinates to keep tolerances stable.
+    """
+    centers = np.asarray(centers, dtype=float)
+    if centers.ndim != 2 or centers.shape[1] != 2 or not np.isfinite(centers).all():
+        return []
+    limits = np.array([sorted(i_limits), sorted(q_limits)], dtype=float)
+    origin = limits.mean(axis=1)
+    scale = float(np.max(np.ptp(limits, axis=1)))
+    if not np.isfinite(scale) or scale <= 0:
+        return []
+    centers = np.unique((centers - origin) / scale, axis=0)
+    limits = (limits - origin[:, None]) / scale
+    segments = []
+    for i, left in enumerate(centers):
+        for j in range(i + 1, len(centers)):
+            right = centers[j]
+            normal = right - left
+            norm = np.linalg.norm(normal)
+            if norm < 1e-12:
+                continue
+            midpoint = (left + right) / 2
+            direction = np.array([-normal[1], normal[0]]) / norm
+            lower, upper = -np.inf, np.inf
+            # Constraints n dot (midpoint + t*direction) <= bound.
+            constraints = [
+                (np.array([1., 0.]), limits[0, 1]),
+                (np.array([-1., 0.]), -limits[0, 0]),
+                (np.array([0., 1.]), limits[1, 1]),
+                (np.array([0., -1.]), -limits[1, 0]),
+            ]
+            for k, other in enumerate(centers):
+                if k not in (i, j):
+                    n = other - left
+                    constraints.append((n, np.dot(n, (left + other) / 2)))
+            for n, bound in constraints:
+                slope = float(np.dot(n, direction))
+                remaining = float(bound - np.dot(n, midpoint))
+                if abs(slope) < 1e-12:
+                    if remaining < -1e-12:
+                        lower, upper = 1., 0.
+                        break
+                elif slope > 0:
+                    upper = min(upper, remaining / slope)
+                else:
+                    lower = max(lower, remaining / slope)
+            if np.isfinite([lower, upper]).all() and upper - lower > 1e-12:
+                segments.append(origin + scale * (midpoint + np.array([lower, upper])[:, None] * direction))
+    return segments
+
+
+def _nearest_center_regions(centers, i_limits, q_limits):
+    """Return each center's Voronoi cell clipped to the visible rectangle."""
+    centers = np.asarray(centers, dtype=float)
+    if centers.ndim != 2 or centers.shape[1] != 2 or not np.isfinite(centers).all():
+        return []
+    limits = np.array([sorted(i_limits), sorted(q_limits)], dtype=float)
+    origin = limits.mean(axis=1)
+    scale = float(np.max(np.ptp(limits, axis=1)))
+    if not np.isfinite(scale) or scale <= 0:
+        return []
+    normalized = (centers - origin) / scale
+    bounds = (limits - origin[:, None]) / scale
+    rectangle = np.array([[bounds[0, 0], bounds[1, 0]],
+                          [bounds[0, 1], bounds[1, 0]],
+                          [bounds[0, 1], bounds[1, 1]],
+                          [bounds[0, 0], bounds[1, 1]]])
+    regions = []
+    for i, center in enumerate(normalized):
+        polygon = rectangle.copy()
+        for j, other in enumerate(normalized):
+            if i == j:
+                continue
+            normal = other - center
+            if np.linalg.norm(normal) < 1e-12:
+                if j < i:
+                    polygon = np.empty((0, 2))
+                    break
+                continue
+            midpoint = (center + other) / 2
+            clipped = []
+            for start, end in zip(polygon, np.roll(polygon, -1, axis=0)):
+                start_distance = float(np.dot(start - midpoint, normal))
+                end_distance = float(np.dot(end - midpoint, normal))
+                start_inside, end_inside = start_distance <= 0, end_distance <= 0
+                if start_inside != end_inside:
+                    fraction = start_distance / (start_distance - end_distance)
+                    clipped.append(start + fraction * (end - start))
+                if end_inside:
+                    clipped.append(end)
+            polygon = np.asarray(clipped).reshape(-1, 2)
+            if not len(polygon):
+                break
+        regions.append(origin + scale * polygon)
+    return regions
+
+
+def _plot_nearest_center_boundary(ax: Axes, fit: xr.Dataset, raw: xr.Dataset):
+    """Draw the G/E/F threshold as one high-contrast decision-boundary object."""
+    specs = _available_state_specs(raw)
+    if "state_center_matrix" in fit:
+        centers = np.asarray(fit.state_center_matrix.sel(state=[spec[0] for spec in specs], IQ=["I", "Q"]).values, dtype=float)
+    else:
+        centers = np.array([[float(raw[spec[1]].mean()), float(raw[spec[2]].mean())]
+                            for spec in _available_state_specs(raw)])
+    i_limits, q_limits = ax.get_xlim(), ax.get_ylim()
+    segments = _nearest_center_boundary_segments(1e3 * centers, i_limits, q_limits)
+    if not segments:
+        return
+    regions = _nearest_center_regions(1e3 * centers, i_limits, q_limits)
+    for spec, region in zip(specs, regions):
+        if len(region) < 3:
+            continue
+        patch = Polygon(region, closed=True, facecolor=spec[6], alpha=0.07,
+                        edgecolor="none", linewidth=0, zorder=0)
+        patch.set_gid(f"iq_decision_region_{spec[0]}")
+        ax.add_patch(patch)
+    boundary = LineCollection(segments, colors="0.15", linewidths=1.8,
+                              label="G/E/F decision boundary", zorder=8)
+    boundary.set_gid("iq_decision_boundary")
+    ax.add_collection(boundary, autolim=False)
+    # Mark a visible three-way junction, without inventing one for collinear
+    # centers or bringing an off-screen vertex into the measured cloud range.
+    endpoints = np.asarray(segments).reshape(-1, 2)
+    tolerance = 1e-8 * max(np.ptp(i_limits), np.ptp(q_limits))
+    for point in endpoints:
+        if np.count_nonzero(np.linalg.norm(endpoints - point, axis=1) <= tolerance) >= 3:
+            ax.plot(*point, "o", color="0.15", markeredgecolor="0.15",
+                    markersize=5, zorder=9, label="_nolegend_")
+            break
     ax.set_xlim(i_limits)
     ax.set_ylim(q_limits)
 

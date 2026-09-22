@@ -8,5 +8,6 @@
     "active_qubit_pair_names": [],
     "ports": null,
     "extras": {},
+    "dc_bias": null,
     "__class__": "quam_config.my_quam.Quam"
 }

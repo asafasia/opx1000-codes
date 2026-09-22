@@ -7,7 +7,7 @@ import numpy as np
 import xarray as xr
 
 from qualibrate import QualibrationNode
-from qualibration_libs.data import convert_IQ_to_V
+from utils.experiment_readout import convert_IQ_to_V
 from scipy.interpolate import RegularGridInterpolator
 from scipy.ndimage import gaussian_filter
 

@@ -31,7 +31,6 @@ from calibration_utils.readout_frequency_optimization import (
     plot_distances_with_fit,
     plot_IQ_abs_with_fit,
 )
-from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
 from qualibration_libs.data import XarrayDataFetcher
 
@@ -93,7 +92,7 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
         # Class containing tools to help handle units and conversions.
         u = unit(coerce_to_integer=True)
         # Get the active qubits from the node and organize them by batches
-        node.namespace["qubits"] = qubits = get_qubits(node)
+        node.namespace["qubits"] = qubits = self.get_qubits()
         num_qubits = len(qubits)
 
         n_avg = node.parameters.num_shots  # The number of averages
@@ -138,20 +137,14 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
                                 qubit.resonator.name,
                                 df + qubit.resonator.intermediate_frequency,
                             )
-                            qubit.reset(
-                                node.parameters.reset_type,
-                                node.parameters.simulate,
-                                # log_callable=node.log,
-                            )
+                            self.reset_qubit(qubit)
 
                         align()
 
                         # Qubit readout - |g> state
                         for i, qubit in multiplexed_qubits.items():
                             # Measure the state of the resonators
-                            qubit.resonator.measure(
-                                "readout", qua_vars=(I_g[i], Q_g[i])
-                            )
+                            self.measure_readout(qubit, qua_vars=(I_g[i], Q_g[i]), frequency_offset=df)
                             # save data to their respective streams
                             save(I_g[i], I_g_st[i])
                             save(Q_g[i], Q_g_st[i])
@@ -159,11 +152,7 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
 
                         # Qubit initialization
                         for i, qubit in multiplexed_qubits.items():
-                            qubit.reset(
-                                node.parameters.reset_type,
-                                node.parameters.simulate,
-                                # log_callable=node.log,
-                            )
+                            self.reset_qubit(qubit)
                         align()
                         # Qubit readout - |e> state
                         for i, qubit in multiplexed_qubits.items():
@@ -172,9 +161,7 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
                             # Align the elements to measure after playing the qubit pulses.
                             qubit.align()
                             # Measure the state of the resonators
-                            qubit.resonator.measure(
-                                "readout", qua_vars=(I_e[i], Q_e[i])
-                            )
+                            self.measure_readout(qubit, qua_vars=(I_e[i], Q_e[i]), frequency_offset=df)
                             # save data to their respective streams
                             save(I_e[i], I_e_st[i])
                             save(Q_e[i], Q_e_st[i])
@@ -229,7 +216,7 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
             # Display the execution report to expose possible runtime errors
             node.log(job.execution_report())
         # Register the raw dataset
-        node.results["ds_raw"] = dataset
+        node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
     def save_raw_results(self):
         node = self
@@ -251,7 +238,7 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
         node.load_from_id(node.parameters.load_data_id)
         node.parameters.load_data_id = load_data_id
         # Get the active qubits from the loaded node parameters
-        node.namespace["qubits"] = get_qubits(node)
+        node.namespace["qubits"] = self.get_qubits()
 
     def analyse_data(self):
         node = self
@@ -303,23 +290,18 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
                 if node.results["fit_results"][q.name]["success"]:
                     q.chi = node.results["fit_results"][q.name]["chi"]
 
-    def propose_profile_update(self):
-        node = self
-        """Stage fitted readout frequencies and apply them only after confirmation."""
-        updates = {
-            f"qubits.json.qubits.{q.name}.frequencies_hz.resonator": float(
-                node.results["fit_results"][q.name]["optimal_frequency"]
-            )
-            for q in node.namespace["qubits"]
-            if node.results["fit_results"][q.name]["success"]
-        }
-        if updates:
-            proposal = ProfileUpdater().stage(
-                node.name,
-                updates,
-                profile_name=current_profile_name(),
-            )
-            ProfileUpdater().confirm_and_apply(proposal)
+    def profile_updates(self):
+        section = "readout_gef" if len(self.parameters.readout_states) == 3 else "readout"
+        frequency_field = "readout_gef.frequency_hz" if section == "readout_gef" else "frequencies_hz.resonator"
+        updates = {}
+        for q in self.namespace["qubits"]:
+            fit = self.results["fit_results"][q.name]
+            if not fit["success"]:
+                continue
+            updates[f"qubits.json.qubits.{q.name}.{frequency_field}"] = float(fit["optimal_frequency"])
+            updates[f"qubits.json.qubits.{q.name}.{section}.gef_centers"] = None
+            updates[f"qubits.json.qubits.{q.name}.{section}.confusion_matrix"] = None
+        return updates
 
 
 if __name__ == "__main__":

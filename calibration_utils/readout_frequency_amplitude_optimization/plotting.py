@@ -43,14 +43,26 @@ def plot_optimization_maps(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.D
         axes[1].set_xlabel("Readout RF frequency [GHz]")
         axes[1].set_ylabel("Readout amplitude [mV]")
 
-        best = selected.readout_fidelity.argmax(dim=("detuning", "amp_prefactor"))
-        best_detuning = selected.detuning.isel(detuning=best["detuning"])
-        best_amp = selected.amp_prefactor.isel(amp_prefactor=best["amp_prefactor"])
-        best_freq = selected.full_freq.sel(detuning=best_detuning) / 1e9
-        best_amplitude = selected.readout_amplitude.sel(amp_prefactor=best_amp) * 1e3
-        for ax in axes:
-            ax.plot(best_freq, best_amplitude, "wo", markersize=5, markeredgecolor="black")
+        if np.isfinite(selected.readout_fidelity).any():
+            values = selected.readout_fidelity.transpose("detuning", "amp_prefactor").values
+            di, ai = np.unravel_index(np.nanargmax(values), values.shape)
+            point = selected.isel(detuning=di, amp_prefactor=ai)
+            best_freq = float(point.full_freq) / 1e9
+            best_amplitude = float(point.readout_amplitude) * 1e3
+            for ax in axes:
+                ax.plot(best_freq, best_amplitude, "wo", markersize=7, markeredgecolor="black")
+            status = "SUCCESS" if bool(selected.success) else "FAILED"
+            findings = (
+                f"{status} | Best RF: {best_freq:.6f} GHz | Detuning: {float(point.detuning) / 1e6:+.2f} MHz\n"
+                f"Amplitude: {best_amplitude:.2f} mV (prefactor {float(point.amp_prefactor):.3f}) | "
+                f"Fidelity: {float(point.readout_fidelity):.1f}%\n"
+                f"State difference: {float(point.state_difference) * 1e3:.3f} mV | "
+                f"Separation/width: {float(point.separation_to_width):.2f}"
+            )
+        else:
+            findings = "FAILED | No finite fidelity values; no optimum found."
 
-        fig.suptitle(f"{q.name} Readout Frequency-Amplitude Optimization")
+        fig.set_size_inches(12, 5.5)
+        fig.suptitle(f"{q.name} Readout Frequency-Amplitude Optimization\n{findings}", fontsize=11)
         figures[f"frequency_amplitude_maps_{q.name}"] = fig
     return figures

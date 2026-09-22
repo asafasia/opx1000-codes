@@ -1,3 +1,4 @@
+from utils.experiment_readout import ground_population
 from typing import List
 import xarray as xr
 import numpy as np
@@ -79,7 +80,7 @@ def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str
         data = fit.population
         label = "Ground-state population"
     elif hasattr(fit, "state"):
-        data = 1 - fit.state
+        data = ground_population(fit)
         label = "Ground-state population"
     elif hasattr(fit, "I"):
         data = fit.I

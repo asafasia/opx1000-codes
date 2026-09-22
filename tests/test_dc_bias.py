@@ -19,13 +19,56 @@ class FakeSerialConnection:
         return len(data)
 
     def readline(self) -> bytes:
-        return b""
+        _, channel, voltage = self.writes[-1].decode("ascii").strip().split(",")
+        return f"DAC {channel} UPDATED TO {float(voltage):.4f}V\r\n".encode("ascii")
 
     def close(self) -> None:
         self.closed = True
 
 
 class DCBiasControllerTests(unittest.TestCase):
+    def test_delayed_reply_is_read_when_no_bytes_are_initially_waiting(self):
+        connection = FakeSerialConnection()
+        connection.readline = MagicMock(return_value=b"ERROR voltage rejected\r\n")
+        controller = DCBiasController(connection, max_abs_voltage_v=5, response_delay_s=0)
+        with patch("builtins.print") as output, self.assertRaisesRegex(IOError, "voltage rejected"):
+            controller.set_voltage(0, 5)
+        connection.readline.assert_called_once_with()
+        output.assert_any_call("Arduino responded: ERROR voltage rejected", flush=True)
+        self.assertEqual(connection.writes, [b"SET,0,5\r"])
+
+    def test_no_reply_raises_without_retry(self):
+        connection = FakeSerialConnection()
+        connection.readline = MagicMock(return_value=b"")
+        controller = DCBiasController(connection, max_abs_voltage_v=5, response_delay_s=0)
+        with self.assertRaisesRegex(IOError, "no reply"):
+            controller.set_voltage(0, 1)
+        self.assertEqual(len(connection.writes), 1)
+
+    def test_first_nop_retries_identical_command(self):
+        connection = FakeSerialConnection()
+        connection.readline = MagicMock(side_effect=[b"NOP\r\n", b"DAC 0 UPDATED TO 0.0998V\r\n"])
+        controller = DCBiasController(connection, max_abs_voltage_v=0.1, response_delay_s=0)
+        controller.set_voltage(0, 0.1)
+        self.assertEqual(connection.writes, [b"SET,0,0.1\r"] * 2)
+
+    def test_repeated_nop_or_wrong_channel_raises(self):
+        for response, count in [(b"NOP\r\n", 2), (b"DAC 1 UPDATED TO 0.1000V\r\n", 1)]:
+            with self.subTest(response=response):
+                connection = FakeSerialConnection()
+                connection.readline = MagicMock(return_value=response)
+                controller = DCBiasController(connection, max_abs_voltage_v=0.1, response_delay_s=0)
+                with self.assertRaisesRegex(IOError, "not acknowledged"):
+                    controller.set_voltage(0, 0.1)
+                self.assertEqual(len(connection.writes), count)
+
+    def test_incomplete_write_raises(self):
+        connection = FakeSerialConnection()
+        connection.write = MagicMock(return_value=2)
+        controller = DCBiasController(connection, max_abs_voltage_v=5, response_delay_s=0)
+        with self.assertRaisesRegex(IOError, "Incomplete DC-bias command"):
+            controller.set_voltage(0, 1)
+
     def test_voltage_at_limit_is_sent(self):
         connection = FakeSerialConnection()
         controller = DCBiasController(connection, max_abs_voltage_v=0.01, response_delay_s=0)

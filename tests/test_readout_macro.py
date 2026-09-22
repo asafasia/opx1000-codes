@@ -122,6 +122,7 @@ class ReadoutMacroTests(unittest.TestCase):
     def test_active_reset_builds_for_both_discriminators_and_state_counts(self):
         machine = create_machine(profile_name="single_qubit", qubit="q1")
         qubit = machine.qubits["q1"]
+        qubit.resonator.readout_gef["gef_centers"] = [[-0.001, 0.0], [0.001, 0.0], [0.0, 0.002]]
 
         for discriminator in ("quam", "nearest_center"):
             for num_states in (2, 3):
@@ -134,7 +135,7 @@ class ReadoutMacroTests(unittest.TestCase):
                             qubit,
                             num_states=num_states,
                             max_attempts=3,
-                            pulse_name="readout",
+                            pulse_name="readout_GEF" if num_states == 3 else "readout",
                             discriminator=discriminator,
                         )
                     self.assertIsNotNone(state)

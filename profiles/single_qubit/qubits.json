@@ -2,54 +2,37 @@
   "schema_version": 1,
   "qubits": {
     "q1": {
-      "dc_bias_v": 0.0,
+      "dc_bias_v": -0.22878862764480232,
       "grid_location": [
         0,
         4
       ],
       "frequencies_hz": {
-        "qubit_f01": 4263572450.677088,
-        "qubit_f12": 4050000000.0,
-        "resonator": 6669000000.0,
+        "qubit_f01": 4266391143.729072,
+        "qubit_f12": 4050500000.0,
+        "resonator": 6667800000.0,
         "resonator_bare": null
       },
       "transmon": {
-        "anharmonicity_hz": 217106667.324065,
+        "anharmonicity_hz": 215891143.7290721,
         "t1_ns": 30870,
         "t2_ramsey_ns": 29270,
         "t2_echo_ns": null,
         "thermalization_time_ns": 308700
       },
       "readout": {
-        "time_of_flight_ns": 320,
+        "time_of_flight_ns": 100,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": -3.538497431479259e-05,
-        "rus_exit_threshold": -3.538497431479259e-05,
+        "threshold": -0.0008826375392467308,
+        "rus_exit_threshold": -0.0008826375392467308,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": -13.20345653659831,
+        "integration_weights_angle_rad": -12.86398337989711,
         "use_kernel": true,
-        "gef_frequency_shift_hz": -810000.0,
-        "gef_centers": [
-          [
-            -0.00011244171198107618,
-            -6.0794264250618345e-06
-          ],
-          [
-            3.643471922020616e-05,
-            -6.079426425061834e-06
-          ]
-        ],
-        "confusion_matrix": [
-          [
-            0.8892,
-            0.1108
-          ],
-          [
-            0.156,
-            0.844
-          ]
-        ]
+        "gef_frequency_shift_hz": -810000,
+        "gef_centers": null,
+        "confusion_matrix": null,
+        "calibration_signature": "94236944d975e12748d401cfcc0842dc9ec555e597b0d1010b419592d2020e4e"
       },
       "operations": {
         "x180": "x180_cosine",
@@ -57,11 +40,23 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 6667190000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q2": {
-      "dc_bias_v": 0.0,
+      "dc_bias_v": 0,
       "grid_location": [
         1,
         4
@@ -69,7 +64,7 @@
       "frequencies_hz": {
         "qubit_f01": 4088548463.401532,
         "qubit_f12": null,
-        "resonator": 6779800000.0,
+        "resonator": 6779800000,
         "resonator_bare": null
       },
       "transmon": {
@@ -116,19 +111,31 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 6779800000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q3": {
-      "dc_bias_v": 0.0,
+      "dc_bias_v": 0,
       "grid_location": [
         0,
         3
       ],
       "frequencies_hz": {
-        "qubit_f01": 3934700000.0,
+        "qubit_f01": 3934700000,
         "qubit_f12": null,
-        "resonator": 6874400000.0,
+        "resonator": 6874400000,
         "resonator_bare": null
       },
       "transmon": {
@@ -155,23 +162,35 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 6874400000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q4": {
-      "dc_bias_v": 0.0,
+      "dc_bias_v": 0,
       "grid_location": [
         1,
         3
       ],
       "frequencies_hz": {
-        "qubit_f01": 4396000000.0,
-        "qubit_f12": 4163850000.0,
-        "resonator": 6979100000.0,
+        "qubit_f01": 4396000000,
+        "qubit_f12": 4163850000,
+        "resonator": 6979100000,
         "resonator_bare": null
       },
       "transmon": {
-        "anharmonicity_hz": 236150000.0,
+        "anharmonicity_hz": 236150000,
         "t1_ns": 31990,
         "t2_ramsey_ns": 11690,
         "t2_echo_ns": null,
@@ -194,19 +213,31 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 6979100000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q5": {
-      "dc_bias_v": 0.0,
+      "dc_bias_v": 0,
       "grid_location": [
         0,
         2
       ],
       "frequencies_hz": {
-        "qubit_f01": 3867000000.0,
+        "qubit_f01": 3867000000,
         "qubit_f12": null,
-        "resonator": 7071300000.0,
+        "resonator": 7071300000,
         "resonator_bare": null
       },
       "transmon": {
@@ -220,10 +251,10 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0.0,
-        "rus_exit_threshold": 0.0,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 0.0,
+        "integration_weights_angle_rad": 0,
         "use_kernel": false,
         "gef_frequency_shift_hz": 0
       },
@@ -233,23 +264,35 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 7071300000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q6": {
-      "dc_bias_v": 0.0,
+      "dc_bias_v": -0.3356717744152296,
       "grid_location": [
         1,
         2
       ],
       "frequencies_hz": {
-        "qubit_f01": 3945112920.3165746,
-        "qubit_f12": 3707202098.1517005,
-        "resonator": 7174950000.0,
+        "qubit_f01": 3951271259.082587,
+        "qubit_f12": 3713402098.1517005,
+        "resonator": 7175750000.0,
         "resonator_bare": null
       },
       "transmon": {
-        "anharmonicity_hz": 237950000.0,
+        "anharmonicity_hz": 237869160.93088627,
         "t1_ns": 48820,
         "t2_ramsey_ns": 22790,
         "t2_echo_ns": null,
@@ -259,32 +302,33 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": -0.0001234182479458861,
-        "rus_exit_threshold": -0.0001234182479458861,
+        "threshold": 0.0002622700910696423,
+        "rus_exit_threshold": 0.0002622700910696423,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": -3.1917111235457543,
-        "use_kernel": true,
+        "integration_weights_angle_rad": 0.21000953328321179,
+        "use_kernel": false,
         "gef_frequency_shift_hz": 0,
         "confusion_matrix": [
           [
-            0.7998,
-            0.2002
+            0.9075,
+            0.0925
           ],
           [
-            0.1639,
-            0.8361
+            0.1981,
+            0.8019
           ]
         ],
         "gef_centers": [
           [
-            -0.00017776262808102416,
-            -9.329982525730832e-05
+            -0.00017748126572710745,
+            -0.0013844590907245804
           ],
           [
-            4.6370017845284385e-05,
-            -9.329982525730832e-05
+            0.000899851751493747,
+            -0.0013844590907245804
           ]
-        ]
+        ],
+        "calibration_signature": "530570181bd8871ba78d7dd89842f0bfd2f545cc9db56767d4caefb271f38ce7"
       },
       "operations": {
         "x180": "x180_const",
@@ -292,19 +336,31 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 7175150000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q7": {
-      "dc_bias_v": 0.0,
+      "dc_bias_v": 0,
       "grid_location": [
         0,
         1
       ],
       "frequencies_hz": {
-        "qubit_f01": 4136600000.0,
+        "qubit_f01": 4136600000,
         "qubit_f12": null,
-        "resonator": 7270000000.0,
+        "resonator": 7270000000,
         "resonator_bare": null
       },
       "transmon": {
@@ -331,19 +387,31 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 7270000000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q8": {
-      "dc_bias_v": 0.0,
+      "dc_bias_v": 0,
       "grid_location": [
         1,
         1
       ],
       "frequencies_hz": {
-        "qubit_f01": 4098000000.0,
+        "qubit_f01": 4098000000,
         "qubit_f12": null,
-        "resonator": 7381000000.0,
+        "resonator": 7381000000,
         "resonator_bare": null
       },
       "transmon": {
@@ -357,10 +425,10 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0.0,
-        "rus_exit_threshold": 0.0,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 0.0,
+        "integration_weights_angle_rad": 0,
         "use_kernel": false,
         "gef_frequency_shift_hz": 0
       },
@@ -370,23 +438,35 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 7381000000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q9": {
-      "dc_bias_v": 0.0,
+      "dc_bias_v": 0,
       "grid_location": [
         0,
         0
       ],
       "frequencies_hz": {
         "qubit_f01": 4350713804.570797,
-        "qubit_f12": 4133600000.0,
-        "resonator": 7470250000.0,
+        "qubit_f12": 4133600000,
+        "resonator": 7470250000,
         "resonator_bare": null
       },
       "transmon": {
-        "anharmonicity_hz": 215860000.0,
+        "anharmonicity_hz": 215860000,
         "t1_ns": 1000,
         "t2_ramsey_ns": null,
         "t2_echo_ns": null,
@@ -429,19 +509,31 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 7470250000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q10": {
-      "dc_bias_v": 0.0,
+      "dc_bias_v": 0,
       "grid_location": [
         1,
         0
       ],
       "frequencies_hz": {
-        "qubit_f01": 4410580000.0,
+        "qubit_f01": 4410580000,
         "qubit_f12": null,
-        "resonator": 7585280000.0,
+        "resonator": 7585280000,
         "resonator_bare": null
       },
       "transmon": {
@@ -468,19 +560,31 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 7585280000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q11": {
-      "dc_bias_v": 0.0,
+      "dc_bias_v": 0,
       "grid_location": [
         0,
         -1
       ],
       "frequencies_hz": {
-        "qubit_f01": 4296500000.0,
+        "qubit_f01": 4296500000,
         "qubit_f12": null,
-        "resonator": 7674300000.0,
+        "resonator": 7674300000,
         "resonator_bare": null
       },
       "transmon": {
@@ -494,10 +598,10 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0.0,
-        "rus_exit_threshold": 0.0,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 0.0,
+        "integration_weights_angle_rad": 0,
         "use_kernel": false,
         "gef_frequency_shift_hz": 0
       },
@@ -507,11 +611,23 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 7674300000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     },
     "q12": {
-      "dc_bias_v": 0.0,
+      "dc_bias_v": 0,
       "grid_location": [
         1,
         -1
@@ -519,7 +635,7 @@
       "frequencies_hz": {
         "qubit_f01": 4350379521.496815,
         "qubit_f12": null,
-        "resonator": 7774200000.0,
+        "resonator": 7774200000,
         "resonator_bare": null
       },
       "transmon": {
@@ -546,7 +662,19 @@
         "x180_drag": "x180_drag",
         "x180_cosine": "x180_cosine",
         "saturation": "saturation",
-        "readout": "readout"
+        "readout": "readout",
+        "readout_GEF": "readout_GEF"
+      },
+      "readout_gef": {
+        "frequency_hz": 7774200000,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
       }
     }
   }

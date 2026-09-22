@@ -6,7 +6,6 @@ No OPX Z line is required or driven. See calibrations/README.md for usage.
 """
 
 from contextlib import contextmanager
-from dataclasses import asdict
 from pathlib import Path
 import time
 
@@ -29,14 +28,16 @@ from qualang_tools.loops import from_array
 from qualang_tools.multi_user import qm_session
 
 from calibration_utils.qubit_spectroscopy_vs_flux import (
-    fit_raw_data,
-    log_fitted_results,
     process_raw_dataset,
 )
 from calibration_utils.qubit_spectroscopy_vs_flux.external_parameters import Parameters
+from calibration_utils.qubit_spectroscopy_vs_flux.external_analysis import (
+    fit_external_flux,
+)
 from calibrations.core import BaseCalibration, CalibrationOptions
 from calibrations.output_safety import assert_outputs_allowed
 from quam_config import create_machine
+from quam_config.instrument_limits import instrument_limits
 
 
 class QubitSpectroscopyVsExternalFlux(BaseCalibration):
@@ -73,6 +74,7 @@ class QubitSpectroscopyVsExternalFlux(BaseCalibration):
             raise ValueError(
                 "The selected profile must configure connectivity.dc_bias."
             )
+        self.namespace["configured_bias_v"] = float(bias.voltage_for_qubit(q.name))
         center = p.flux_bias_center_in_v
         if center is None:
             center = bias.voltage_for_qubit(q.name)
@@ -108,8 +110,11 @@ class QubitSpectroscopyVsExternalFlux(BaseCalibration):
             raise ValueError(
                 "Operation amplitude factor must be finite and in [-2, 2)."
             )
-        if abs(pulse.amplitude * scale) > 0.7:
-            raise ValueError("Scaled pulse amplitude must not exceed 0.7.")
+        amplitude_limit = instrument_limits(q.xy).max_wf_amplitude
+        if abs(pulse.amplitude * scale) > amplitude_limit:
+            raise ValueError(
+                f"Scaled pulse amplitude must not exceed {amplitude_limit:g}."
+            )
         self.namespace["sweep_axes"] = {
             "qubit": xr.DataArray([q.name], dims="qubit"),
             "detuning": xr.DataArray(
@@ -142,7 +147,7 @@ class QubitSpectroscopyVsExternalFlux(BaseCalibration):
                             p.operation, amplitude_scale=scale, duration=duration // 4
                         )
                         align()
-                        q.resonator.measure("readout", qua_vars=(I, Q))
+                        self.measure_readout(q, qua_vars=(I, Q))
                         save(I, I_st)
                         save(Q, Q_st)
                         align()
@@ -258,6 +263,7 @@ class QubitSpectroscopyVsExternalFlux(BaseCalibration):
                 "detuning": axes["detuning"],
                 "flux_bias": axes["flux_bias"].values[:count],
                 "drive_frequency_hz": ("qubit", [self.namespace["drive_frequency_hz"]]),
+                "configured_bias_v": ("qubit", [self.namespace["configured_bias_v"]]),
             },
             attrs={
                 "bias_source": "external_dc",
@@ -278,80 +284,27 @@ class QubitSpectroscopyVsExternalFlux(BaseCalibration):
         ds = ds.assign_coords(full_freq=ds.drive_frequency_hz + ds.detuning)
         ds.full_freq.attrs = {"long_name": "RF frequency", "units": "Hz"}
         self.results["ds_raw"] = ds
+        self.results.pop("ds_fit", None)
         try:
             if ds.sizes["flux_bias"] < 5:
                 raise ValueError(
                     "At least five bias points are needed for the flux fit."
                 )
-            # Give the FFT-initialized periodic fitter a zero-based axis, then
-            # choose the equivalent sweet spot nearest the scanned bias center.
-            center = float((ds.flux_bias.min() + ds.flux_bias.max()) / 2)
-            origin = float(ds.flux_bias.min())
-            fits, results = fit_raw_data(
-                ds.assign_coords(flux_bias=ds.flux_bias - origin), self
-            )
-            fits = fits.assign_coords(flux_bias=fits.flux_bias + origin)
-            for coordinate in ("idle_offset", "flux_min"):
-                if coordinate in fits.coords:
-                    fits = fits.assign_coords({coordinate: fits[coordinate] + origin})
+            fits, results = fit_external_flux(ds)
             self.results["ds_fit"] = fits
-            self.results["fit_results"] = {
-                name: asdict(result) for name, result in results.items()
-            }
-            for name, result in self.results["fit_results"].items():
-                result["idle_offset"] += origin
-                period = float(result["dv_phi0"])
-                if not np.isfinite(period) or period <= 0:
-                    raise ValueError(
-                        "Flux fit did not produce a finite positive period."
+            self.results["fit_results"] = results
+            for name, result in results.items():
+                if result["success"]:
+                    self.log(
+                        f"{name}: selected {result['selected_quadrature']} fit "
+                        f"(inlier R^2={result['r_squared']:.4f}); parabolic {result['extremum_type']} at "
+                        f"{result['idle_offset']:.6g} V "
+                        f"(fit uncertainty {result['extremum_voltage_std_v']:.2g} V), "
+                        f"{result['qubit_frequency'] / 1e9:.6g} GHz; "
+                        f"{result['num_outliers']} outlier(s) excluded."
                     )
-                result["idle_offset"] += (
-                    round((center - result["idle_offset"]) / period) * period
-                )
-                result["frequency_shift"] = float(
-                    fits.peak_freq.sel(
-                        qubit=name,
-                        flux_bias=result["idle_offset"],
-                        method="nearest",
-                    )
-                )
-                result["qubit_frequency"] = (
-                    float(ds.drive_frequency_hz.sel(qubit=name))
-                    + result["frequency_shift"]
-                )
-                # The inherited periodic fit may extrapolate a sweet spot outside the scan.
-                result["success"] = bool(
-                    result["success"]
-                    and float(ds.flux_bias.min())
-                    <= result["idle_offset"]
-                    <= float(ds.flux_bias.max())
-                    and np.isfinite(result["qubit_frequency"])
-                )
-            fits = fits.assign_coords(
-                idle_offset=(
-                    "qubit",
-                    [
-                        self.results["fit_results"][str(name)]["idle_offset"]
-                        for name in fits.qubit.values
-                    ],
-                ),
-                sweet_spot_frequency=(
-                    "qubit",
-                    [
-                        self.results["fit_results"][str(name)]["qubit_frequency"]
-                        for name in fits.qubit.values
-                    ],
-                ),
-                success=(
-                    "qubit",
-                    [
-                        self.results["fit_results"][str(name)]["success"]
-                        for name in fits.qubit.values
-                    ],
-                ),
-            )
-            self.results["ds_fit"] = fits
-            log_fitted_results(self.results["fit_results"], log_callable=self.log)
+                else:
+                    self.log(f"{name}: parabola fit unavailable: {result['reason']}")
         except (
             ValueError,
             RuntimeError,
@@ -392,46 +345,122 @@ class QubitSpectroscopyVsExternalFlux(BaseCalibration):
                     "drive_frequency_hz": ("qubit", axes["drive_frequency_hz"]),
                 },
             )
+            if "configured_bias_v" in axes.files:
+                self.results["ds_raw"] = self.results["ds_raw"].assign_coords(
+                    configured_bias_v=("qubit", axes["configured_bias_v"])
+                )
         self.get_qubits()
 
     def plot_data(self):
         ds = self.results["ds_raw"]
         name = str(ds.qubit.values[0])
-        fig, ax = plt.subplots(figsize=(9, 6))
-        ds.sel(qubit=name).assign_coords(
+        fig, axes = plt.subplots(2, 1, figsize=(10, 10), sharex=True, sharey=True)
+        selected = ds.sel(qubit=name).assign_coords(
             freq_GHz=ds.full_freq.sel(qubit=name) / 1e9
-        ).IQ_abs.plot(
-            ax=ax,
-            x="flux_bias",
-            y="freq_GHz",
-            robust=True,
         )
         fits = self.results.get("ds_fit")
-        if fits is not None:
-            ax.plot(
-                fits.flux_bias,
-                (fits.peak_freq.sel(qubit=name) + float(ds.drive_frequency_hz[0]))
-                / 1e9,
-                ".",
-                color="white",
-                label="Spectroscopy peaks",
-            )
         result = self.results.get("fit_results", {}).get(name, {})
-        if result.get("success"):
-            ax.axvline(
-                result["idle_offset"],
-                color="red",
-                linestyle="--",
-                label="Fitted sweet spot",
+        for ax, quadrature in zip(axes, ("I", "Q")):
+            selected[quadrature].plot(
+                ax=ax,
+                x="flux_bias",
+                y="freq_GHz",
+                robust=True,
+                cbar_kwargs={"label": f"{quadrature} (V)"},
             )
-        if ax.get_legend_handles_labels()[0]:
-            ax.legend()
-        ax.set(
-            xlabel="External source voltage (V)",
-            ylabel="Qubit frequency (GHz)",
-            title=f"{name}: spectroscopy versus external bias",
+            panel_result = result.get("quadrature_fit_results", {}).get(quadrature, {})
+            if fits is not None:
+                voltage = fits.flux_bias.values
+                peak = fits.quadrature_peak_freq.sel(
+                    qubit=name, quadrature=quadrature
+                ).values
+                inlier = fits.quadrature_fit_inlier.sel(
+                    qubit=name, quadrature=quadrature
+                ).values
+                drive = float(ds.drive_frequency_hz.sel(qubit=name))
+                finite = np.isfinite(peak)
+                ax.plot(
+                    voltage[inlier],
+                    (peak[inlier] + drive) / 1e9,
+                    ".",
+                    color="white",
+                    label="Fit inliers",
+                )
+                excluded = finite & ~inlier
+                ax.plot(
+                    voltage[excluded],
+                    (peak[excluded] + drive) / 1e9,
+                    "x",
+                    color="orange",
+                    label="Excluded peaks",
+                )
+                if "coefficients_hz" in panel_result:
+                    dense = np.linspace(float(voltage.min()), float(voltage.max()), 300)
+                    normalized = (dense - panel_result["fit_center_v"]) / panel_result[
+                        "fit_scale_v"
+                    ]
+                    fitted = np.polyval(panel_result["coefficients_hz"], normalized)
+                    ax.plot(
+                        dense,
+                        (fitted + drive) / 1e9,
+                        color="cyan",
+                        label="Robust parabola",
+                    )
+            if panel_result.get("success"):
+                vertex = panel_result["idle_offset"]
+                ax.axvline(
+                    vertex,
+                    color="red",
+                    linestyle="--",
+                    label=f"{panel_result['extremum_type'].capitalize()}: {vertex:.6g} V",
+                )
+                ax.plot(
+                    vertex,
+                    panel_result["qubit_frequency"] / 1e9,
+                    "*",
+                    color="red",
+                    markersize=12,
+                )
+            if ax.get_legend_handles_labels()[0]:
+                ax.legend()
+            ax.set(xlabel="", ylabel="Qubit frequency (GHz)", title="")
+            score = panel_result.get("r_squared")
+            label = (
+                f"{quadrature} | inlier R^2={score:.4f}"
+                if score is not None
+                else f"{quadrature} | fit unavailable"
+            )
+            if result.get("selected_quadrature") == quadrature:
+                label += " | selected"
+            elif not panel_result.get("success") and score is not None:
+                label += " | invalid extremum"
+            ax.text(
+                0.015,
+                0.97,
+                label,
+                transform=ax.transAxes,
+                va="top",
+                fontweight="bold",
+                bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"},
+            )
+        axes[-1].set_xlabel("Absolute external source voltage (V)")
+        fig.suptitle(f"{name}: spectroscopy versus external bias")
+        if "configured_bias_v" in ds.coords:
+            reference = float(ds.configured_bias_v.sel(qubit=name))
+            reference_label = "configured bias"
+        else:
+            # Legacy runs did not store this reference; label the fallback.
+            reference = float(self.machine.dc_bias.voltage_for_qubit(name))
+            reference_label = "current profile bias"
+        upper_axis = axes[0].secondary_xaxis(
+            "top",
+            functions=(
+                lambda voltage: voltage - reference,
+                lambda offset: offset + reference,
+            ),
         )
-        fig.tight_layout()
+        upper_axis.set_xlabel(f"Offset from {reference_label} ({reference:g} V) [V]")
+        fig.tight_layout(rect=(0, 0, 1, 0.96))
         self.results["figures"] = {"spectroscopy_vs_external_flux": fig}
         plt.show()
 
@@ -454,16 +483,21 @@ if __name__ == "__main__":
     parameters.reset_type = "thermal"
     parameters.use_state_discrimination = False
     parameters.num_shots = 100
-    parameters.flux_bias_center_in_v = 0  # Use the profile's dc_bias_v.
-    parameters.flux_offset_span_in_v = 0.5
-    parameters.num_flux_points = 11
-    parameters.bias_settle_time_s = 0.1
+    parameters.operation_amplitude_factor = (
+        0.05  # Fraction of the profile pulse amplitude; lower for weaker drive.
+    )
+    # parameters.flux_bias_center_in_v = 0  # Use the profile's dc_bias_v.
+    parameters.flux_offset_span_in_v = 1
+    parameters.num_flux_points = 10
+    parameters.bias_settle_time_s = 1
+    parameters.frequency_span_in_mhz = 100
+    parameters.frequency_step_in_mhz = 1
 
-    options = CalibrationOptions(apply_profile_update=False)
+    options = CalibrationOptions(apply_profile_update=True, update_state=False)
 
     calibration = QubitSpectroscopyVsExternalFlux(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q6"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

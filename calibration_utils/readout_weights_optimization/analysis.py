@@ -133,10 +133,12 @@ def save_kernel_artifacts(
     elif isinstance(parameters, Mapping):
         metadata["parameters"] = dict(parameters)
 
+    states = metadata.get("parameters", {}).get("readout_states", ["g", "e"])
+    operation = "readout_GEF" if len(states) == 3 else "readout"
     for qubit in analysed.qubit.values:
         selected = analysed.sel(qubit=qubit)
         np.savez(
-            output_directory / f"{qubit}_readout_kernel.npz",
+            output_directory / f"{qubit}_{operation}_kernel.npz",
             metadata_json=np.array(json.dumps(metadata, sort_keys=True)),
             time_ns=selected.time_ns.values,
             Ig=selected.Ig.values,

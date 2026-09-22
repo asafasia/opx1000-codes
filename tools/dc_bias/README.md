@@ -12,9 +12,9 @@ a host-side QuAM component. Its live serial connection is not serialized and it
 does not add anything to the QUA configuration.
 
 The controller supports channels 0 through 7 and enforces a hard maximum
-magnitude of 0.01 V. The selected DC-bias output is hardcoded as channel 0 for
+magnitude of 0.01 V. The selected DC-bias output is hardcoded as channel 0 (physical output 1) for
 all qubits. When an `applied_for_qubit(...)` block ends—or is interrupted—the
-component returns channel 0 to zero and closes the connection it opened.
+component returns channel 0 (physical output 1) to zero and closes the connection it opened.
 
 ## Setup
 

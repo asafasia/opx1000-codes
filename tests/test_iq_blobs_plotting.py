@@ -54,8 +54,10 @@ class IQBlobsPlottingTests(unittest.TestCase):
 
         self.assertEqual(len(fig.axes), 3)
         lines_by_label = {line.get_label(): line for line in fig.axes[0].lines}
-        self.assertEqual(lines_by_label["Ground"].get_alpha(), 0.35)
-        self.assertEqual(lines_by_label["Prepared"].get_alpha(), 0.35)
+        cloud = next(item for item in fig.axes[0].collections if item.get_gid() == "iq_mixed_clouds")
+        self.assertEqual(cloud.get_alpha(), 0.16)
+        self.assertEqual(len(cloud.get_offsets()), 8)
+        self.assertTrue(cloud.get_rasterized())
         center_points = [lines_by_label["Ground center"], lines_by_label["Prepared center"]]
         self.assertEqual(tuple(center_points[0].get_data()), ((-4.0,), (2.0,)))
         self.assertEqual(tuple(center_points[1].get_data()), ((6.0,), (-2.0,)))
@@ -183,7 +185,7 @@ class IQBlobsPlottingTests(unittest.TestCase):
         self.assertIn("Ground 95% KDE", labels)
         self.assertIn("Prepared 95% KDE", labels)
 
-    def test_three_state_dashboard_draws_pairwise_threshold_lines(self):
+    def test_three_state_dashboard_draws_one_decision_boundary(self):
         runs = np.arange(4)
         raw = xr.Dataset(
             {
@@ -233,9 +235,12 @@ class IQBlobsPlottingTests(unittest.TestCase):
         fig = plot_iq_blobs_dashboard(raw, [SimpleNamespace(name="q1")], fit)
         labels = {line.get_label() for line in fig.axes[0].lines}
 
-        self.assertIn("GE threshold", labels)
-        self.assertIn("EF threshold", labels)
-        self.assertIn("GF threshold", labels)
+        boundary = next(item for item in fig.axes[0].collections if item.get_gid() == "iq_decision_boundary")
+        self.assertEqual(boundary.get_label(), "G/E/F decision boundary")
+        self.assertEqual(len(boundary.get_segments()), 2)  # Collinear fixture.
+        self.assertNotIn("GE threshold", labels)
+        self.assertNotIn("EF threshold", labels)
+        self.assertNotIn("GF threshold", labels)
         self.assertNotIn("RUS Threshold", labels)
         self.assertNotIn("Threshold", labels)
         self.assertEqual(len(fig.axes), 5)
