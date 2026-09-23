@@ -15,9 +15,7 @@ import numpy as np
 import xarray as xr
 from qm.qua import *
 from qualang_tools.loops import from_array
-from qualang_tools.multi_user import qm_session
-from calibrations.runtime_estimation import progress_counter
-from qualibration_libs.data import XarrayDataFetcher
+from utils.qm_session import qm_session
 from utils.simulation import simulate_and_plot
 from calibration_utils.pi_train import Parameters, plot_pi_train, process_raw_dataset
 from quam_config import Quam, create_machine
@@ -103,6 +101,8 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
             ),
         }
 
+        self.configure_acquisition()
+
         with program() as node.namespace["qua_program"]:
             I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
             pulse_count = declare(int)
@@ -144,13 +144,10 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
             with stream_processing():
                 n_st.save("n")
                 for i in range(num_qubits):
-                    if node.parameters.use_state_discrimination:
-                        state_st[i].buffer(len(pulse_counts)).average().save(
-                            f"state{i + 1}"
-                        )
-                    else:
-                        I_st[i].buffer(len(pulse_counts)).average().save(f"I{i + 1}")
-                        Q_st[i].buffer(len(pulse_counts)).average().save(f"Q{i + 1}")
+                    self.process_readout_streams(
+                        i, state_st if self.parameters.use_state_discrimination else None,
+                        I_st, Q_st,
+                    )
 
         return node.namespace.get("qua_program")
 
@@ -174,14 +171,7 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
         config = node.machine.generate_config()
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             job = qm.execute(node.namespace["qua_program"])
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_shots,
-                    start_time=data_fetcher.t_start,
-                )
-            node.log(job.execution_report())
+            dataset = self.fetch_result_dataset(job)
         validate_readout_dataset(dataset, node.parameters.use_state_discrimination)
         node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
@@ -204,6 +194,7 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
         node.log(f"Raw calibration results saved to {output_directory}")
 
     def analyse_data(self):
+        self.prepare_acquisition_results()
         node = self
         validate_readout_dataset(
             node.results["ds_raw"], node.parameters.use_state_discrimination
@@ -233,6 +224,7 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
 
 if __name__ == "__main__":
     parameters = Parameters()
+    parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
 
     parameters.num_shots = 3000
     parameters.use_state_discrimination = True

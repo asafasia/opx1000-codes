@@ -15,8 +15,7 @@ import numpy as np
 import xarray as xr
 from dataclasses import asdict
 from qm.qua import *
-from qualang_tools.multi_user import qm_session
-from calibrations.runtime_estimation import progress_counter
+from utils.qm_session import qm_session
 
 from calibration_io import CalibrationSaver, current_profile_name
 from calibration_utils.xy8 import (
@@ -27,7 +26,6 @@ from calibration_utils.xy8 import (
     plot_t2_vs_order,
     process_raw_dataset,
 )
-from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.parameters import get_idle_times_in_clock_cycles, get_qubits
 from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
@@ -97,6 +95,8 @@ class XY8(BaseCalibration[Parameters, Quam]):
             ),
         }
 
+        self.configure_acquisition()
+
         with program() as node.namespace["qua_program"]:
             I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
             evolution_time = declare(int)
@@ -162,17 +162,10 @@ class XY8(BaseCalibration[Parameters, Quam]):
             with stream_processing():
                 n_st.save("n")
                 for i in range(num_qubits):
-                    if node.parameters.use_state_discrimination:
-                        state_st[i].buffer(len(evolution_times)).buffer(
-                            len(n_xy8_values)
-                        ).average().save(f"state{i + 1}")
-                    else:
-                        I_st[i].buffer(len(evolution_times)).buffer(
-                            len(n_xy8_values)
-                        ).average().save(f"I{i + 1}")
-                        Q_st[i].buffer(len(evolution_times)).buffer(
-                            len(n_xy8_values)
-                        ).average().save(f"Q{i + 1}")
+                    self.process_readout_streams(
+                        i, state_st if self.parameters.use_state_discrimination else None,
+                        I_st, Q_st,
+                    )
 
         return node.namespace.get("qua_program")
 
@@ -195,15 +188,7 @@ class XY8(BaseCalibration[Parameters, Quam]):
         config = node.machine.generate_config()
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             node.namespace["job"] = job = qm.execute(node.namespace["qua_program"])
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            dataset = None
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_shots,
-                    start_time=data_fetcher.t_start,
-                )
-            node.log(job.execution_report())
+            dataset = self.fetch_result_dataset(job)
         node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
     def save_raw_results(self):
@@ -225,6 +210,7 @@ class XY8(BaseCalibration[Parameters, Quam]):
         node.namespace["qubits"] = self.get_qubits()
 
     def analyse_data(self):
+        self.prepare_acquisition_results()
         node = self
         node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
         node.results["ds_fit"], fit_results = fit_raw_data(node.results["ds_raw"], node)
@@ -272,6 +258,7 @@ class XY8(BaseCalibration[Parameters, Quam]):
 
 if __name__ == "__main__":
     parameters = Parameters()
+    parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
 
     parameters.num_shots = 1000
     parameters.use_state_discrimination = True

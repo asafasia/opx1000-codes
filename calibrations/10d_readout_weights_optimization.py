@@ -14,8 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 from qm.qua import *
-from qualang_tools.multi_user import qm_session
-from calibrations.runtime_estimation import progress_counter
+from utils.qm_session import qm_session
 from qualang_tools.units import unit
 
 from calibration_io import CalibrationSaver, current_profile_name
@@ -27,7 +26,6 @@ from calibration_utils.readout_weights_optimization import (
     save_kernel_artifacts,
 )
 from profiles import ProfileUpdater
-from qualibration_libs.data import XarrayDataFetcher
 from quam_config import Quam, create_machine
 from utils.simulation import simulate_and_plot
 
@@ -130,6 +128,8 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
             ),
         }
 
+        self.configure_acquisition()
+
         with program() as node.namespace["qua_program"]:
             n = declare(int)
             ind = declare(int)
@@ -204,9 +204,7 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
                 n_st.save("n")
                 for i in range(num_qubits):
                     for name, stream_list in streams.items():
-                        stream_list[i].buffer(number_of_divisions).average().save(
-                            f"{name}{i + 1}"
-                        )
+                        self.save_acquisition_stream(stream_list[i], f'{name}{i + 1}')
 
         return node.namespace.get("qua_program")
 
@@ -229,15 +227,7 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
         config = node.machine.generate_config()
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             node.namespace["job"] = job = qm.execute(node.namespace["qua_program"])
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            dataset = None
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_shots,
-                    start_time=data_fetcher.t_start,
-                )
-            node.log(job.execution_report())
+            dataset = self.fetch_result_dataset(job)
         node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
     def save_raw_results(self):
@@ -259,6 +249,7 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
         node.namespace["qubits"] = self.get_qubits()
 
     def analyse_data(self):
+        self.prepare_acquisition_results()
         node = self
         analysed = process_sliced_traces(
             node.results["ds_raw"],
@@ -310,19 +301,14 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
                 settings["confusion_matrix"] = None
 
     def profile_updates(self):
-        section = (
-            "readout_gef" if len(self.parameters.readout_states) == 3 else "readout"
+        return self.readout_profile_updates(
+            settings={"use_kernel": True}, invalidate_discrimination=True,
         )
-        updates = {}
-        for q in self.namespace["qubits"]:
-            updates[f"qubits.json.qubits.{q.name}.{section}.use_kernel"] = True
-            updates[f"qubits.json.qubits.{q.name}.{section}.gef_centers"] = None
-            updates[f"qubits.json.qubits.{q.name}.{section}.confusion_matrix"] = None
-        return updates
 
 
 if __name__ == "__main__":
     parameters = Parameters()
+    parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
     parameters.num_shots = 10000
     parameters.division_length_clock_cycles = 5
     parameters.use_current_integration_weights = False

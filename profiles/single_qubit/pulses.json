@@ -12,7 +12,7 @@
       "EF_x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.0362158703504118,
+        "amplitude": 0.03287878598784741,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -43,7 +43,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.1,
+        "amplitude": 0.10999999999999999,
         "length_ns": 2000,
         "digital_marker": "ON"
       },

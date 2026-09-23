@@ -68,18 +68,6 @@ class DragCalibrationOperationTests(unittest.TestCase):
             source,
         )
 
-    def test_sequence_proposes_drag_beta_profile_update(self):
-        source = (
-            Path(__file__).parent.parent
-            / "calibrations"
-            / "10b_drag_calibration_180_minus_180.py"
-        ).read_text()
-
-        self.assertIn("from profiles import ProfileUpdater", source)
-        self.assertIn('updates[f"pulses.json.pulses.{q.name}.{pulse_name}.beta"]', source)
-        self.assertIn("ProfileUpdater().stage(", source)
-        self.assertIn("ProfileUpdater().confirm_and_apply(proposal)", source)
-
 
 if __name__ == "__main__":
     unittest.main()

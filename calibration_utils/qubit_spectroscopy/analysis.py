@@ -1,3 +1,5 @@
+from calibration_utils.state_acquisition import prepare_acquisition_dataset
+
 import logging
 from dataclasses import dataclass
 from typing import Tuple, Dict
@@ -76,6 +78,7 @@ def log_fitted_results(fit_results: Dict, log_callable=None):
 
 
 def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode):
+    ds = prepare_acquisition_dataset(ds, node.parameters)
     if not node.parameters.use_state_discrimination:
         ds = convert_IQ_to_V(ds, node.namespace["qubits"])
         ds = add_amplitude_and_phase(ds, "detuning", subtract_slope_flag=True)

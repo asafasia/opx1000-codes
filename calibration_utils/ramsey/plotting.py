@@ -1,4 +1,5 @@
 from typing import List
+from .spectrum import ramsey_spectrum
 import numpy as np
 import xarray as xr
 from matplotlib.axes import Axes
@@ -166,26 +167,38 @@ def _dense_idle_time(idle_time: xr.DataArray, minimum_points: int = 1000) -> xr.
 
 
 def plot_fft_peak(ax: Axes, ds: xr.Dataset, fit: xr.Dataset | None = None):
-    """Plot the Ramsey FFT spectrum and mark the strongest oscillation frequency."""
+    """Plot each Ramsey FFT normalized to its own peak and mark its frequency."""
     colors = {1: "C0", -1: "C1"}
     peak_labels = []
+    frequency_bounds = []
     for detuning_sign in (1, -1):
         frequency_mhz, amplitude = ramsey_fft_spectrum(ds, detuning_sign)
         if frequency_mhz.size == 0:
             continue
 
+        frequency_bounds.append((float(frequency_mhz[0]), float(frequency_mhz[-1])))
+        # Display normalization only; the shared FFT and fitting data are unchanged.
+        amplitude_max = float(np.max(amplitude))
+        if amplitude_max > 0:
+            amplitude = amplitude / amplitude_max
         peak_index = int(np.argmax(amplitude))
         peak_frequency_mhz = float(frequency_mhz[peak_index])
         peak_amplitude = float(amplitude[peak_index])
-        label = f"$\\Delta$ = {detuning_sign:+d}, peak {peak_frequency_mhz:.3f} MHz"
+        label = f"$\\Delta$ = {detuning_sign:+d}, peak {peak_frequency_mhz:.6g} MHz"
         ax.plot(frequency_mhz, amplitude, color=colors[detuning_sign], lw=1.2, label=label)
         ax.axvline(peak_frequency_mhz, color=colors[detuning_sign], ls="--", lw=0.9, alpha=0.75)
         ax.plot(peak_frequency_mhz, peak_amplitude, marker="o", color=colors[detuning_sign], ms=4)
-        peak_labels.append(f"{detuning_sign:+d}: {peak_frequency_mhz:.3f} MHz")
+        peak_labels.append(f"{detuning_sign:+d}: {peak_frequency_mhz:.6g} MHz")
 
-    ax.set_title("FFT oscillation spectrum", pad=38 if peak_labels else None)
+    if frequency_bounds:
+        # Autoscale margins can include zero even though the DC bin is excluded.
+        lower = min(bound[0] for bound in frequency_bounds)
+        upper = max(bound[1] for bound in frequency_bounds)
+        ax.set_xlim(lower, upper if upper > lower else lower * 1.05)
+    ax.set_title("FFT oscillation spectrum (linear baseline removed, 2x zero-padding)", pad=38 if peak_labels else None)
     ax.set_xlabel("Frequency [MHz]")
-    ax.set_ylabel("FFT amplitude [a.u.]")
+    ax.set_ylabel("Normalized FFT amplitude")
+    ax.set_ylim(0, 1.05)
     ax.grid(True, alpha=0.25)
     _place_legend(ax)
     if peak_labels:
@@ -213,32 +226,11 @@ def _place_legend(ax: Axes) -> None:
 
 
 def ramsey_fft_spectrum(ds: xr.Dataset, detuning_sign: int) -> tuple[np.ndarray, np.ndarray]:
-    """Return positive-frequency FFT bins in MHz for one detuning sign."""
-    signal = _signal_for_fft(ds, detuning_sign)
-    idle_time = np.asarray(ds.idle_time, dtype=float)
-    if signal.size < 2 or idle_time.size < 2:
-        return np.array([]), np.array([])
-
-    order = np.argsort(idle_time)
-    idle_time = idle_time[order]
-    signal = signal[order]
-    valid = np.isfinite(idle_time) & np.isfinite(signal)
-    idle_time = idle_time[valid]
-    signal = signal[valid]
-    if signal.size < 2:
-        return np.array([]), np.array([])
-
-    dt_ns = float(np.median(np.diff(idle_time)))
-    if not np.isfinite(dt_ns) or dt_ns <= 0:
-        return np.array([]), np.array([])
-
-    centered = signal - np.mean(signal)
-    frequency_mhz = np.fft.rfftfreq(centered.size, d=dt_ns) * 1e3
-    amplitude = np.abs(np.fft.rfft(centered))
-    positive_frequency = frequency_mhz > 0
-    if not np.any(positive_frequency):
-        return np.array([]), np.array([])
-    return frequency_mhz[positive_frequency], amplitude[positive_frequency]
+    """Return the same baseline-detrended spectrum used for the fit's FFT seed."""
+    frequency_per_ns, amplitude = ramsey_spectrum(
+        np.asarray(ds.idle_time, dtype=float), _signal_for_fft(ds, detuning_sign)
+    )
+    return frequency_per_ns * 1e3, amplitude
 
 
 def _signal_for_fft(ds: xr.Dataset, detuning_sign: int) -> np.ndarray:

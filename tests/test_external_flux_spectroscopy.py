@@ -269,3 +269,21 @@ def test_mw_drive_rejects_amplitude_above_one(calibration, scale):
     calibration.parameters.operation_amplitude_factor = scale
     with pytest.raises(ValueError, match="Scaled pulse amplitude must not exceed 1"):
         calibration.create_qua_program()
+
+
+def test_single_shot_bias_rows_preserve_shot_frequency_and_bias_order(calibration):
+    calibration.parameters.acquisition = "single_shot"
+    qua = calibration.create_qua_program()
+    script = generate_qua_script(qua)
+    assert 'save_all("I")' in script
+    assert "FUNCTIONS.average" not in script
+    size = len(calibration.namespace["sweep_axes"]["detuning"])
+    rows = {"I": [np.arange(2 * size), np.arange(2 * size) + 100]}
+    ds = calibration._dataset(rows, 2)
+    assert ds.I.dims == ("qubit", "shot", "detuning", "flux_bias")
+    np.testing.assert_array_equal(ds.I.isel(qubit=0, flux_bias=1), rows["I"][1].reshape(2, size))
+    calibration.results["ds_raw"] = ds
+    calibration.prepare_acquisition_results()
+    result = calibration.results["ds_raw"]
+    np.testing.assert_allclose(result.I.isel(qubit=0, flux_bias=0), np.arange(size) + size / 2)
+    np.testing.assert_array_equal(result.I_shots, ds.I)

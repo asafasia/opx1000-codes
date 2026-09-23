@@ -41,7 +41,6 @@ def _quiet_progress(*_args, **_kwargs) -> None:
     """Keep the two acquisitions from flooding the terminal."""
 
 
-_t1_module.progress_counter = _quiet_progress
 logging.getLogger("qm").setLevel(logging.WARNING)
 
 
@@ -294,7 +293,7 @@ def run_initial_state_comparison(
         parameters.simulate = simulate
         parameters.use_state_discrimination = True
         parameters.use_readout_mitigation = True
-        parameters.max_wait_time_in_ns = 250e3
+        parameters.max_wait_time_in_ns = 250_000
         parameters.num_shots = 1000
         parameters.wait_time_num_points = 300
 
@@ -304,6 +303,7 @@ def run_initial_state_comparison(
             options=options,
             logger=lambda _message: None,
         )
+        calibration.report_progress = _quiet_progress
         calibration.run()
         calibrations[initial_state] = calibration
         if not simulate:

@@ -4,6 +4,7 @@ from typing import Tuple, Dict
 import numpy as np
 import xarray as xr
 from scipy.optimize import curve_fit
+from .spectrum import ramsey_spectrum
 
 from qualibrate import QualibrationNode
 from utils.experiment_readout import convert_IQ_to_V
@@ -179,16 +180,11 @@ def _fit_ramsey_with_frequency_guess(
 
 
 def _fft_frequency_guess(time: np.ndarray, signal: np.ndarray) -> float:
-    """Estimate a fallback positive frequency after interpolation to a uniform grid."""
-    uniform_time = np.linspace(float(time[0]), float(time[-1]), time.size)
-    uniform_signal = np.interp(uniform_time, time, signal)
-    centered = uniform_signal - np.mean(uniform_signal)
-    frequencies = np.fft.rfftfreq(time.size, d=float(uniform_time[1] - uniform_time[0]))
-    amplitudes = np.abs(np.fft.rfft(centered))
-    positive = frequencies > 0
-    if not np.any(positive):
+    """Estimate a positive frequency from the shared baseline-detrended FFT."""
+    frequencies, amplitudes = ramsey_spectrum(time, signal)
+    if not frequencies.size or not np.any(amplitudes > np.finfo(float).eps):
         return np.nan
-    return float(frequencies[positive][np.argmax(amplitudes[positive])])
+    return float(frequencies[np.argmax(amplitudes)])
 
 
 def _sinusoid_initial_values(

@@ -15,8 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 from qm.qua import *
-from qualang_tools.multi_user import qm_session
-from calibrations.runtime_estimation import progress_counter
+from utils.qm_session import qm_session
 from quam_config import Quam, create_machine
 from calibration_io import CalibrationSaver, current_profile_name
 from utils.plotting_settings import plot_per_qubit
@@ -31,7 +30,6 @@ from calibration_utils.iq_blobs import (
 )
 from calibration_utils.analysis_base import FunctionalAnalysis
 from utils.simulation import simulate_and_plot
-from qualibration_libs.data import XarrayDataFetcher
 from quam.components.pulses import SquareReadoutPulse
 
 if __package__ in {None, ""}:
@@ -194,6 +192,8 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
             ),
         }
 
+        self.configure_acquisition(shot_axis="n_runs", preserve_shots=True)
+
         with program() as node.namespace["qua_program"]:
             I_g, I_g_st, Q_g, Q_g_st, n, n_st = node.machine.declare_qua_variables()
             I_e, I_e_st, Q_e, Q_e_st, _, _ = node.machine.declare_qua_variables()
@@ -278,14 +278,14 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                 n_st.save("n")
                 for i in range(num_qubits):
                     if "g" in states:
-                        I_g_st[i].buffer(n_runs).save(f"Ig{i + 1}")
-                        Q_g_st[i].buffer(n_runs).save(f"Qg{i + 1}")
+                        self.save_acquisition_stream(I_g_st[i], f'Ig{i + 1}')
+                        self.save_acquisition_stream(Q_g_st[i], f'Qg{i + 1}')
                     if "e" in states:
-                        I_e_st[i].buffer(n_runs).save(f"Ie{i + 1}")
-                        Q_e_st[i].buffer(n_runs).save(f"Qe{i + 1}")
+                        self.save_acquisition_stream(I_e_st[i], f'Ie{i + 1}')
+                        self.save_acquisition_stream(Q_e_st[i], f'Qe{i + 1}')
                     if "f" in states:
-                        I_f_st[i].buffer(n_runs).save(f"If{i + 1}")
-                        Q_f_st[i].buffer(n_runs).save(f"Qf{i + 1}")
+                        self.save_acquisition_stream(I_f_st[i], f'If{i + 1}')
+                        self.save_acquisition_stream(Q_f_st[i], f'Qf{i + 1}')
 
         return node.namespace.get("qua_program")
 
@@ -320,16 +320,8 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             # The job is stored in the node namespace to be reused in the fetching_data run_action
             node.namespace["job"] = job = qm.execute(node.namespace["qua_program"])
-            # Display the progress bar
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_shots,
-                    start_time=data_fetcher.t_start,
-                )
-            # Display the execution report to expose possible runtime errors
-            node.log(job.execution_report())
+            # Wait for complete buffers while displaying the shot counter.
+            dataset = self.fetch_result_dataset(job)
         # Register the raw dataset
         node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
         node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
@@ -397,10 +389,20 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
         states = list(fit.get("state_labels", []))
         expected = list(self.parameters.readout_states)
         if states != expected:
+            self.log(
+                f"{q.name}: no readout update proposed: prepared states {states} "
+                f"do not match readout_states={expected} for "
+                f"{self.parameters.readout_operation}. Set states=None to prepare "
+                "the selected readout states; use readout_states=['g', 'e', 'f'] "
+                "when calibrating the GEF pulse."
+            )
             return None
         operation = q.resonator.operations[self.parameters.readout_operation]
         centers = np.asarray(fit["center_matrix"], dtype=float)
         if centers.shape != (len(states), 2) or not np.isfinite(centers).all():
+            self.log(
+                f"{q.name}: no readout update proposed: fitted IQ centers are missing or invalid."
+            )
             return None
         values = {}
         if states == ["g", "e"]:
@@ -465,41 +467,32 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                 q.resonator.confusion_matrix = values.get("confusion_matrix")
 
     def profile_updates(self):
-        """Stage only the acquired mode; the lifecycle controls applying proposals."""
-        section = (
-            "readout_gef" if len(self.parameters.readout_states) == 3 else "readout"
-        )
-        updates = {}
-        for q in self.namespace["qubits"]:
+        def fitted_settings(q, fit):
             values = self.namespace.get("fitted_readout_settings", {}).get(q.name)
-            if values is None:
-                values = self._fitted_readout_settings(q)
-            if values is None:
-                continue
-            for key, value in values.items():
-                updates[f"qubits.json.qubits.{q.name}.{section}.{key}"] = value
-            fit = self.results["fit_results"][q.name]
-            if (
-                section == "readout"
-                and self.parameters.reset_type in {"thermal", "active"}
-                and "readout_fidelity" in fit
-            ):
-                updates[
-                    f"metrics.json.qubits.{q.name}.readout.fidelity_percent.{self.parameters.reset_type}"
-                ] = float(fit["readout_fidelity"])
-        return updates
+            return self._fitted_readout_settings(q) if values is None else values
+
+        return self.readout_profile_updates(
+            settings=fitted_settings, fidelity="readout_fidelity",
+            successful_only=False,  # _fitted_readout_settings validates the acquired states and centers.
+        )
 
 
 if __name__ == "__main__":
     parameters = Parameters()
+    parameters.center_method = "median"  # "median" or "mean" for IQ cloud centers.
 
     parameters.qubit_operation = "x180"
-    parameters.states = ["g", "e", "f"]
-    parameters.reset_type = "active"
+    parameters.readout_states = ["g", "e", "f"]  # Selects the readout_GEF pulse.
+    parameters.states = None  # Prepare the same states as readout_states.
+    parameters.reset_type = "active"  # Use "active" after GEF centers are calibrated.
     # parameters.active_gef_reset_attempts = 3
+
     parameters.num_shots = 10000
 
-    options = CalibrationOptions()
+    options = CalibrationOptions(
+        propose_profile_update=True,
+        apply_profile_update=True,  # Ask for explicit "yes" before applying.
+    )
     # options.ai_review = True
 
     machine = create_machine(qubit="q6")

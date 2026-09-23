@@ -8,9 +8,9 @@
         4
       ],
       "frequencies_hz": {
-        "qubit_f01": 4266391143.729072,
+        "qubit_f01": 4266402028.018467,
         "qubit_f12": 4050500000.0,
-        "resonator": 6667800000.0,
+        "resonator": 6668300000.0,
         "resonator_bare": null
       },
       "transmon": {
@@ -24,15 +24,33 @@
         "time_of_flight_ns": 100,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": -0.0008826375392467308,
-        "rus_exit_threshold": -0.0008826375392467308,
+        "threshold": -0.0008271828242146547,
+        "rus_exit_threshold": -0.0008271828242146547,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": -12.86398337989711,
+        "integration_weights_angle_rad": -12.371960391862856,
         "use_kernel": true,
         "gef_frequency_shift_hz": -810000,
-        "gef_centers": null,
-        "confusion_matrix": null,
-        "calibration_signature": "94236944d975e12748d401cfcc0842dc9ec555e597b0d1010b419592d2020e4e"
+        "gef_centers": [
+          [
+            -0.0013198266162664242,
+            0.0008913169423537169
+          ],
+          [
+            1.990839473979087e-05,
+            0.0008913169423537168
+          ]
+        ],
+        "confusion_matrix": [
+          [
+            0.9422,
+            0.0578
+          ],
+          [
+            0.1401,
+            0.8599
+          ]
+        ],
+        "calibration_signature": "c1c7a8a7e309fd8dda652cf234b91e4171689d9acb3aa111713bc0d82a7ef233"
       },
       "operations": {
         "x180": "x180_cosine",
@@ -51,8 +69,38 @@
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": 0,
         "use_kernel": false,
-        "gef_centers": null,
-        "confusion_matrix": null
+        "gef_centers": [
+          [
+            -0.0010017212480306628,
+            0.0010831058025360107
+          ],
+          [
+            -0.0010000336915254593,
+            0.0013261791318655014
+          ],
+          [
+            -0.0006418060511350632,
+            0.001803208142518997
+          ]
+        ],
+        "confusion_matrix": [
+          [
+            0.6764,
+            0.2855,
+            0.0381
+          ],
+          [
+            0.3359,
+            0.5317,
+            0.1324
+          ],
+          [
+            0.1649,
+            0.1113,
+            0.7238
+          ]
+        ],
+        "calibration_signature": "2c6e9849cd56ea5482fb5504fce886cd18dcadfdc6abd794745efea2188c7a30"
       }
     },
     "q2": {
@@ -286,7 +334,7 @@
         2
       ],
       "frequencies_hz": {
-        "qubit_f01": 3951271259.082587,
+        "qubit_f01": 3951270369.119284,
         "qubit_f12": 3713402098.1517005,
         "resonator": 7175750000.0,
         "resonator_bare": null
@@ -302,33 +350,33 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0.0002622700910696423,
-        "rus_exit_threshold": 0.0002622700910696423,
+        "threshold": 0.0003011786188665581,
+        "rus_exit_threshold": 0.0003011786188665581,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 0.21000953328321179,
+        "integration_weights_angle_rad": 0.22750005729616268,
         "use_kernel": false,
         "gef_frequency_shift_hz": 0,
         "confusion_matrix": [
           [
-            0.9075,
-            0.0925
+            0.8853,
+            0.1147
           ],
           [
-            0.1981,
-            0.8019
+            0.1799,
+            0.8201
           ]
         ],
         "gef_centers": [
           [
-            -0.00017748126572710745,
-            -0.0013844590907245804
+            -0.00027861393484675446,
+            -0.0013713827728261947
           ],
           [
-            0.000899851751493747,
-            -0.0013844590907245804
+            0.0009056656295352571,
+            -0.0013713827728261947
           ]
         ],
-        "calibration_signature": "530570181bd8871ba78d7dd89842f0bfd2f545cc9db56767d4caefb271f38ce7"
+        "calibration_signature": "63b4ef2320a6db1e5476c4d3dab6f5a9157c142a0bedf394f32c110237789537"
       },
       "operations": {
         "x180": "x180_const",
@@ -347,8 +395,38 @@
         "state_1_when": "above_threshold",
         "integration_weights_angle_rad": 0,
         "use_kernel": false,
-        "gef_centers": null,
-        "confusion_matrix": null
+        "gef_centers": [
+          [
+            0.0013402737677097323,
+            -0.001709330826997757
+          ],
+          [
+            0.0010739974677562714,
+            -0.0006813742220401764
+          ],
+          [
+            0.0010870732367038725,
+            0.0004137307405471802
+          ]
+        ],
+        "confusion_matrix": [
+          [
+            0.6814,
+            0.1239,
+            0.1947
+          ],
+          [
+            0.1452,
+            0.5731,
+            0.2817
+          ],
+          [
+            0.0723,
+            0.1272,
+            0.8005
+          ]
+        ],
+        "calibration_signature": "ab0583faa9af90feb38db9bd5d900001fc0da17f83b77033e5a5d7d50223d316"
       }
     },
     "q7": {

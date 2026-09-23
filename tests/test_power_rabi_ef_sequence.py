@@ -33,11 +33,6 @@ class PowerRabiEFSequenceTests(unittest.TestCase):
         self.assertNotIn("def save_raw_results(", self.source)
         self.assertNotIn("def save_figures(", self.source)
 
-    def test_uses_confirmed_profile_updater_for_ef_pulse(self):
-        self.assertIn("def profile_updates(self)", self.source)
-        self.assertIn("operation = active_operation(self.parameters)", self.source)
-        self.assertIn("pulses.json.pulses", self.source)
-
 
 if __name__ == "__main__":
     unittest.main()

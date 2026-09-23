@@ -3,13 +3,14 @@
 from typing import Literal
 
 from pydantic import Field, field_validator
+from calibration_utils.state_acquisition import StateAcquisitionParameters
 
 from qualibration_libs.parameters import (
     QubitsExperimentNodeParameters as _QubitsExperimentNodeParameters,
 )
 
 
-class QubitsExperimentNodeParameters(_QubitsExperimentNodeParameters):
+class QubitsExperimentNodeParameters(_QubitsExperimentNodeParameters, StateAcquisitionParameters):
     """Base parameters shared by qubit experiments in this repository."""
 
     use_readout_mitigation: float | bool = False

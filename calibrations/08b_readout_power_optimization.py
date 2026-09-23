@@ -16,8 +16,7 @@ import xarray as xr
 from dataclasses import asdict
 from qm.qua import *
 from qualang_tools.loops import from_array
-from qualang_tools.multi_user import qm_session
-from calibrations.runtime_estimation import progress_counter
+from utils.qm_session import qm_session
 from qualang_tools.units import unit
 from quam_config import Quam, create_machine
 from calibration_io import CalibrationSaver, current_profile_name
@@ -32,7 +31,6 @@ from calibration_utils.readout_power_optimization import (
 )
 from calibration_utils.iq_blobs.plotting import plot_iq_blobs, plot_confusion_matrices
 from utils.simulation import simulate_and_plot
-from qualibration_libs.data import XarrayDataFetcher
 
 if __package__ in {None, ""}:
     from calibrations.core import BaseCalibration, CalibrationOptions
@@ -113,6 +111,8 @@ class ReadoutPowerOptimization(BaseCalibration[Parameters, Quam]):
                 amps, attrs={"long_name": "readout amplitude", "units": ""}
             ),
         }
+        self.configure_acquisition(shot_axis="n_runs", preserve_shots=True)
+
         with program() as node.namespace["qua_program"]:
             Ig, Ig_st, Qg, Qg_st, n, n_st = node.machine.declare_qua_variables()
             Ie, Ie_st, Qe, Qe_st, _, _ = node.machine.declare_qua_variables()
@@ -159,10 +159,10 @@ class ReadoutPowerOptimization(BaseCalibration[Parameters, Quam]):
             with stream_processing():
                 n_st.save("n")
                 for i in range(num_qubits):
-                    Ig_st[i].buffer(len(amps)).buffer(n_runs).save(f"Ig{i + 1}")
-                    Qg_st[i].buffer(len(amps)).buffer(n_runs).save(f"Qg{i + 1}")
-                    Ie_st[i].buffer(len(amps)).buffer(n_runs).save(f"Ie{i + 1}")
-                    Qe_st[i].buffer(len(amps)).buffer(n_runs).save(f"Qe{i + 1}")
+                    self.save_acquisition_stream(Ig_st[i], f'Ig{i + 1}')
+                    self.save_acquisition_stream(Qg_st[i], f'Qg{i + 1}')
+                    self.save_acquisition_stream(Ie_st[i], f'Ie{i + 1}')
+                    self.save_acquisition_stream(Qe_st[i], f'Qe{i + 1}')
 
         return node.namespace.get("qua_program")
 
@@ -195,16 +195,8 @@ class ReadoutPowerOptimization(BaseCalibration[Parameters, Quam]):
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             # The job is stored in the node namespace to be reused in the fetching_data run_action
             node.namespace["job"] = job = qm.execute(node.namespace["qua_program"])
-            # Display the progress bar
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_shots,
-                    start_time=data_fetcher.t_start,
-                )
-            # Display the execution report to expose possible runtime errors
-            node.log(job.execution_report())
+            # Wait for complete buffers while displaying the shot counter.
+            dataset = self.fetch_result_dataset(job)
         # Register the raw dataset
         node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
@@ -231,6 +223,7 @@ class ReadoutPowerOptimization(BaseCalibration[Parameters, Quam]):
         node.namespace["qubits"] = self.get_qubits()
 
     def analyse_data(self):
+        self.prepare_acquisition_results()
         node = self
         """Analyse the raw data and store the fitted data in another xarray dataset "ds_fit" and the fitted results in the "fit_results" dictionary."""
         node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
@@ -295,20 +288,9 @@ class ReadoutPowerOptimization(BaseCalibration[Parameters, Quam]):
             settings["confusion_matrix"] = None
 
     def profile_updates(self):
-        section = "readout_gef" if len(self.parameters.readout_states) == 3 else "readout"
-        operation = self.parameters.readout_operation
-        updates = {}
-        for q in self.namespace["qubits"]:
-            if self.outcomes[q.name] != "successful":
-                continue
-            fit = self.results["fit_results"][q.name]
-            pulse_name = getattr(q.resonator, "readout_pulse_names", {}).get(operation, operation)
-            updates[f"pulses.json.pulses.{q.name}.{pulse_name}.amplitude"] = float(fit["optimal_amplitude"])
-            updates[f"qubits.json.qubits.{q.name}.{section}.gef_centers"] = None
-            updates[f"qubits.json.qubits.{q.name}.{section}.confusion_matrix"] = None
-            if section == "readout" and self.parameters.reset_type in {"active", "thermal"}:
-                updates[f"metrics.json.qubits.{q.name}.readout.fidelity_percent.{self.parameters.reset_type}"] = float(fit["readout_fidelity"])
-        return updates
+        return self.readout_profile_updates(
+            amplitude="optimal_amplitude", fidelity="readout_fidelity",
+        )
 
 
 if __name__ == "__main__":

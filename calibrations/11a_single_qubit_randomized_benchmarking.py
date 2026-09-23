@@ -17,8 +17,7 @@ from copy import copy
 from dataclasses import asdict, is_dataclass, replace
 from math import pi
 from qm.qua import *
-from qualang_tools.multi_user import qm_session
-from calibrations.runtime_estimation import progress_counter
+from utils.qm_session import qm_session
 from qualang_tools.units import unit
 from qualang_tools.bakery.randomized_benchmark_c1 import c1_table
 from quam_config import Quam, create_machine
@@ -30,9 +29,7 @@ from calibration_utils.single_qubit_randomized_benchmarking import (
     plot_raw_data_with_fit,
 )
 from utils.simulation import simulate_and_plot
-from qualibration_libs.data import XarrayDataFetcher
 from calibration_io import CalibrationSaver, current_profile_name
-from profiles import ProfileUpdater
 from utils.plotting_settings import plot_per_qubit
 
 if __package__ in {None, ""}:
@@ -110,6 +107,10 @@ def rb_identity_wait_cycles(x180_operation) -> int:
 
 description = """
         SINGLE QUBIT RANDOMIZED BENCHMARKING
+Select mode="standard", "interleaved", or "leakage". Interleaved mode acquires a
+matched reference and reports the target error from the ratio of decay parameters.
+Leakage mode requires GEF discrimination and reports leakage/seepage per Clifford.
+See docs/rb_modes.md for the models, assumptions, and literature.
 The program consists in playing random sequences of Clifford gates and measuring the
 state of the resonator afterward. Each random sequence is derived on the FPGA for the
 maximum depth (specified as an input) and played for each depth asked by the user
@@ -168,11 +169,30 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
             **kwargs,
         )
 
+    def progress_total(self):
+        return self.parameters.num_random_sequences
+
     def create_qua_program(self):
         node = self
         """Create the sweep axes and generate the QUA program from the pulse sequence and the node parameters."""
         # Class containing tools to help handle units and conversions.
         u = unit(coerce_to_integer=True)
+        mode = self.parameters.mode
+        if mode == "leakage" and (
+            not self.parameters.use_state_discrimination
+            or self.parameters.readout_states != ["g", "e", "f"]
+        ):
+            raise ValueError(
+                "Leakage RB requires use_state_discrimination=True and readout_states=['g', 'e', 'f']."
+            )
+        interleaved = mode == "interleaved"
+        from calibration_utils.single_qubit_randomized_benchmarking_interleaved.parameters import (
+            get_interleaved_gate_index,
+        )
+
+        target_gate = get_interleaved_gate_index(
+            self.parameters.interleaved_gate_operation
+        )
         # Get the active qubits from the node and organize them by batches
         node.namespace["qubits"] = qubits = self.get_qubits()
         install_rb_gate_family(qubits, node.parameters.gate_family)
@@ -202,14 +222,28 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
             i = declare(int)
             rand = Random(seed=seed)
 
+            if interleaved:
+                inter_sequence = declare(int, size=2 * max_circuit_depth + 1)
+                inter_inverse = declare(int, size=max_circuit_depth + 1)
+                inter_state = declare(int)
+                assign(inter_state, 0)
             assign(current_state, 0)
             with for_(i, 0, i < max_circuit_depth, i + 1):
                 assign(step, rand.rand_int(24))
                 assign(current_state, cayley[current_state * 24 + step])
                 assign(sequence[i], step)
                 assign(inv_gate[i], inv_list[current_state])
+                if interleaved:
+                    assign(inter_state, cayley[inter_state * 24 + step])
+                    assign(inter_state, cayley[inter_state * 24 + target_gate])
+                    assign(inter_sequence[2 * i], step)
+                    assign(inter_sequence[2 * i + 1], target_gate)
+                    assign(inter_inverse[i], inv_list[inter_state])
 
-            return sequence, inv_gate
+            variants = [(sequence, inv_gate, 1)]
+            if interleaved:
+                variants.append((inter_sequence, inter_inverse, 2))
+            return variants
 
         def play_sequence(sequence_list, depth, qubit):
             i = declare(int)
@@ -297,6 +331,15 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
                 depths, attrs={"long_name": "Number of Clifford gates"}
             ),
         }
+        if interleaved:
+            axes = node.namespace["sweep_axes"]
+            depths_axis = axes.pop("depths")
+            axes["rb_variant"] = xr.DataArray(["reference", "interleaved"])
+            axes["depths"] = depths_axis
+        self.configure_acquisition(
+            loop_order=tuple(k for k in self.namespace["sweep_axes"] if k != "qubit") + ("shot",)
+        )
+
         with program() as node.namespace["qua_program"]:
             I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
             state = [declare(int) for _ in range(num_qubits)]
@@ -319,61 +362,69 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
                     # Save the counter for the progress bar
                     save(m, m_st)
                     # Generate the random sequence of length max_circuit_depth
-                    sequence_list, inv_gate_list = generate_sequence()
+                    for (
+                        sequence_list,
+                        inv_gate_list,
+                        depth_factor,
+                    ) in generate_sequence():
 
-                    with for_each_(depth, depths.tolist()):
-                        # Replacing the last gate in the sequence with the sequence's inverse gate
-                        # The original gate is saved in 'saved_gate' and is being restored at the end
-                        assign(saved_gate, sequence_list[depth])
-                        assign(sequence_list[depth], inv_gate_list[depth - 1])
+                        with for_each_(depth, depths.tolist()):
+                            # Replacing the last gate in the sequence with the sequence's inverse gate
+                            # The original gate is saved in 'saved_gate' and is being restored at the end
+                            assign(saved_gate, sequence_list[depth_factor * depth])
+                            assign(
+                                sequence_list[depth_factor * depth],
+                                inv_gate_list[depth - 1],
+                            )
 
-                        with for_(n, 0, n < n_avg, n + 1):
-                            # Initialize the qubits
-                            for i, qubit in multiplexed_qubits.items():
-                                self.reset_qubit(qubit)
-                            # Align the two elements to play the sequence after qubit initialization
-                            align()
+                            with for_(n, 0, n < n_avg, n + 1):
+                                # Initialize the qubits
+                                for i, qubit in multiplexed_qubits.items():
+                                    self.reset_qubit(qubit)
+                                # Align the two elements to play the sequence after qubit initialization
+                                align()
 
-                            # Manipulate the qubits
-                            for i, qubit in multiplexed_qubits.items():
-                                # The strict_timing ensures that the sequence will be played without gaps
-                                if strict_timing:
-                                    with strict_timing_():
-                                        # Play the random sequence of desired depth
-                                        play_sequence(sequence_list, depth, qubit)
-                                else:
-                                    play_sequence(sequence_list, depth, qubit)
-                            align()
+                                # Manipulate the qubits
+                                for i, qubit in multiplexed_qubits.items():
+                                    # The strict_timing ensures that the sequence will be played without gaps
+                                    if strict_timing:
+                                        with strict_timing_():
+                                            # Play the random sequence of desired depth
+                                            play_sequence(
+                                                sequence_list,
+                                                depth_factor * depth,
+                                                qubit,
+                                            )
+                                    else:
+                                        play_sequence(
+                                            sequence_list, depth_factor * depth, qubit
+                                        )
+                                align()
 
-                            # Readout the qubits
-                            for i, qubit in multiplexed_qubits.items():
-                                if node.parameters.use_state_discrimination:
-                                    self.readout_state(qubit, state[i])
-                                    self.save_readout_state(state[i], state_st[i])
-                                else:
-                                    self.measure_readout(qubit, qua_vars=(I[i], Q[i]))
-                                    save(I[i], I_st[i])
-                                    save(Q[i], Q_st[i])
+                                # Readout the qubits
+                                for i, qubit in multiplexed_qubits.items():
+                                    if node.parameters.use_state_discrimination:
+                                        self.readout_state(qubit, state[i])
+                                        self.save_readout_state(state[i], state_st[i])
+                                    else:
+                                        self.measure_readout(
+                                            qubit, qua_vars=(I[i], Q[i])
+                                        )
+                                        save(I[i], I_st[i])
+                                        save(Q[i], Q_st[i])
 
-                            align()
-                        # Reset the last gate of the sequence back to the original Clifford gate
-                        # (that was replaced by the recovery gate at the beginning)
-                        assign(sequence_list[depth], saved_gate)
+                                align()
+                            # Reset the last gate of the sequence back to the original Clifford gate
+                            # (that was replaced by the recovery gate at the beginning)
+                            assign(sequence_list[depth_factor * depth], saved_gate)
 
             with stream_processing():
                 m_st.save("n")
                 for i in range(num_qubits):
-                    if node.parameters.use_state_discrimination:
-                        state_st[i].buffer(n_avg).map(FUNCTIONS.average()).buffer(
-                            num_depths
-                        ).buffer(num_of_sequences).save(f"state{i + 1}")
-                    else:
-                        I_st[i].buffer(n_avg).map(FUNCTIONS.average()).buffer(
-                            num_depths
-                        ).buffer(num_of_sequences).save(f"I{i + 1}")
-                        Q_st[i].buffer(n_avg).map(FUNCTIONS.average()).buffer(
-                            num_depths
-                        ).buffer(num_of_sequences).save(f"Q{i + 1}")
+                    self.process_readout_streams(
+                        i, state_st if self.parameters.use_state_discrimination else None,
+                        I_st, Q_st,
+                    )
 
         return node.namespace.get("qua_program")
 
@@ -408,17 +459,14 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             # The job is stored in the node namespace to be reused in the fetching_data run_action
             node.namespace["job"] = job = qm.execute(node.namespace["qua_program"])
-            # Display the progress bar
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_random_sequences,
-                    start_time=data_fetcher.t_start,
-                )
-            # Display the execution report to expose possible runtime errors
-            node.log(job.execution_report())
+            # Wait for complete buffers while displaying the shot counter.
+            dataset = self.fetch_result_dataset(job)
         # Register the raw dataset
+        dataset.attrs.update(
+            rb_mode=self.parameters.mode,
+            interleaved_gate_operation=self.parameters.interleaved_gate_operation,
+            rb_gate_family=self.parameters.gate_family,
+        )
         node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
     def save_raw_results(self):
@@ -444,6 +492,7 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
         node.namespace["qubits"] = self.get_qubits()
 
     def analyse_data(self):
+        self.prepare_acquisition_results()
         node = self
         """Analyse the raw data and store the fitted data in another xarray dataset "ds_fit" and the fitted results in the "fit_results" dictionary."""
         node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
@@ -467,7 +516,8 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
             node.results["ds_fit"],
             figure_name="amplitude",
         )
-        plt.show()
+        if node.options.plot_data:
+            plt.show()
         node.results["figures"] = figures
         if "calibration_run_directory" in node.namespace:
             figures_directory = CalibrationSaver().save_figures(
@@ -478,33 +528,42 @@ class SingleQubitRandomizedBenchmarking(BaseCalibration[Parameters, Quam]):
     def update_state(self):
         node = self
         """Update the relevant parameters if the qubit data analysis was successful."""
+        if self.parameters.mode == "leakage":
+            return  # Leakage rates are analysis results, not primitive-gate fidelities.
         with node.record_state_updates():
             for q in node.namespace["qubits"]:
                 if node.outcomes[q.name] == "failed":
                     continue
-                q.gate_fidelity["averaged"] = float(
-                    1 - node.results["fit_results"][q.name]["error_per_gate"]
-                )
+                q.gate_fidelity[
+                    (
+                        self.parameters.interleaved_gate_operation
+                        if self.parameters.mode == "interleaved"
+                        else "averaged"
+                    )
+                ] = float(1 - node.results["fit_results"][q.name]["error_per_gate"])
 
-    def propose_profile_update(self):
-        node = self
-        """Stage fitted single-qubit average gate fidelity in profile metrics."""
-        updates = {
-            f"metrics.json.qubits.{q.name}.gates.single_qubit_average_fidelity": float(
-                1 - node.results["fit_results"][q.name]["error_per_gate"]
-            )
-            for q in node.namespace["qubits"]
-            if node.outcomes[q.name] == "successful"
-        }
-        if updates:
-            proposal = ProfileUpdater().stage(
-                node.name, updates, profile_name=current_profile_name()
-            )
-            ProfileUpdater().confirm_and_apply(proposal)
+    def profile_updates(self):
+        if self.parameters.mode != "standard":
+            return {}
+        return self.metric_profile_updates({
+            "gates.single_qubit_average_fidelity": lambda q, fit: 1.0 - fit["error_per_gate"],
+        })
+
+    def propose_profile_update(self, *, apply: bool = False) -> bool:
+        return super().propose_profile_update(apply=apply)
 
 
 if __name__ == "__main__":
     parameters = Parameters()
+    parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
+
+    parameters.mode = "leakage"  # "standard", "interleaved", or "leakage"
+    parameters.interleaved_gate_operation = "x180"  # Used in interleaved mode.
+    parameters.readout_states = [
+        "g",
+        "e",
+        "f",
+    ]  # Set to ["g", "e", "f"] for leakage mode.
 
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
@@ -513,7 +572,8 @@ if __name__ == "__main__":
     parameters.delta_clifford = 5
     parameters.num_random_sequences = 30
     parameters.num_shots = 100
-    parameters.use_strict_timing = True
+    # The dynamic Clifford loop can introduce gaps; True rejects those schedules.
+    parameters.use_strict_timing = False
     parameters.simulate = False
     parameters.log_scale = False
 
@@ -522,6 +582,6 @@ if __name__ == "__main__":
     calibration = SingleQubitRandomizedBenchmarking(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q3"),
+        machine=create_machine(qubit="q6"),
     )
     calibration.run()

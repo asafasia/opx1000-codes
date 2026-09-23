@@ -26,11 +26,7 @@ class ResonatorSpectroscopy(BaseCalibration):
         )
 
     def profile_updates(self):
-        return {
-            f"qubits.json.qubits.{q.name}.frequencies_hz.resonator": float(...)
-            for q in self.namespace["qubits"]
-            if self.outcomes.get(q.name) == "successful"
-        }
+        return self.readout_profile_updates(frequency="frequency")
 ```
 
 The base owns the common lifecycle:
@@ -59,6 +55,38 @@ exact `dc_bias_v` of 0 do not open the DC-bias serial connection.
 Useful inherited helpers include `get_qubits()`, `execute_qua_program()`,
 `simulate_qua_program()`, `save_raw_results()`, `save_arrays()`,
 `save_figures()`, `save_qua_debug_script()`, and `propose_profile_update()`.
+
+Profile update helpers keep calibration methods focused on the fitted values:
+
+```python
+# Absolute pulse amplitude from fit_results[qubit.name]["opt_amp"]:
+return self.pulse_profile_updates("x180", amplitude="opt_amp")
+
+# Multiply the dedicated profile pulse amplitude by a fitted factor:
+return self.pulse_profile_updates("x180", amplitude_scale="optimal_amp_prefactor")
+
+# Require a DRAG pulse and map the fitted alpha to the profile's beta field:
+return self.pulse_profile_updates(self.parameters.operation, pulse_type="drag", beta="alpha")
+
+# Update the selected GE/GEF readout and clear its stale centers/confusion matrix:
+return self.readout_profile_updates(frequency="optimal_frequency", amplitude="optimal_amplitude")
+
+# Relative fields in qubits.json or metrics.json:
+return self.qubit_profile_updates({"frequencies_hz.qubit_f01": "frequency"})
+return self.metric_profile_updates({"coherence.t2_ramsey_ns": "decay"})
+```
+
+Strings select keys from each qubit's `fit_results`; a callable `(qubit, fit)`
+can compute a value, and numbers, booleans, lists, and `None` are literal values.
+The helpers select successful qubits, resolve profile paths, and preserve the
+0.7 V pulse-amplitude limit. Drive pulse updates require an explicit operation
+mapping; derived aliases never silently update a parent pulse. Readout updates
+use the selected pulse and mode. Custom calculations can iterate over
+`self.profile_update_results()`.
+
+These helpers only return proposed values. The inherited `propose_profile_update()`
+handles staging and confirmation, including `apply=False`; calibration scripts
+should normally override `profile_updates()` rather than repeat staging code.
 
 Runtime behavior can be controlled with `CalibrationOptions`:
 
@@ -396,3 +424,70 @@ For IQ blobs, leave `states=None` (the default) to follow each mode switch
 automatically. The `states` field on IQ/resonator spectroscopy describes prepared clouds;
 it is distinct from the readout basis. Dedicated raw-IQ diagnostics remain
 raw-IQ diagnostics even when the GEF pulse is selected.
+
+## Shared averaged and single-shot acquisition
+
+The class-based measurement calibrations share acquisition handling in
+`BaseCalibration`. Set the mode in a script's settings or with the runner's
+`--set acquisition=single_shot` option:
+
+```python
+parameters.acquisition = "averaged"     # controller averaging (default)
+# parameters.acquisition = "single_shot"  # retain every measurement
+parameters.use_state_discrimination = True  # False retains analog I/Q instead
+parameters.readout_states = ["g", "e", "f"]  # optional calibrated GEF readout
+```
+
+`num_shots` is the number of repetitions per sweep point. In single-shot mode,
+the raw dataset retains a `shot` dimension. For discrimination it contains
+integer labels (0=g, 1=e, 2=f); for analog readout it contains individual I/Q
+values. Analysis retains these as `state_shots` or `I_shots` / `Q_shots`, and
+calculates the populations or mean IQ used by existing fits and plots. GEF
+populations are separate label fractions; integer labels are never averaged.
+Readout mitigation runs after population reduction and preserves the raw shots.
+Saved xarray dimension names and metadata allow unambiguous reloading.
+
+Shot position follows the experiment's loop order: ordinary sweeps have
+`(qubit, shot, ...sweeps)`, whereas RB has
+`(qubit, nb_of_sequences, [rb_variant,] depths, shot)`. Each RB sequence stays
+separate for fitting and uncertainty estimation. Single-shot results are retained
+after each completed outer iteration (one sweep, cloud shot, or RB sequence),
+and storage scales with `num_shots`. The progress counter remains live.
+For measurements using `BaseCalibration.fetch_result_dataset()`, Ctrl+C stops the
+job and continues saving, analysis, and plotting with the completed measurements.
+Single-shot data keeps only the common completed prefix across measurement streams;
+missing shots are never filled with zeroes. Interrupted datasets are marked in
+metadata and do not automatically update device state or profiles. If no complete
+sweep exists yet, the run exits with a message. A second Ctrl+C aborts recovery.
+Actual controller failures and data loss still raise errors. The repository's
+`utils.qm_session` wrapper preserves unhandled interrupts after QM cleanup.
+ADC time-of-flight measurements also support single-shot traces.
+
+IQ blobs, resonator spectroscopy with cloud-fidelity analysis, readout-power
+optimization, and readout-frequency/amplitude optimization require individual
+IQ samples. Their setting is fixed to `single_shot`, preserving their existing
+`n_runs` dimension and distribution analyses. The older procedural scripts
+`03b` and `03c` do not use the class-based acquisition API.
+
+When writing an experiment, define `namespace["sweep_axes"]` in outer-to-inner
+loop order, then call `self.configure_acquisition()` before declaring streams.
+The default shot loop is outermost; use an explicit `loop_order` including
+`"shot"` when it is nested. Use `declare_state_stream()` and
+`save_readout_state()` for discrimination, and finalize each qubit with:
+
+```python
+self.process_readout_streams(
+    i, state_st if self.parameters.use_state_discrimination else None, I_st, Q_st
+)
+```
+
+Named analog channels use `save_acquisition_stream(stream, result_name)`.
+Call `prepare_acquisition_results()` at the start of an overridden
+`analyse_data()` method so direct analysis calls also reduce shots correctly.
+The base lifecycle does this automatically before mitigation and analysis.
+
+## Randomized benchmarking modes
+
+`rb` accepts `mode=standard`, `mode=interleaved`, or `mode=leakage`.
+See [RB modes and analysis](../docs/rb_modes.md) for configuration, formulas,
+uncertainties, assumptions and primary literature.

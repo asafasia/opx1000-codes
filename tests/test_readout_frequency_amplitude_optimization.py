@@ -16,12 +16,14 @@ MODULE = import_module("calibrations.08c_readout_frequency_amplitude_optimizatio
     (["g", "e", "f"], "readout_gef", "readout_gef.frequency_hz", "readout_GEF"),
 ])
 def test_proposal_targets_selected_frequency_and_pulse(states, section, field, operation):
-    node = SimpleNamespace(
-        parameters=SimpleNamespace(readout_states=states, readout_operation=operation, reset_type="thermal"),
-        namespace={"qubits": [SimpleNamespace(name="q1", resonator=SimpleNamespace(readout_pulse_names={operation: "selected_pulse"}))]},
-        results={"fit_results": {"q1": dict(success=True, optimal_frequency=6.7e9, optimal_amplitude=.12, readout_fidelity=95)}},
-        log=lambda message: None,
+    node = MODULE.ReadoutFrequencyAmplitudeOptimization(
+        parameters=MODULE.Parameters(readout_states=states, reset_type="thermal"),
+        machine=object(), logger=lambda message: None,
     )
+    node.namespace["qubits"] = [SimpleNamespace(name="q1", resonator=SimpleNamespace(
+        readout_pulse_names={operation: "selected_pulse"}))]
+    node.results["fit_results"] = {"q1": dict(success=True, optimal_frequency=6.7e9,
+                                             optimal_amplitude=.12, readout_fidelity=95)}
     updates = MODULE.ReadoutFrequencyAmplitudeOptimization.profile_updates(node)
     assert updates[f"qubits.json.qubits.q1.{field}"] == 6.7e9
     assert updates["pulses.json.pulses.q1.selected_pulse.amplitude"] == .12

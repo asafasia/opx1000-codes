@@ -12,7 +12,7 @@ class QubitSpectroscopyStateDiscriminationTests(unittest.TestCase):
     def test_state_mode_acquires_only_state_stream(self):
         self.assertIn("if node.parameters.use_state_discrimination:", self.source)
         self.assertIn("self.readout_state(qubit, state[i])", self.source)
-        self.assertIn('save(f"state{i + 1}")', self.source)
+        self.assertIn("self.process_readout_streams(", self.source)
         self.assertIn("validate_readout_dataset(dataset, node.parameters.use_state_discrimination)", self.source)
 
     def test_plot_receives_state_discrimination_parameter(self):

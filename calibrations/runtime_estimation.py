@@ -233,6 +233,9 @@ def estimate_runtime(
     for metadata_path in _metadata_paths(Path(output_root), experiment_name):
         try:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if (metadata.get("acquisition_interrupted") or
+                    metadata.get("dataset_schema", {}).get("attrs", {}).get("acquisition_interrupted")):
+                continue  # The saved parameters describe a longer, unfinished run.
             parameters_path = metadata_path.with_name("parameters.json")
             try:
                 has_parameters = parameters_path.is_file()
@@ -309,4 +312,4 @@ def progress_counter(
             message += f", ETA {format_duration(remaining)}"
         else:
             message += ", ETA calibrating"
-    print(message, end="\r")
+    print(message, end="\n" if completed >= total else "\r", flush=True)

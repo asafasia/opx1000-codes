@@ -12,8 +12,9 @@ from scipy.interpolate import RegularGridInterpolator
 from scipy.ndimage import gaussian_filter
 
 
-KDE_GRID_SIZE = 80
+KDE_GRID_SIZE = 160
 KDE_PROBABILITY = 0.95
+KDE_BANDWIDTH_FACTOR = 1.6  # Relative to Scott bandwidth; larger gives smoother contours.
 READOUT_FIDELITY_SUCCESS_THRESHOLD_PERCENT = 57
 SEPARATION_TO_WIDTH_SUCCESS_THRESHOLD = 0.1
 STATE_SPECS = (
@@ -21,6 +22,13 @@ STATE_SPECS = (
     ("e", "Ie", "Qe", "prepared", "Prepared"),
     ("f", "If", "Qf", "f", "F"),
 )
+
+
+def _cloud_center(values, method="mean", dim="n_runs"):
+    """Reduce each acquired IQ coordinate without rotating or rejecting shots."""
+    if method not in {"mean", "median"}:
+        raise ValueError("center_method must be 'mean' or 'median'.")
+    return getattr(values, method)(dim=dim)
 
 
 def _available_state_specs(ds: xr.Dataset):
@@ -52,12 +60,12 @@ def _kde_density_region(i_values, q_values, probability=KDE_PROBABILITY, grid_si
     q_axis = 0.5 * (q_edges[:-1] + q_edges[1:])
     i_grid, q_grid = np.meshgrid(i_axis, q_axis)
 
-    # Histogram first, then apply Scott-bandwidth Gaussian smoothing. This
+    # Histogram first, then apply broadened Scott-bandwidth Gaussian smoothing. This
     # approximates gaussian_kde without its O(num_samples * grid_points) cost.
     histogram, _, _ = np.histogram2d(points[1], points[0], bins=(q_edges, i_edges))
     scott_factor = points.shape[1] ** (-1 / 6)
     grid_step = np.array((q_axis[1] - q_axis[0], i_axis[1] - i_axis[0]))
-    bandwidth = scott_factor * np.array((np.std(points[1]), np.std(points[0])))
+    bandwidth = KDE_BANDWIDTH_FACTOR * scott_factor * np.array((np.std(points[1]), np.std(points[0])))
     sigma_in_bins = np.clip(bandwidth / grid_step, 0.75, grid_size / 4)
     density = gaussian_filter(histogram, sigma=sigma_in_bins, mode="nearest")
 
@@ -137,6 +145,7 @@ class FitParameters:
     threshold_line_midpoints: list | None
     threshold_line_normals: list | None
     success: bool
+    center_method: str = "mean"
 
 
 def log_fitted_results(fit_results: Dict, log_callable=None):
@@ -176,11 +185,12 @@ def save_fit_results(run_directory, fit_results: Dict, filename: str = "fit_resu
     return output_path
 
 
-def log_blob_diagnostics(ds: xr.Dataset, log_callable=None):
+def log_blob_diagnostics(ds: xr.Dataset, log_callable=None, center_method=None):
     """Log raw cloud centers and widths to expose acquisition asymmetries."""
     if log_callable is None:
         log_callable = logging.getLogger(__name__).info
 
+    center_method = center_method or ds.attrs.get("center_method", "mean")
     for qubit in ds.qubit.values:
         selected = ds.sel(qubit=qubit)
         first_spec, second_spec = _primary_state_pair(selected)
@@ -191,8 +201,8 @@ def log_blob_diagnostics(ds: xr.Dataset, log_callable=None):
         width_ratio = second_width / first_width if first_width else np.nan
         center_separation = float(
             np.hypot(
-                selected[second_i].mean() - selected[first_i].mean(),
-                selected[second_q].mean() - selected[first_q].mean(),
+                _cloud_center(selected[second_i], center_method) - _cloud_center(selected[first_i], center_method),
+                _cloud_center(selected[second_q], center_method) - _cloud_center(selected[first_q], center_method),
             )
         )
         pooled_width = np.sqrt((first_width**2 + second_width**2) / 2)
@@ -253,16 +263,19 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     xr.Dataset
         Dataset containing the fit results.
     """
-    ds_fit = ds
-    # Rotate the axis connecting the two blob means onto +I, independently for
-    # each qubit. This also guarantees that the second-state mean is above the
-    # discrimination threshold.
+    center_method = getattr(getattr(node, "parameters", None), "center_method", "mean")
+    if center_method not in {"mean", "median"}:
+        raise ValueError("center_method must be 'mean' or 'median'.")
+    ds_fit = ds.copy()
+    ds_fit.attrs["center_method"] = center_method
+    # Align the selected acquired-coordinate centers with +I. Coordinate-wise
+    # medians are computed before rotation, since they are not rotation invariant.
     first_spec, second_spec = _primary_state_pair(ds_fit)
     first_label, first_i, first_q, _, _ = first_spec
     second_label, second_i, second_q, _, _ = second_spec
     pair_name = f"{first_label}{second_label}"
-    delta_i = ds_fit[second_i].mean(dim="n_runs") - ds_fit[first_i].mean(dim="n_runs")
-    delta_q = ds_fit[second_q].mean(dim="n_runs") - ds_fit[first_q].mean(dim="n_runs")
+    delta_i = _cloud_center(ds_fit[second_i], center_method) - _cloud_center(ds_fit[first_i], center_method)
+    delta_q = _cloud_center(ds_fit[second_q], center_method) - _cloud_center(ds_fit[first_q], center_method)
     angle = np.arctan2(-delta_q, delta_i)
     C = np.cos(angle)
     S = np.sin(angle)
@@ -350,8 +363,8 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
         }
     )
     center_separation = np.hypot(
-        ds_fit[second_i].mean(dim="n_runs") - ds_fit[first_i].mean(dim="n_runs"),
-        ds_fit[second_q].mean(dim="n_runs") - ds_fit[first_q].mean(dim="n_runs"),
+        _cloud_center(ds_fit[second_i], center_method) - _cloud_center(ds_fit[first_i], center_method),
+        _cloud_center(ds_fit[second_q], center_method) - _cloud_center(ds_fit[first_q], center_method),
     )
     first_width = np.sqrt(
         ds_fit[first_i].var(dim="n_runs") + ds_fit[first_q].var(dim="n_runs")
@@ -417,7 +430,8 @@ def _add_state_centers_and_confusion(fit: xr.Dataset) -> xr.Dataset:
         selected = fit.sel(qubit=q)
         centers = np.asarray(
             [
-                [float(selected[i_name].mean()), float(selected[q_name].mean())]
+                [float(_cloud_center(selected[i_name], fit.attrs.get("center_method", "mean"))),
+                 float(_cloud_center(selected[q_name], fit.attrs.get("center_method", "mean")))]
                 for _, i_name, q_name, _, _ in state_specs
             ]
         )
@@ -508,6 +522,7 @@ def _extract_relevant_fit_parameters(fit: xr.Dataset, node: QualibrationNode):
 
     fit_results = {
         q: FitParameters(
+            center_method=fit.attrs.get("center_method", "mean"),
             iw_angle=float(fit.sel(qubit=q).iw_angle),
             ge_threshold=float(fit.sel(qubit=q).ge_threshold),
             rus_threshold=float(fit.sel(qubit=q).rus_threshold),

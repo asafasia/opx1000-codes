@@ -16,8 +16,7 @@ import xarray as xr
 from dataclasses import asdict
 from qm.qua import *
 from qualang_tools.loops import from_array
-from qualang_tools.multi_user import qm_session
-from calibrations.runtime_estimation import progress_counter
+from utils.qm_session import qm_session
 from qualang_tools.units import unit
 from quam_config import Quam, create_machine
 from calibration_utils.ramsey import (
@@ -29,7 +28,6 @@ from calibration_utils.ramsey import (
 )
 from qualibration_libs.parameters import get_qubits, get_idle_times_in_clock_cycles
 from qualibration_libs.runtime import simulate_and_plot
-from qualibration_libs.data import XarrayDataFetcher
 from calibration_io import CalibrationSaver, current_profile_name
 from utils.plotting_settings import plot_per_qubit
 
@@ -119,6 +117,8 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
                 detuning_signs, attrs={"long_name": "detuning signs"}
             ),
         }
+        self.configure_acquisition()
+
         with program() as node.namespace["qua_program"]:
             I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
             idle_time = declare(int)
@@ -185,17 +185,10 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
             with stream_processing():
                 n_st.save("n")
                 for i in range(num_qubits):
-                    if node.parameters.use_state_discrimination:
-                        state_st[i].buffer(len(detuning_signs)).buffer(
-                            len(idle_times)
-                        ).average().save(f"state{i + 1}")
-                    else:
-                        I_st[i].buffer(len(detuning_signs)).buffer(
-                            len(idle_times)
-                        ).average().save(f"I{i + 1}")
-                        Q_st[i].buffer(len(detuning_signs)).buffer(
-                            len(idle_times)
-                        ).average().save(f"Q{i + 1}")
+                    self.process_readout_streams(
+                        i, state_st if self.parameters.use_state_discrimination else None,
+                        I_st, Q_st,
+                    )
 
         return node.namespace.get("qua_program")
 
@@ -228,16 +221,8 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             # The job is stored in the node namespace to be reused in the fetching_data run_action
             node.namespace["job"] = job = qm.execute(node.namespace["qua_program"])
-            # Display the progress bar
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_shots,
-                    start_time=data_fetcher.t_start,
-                )
-            # Display the execution report to expose possible runtime errors
-            node.log(job.execution_report())
+            # Wait for complete buffers while displaying the shot counter.
+            dataset = self.fetch_result_dataset(job)
         # Register the raw dataset
         node.results["ds_raw"] = self.annotate_readout_dataset(dataset).assign_coords(
             drive_frequency_hz=(
@@ -273,6 +258,7 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
         node.namespace["qubits"] = self.get_qubits()
 
     def analyse_data(self):
+        self.prepare_acquisition_results()
         node = self
         """Analyse the raw data and store the fitted data in another xarray dataset "ds_fit" and the fitted results in the "fit_results" dictionary."""
         node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
@@ -352,28 +338,21 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
                     q.T2ramsey = float(result["decay"])
 
     def profile_updates(self):
-        """Include the signed Ramsey correction in the shared yes/no proposal."""
-        updates = {}
-        for name, result in self.results.get("fit_results", {}).items():
-            if not result["success"]:
-                continue
-            updates[f"metrics.json.qubits.{name}.coherence.t2_ramsey_ns"] = float(
-                result["decay"]
-            )
-            target = result.get("qubit_frequency_hz")
+        updates = self.metric_profile_updates({"coherence.t2_ramsey_ns": "decay"})
+        for q, fit in self.profile_update_results():
+            target = fit.get("qubit_frequency_hz")
             if target is not None and math.isfinite(target) and target > 0:
-                updates[f"qubits.json.qubits.{name}.frequencies_hz.qubit_f01"] = float(
-                    target
-                )
+                updates[f"qubits.json.qubits.{q.name}.frequencies_hz.qubit_f01"] = float(target)
         return updates
 
 
 if __name__ == "__main__":
     parameters = Parameters()
+    parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
 
     parameters.num_shots = 2000
     parameters.use_state_discrimination = True
-    parameters.use_readout_mitigation = 0.4
+    parameters.use_readout_mitigation = 0
 
     parameters.reset_type = "active"
     parameters.max_wait_time_in_ns = 20e3

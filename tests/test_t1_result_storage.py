@@ -1,10 +1,9 @@
 """Offline regression checks for separate ground/excited T1 storage."""
 
-from contextlib import nullcontext
 from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
@@ -71,25 +70,23 @@ def test_result_serialization_scan_labels_and_plot(initial_state, label, key):
 def test_state_and_profile_updates_keep_transitions_separate(initial_state):
     qubit = FixedFrequencyTransmon(id="q1", T1=40e-6, extras={"T1_ge": 50e-6})
     failed = FixedFrequencyTransmon(id="q2", T1=60e-6, extras={"T1_ge": 70e-6})
-    node = SimpleNamespace(
-        name="05_T1",
-        parameters=SimpleNamespace(initial_state=initial_state),
-        namespace={"qubits": [qubit, failed]},
-        outcomes={"q1": "successful", "q2": "failed"},
-        results={"ds_fit": xr.Dataset(coords={"qubit": ["q1", "q2"],
-                                             "tau": ("qubit", [30_000.0, 80_000.0])})},
-        record_state_updates=nullcontext,
-    )
+    updater = Mock()
+    node = t1_module.T1(parameters=t1_module.Parameters(initial_state=initial_state),
+                        machine=object(), profile_updater=updater)
+    node.namespace["qubits"] = [qubit, failed]
+    node.outcomes = {"q1": "successful", "q2": "failed"}
+    node.results["ds_fit"] = xr.Dataset(coords={"qubit": ["q1", "q2"],
+                                               "tau": ("qubit", [30_000.0, 80_000.0])})
     t1_module.T1.update_state(node)
     assert qubit.T1 == pytest.approx(40e-6 if initial_state == "g" else 30e-6)
     assert qubit.extras["T1_ge"] == pytest.approx(30e-6 if initial_state == "g" else 50e-6)
     assert failed.T1 == 60e-6
     assert failed.extras["T1_ge"] == 70e-6
     assert qubit.to_dict()["extras"]["T1_ge"] == qubit.extras["T1_ge"]
-    with patch.object(t1_module, "ProfileUpdater") as updater:
-        t1_module.T1.propose_profile_update(node)
+    assert node.propose_profile_update(apply=False)
+    updater.confirm_and_apply.assert_not_called()
     metric = "t1_ge_ns" if initial_state == "g" else "t1_ns"
-    assert updater.return_value.stage.call_args.args[1] == {
+    assert updater.stage.call_args.args[1] == {
         f"metrics.json.qubits.q1.coherence.{metric}": 30_000.0
     }
 

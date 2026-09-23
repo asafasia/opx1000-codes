@@ -1,4 +1,5 @@
 from typing import Any, List
+from .analysis import _cloud_center
 import matplotlib.pyplot as plt
 import xarray as xr
 import numpy as np
@@ -110,8 +111,9 @@ def plot_iq_blobs_dashboard(
             plot_individual_histograms(histogram_axes[0], ds, qubit_ref, fit)
 
         status = "PASS" if bool(fit.success.values) else "FAIL"
+        iq_view = "G-E aligned IQ clouds" if "If" in ds and "Qf" in ds else "acquired IQ clouds"
         iq_ax.set_title(
-            f"{qubit.name}: acquired IQ clouds ({status})\n"
+            f"{qubit.name}: {iq_view} ({status})\n"
             f"separation/width={float(fit.separation_to_width.values):.2f}, "
             f"fitted rotation={np.degrees(float(fit.iw_angle.values)):.1f} deg"
         )
@@ -262,6 +264,39 @@ def _robust_iq_limits(raw: xr.Dataset, sigma_extent: float = 4.0):
     return tuple(zip(lower - padding, upper + padding))
 
 
+def _ge_aligned_iq_view(raw: xr.Dataset, fit: xr.Dataset):
+    """Rotate display copies so fitted G/E centers share Q; never change calibration."""
+    raw_view, fit_view = raw.copy(deep=True), fit.copy(deep=True)
+    specs = _available_state_specs(raw)
+    if "state_center_matrix" not in fit_view:
+        method = fit.attrs.get("center_method", "mean")
+        fit_view["state_center_matrix"] = xr.DataArray(
+            [[float(_cloud_center(raw[spec[1]], method)),
+              float(_cloud_center(raw[spec[2]], method))] for spec in specs],
+            dims=("state", "IQ"), coords={"state": [spec[0] for spec in specs], "IQ": ["I", "Q"]})
+    centers = fit_view.state_center_matrix
+    delta = (centers.sel(state="e") - centers.sel(state="g")).sel(IQ=["I", "Q"]).values
+    angle = float(np.arctan2(-delta[1], delta[0]))
+    if not np.isfinite(angle):
+        return raw_view, fit_view, 0.
+    c, s = np.cos(angle), np.sin(angle)
+    for spec in specs:
+        i_name, q_name, state_name = spec[1], spec[2], spec[4]
+        raw_view[i_name] = raw[i_name] * c - raw[q_name] * s
+        raw_view[q_name] = raw[i_name] * s + raw[q_name] * c
+        ki, kq = f"{state_name}_kde_I", f"{state_name}_kde_Q"
+        if ki in fit and kq in fit:
+            fit_view[ki] = fit[ki] * c - fit[kq] * s
+            fit_view[kq] = fit[ki] * s + fit[kq] * c
+    for name in ("state_center_matrix", "threshold_line_midpoint", "threshold_line_normal"):
+        if name in fit_view:
+            values = fit_view[name]
+            i, q = values.sel(IQ="I", drop=True), values.sel(IQ="Q", drop=True)
+            fit_view[name] = xr.concat([i * c - q * s, i * s + q * c],
+                dim=xr.IndexVariable("IQ", ["I", "Q"])).transpose(*values.dims)
+    return raw_view, fit_view, angle
+
+
 def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fit: xr.Dataset = None):
     """
     Plots individual qubit data on a given axis with optional fit.
@@ -283,7 +318,11 @@ def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fi
     """
 
     raw = ds.sel(qubit=qubit["qubit"])
+    ge_aligned = all(name in raw for name in ("Ig", "Qg", "Ie", "Qe", "If", "Qf"))
+    if ge_aligned:
+        raw, fit, display_angle = _ge_aligned_iq_view(raw, fit)
     specs = _available_state_specs(raw)
+    view_points = []  # Centers and contour vertices that must remain visible.
     # Render one mixed collection, rather than putting every F point on top of
     # all G/E points. A local fixed seed makes saved plots reproducible and does
     # not modify acquisition ordering or the global random state.
@@ -303,10 +342,16 @@ def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fi
             rasterized=True, zorder=1,
         )
         cloud_artist.set_gid("iq_mixed_clouds")
-    for _, i_name, q_name, _, _, label, color, _, _ in specs:
+    for state, i_name, q_name, _, _, label, color, _, _ in specs:
         # Readable legend swatches are independent of the faint data markers.
         ax.plot([], [], ".", color=color, markersize=6, label=label, zorder=1)
-        center = (float(raw[i_name].mean()) * 1e3, float(raw[q_name].mean()) * 1e3)
+        if "state_center_matrix" in fit:
+            center = 1e3 * fit.state_center_matrix.sel(state=state, IQ=["I", "Q"]).values
+        else:
+            method = fit.attrs.get("center_method", "mean")
+            center = (float(_cloud_center(raw[i_name], method)) * 1e3,
+                      float(_cloud_center(raw[q_name], method)) * 1e3)
+        view_points.append(np.asarray(center, dtype=float).reshape(1, 2))
         ax.plot(
             *center,
             "o",
@@ -320,7 +365,7 @@ def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fi
         level_name = f"{state_name}_kde_95_level"
         if level_name not in fit or not np.isfinite(float(fit[level_name].values)):
             continue
-        ax.contour(
+        contour = ax.contour(
             1e3 * fit[f"{state_name}_kde_I"].values,
             1e3 * fit[f"{state_name}_kde_Q"].values,
             fit[f"{state_name}_kde_density"].values,
@@ -328,25 +373,38 @@ def plot_individual_iq_blobs(ax: Axes, ds: xr.Dataset, qubit: dict[str, str], fi
             colors=[contour_color],
             linewidths=1.5,
         )
+        view_points.extend(segment for level in contour.allsegs for segment in level if len(segment))
         ax.plot([], [], color=contour_color, linewidth=1.5, label=f"{label} 95% KDE")
 
-    ax.axis("equal")
+    # Expand the shorter data span, never crop a cloud to enforce equal scale.
+    # Keep the outlier-aware zoom, while including fitted centers and contours.
     limits = _robust_iq_limits(raw)
     if limits is not None:
-        ax.set_xlim(limits[0])
-        ax.set_ylim(limits[1])
+        bounds = np.asarray(limits, dtype=float)
+        if view_points:
+            vertices = np.concatenate(view_points)
+            vertices = vertices[np.isfinite(vertices).all(axis=1)]
+            if len(vertices):
+                bounds[:, 0] = np.minimum(bounds[:, 0], vertices.min(axis=0))
+                bounds[:, 1] = np.maximum(bounds[:, 1], vertices.max(axis=0))
+        midpoint = bounds.mean(axis=1)
+        half_span = 0.53 * np.max(bounds[:, 1] - bounds[:, 0])
+        ax.set_xlim(midpoint[0] - half_span, midpoint[0] + half_span)
+        ax.set_ylim(midpoint[1] - half_span, midpoint[1] + half_span)
+    ax.set_box_aspect(1)
+    ax.set_aspect("equal", adjustable="box")
     if "If" in raw and "Qf" in raw:
         if _is_three_state_fit(fit):
-            ax.set_aspect("equal", adjustable="box")
             _plot_nearest_center_boundary(ax, fit, raw)
         else:
             _plot_pairwise_threshold_lines(ax, fit)
     else:
         _plot_raw_threshold(ax, fit.rus_threshold, fit.iw_angle, color="k", label="RUS Threshold")
         _plot_raw_threshold(ax, fit.ge_threshold, fit.iw_angle, color="r", label="Threshold")
-    ax.set_xlabel("I [mV]")
-    ax.set_ylabel("Q [mV]")
-    ax.set_title(f"{qubit['qubit']}\nFitted rotation={np.degrees(float(fit.iw_angle)):.1f} deg")
+    ax.set_xlabel("I rotated [mV]" if ge_aligned else "I [mV]")
+    ax.set_ylabel("Q rotated [mV]" if ge_aligned else "Q [mV]")
+    rotation = display_angle if ge_aligned else float(fit.iw_angle)
+    ax.set_title(f"{qubit['qubit']}\n{'G-E display' if ge_aligned else 'Fitted'} rotation={np.degrees(rotation):.1f} deg")
     ax.legend(
         fontsize="small", loc="upper center", bbox_to_anchor=(0.5, -0.18),
         ncol=3, frameon=False, borderaxespad=0, columnspacing=1.2,
@@ -480,7 +538,7 @@ def _plot_nearest_center_boundary(ax: Axes, fit: xr.Dataset, raw: xr.Dataset):
     if "state_center_matrix" in fit:
         centers = np.asarray(fit.state_center_matrix.sel(state=[spec[0] for spec in specs], IQ=["I", "Q"]).values, dtype=float)
     else:
-        centers = np.array([[float(raw[spec[1]].mean()), float(raw[spec[2]].mean())]
+        centers = np.array([[float(_cloud_center(raw[spec[1]], fit.attrs.get("center_method", "mean"))), float(_cloud_center(raw[spec[2]], fit.attrs.get("center_method", "mean")))]
                             for spec in _available_state_specs(raw)])
     i_limits, q_limits = ax.get_xlim(), ax.get_ylim()
     segments = _nearest_center_boundary_segments(1e3 * centers, i_limits, q_limits)

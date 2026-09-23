@@ -75,6 +75,8 @@ def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str
     -----
     - If the fit dataset is provided, the fitted curve is plotted along with the raw data.
     """
+    if fit is not None and fit.attrs.get("rb_mode") in {"interleaved", "leakage"}:
+        return plot_mode_data(ax, fit, qubit)
     fit_succeeded = "success" in fit and bool(fit.success.values)
     if hasattr(fit, "population"):
         data = fit.population
@@ -115,4 +117,31 @@ def plot_individual_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str, str
         ax.plot(smooth_depths, fitted, "r--", label=_single_gate_error_label(fit))
     else:
         ax.plot([], [], "r--", label="RB decay fit failed")
+    ax.legend()
+
+
+def plot_mode_data(ax, fit, qubit):
+    mode = fit.attrs["rb_mode"]
+    if mode == "interleaved":
+        for variant in ["reference", "interleaved"]:
+            data = fit.population.sel(rb_variant=variant)
+            ax.errorbar(fit.depths, data.mean("nb_of_sequences"),
+                        yerr=data.std("nb_of_sequences") / np.sqrt(data.sizes["nb_of_sequences"]),
+                        fmt=".", label=variant.title())
+            ax.plot(fit.depths, fit.predicted_population.sel(rb_variant=variant), "--")
+        ax.set_ylabel("Ground-state population" if "state" in fit else "Readout signal")
+        ax.set_title(f"{qubit['qubit']}: target error={float(fit.error_per_gate):.3g}")
+    else:
+        for state in "gef":
+            data = fit[f"population_{state}"]
+            ax.errorbar(fit.depths, data.mean("nb_of_sequences"),
+                        yerr=data.std("nb_of_sequences") / np.sqrt(data.sizes["nb_of_sequences"]),
+                        fmt=".", label=f"P({state})")
+        ax.plot(fit.depths, 1 - fit.predicted_population, "--", label="Leakage fit")
+        ax.set_ylabel("Population")
+        ax.set_title(f"{qubit['qubit']}: L1={float(fit.leakage_per_clifford):.3g}, L2={float(fit.seepage_per_clifford):.3g} / Clifford")
+    if not bool(fit.success):
+        ax.text(0.02, 0.05, "Fit failed: " + str(fit.message.item()), transform=ax.transAxes, wrap=True)
+    ax.set_xlabel("Random Clifford count (excluding recovery)")
+    ax.grid(True)
     ax.legend()

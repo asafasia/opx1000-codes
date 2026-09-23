@@ -57,11 +57,17 @@ class PopulationStreams:
     def map(self, function):
         return self._transform("map", function)
 
-    def save(self, name):
-        self.streams["e"].save(name)
+    def _save(self, name, method):
+        getattr(self.streams["e"], method)(name)
         suffix = name.removeprefix("state")
         for label, stream in self.streams.items():
-            stream.save(f"population_{label}{suffix}")
+            getattr(stream, method)(f"population_{label}{suffix}")
+
+    def save(self, name):
+        self._save(name, "save")
+
+    def save_all(self, name):
+        self._save(name, "save_all")
 
 
 def convert_IQ_to_V(da, qubits=None, qubit_pairs=None, IQ_list=("I", "Q"), single_demod=False):

@@ -29,4 +29,5 @@ class Parameters(
     NodeSpecificParameters,
     QubitsExperimentNodeParameters,
 ):
-    pass
+    acquisition: Literal["single_shot"] = "single_shot"
+    """Individual IQ shots are required for the distribution / fidelity analysis."""

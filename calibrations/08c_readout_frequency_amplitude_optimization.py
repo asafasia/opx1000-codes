@@ -16,8 +16,7 @@ import numpy as np
 import xarray as xr
 from qm.qua import *
 from qualang_tools.loops import from_array
-from qualang_tools.multi_user import qm_session
-from calibrations.runtime_estimation import progress_counter
+from utils.qm_session import qm_session
 from qualang_tools.units import unit
 
 from calibration_io import CalibrationSaver, current_profile_name
@@ -28,7 +27,6 @@ from calibration_utils.readout_frequency_amplitude_optimization import (
     plot_optimization_maps,
     process_raw_dataset,
 )
-from qualibration_libs.data import XarrayDataFetcher
 from quam_config import Quam, create_machine
 from utils.simulation import simulate_and_plot
 
@@ -104,6 +102,8 @@ class ReadoutFrequencyAmplitudeOptimization(BaseCalibration[Parameters, Quam]):
             ),
         }
 
+        self.configure_acquisition(shot_axis="n_runs", preserve_shots=True)
+
         with program() as node.namespace["qua_program"]:
             Ig, Ig_st, Qg, Qg_st, n, n_st = node.machine.declare_qua_variables()
             Ie, Ie_st, Qe, Qe_st, _, _ = node.machine.declare_qua_variables()
@@ -160,18 +160,10 @@ class ReadoutFrequencyAmplitudeOptimization(BaseCalibration[Parameters, Quam]):
             with stream_processing():
                 n_st.save("n")
                 for i in range(num_qubits):
-                    Ig_st[i].buffer(len(amps)).buffer(len(dfs)).buffer(n_runs).save(
-                        f"Ig{i + 1}"
-                    )
-                    Qg_st[i].buffer(len(amps)).buffer(len(dfs)).buffer(n_runs).save(
-                        f"Qg{i + 1}"
-                    )
-                    Ie_st[i].buffer(len(amps)).buffer(len(dfs)).buffer(n_runs).save(
-                        f"Ie{i + 1}"
-                    )
-                    Qe_st[i].buffer(len(amps)).buffer(len(dfs)).buffer(n_runs).save(
-                        f"Qe{i + 1}"
-                    )
+                    self.save_acquisition_stream(Ig_st[i], f'Ig{i + 1}')
+                    self.save_acquisition_stream(Qg_st[i], f'Qg{i + 1}')
+                    self.save_acquisition_stream(Ie_st[i], f'Ie{i + 1}')
+                    self.save_acquisition_stream(Qe_st[i], f'Qe{i + 1}')
 
         return node.namespace.get("qua_program")
 
@@ -194,14 +186,7 @@ class ReadoutFrequencyAmplitudeOptimization(BaseCalibration[Parameters, Quam]):
         config = node.machine.generate_config()
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             node.namespace["job"] = job = qm.execute(node.namespace["qua_program"])
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_shots,
-                    start_time=data_fetcher.t_start,
-                )
-            node.log(job.execution_report())
+            dataset = self.fetch_result_dataset(job)
         node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
     def save_raw_results(self):
@@ -221,6 +206,7 @@ class ReadoutFrequencyAmplitudeOptimization(BaseCalibration[Parameters, Quam]):
         self.namespace["qubits"] = self.get_qubits()
 
     def analyse_data(self):
+        self.prepare_acquisition_results()
         self.results["ds_raw"] = process_raw_dataset(self.results["ds_raw"], self)
         self.results["ds_fit"], fit_results = fit_raw_data(self.results["ds_raw"], self)
         self.results["fit_results"] = {k: asdict(v) for k, v in fit_results.items()}
@@ -231,47 +217,10 @@ class ReadoutFrequencyAmplitudeOptimization(BaseCalibration[Parameters, Quam]):
         }
 
     def profile_updates(self):
-        """Propose the best frequency and selected pulse amplitude together."""
-        section = (
-            "readout_gef" if len(self.parameters.readout_states) == 3 else "readout"
+        return self.readout_profile_updates(
+            frequency="optimal_frequency", amplitude="optimal_amplitude",
+            fidelity="readout_fidelity",
         )
-        frequency_field = (
-            "readout_gef.frequency_hz"
-            if section == "readout_gef"
-            else "frequencies_hz.resonator"
-        )
-        operation = self.parameters.readout_operation
-        updates = {}
-        for q in self.namespace["qubits"]:
-            fit = self.results["fit_results"][q.name]
-            if not fit["success"]:
-                continue
-            frequency = float(fit["optimal_frequency"])
-            amplitude = float(fit["optimal_amplitude"])
-            if (
-                not np.isfinite(frequency)
-                or not np.isfinite(amplitude)
-                or abs(amplitude) > 0.7
-            ):
-                self.log(
-                    f"Skipping {q.name}: non-finite optimum or amplitude exceeds 0.7 V."
-                )
-                continue
-            pulse_name = getattr(q.resonator, "readout_pulse_names", {}).get(
-                operation, operation
-            )
-            updates[f"qubits.json.qubits.{q.name}.{frequency_field}"] = frequency
-            updates[f"pulses.json.pulses.{q.name}.{pulse_name}.amplitude"] = amplitude
-            updates[f"qubits.json.qubits.{q.name}.{section}.gef_centers"] = None
-            updates[f"qubits.json.qubits.{q.name}.{section}.confusion_matrix"] = None
-            if section == "readout" and self.parameters.reset_type in {
-                "active",
-                "thermal",
-            }:
-                updates[
-                    f"metrics.json.qubits.{q.name}.readout.fidelity_percent.{self.parameters.reset_type}"
-                ] = float(fit["readout_fidelity"])
-        return updates
 
     def plot_data(self):
         self.results["figures"] = plot_optimization_maps(
@@ -291,7 +240,7 @@ class ReadoutFrequencyAmplitudeOptimization(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
     parameters.reset_type = "thermal"
-    parameters.num_shots = 500
+    parameters.num_shots = 100
     parameters.frequency_span_in_mhz = 20
     parameters.frequency_step_in_mhz = 0.1
     parameters.start_amp = 0.1
@@ -307,6 +256,6 @@ if __name__ == "__main__":
     calibration = ReadoutFrequencyAmplitudeOptimization(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q6"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

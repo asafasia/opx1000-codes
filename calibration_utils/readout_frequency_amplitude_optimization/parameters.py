@@ -1,3 +1,4 @@
+from typing import Literal
 from qualibrate import NodeParameters
 from qualibrate.core.parameters import RunnableParameters
 from qualibration_libs.parameters import (
@@ -33,4 +34,5 @@ class Parameters(
     NodeSpecificParameters,
     QubitsExperimentNodeParameters,
 ):
-    pass
+    acquisition: Literal["single_shot"] = "single_shot"
+    """Individual IQ shots are required for the distribution / fidelity analysis."""

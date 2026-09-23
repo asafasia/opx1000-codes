@@ -27,7 +27,6 @@ from calibration_utils.power_rabi import (
     plot_raw_data_with_fit,
     process_raw_dataset,
 )
-from profiles import load_profile
 from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
 
@@ -133,6 +132,12 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
         num_qubits = len(qubits)
         n_avg = self.parameters.num_shots
         operation = active_operation(self.parameters)
+        if not (
+            operation.endswith("x180")
+            or operation.startswith("x180_")
+            or operation in ["x90", "-x90", "y90", "-y90"]
+        ):
+            raise ValueError(f"Unrecognized operation {operation}.")
         for qubit in qubits:
             ensure_operation_available(qubit, operation, self.parameters.transition)
 
@@ -153,6 +158,8 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
                 attrs={"long_name": "pulse amplitude prefactor"},
             ),
         }
+
+        self.configure_acquisition()
 
         with program() as qua_program:
             I, I_st, Q, Q_st, n, n_st = self.machine.declare_qua_variables()
@@ -207,35 +214,13 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
 
             with stream_processing():
                 n_st.save("n")
-                for i, _ in enumerate(qubits):
-                    if operation.endswith("x180") or operation.startswith("x180_"):
-                        self._save_streams(
-                            i,
-                            (
-                                state_st
-                                if self.parameters.use_state_discrimination
-                                else None
-                            ),
-                            I_st,
-                            Q_st,
-                            amps,
-                            n_pi_vec,
-                        )
-                    elif operation in ["x90", "-x90", "y90", "-y90"]:
-                        self._save_streams(
-                            i,
-                            (
-                                state_st
-                                if self.parameters.use_state_discrimination
-                                else None
-                            ),
-                            I_st,
-                            Q_st,
-                            amps,
-                            n_pi_vec,
-                        )
-                    else:
-                        raise ValueError(f"Unrecognized operation {operation}.")
+                for i in range(len(qubits)):
+                    self.process_readout_streams(
+                        i,
+                        state_st if self.parameters.use_state_discrimination else None,
+                        I_st,
+                        Q_st,
+                    )
 
         self.namespace["qua_program"] = qua_program
         return qua_program
@@ -259,41 +244,22 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
         plt.show()
         self.results["figures"] = figures
 
-    def profile_updates(self) -> dict[str, float]:
-        updates = {}
-        profile_name = self.active_profile_name()
-        qubit_profiles = load_profile(profile_name)["qubits"]["qubits"]
-        operation = active_operation(self.parameters)
-        for q in self.namespace["qubits"]:
-            if self.outcomes.get(q.name) != "successful":
-                continue
-            if operation not in qubit_profiles[q.name]["operations"]:
-                self.log(
-                    f"Profile update skipped: operation {operation!r} "
-                    "does not have a dedicated profile pulse."
-                )
-                continue
-            amplitude = float(self.results["fit_results"][q.name]["opt_amp"])
-            pulse_name = qubit_profiles[q.name]["operations"][operation]
-            updates[f"pulses.json.pulses.{q.name}.{pulse_name}.amplitude"] = amplitude
-        return updates
-
-    @staticmethod
-    def _save_streams(i, state_st, I_st, Q_st, amps, n_pi_vec) -> None:
-        if state_st is not None:
-            state_st[i].buffer(len(amps)).buffer(len(n_pi_vec)).average().save(
-                f"state{i + 1}"
-            )
-        else:
-            I_st[i].buffer(len(amps)).buffer(len(n_pi_vec)).average().save(f"I{i + 1}")
-            Q_st[i].buffer(len(amps)).buffer(len(n_pi_vec)).average().save(f"Q{i + 1}")
+    def profile_updates(self):
+        return self.pulse_profile_updates(
+            active_operation(self.parameters), amplitude="opt_amp",
+        )
 
 
 if __name__ == "__main__":
 
     parameters = Parameters()
-    parameters.reset_type = "thermal"
-    parameters.use_state_discrimination = False
+    parameters.acquisition = (
+        "single_shot"  # or "single_shot" to retain every measurement
+    )
+    parameters.reset_type = "active"  # "active" or "thermal"
+    parameters.use_state_discrimination = True
+    parameters.readout_states = ["g", "e", "f"]  # GE readout; add "f" for readout_GEF.
+
     parameters.use_readout_mitigation = 0
     parameters.num_shots = 2000
     parameters.transition = "ef"
@@ -305,6 +271,6 @@ if __name__ == "__main__":
     power_rabi = PowerRabi(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q6"),
+        machine=create_machine(qubit="q1"),
     )
     power_rabi.run()

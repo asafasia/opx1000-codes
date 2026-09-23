@@ -14,8 +14,7 @@ import matplotlib.pyplot as plt
 import xarray as xr
 from dataclasses import asdict
 from qm.qua import *
-from qualang_tools.multi_user import qm_session
-from calibrations.runtime_estimation import progress_counter
+from utils.qm_session import qm_session
 from qualang_tools.units import unit
 
 from calibration_io import CalibrationSaver, current_profile_name
@@ -26,8 +25,6 @@ from calibration_utils.T2echo import (
     plot_raw_data_with_fit,
     process_raw_dataset,
 )
-from profiles import ProfileUpdater
-from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.parameters import get_idle_times_in_clock_cycles, get_qubits
 from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
@@ -88,6 +85,8 @@ class Echo(BaseCalibration[Parameters, Quam]):
             ),
         }
 
+        self.configure_acquisition()
+
         with program() as node.namespace["qua_program"]:
             I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
             idle_time = declare(int)
@@ -133,13 +132,10 @@ class Echo(BaseCalibration[Parameters, Quam]):
             with stream_processing():
                 n_st.save("n")
                 for i in range(num_qubits):
-                    if node.parameters.use_state_discrimination:
-                        state_st[i].buffer(len(idle_times)).average().save(
-                            f"state{i + 1}"
-                        )
-                    else:
-                        I_st[i].buffer(len(idle_times)).average().save(f"I{i + 1}")
-                        Q_st[i].buffer(len(idle_times)).average().save(f"Q{i + 1}")
+                    self.process_readout_streams(
+                        i, state_st if self.parameters.use_state_discrimination else None,
+                        I_st, Q_st,
+                    )
 
         return node.namespace.get("qua_program")
 
@@ -162,15 +158,7 @@ class Echo(BaseCalibration[Parameters, Quam]):
         config = node.machine.generate_config()
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             node.namespace["job"] = job = qm.execute(node.namespace["qua_program"])
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            dataset = None
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_shots,
-                    start_time=data_fetcher.t_start,
-                )
-            node.log(job.execution_report())
+            dataset = self.fetch_result_dataset(job)
         node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
     def save_raw_results(self):
@@ -192,6 +180,7 @@ class Echo(BaseCalibration[Parameters, Quam]):
         node.namespace["qubits"] = self.get_qubits()
 
     def analyse_data(self):
+        self.prepare_acquisition_results()
         node = self
         node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
         node.results["ds_fit"], fit_results = fit_raw_data(node.results["ds_raw"], node)
@@ -229,26 +218,15 @@ class Echo(BaseCalibration[Parameters, Quam]):
                     continue
                 q.T2echo = node.results["fit_results"][q.name]["T2_echo"]
 
-    def propose_profile_update(self):
-        node = self
-        updates = {
-            f"metrics.json.qubits.{q.name}.coherence.t2_echo_ns": float(
-                node.results["ds_fit"].sel(qubit=q.name).T2_echo.values
-            )
-            for q in node.namespace["qubits"]
-            if node.outcomes[q.name] == "successful"
-        }
-        if updates:
-            proposal = ProfileUpdater().stage(
-                node.name,
-                updates,
-                profile_name=current_profile_name(),
-            )
-            ProfileUpdater().confirm_and_apply(proposal)
+    def profile_updates(self):
+        return self.metric_profile_updates({
+            "coherence.t2_echo_ns": lambda q, fit: float(self.results["ds_fit"].sel(qubit=q.name).T2_echo),
+        })
 
 
 if __name__ == "__main__":
     parameters = Parameters()
+    parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
 
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
@@ -262,6 +240,6 @@ if __name__ == "__main__":
     calibration = Echo(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q6"),
     )
     calibration.run()

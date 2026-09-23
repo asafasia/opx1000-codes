@@ -13,14 +13,11 @@ if __package__ in {None, ""}:
 import matplotlib.pyplot as plt
 import xarray as xr
 from qm.qua import *
-from qualang_tools.multi_user import qm_session
+from utils.qm_session import qm_session
 from qualang_tools.units import unit
-from calibrations.runtime_estimation import progress_counter
 from quam_config import Quam
 from calibration_io import CalibrationSaver, current_profile_name
-from profiles import ProfileUpdater
 from quam_config.create_machine import create_machine
-from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.parameters import get_qubits, get_idle_times_in_clock_cycles
 from utils.simulation import simulate_and_plot
 from calibration_utils.T1 import (
@@ -123,6 +120,8 @@ class T1(BaseCalibration[Parameters, Quam]):
         }
 
         # The QUA program stored in the node namespace to be transfer to the simulation and execution run_actions
+        self.configure_acquisition()
+
         with program() as node.namespace["qua_program"]:
             I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
             t = declare(int)
@@ -175,13 +174,12 @@ class T1(BaseCalibration[Parameters, Quam]):
             with stream_processing():
                 n_st.save("n")
                 for i in range(num_qubits):
-                    if node.parameters.use_state_discrimination:
-                        state_st[i].buffer(len(idle_times)).average().save(
-                            f"state{i + 1}"
-                        )
-                    else:
-                        I_st[i].buffer(len(idle_times)).average().save(f"I{i + 1}")
-                        Q_st[i].buffer(len(idle_times)).average().save(f"Q{i + 1}")
+                    self.process_readout_streams(
+                        i,
+                        state_st if self.parameters.use_state_discrimination else None,
+                        I_st,
+                        Q_st,
+                    )
 
         return node.namespace.get("qua_program")
 
@@ -210,16 +208,8 @@ class T1(BaseCalibration[Parameters, Quam]):
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             # The job is stored in the node namespace to be reused in the fetching_data run_action
             node.namespace["job"] = job = qm.execute(node.namespace["qua_program"])
-            # Display the progress bar
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_shots,
-                    start_time=data_fetcher.t_start,
-                )
-            # Display the execution report to expose possible runtime errors
-            node.log(job.execution_report())
+            # Wait for complete buffers while displaying the shot counter.
+            dataset = self.fetch_result_dataset(job)
         # Register the raw dataset
         node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
@@ -272,47 +262,40 @@ class T1(BaseCalibration[Parameters, Quam]):
                 if node.outcomes[q.name] == "failed":
                     continue
 
-                fitted_time_s = float(node.results["ds_fit"].sel(qubit=q.name).tau.values) * 1e-9
+                fitted_time_s = (
+                    float(node.results["ds_fit"].sel(qubit=q.name).tau.values) * 1e-9
+                )
                 if node.parameters.initial_state == "g":
                     q.extras["T1_ge"] = fitted_time_s
                 else:
                     q.T1 = fitted_time_s
 
-    def propose_profile_update(self):
-        node = self
-        """Stage ground-state T1_ge separately from standard T1 metrics."""
-        metric = "t1_ge_ns" if node.parameters.initial_state == "g" else "t1_ns"
-        updates = {
-            f"metrics.json.qubits.{q.name}.coherence.{metric}": float(
-                node.results["ds_fit"].sel(qubit=q.name).tau.values
-            )
-            for q in node.namespace["qubits"]
-            if node.outcomes[q.name] == "successful"
-        }
-        if updates:
-            proposal = ProfileUpdater().stage(
-                node.name, updates, profile_name=current_profile_name()
-            )
-            ProfileUpdater().confirm_and_apply(proposal)
+    def profile_updates(self):
+        metric = "t1_ge_ns" if self.parameters.initial_state == "g" else "t1_ns"
+        return self.metric_profile_updates({
+            f"coherence.{metric}": lambda q, fit: float(self.results["ds_fit"].sel(qubit=q.name).tau),
+        })
 
 
 if __name__ == "__main__":
     parameters = Parameters()
+    parameters.acquisition = "single_shot"  # "averaged" or "single_shot"
+    parameters.readout_states = ["g", "e", "f"]  # GE readout; add "f" for readout_GEF.
 
     parameters.use_state_discrimination = True
-    parameters.reset_type = "active"
+    parameters.reset_type = "thermal"  # "active" or "thermal"
     parameters.use_readout_mitigation = False
 
-    parameters.max_wait_time_in_ns = 250e3
+    parameters.max_wait_time_in_ns = 250_000
     parameters.wait_time_num_points = 300
     parameters.log_or_linear_sweep = "log"
-    parameters.initial_state = "g"
+    parameters.initial_state = "e"
 
     options = CalibrationOptions()
 
     calibration = T1(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q6"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

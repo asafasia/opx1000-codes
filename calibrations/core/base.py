@@ -48,6 +48,7 @@ class CalibrationStatus:
     ai_review_saved: bool
     profile_update_proposed: bool
     outcomes: Mapping[str, str] = field(default_factory=dict)
+    interrupted: bool = False
 
 
 @dataclass
@@ -177,12 +178,88 @@ class BaseCalibration(ABC, Generic[P, M]):
         from utils.readout_macro import measure_readout
         return measure_readout(qubit, readout_operation(self.parameters), **kwargs)
 
+    @property
+    def single_shot_acquisition(self) -> bool:
+        from calibration_utils.state_acquisition import single_shot_acquisition
+        return single_shot_acquisition(self.parameters)
+
+    def configure_acquisition(
+        self, *, loop_order=None, shot_axis="shot", preserve_shots=False, intrinsic_axes=()
+    ):
+        """Bind stream buffers and dataset axes to the QUA loop order.
+
+        Call after defining sweep_axes and before declaring streams. Default
+        order is shot, then the sweep axes in insertion order (excluding qubit).
+        Supply loop_order explicitly for nested shots, e.g. RB. intrinsic_axes
+        are vector dimensions already supplied by the hardware (ADC samples).
+        Cloud analyses use preserve_shots=True and their existing n_runs axis.
+        """
+        import xarray as xr
+        from calibration_utils.state_acquisition import AcquisitionLayout
+
+        single_shot = self.single_shot_acquisition
+        if preserve_shots and not single_shot:
+            raise ValueError(f"{self.name} requires acquisition='single_shot' for cloud analysis")
+        axes = self.namespace["sweep_axes"]
+        sweep_names = [name for name in axes if name not in ("qubit", shot_axis, *intrinsic_axes)]
+        order = tuple(loop_order) if loop_order is not None else (shot_axis, *sweep_names)
+        if set(order) != {shot_axis, *sweep_names}:
+            raise ValueError("loop_order must contain every sweep axis and the shot axis exactly once")
+        count = self.parameters.num_shots
+        loops = tuple((name, count if name == shot_axis else len(axes[name])) for name in order)
+        layout = AcquisitionLayout(loops, shot_axis=shot_axis, single_shot=single_shot)
+        self.namespace["acquisition_layout"] = layout
+        result_axes = {"qubit": axes["qubit"]} if "qubit" in axes else {}
+        for name in order:
+            if name == shot_axis:
+                if single_shot:
+                    result_axes[name] = axes.get(name, xr.DataArray(
+                        np.arange(count), dims=name, attrs={"long_name": "shot index"}))
+            else:
+                result_axes[name] = axes[name]
+        result_axes.update({name: axes[name] for name in intrinsic_axes})
+        self.namespace["sweep_axes"] = result_axes
+
+    def save_acquisition_stream(self, stream, name, *, split_outer_axis=None):
+        """Finalize one state-population or analog stream using the shared layout."""
+        layout = self.namespace["acquisition_layout"]
+        if split_outer_axis is not None:
+            from dataclasses import replace
+            if layout.loops[0][0] != split_outer_axis or split_outer_axis == layout.shot_axis:
+                raise ValueError("split_outer_axis must name the outermost non-shot loop")
+            layout = replace(layout, loops=layout.loops[1:])
+        layout.save(stream, name, save_all=split_outer_axis is not None)
+
+    def process_readout_streams(self, i, state_st=None, I_st=None, Q_st=None):
+        """Finalize a qubit's discriminated-state streams or I/Q streams."""
+        if state_st is not None:
+            self.save_acquisition_stream(state_st[i], f"state{i + 1}")
+        else:
+            if I_st is None or Q_st is None:
+                raise ValueError("Readout streams require state_st or both I_st and Q_st")
+            self.save_acquisition_stream(I_st[i], f"I{i + 1}")
+            self.save_acquisition_stream(Q_st[i], f"Q{i + 1}")
+
     def declare_state_stream(self):
+        from qm.qua import declare_stream
         from utils.experiment_readout import PopulationStreams, readout_states
+        if self.single_shot_acquisition:
+            return declare_stream()
         return PopulationStreams(readout_states(self.parameters))
 
     def save_readout_state(self, state, streams):
-        streams.save_shot(state)
+        from qm.qua import save
+        if self.single_shot_acquisition:
+            save(state, streams)
+        else:
+            streams.save_shot(state)
+
+    def prepare_acquisition_results(self):
+        """Reduce shots for analysis after saving raw data, preserving every shot."""
+        from calibration_utils.state_acquisition import prepare_acquisition_dataset
+        if "ds_raw" in self.results:
+            self.results["ds_raw"] = prepare_acquisition_dataset(
+                self.results["ds_raw"], self.parameters)
 
     def should_load_data(self) -> bool:
         return self.load_data_id is not None
@@ -241,6 +318,8 @@ class BaseCalibration(ABC, Generic[P, M]):
 
     def run(self) -> CalibrationStatus:
         """Run the standard calibration lifecycle."""
+        from utils.result_fetching import AcquisitionStopped
+
         loaded = False
         raw_data_saved = False
         figures_saved = False
@@ -280,6 +359,7 @@ class BaseCalibration(ABC, Generic[P, M]):
                         raw_data_saved = True
 
             if not self.simulate_requested:
+                self.prepare_acquisition_results()
                 if getattr(self.parameters, "use_readout_mitigation", False):
                     self.apply_readout_mitigation()
                     if raw_data_saved:
@@ -294,10 +374,13 @@ class BaseCalibration(ABC, Generic[P, M]):
                     figures_saved = self.save_figures()
                 if self.options.ai_review:
                     ai_review_saved = self.save_ai_review()
-                if self.options.update_state:
+                if self.options.update_state and not self.namespace.get("acquisition_interrupted"):
                     self.update_state()
-                if self.options.propose_profile_update:
+                if self.options.propose_profile_update and not self.namespace.get("acquisition_interrupted"):
                     profile_update_proposed = self._propose_profile_update_from_options()
+        except AcquisitionStopped as error:
+            self.namespace["acquisition_interrupted"] = True
+            self.log(str(error))
         finally:
             self._finish_run_timer()
             self.cleanup()
@@ -312,6 +395,7 @@ class BaseCalibration(ABC, Generic[P, M]):
             ai_review_saved=ai_review_saved,
             profile_update_proposed=profile_update_proposed,
             outcomes=dict(self.outcomes),
+            interrupted=bool(self.namespace.get("acquisition_interrupted")),
         )
 
     @abstractmethod
@@ -342,34 +426,75 @@ class BaseCalibration(ABC, Generic[P, M]):
         if self.options.plot_data:
             plt.show()
 
+    def fetch_result_dataset(self, job):
+        """Fetch results with live progress, recovering completed sweeps on Ctrl+C."""
+        from utils.result_fetching import AcquisitionError, fetch_result_dataset
+
+        progress_started = time.time()
+
+        def show_progress(count, started):
+            nonlocal progress_started
+            progress_started = started
+            self.report_progress(count, start_time=started)
+
+        try:
+            layout = self.namespace.get("acquisition_layout")
+            partial_axis = None
+            if layout is not None and (layout.single_shot or layout.loops[0][0] != layout.shot_axis):
+                partial_axis = layout.loops[0][0]
+            dataset = fetch_result_dataset(
+                job, self.namespace["sweep_axes"], on_progress=show_progress,
+                partial_axis=partial_axis,
+            )
+            if dataset.attrs.get("acquisition_interrupted"):
+                self.namespace["acquisition_interrupted"] = True
+                total = self.progress_total()
+                if total is not None:
+                    dataset.attrs["requested_iterations"] = int(total)
+                count = dataset.attrs.get("completed_iterations")
+                detail = "the completed measurements"
+                if count is not None:
+                    axis = dataset.attrs["partial_axis"]
+                    detail = f"{count} completed iterations along {axis}"
+                self.log(f"Acquisition stopped; continuing analysis with {detail}.")
+                return dataset
+            # The zero-based QUA counter stops at total - 1. Mark completion only
+            # after the job and its measurement buffers have finished successfully.
+            total = self.progress_total()
+            if total is not None:
+                self.report_progress(total, start_time=progress_started)
+            return dataset
+        except AcquisitionError as error:
+            raise CalibrationError(str(error)) from error
+        finally:
+            # Keep the original failure / interruption even if report retrieval fails.
+            try:
+                report = job.execution_report()
+                self.namespace["execution_report"] = report
+                self.log(report)
+            except Exception as error:
+                self.log(f"Could not retrieve the job execution report: {error}")
+
     def execute_qua_program(self) -> None:
         """Execute the QUA program and fetch xarray data into ``ds_raw``."""
-        from qualang_tools.multi_user import qm_session
-        from calibrations.runtime_estimation import progress_counter
-        from qualibration_libs.data import XarrayDataFetcher
+        from utils.qm_session import qm_session
 
         if "sweep_axes" not in self.namespace:
             raise CalibrationError("create_qua_program() must set namespace['sweep_axes'].")
 
         qmm = self.connect_machine()
         config = self.machine.generate_config()
-        total = self.progress_total()
         with qm_session(qmm, config, timeout=self.timeout) as qm:
             self.namespace["job"] = job = qm.execute(self.namespace["qua_program"])
-            data_fetcher = XarrayDataFetcher(job, self.namespace["sweep_axes"])
-            dataset = None
-            for dataset in data_fetcher:
-                if total is not None:
-                    progress_counter(
-                        data_fetcher.get("n", 0),
-                        total,
-                        start_time=data_fetcher.t_start,
-                    )
-            self.log(job.execution_report())
-
-        if dataset is None:
-            raise CalibrationError("Execution finished without fetched data.")
+            dataset = self.fetch_result_dataset(job)
         self.results["ds_raw"] = self.annotate_readout_dataset(dataset)
+
+    def report_progress(self, count, *, start_time):
+        """Report the completed outer iterations; batch workflows may override this."""
+        from calibrations.runtime_estimation import progress_counter
+        total = self.progress_total()
+        if total is not None:
+            progress_counter(count, total, start_time=start_time)
 
     def progress_total(self) -> int | None:
         return getattr(self.parameters, "num_shots", None)
@@ -417,7 +542,8 @@ class BaseCalibration(ABC, Generic[P, M]):
                              readout_operation=readout_operation(self.parameters))
         if "state" in dataset:
             dataset["state"].attrs.update(long_name="excited-state population", population_state="e")
-        return dataset
+        from calibration_utils.state_acquisition import annotate_acquisition
+        return annotate_acquisition(dataset, self.parameters)
 
     def _mitigate_population_dataset(self, dataset, qubits, strength):
         from utils.experiment_readout import readout_operation, readout_states
@@ -463,6 +589,7 @@ class BaseCalibration(ABC, Generic[P, M]):
         fully mitigated populations, which regularizes noisy assignment matrices.
         The result is intentionally not clipped because clipping would bias it.
         """
+        self.prepare_acquisition_results()
         if not getattr(self.parameters, "use_state_discrimination", False):
             raise CalibrationError(
                 "Readout mitigation requires use_state_discrimination=True."
@@ -653,6 +780,22 @@ class BaseCalibration(ABC, Generic[P, M]):
                 f"Expected sweep.npz and results.npz in calibration run: {run_directory}"
             )
 
+        metadata_path = run_directory / "metadata.json"
+        schema = {}
+        if metadata_path.is_file():
+            schema = json.loads(metadata_path.read_text(encoding="utf-8")).get("dataset_schema", {})
+        if schema:
+            with np.load(sweep_path, allow_pickle=False) as sweeps, np.load(
+                results_path, allow_pickle=False
+            ) as results:
+                return xr.Dataset(
+                    data_vars={name: (spec["dims"], np.array(results[name]), spec.get("attrs", {}))
+                               for name, spec in schema["data_vars"].items()},
+                    coords={name: (spec["dims"], np.array(sweeps[name]), spec.get("attrs", {}))
+                            for name, spec in schema["coords"].items()},
+                    attrs=schema.get("attrs", {}),
+                )
+
         with np.load(sweep_path, allow_pickle=False) as sweep_file:
             coordinates = {
                 name: np.array(sweep_file[name])
@@ -671,6 +814,7 @@ class BaseCalibration(ABC, Generic[P, M]):
         The British spelling matches the existing calibration scripts. New
         subclasses may override either this method or ``analyse_data``.
         """
+        self.prepare_acquisition_results()
         analysis = self.create_analysis()
         if analysis is None:
             return
@@ -749,6 +893,139 @@ class BaseCalibration(ABC, Generic[P, M]):
             self.log(f"AI review: {status}")
         return True
 
+    def profile_update_results(self, *, successful_only=True):
+        """Yield selected qubits and fits, respecting explicit failed outcomes."""
+        fits = self.results.get("fit_results", {})
+        for qubit in self.namespace.get("qubits", ()):
+            fit = fits.get(qubit.name, {})
+            outcome = self.outcomes.get(qubit.name)
+            if successful_only and outcome != "successful":
+                if outcome is not None or not fit.get("success", False):
+                    continue
+            yield qubit, fit
+
+    @staticmethod
+    def _profile_update_value(source, qubit, fit):
+        """A string selects a fit key; a callable computes a value; other values are literal."""
+        if callable(source):
+            value = source(qubit, fit)
+        elif isinstance(source, str):
+            value = fit[source]
+        else:
+            value = source
+        return value.item() if isinstance(value, np.generic) else value
+
+    def _profile_field_updates(self, prefix, fields):
+        updates = {}
+        for qubit, fit in self.profile_update_results():
+            for field, source in fields.items():
+                value = self._profile_update_value(source, qubit, fit)
+                updates[f"{prefix}.{qubit.name}.{field}"] = value
+        return updates
+
+    def qubit_profile_updates(self, fields: Mapping[str, Any]) -> dict[str, Any]:
+        """Map relative qubit fields to fit keys, callables ``(qubit, fit)``, or literals."""
+        return self._profile_field_updates("qubits.json.qubits", fields)
+
+    def metric_profile_updates(self, fields: Mapping[str, Any]) -> dict[str, Any]:
+        """Map relative metric fields to fit keys, callables ``(qubit, fit)``, or literals."""
+        return self._profile_field_updates("metrics.json.qubits", fields)
+
+    def pulse_profile_updates(
+        self, operation: str, *, pulse_type: str | None = None, amplitude_scale=None, **fields,
+    ) -> dict[str, float]:
+        """Update dedicated drive pulses; optionally scale the profile amplitude by a fitted factor.
+
+        Example: ``self.pulse_profile_updates("x180", amplitude="opt_amp")``.
+        Derived operation aliases are skipped so their parent pulse is not changed.
+        """
+        from profiles import load_profile
+
+        profile = load_profile(self.active_profile_name())
+        qubits = profile["qubits"]["qubits"]
+        pulses = profile["pulses"]["pulses"]
+        updates = {}
+        for qubit, fit in self.profile_update_results():
+            pulse_name = qubits[qubit.name]["operations"].get(operation)
+            pulse = pulses.get(qubit.name, {}).get(pulse_name)
+            if pulse is None or (pulse_type is not None and pulse.get("type") != pulse_type):
+                expected = f"a dedicated {pulse_type} pulse" if pulse_type else "a dedicated profile pulse"
+                self.log(
+                    f"Profile update skipped for {qubit.name}: operation {operation!r} "
+                    f"does not map to {expected}."
+                )
+                continue
+            try:
+                values = {
+                    field: float(self._profile_update_value(value, qubit, fit))
+                    for field, value in fields.items()
+                }
+                if amplitude_scale is not None:
+                    factor = float(self._profile_update_value(amplitude_scale, qubit, fit))
+                    if not np.isfinite(factor) or factor <= 0:
+                        raise ValueError("amplitude scale must be finite and positive")
+                    values["amplitude"] = float(pulse["amplitude"]) * factor
+                if not all(np.isfinite(value) for value in values.values()):
+                    raise ValueError("pulse values must be finite")
+                if abs(values.get("amplitude", 0)) > 0.7:
+                    raise ValueError("pulse amplitude exceeds 0.7 V")
+            except (KeyError, TypeError, ValueError) as error:
+                self.log(f"Profile update skipped for {qubit.name}: {error}.")
+                continue
+            updates.update({f"pulses.json.pulses.{qubit.name}.{pulse_name}.{field}": value
+                            for field, value in values.items()})
+        return updates
+
+    def readout_profile_updates(
+        self, *, frequency=None, amplitude=None, fidelity=None, settings=None,
+        invalidate_discrimination=False, successful_only=True,
+    ):
+        """Build updates for the selected GE/GEF readout and invalidate stale discrimination.
+
+        Scalar sources use the same fit-key/callable convention as pulse updates.
+        ``settings`` is a literal mapping or a callable returning settings for a
+        qubit, or None when that qubit's readout fit is unsuitable.
+        """
+        section = "readout_gef" if len(self.parameters.readout_states) == 3 else "readout"
+        frequency_field = (
+            "readout_gef.frequency_hz" if section == "readout_gef" else "frequencies_hz.resonator"
+        )
+        updates = {}
+        for qubit, fit in self.profile_update_results(successful_only=successful_only):
+            values = {} if settings is None else self._profile_update_value(settings, qubit, fit)
+            if values is None:
+                continue
+            values = dict(values)
+            pending = {}
+            if frequency is not None:
+                value = float(self._profile_update_value(frequency, qubit, fit))
+                if not np.isfinite(value):
+                    self.log(f"Profile update skipped for {qubit.name}: non-finite readout frequency.")
+                    continue
+                pending[f"qubits.json.qubits.{qubit.name}.{frequency_field}"] = value
+            if amplitude is not None:
+                value = float(self._profile_update_value(amplitude, qubit, fit))
+                if not np.isfinite(value) or abs(value) > 0.7:
+                    self.log(
+                        f"Profile update skipped for {qubit.name}: "
+                        "non-finite readout amplitude or amplitude exceeds 0.7 V."
+                    )
+                    continue
+                operation = self.parameters.readout_operation
+                pulse = getattr(qubit.resonator, "readout_pulse_names", {}).get(operation, operation)
+                pending[f"pulses.json.pulses.{qubit.name}.{pulse}.amplitude"] = value
+            if frequency is not None or amplitude is not None or invalidate_discrimination:
+                values.update(gef_centers=None, confusion_matrix=None)
+            pending.update({f"qubits.json.qubits.{qubit.name}.{section}.{key}": value
+                            for key, value in values.items()})
+            reset = getattr(self.parameters, "reset_type", None)
+            if fidelity is not None and section == "readout" and reset in {"active", "thermal"}:
+                if not isinstance(fidelity, str) or fidelity in fit:
+                    value = float(self._profile_update_value(fidelity, qubit, fit))
+                    pending[f"metrics.json.qubits.{qubit.name}.readout.fidelity_percent.{reset}"] = value
+            updates.update(pending)
+        return updates
+
     def profile_updates(self) -> Mapping[str, Any]:
         """Return profile update paths to stage, or an empty mapping."""
         return {}
@@ -814,6 +1091,7 @@ class BaseCalibration(ABC, Generic[P, M]):
     def run_timing_metadata(self) -> dict[str, Any]:
         return {
             "run_started_at": self.namespace.get("run_started_at"),
+            "acquisition_interrupted": bool(self.namespace.get("acquisition_interrupted")),
             **(
                 {"run_finished_at": self.namespace["run_finished_at"]}
                 if "run_finished_at" in self.namespace

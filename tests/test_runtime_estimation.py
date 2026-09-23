@@ -121,6 +121,31 @@ class RuntimeEstimationTests(unittest.TestCase):
         self.assertIn("3/10 complete", message)
         self.assertIn("elapsed 30s", message)
         self.assertIn("ETA 1m 10s", message)
+        self.assertEqual(output.call_args.kwargs, {"end": "\r", "flush": True})
+
+    def test_progress_completion_flushes_and_finishes_the_line(self):
+        with patch("builtins.print") as output:
+            progress_counter(10, 10)
+
+        self.assertIn("100.0% (10/10 complete)", output.call_args.args[0])
+        self.assertEqual(output.call_args.kwargs, {"end": "\n", "flush": True})
+
+    def test_interrupted_history_is_not_used_as_a_complete_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "2026-09-22" / "example" / "stopped"
+            run.mkdir(parents=True)
+            (run / "metadata.json").write_text(json.dumps({
+                "experiment_name": "example", "execution_duration_s": 1.0,
+                "acquisition_interrupted": True,
+                "runtime_estimate": {"workload_units": 1000},
+            }), encoding="utf-8")
+            estimate = estimate_runtime(
+                experiment_name="example", axes={"frequency": xr.DataArray(np.arange(10))},
+                parameters=SimpleNamespace(num_shots=100), progress_total=100, output_root=root,
+            )
+        self.assertEqual(estimate.historical_runs, 0)
+        self.assertIsNone(estimate.estimated_seconds)
 
     def test_format_duration(self):
         self.assertEqual(format_duration(65), "1m 05s")

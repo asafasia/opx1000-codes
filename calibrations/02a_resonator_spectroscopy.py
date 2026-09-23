@@ -16,8 +16,7 @@ import xarray as xr
 from dataclasses import asdict
 from qm.qua import *
 from qualang_tools.loops import from_array
-from qualang_tools.multi_user import qm_session
-from calibrations.runtime_estimation import progress_counter
+from utils.qm_session import qm_session
 from qualang_tools.units import unit
 from quam_config import Quam, create_machine
 from calibration_utils.resonator_spectroscopy import (
@@ -32,7 +31,6 @@ from calibration_io import CalibrationSaver, current_profile_name
 from utils.plotting_settings import plot_per_qubit
 from profiles import ProfileUpdater
 from utils.simulation import simulate_and_plot
-from qualibration_libs.data import XarrayDataFetcher
 
 if __package__ in {None, ""}:
     from calibrations.core import BaseCalibration, CalibrationOptions
@@ -153,6 +151,8 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
         }
 
         # The QUA program stored in the node namespace to be transfer to the simulation and execution run_actions
+        self.configure_acquisition(shot_axis="n_runs", preserve_shots=True)
+
         with program() as node.namespace["qua_program"]:
             Ig, Ig_st, Qg, Qg_st, n, n_st = node.machine.declare_qua_variables()
             Im, Im_st, Qm, Qm_st, _, _ = node.machine.declare_qua_variables()
@@ -253,14 +253,14 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
                 n_st.save("n")
                 for i in range(num_qubits):
                     if "g" in states:
-                        Ig_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Ig{i + 1}")
-                        Qg_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Qg{i + 1}")
+                        self.save_acquisition_stream(Ig_st[i], f'Ig{i + 1}')
+                        self.save_acquisition_stream(Qg_st[i], f'Qg{i + 1}')
                     if "e" in states:
-                        Im_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Im{i + 1}")
-                        Qm_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Qm{i + 1}")
+                        self.save_acquisition_stream(Im_st[i], f'Im{i + 1}')
+                        self.save_acquisition_stream(Qm_st[i], f'Qm{i + 1}')
                     if use_f_state:
-                        If_st[i].buffer(len(dfs)).buffer(n_runs).save(f"If{i + 1}")
-                        Qf_st[i].buffer(len(dfs)).buffer(n_runs).save(f"Qf{i + 1}")
+                        self.save_acquisition_stream(If_st[i], f'If{i + 1}')
+                        self.save_acquisition_stream(Qf_st[i], f'Qf{i + 1}')
 
         return node.namespace.get("qua_program")
 
@@ -294,16 +294,8 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             # The job is stored in the node namespace to be reused in the fetching_data run_action
             node.namespace["job"] = job = qm.execute(node.namespace["qua_program"])
-            # Display the progress bar
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_shots,
-                    start_time=data_fetcher.t_start,
-                )
-            # Display the execution report to expose possible runtime errors
-            node.log(job.execution_report())
+            # Wait for complete buffers while displaying the shot counter.
+            dataset = self.fetch_result_dataset(job)
         # Register the raw dataset
         node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
@@ -330,6 +322,7 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
         node.log(f"Raw calibration results saved to {output_directory}")
 
     def analyse_data(self):
+        self.prepare_acquisition_results()
         node = self
         """Analyse the raw data and store the fitted data in another xarray dataset "ds_fit" and the fitted results in the "fit_results" dictionary."""
         node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
@@ -397,25 +390,7 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
         return self.plot_for_freq(frequency)
 
     def profile_updates(self):
-        section = (
-            "readout_gef" if len(self.parameters.readout_states) == 3 else "readout"
-        )
-        frequency_field = (
-            "readout_gef.frequency_hz"
-            if section == "readout_gef"
-            else "frequencies_hz.resonator"
-        )
-        updates = {}
-        for q in self.namespace["qubits"]:
-            fit = self.results["fit_results"][q.name]
-            if not fit["success"]:
-                continue
-            updates[f"qubits.json.qubits.{q.name}.{frequency_field}"] = float(
-                fit["frequency"]
-            )
-            updates[f"qubits.json.qubits.{q.name}.{section}.gef_centers"] = None
-            updates[f"qubits.json.qubits.{q.name}.{section}.confusion_matrix"] = None
-        return updates
+        return self.readout_profile_updates(frequency="frequency")
 
 
 if __name__ == "__main__":

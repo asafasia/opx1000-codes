@@ -38,9 +38,8 @@ class PiTrainTests(unittest.TestCase):
     def test_sequence_supports_state_and_iq_readout(self):
         self.assertIn("if node.parameters.use_state_discrimination:", self.source)
         self.assertIn("self.readout_state(qubit, state[i])", self.source)
-        self.assertIn('f"state{i + 1}"', self.source)
-        self.assertIn('save(f"I{i + 1}")', self.source)
-        self.assertIn('save(f"Q{i + 1}")', self.source)
+        self.assertIn("self.process_readout_streams(", self.source)
+        self.assertIn("I_st, Q_st,", self.source)
 
     def test_state_plot_shows_alternating_measured_state(self):
         expected = np.array([[0.0, 1.0, 0.0, 1.0]])

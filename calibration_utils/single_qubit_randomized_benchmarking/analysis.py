@@ -37,6 +37,18 @@ def log_fitted_results(fit_results: Dict, log_callable=None):
     if log_callable is None:
         log_callable = logging.getLogger(__name__).info
     for q in fit_results.keys():
+        if fit_results[q].get("mode") == "leakage":
+            result = fit_results[q]
+            log_callable(f"{q}: leakage/Clifford={result['leakage_per_clifford']:.6g}, "
+                         f"seepage/Clifford={result['seepage_per_clifford']:.6g}; {result['message']}")
+            continue
+        if fit_results[q].get("mode") == "interleaved":
+            result = fit_results[q]
+            log_callable(f"{q}: target gate error={result['error_per_gate']:.6g} +/- "
+                         f"{result['error_per_gate_std']:.3g} (bootstrap SD); systematic interval "
+                         f"[{result['error_bound_low']:.6g}, {result['error_bound_high']:.6g}]. "
+                         f"{result['message']}")
+            continue
         s_qubit = f"Results for qubit {q}: "
         if fit_results[q]["success"]:
             s_qubit += " SUCCESS!\n"
@@ -73,6 +85,13 @@ def fit_raw_data(ds: xr.Dataset, node: QualibrationNode) -> Tuple[xr.Dataset, di
     xr.Dataset
         Dataset containing the fit results.
     """
+    mode = getattr(node.parameters, "mode", "standard")
+    recorded_mode = ds.attrs.get("rb_mode")
+    if recorded_mode is not None and recorded_mode != mode:
+        raise ValueError(f"Saved RB mode {recorded_mode!r} does not match requested mode {mode!r}.")
+    if mode != "standard":
+        from .modes import fit_mode_data
+        return fit_mode_data(ds, node)
     ds_fit = ds
     if node.parameters.use_state_discrimination:
         ds_fit["population"] = ground_population(ds)

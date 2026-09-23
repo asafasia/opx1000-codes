@@ -17,8 +17,7 @@ from pathlib import Path
 from dataclasses import asdict
 from qm import generate_qua_script
 from qm.qua import *
-from qualang_tools.multi_user import qm_session
-from calibrations.runtime_estimation import progress_counter
+from utils.qm_session import qm_session
 from qualang_tools.units import unit
 from quam_config import Quam, create_machine
 from calibration_io import CalibrationSaver, current_profile_name
@@ -34,7 +33,6 @@ from calibration_utils.time_of_flight_mw import (
 from quam_config.readout_pulses import with_gaussian_edges, with_square_envelope
 from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
-from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.core import tracked_updates
 from quam_builder.tools.power_tools import calculate_voltage_scaling_factor
 
@@ -167,6 +165,8 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
             ),
         }
 
+        self.configure_acquisition(intrinsic_axes=("readout_time",))
+
         with program() as node.namespace["qua_program"]:
 
             n = declare(int)  # QUA variable for the averaging loop
@@ -195,12 +195,11 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
                         stream = adc_st[i].input1()
                     else:
                         stream = adc_st[i].input2()
-                    # Will save average:
-                    stream.real().average().save(f"adcI{i + 1}")
-                    stream.image().average().save(f"adcQ{i + 1}")
-                    # Will save only last run:
-                    stream.real().save(f"adc_single_runI{i + 1}")
-                    stream.image().save(f"adc_single_runQ{i + 1}")
+                    self.save_acquisition_stream(stream.real(), f"adcI{i + 1}")
+                    self.save_acquisition_stream(stream.image(), f"adcQ{i + 1}")
+                    if not self.single_shot_acquisition:
+                        stream.real().save(f"adc_single_runI{i + 1}")
+                        stream.image().save(f"adc_single_runQ{i + 1}")
 
         debug_directory = Path(__file__).resolve().parents[1] / "debug"
         debug_directory.mkdir(exist_ok=True)
@@ -244,16 +243,8 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             # The job is stored in the node namespace to be reused in the fetching_data run_action
             node.namespace["job"] = job = qm.execute(node.namespace["qua_program"])
-            # Display the progress bar
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_shots,
-                    start_time=data_fetcher.t_start,
-                )
-            # Display the execution report to expose possible runtime errors
-            node.log(job.execution_report())
+            # Wait for complete buffers while displaying the shot counter.
+            dataset = self.fetch_result_dataset(job)
         # Register the raw dataset
         node.results["ds_raw"] = dataset
 
@@ -280,6 +271,12 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
         node.namespace["qubits"] = get_qubits(node)
 
     def analyse_data(self):
+        self.prepare_acquisition_results()
+        ds = self.results["ds_raw"]
+        for quadrature in ("I", "Q"):
+            shots = f"adc{quadrature}_shots"
+            if shots in ds:
+                ds[f"adc_single_run{quadrature}"] = ds[shots].isel(shot=-1, drop=True)
         node = self
         """Analyse the raw data and store the fitted data in another xarray dataset "ds_fit" and the fitted results in the "fit_results" dictionary."""
         node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)

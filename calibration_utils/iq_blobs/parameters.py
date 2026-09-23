@@ -6,6 +6,8 @@ from calibration_utils.parameters import QubitsExperimentNodeParameters
 
 
 class NodeSpecificParameters(RunnableParameters):
+    center_method: Literal["mean", "median"] = "mean"
+    """IQ center estimator; median uses separate medians of acquired I and Q."""
     num_shots: int = 20000
     """Number of runs to perform. Default is 2000."""
     operation: Literal["readout", "readout_QND", "readout_GEF"] = "readout"
@@ -28,4 +30,5 @@ class Parameters(
     NodeSpecificParameters,
     QubitsExperimentNodeParameters,
 ):
-    pass
+    acquisition: Literal["single_shot"] = "single_shot"
+    """Individual IQ shots are required for the distribution / fidelity analysis."""

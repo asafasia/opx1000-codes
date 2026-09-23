@@ -16,8 +16,7 @@ import xarray as xr
 from dataclasses import asdict
 from qm.qua import *
 from qualang_tools.loops import from_array
-from qualang_tools.multi_user import qm_session
-from calibrations.runtime_estimation import progress_counter
+from utils.qm_session import qm_session
 from qualang_tools.units import unit
 from quam_config import Quam
 from calibration_io import CalibrationSaver, current_profile_name
@@ -30,7 +29,6 @@ from calibration_utils.rabi_chevron import (
     plot_raw_data_with_fit,
 )
 from utils.simulation import simulate_and_plot
-from qualibration_libs.data import XarrayDataFetcher
 from qualibration_libs.core import tracked_updates
 from quam_config import create_machine
 
@@ -145,11 +143,16 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
             ),
         }
 
+        self.configure_acquisition()
+
         with program() as node.namespace["qua_program"]:
             I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
             if state_discrimination:
                 state = [declare(int) for _ in range(num_qubits)]
-                state_st = [self.declare_state_stream() for _ in range(num_qubits)]
+                state_st = [
+                    self.declare_state_stream()
+                    for _ in range(num_qubits)
+                ]
             t = declare(int)
             df = declare(int)
 
@@ -196,17 +199,10 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
             with stream_processing():
                 n_st.save("n")
                 for i in range(num_qubits):
-                    if node.parameters.use_state_discrimination:
-                        state_st[i].buffer(len(pulse_durations)).buffer(
-                            len(dfs)
-                        ).average().save(f"state{i + 1}")
-                    else:
-                        I_st[i].buffer(len(pulse_durations)).buffer(
-                            len(dfs)
-                        ).average().save(f"I{i + 1}")
-                        Q_st[i].buffer(len(pulse_durations)).buffer(
-                            len(dfs)
-                        ).average().save(f"Q{i + 1}")
+                    self.process_readout_streams(
+                        i, state_st if self.parameters.use_state_discrimination else None,
+                        I_st, Q_st,
+                    )
 
         return node.namespace.get("qua_program")
 
@@ -239,16 +235,8 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             # The job is stored in the node namespace to be reused in the fetching_data run_action
             node.namespace["job"] = job = qm.execute(node.namespace["qua_program"])
-            # Display the progress bar
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_shots,
-                    start_time=data_fetcher.t_start,
-                )
-            # Display the execution report to expose possible runtime errors
-            node.log(job.execution_report())
+            # Wait for complete buffers while displaying the shot counter.
+            dataset = self.fetch_result_dataset(job)
         # Register the raw dataset
         validate_readout_dataset(dataset, node.parameters.use_state_discrimination)
         node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
@@ -276,6 +264,7 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
         node.namespace["qubits"] = self.get_qubits()
 
     def analyse_data(self):
+        self.prepare_acquisition_results()
         node = self
         """Analyse the raw data and store the fitted data in another xarray dataset "ds_fit" and the fitted results in the "fit_results" dictionary."""
         validate_readout_dataset(
@@ -328,6 +317,7 @@ class RabiChevron(BaseCalibration[Parameters, Quam]):
 
 if __name__ == "__main__":
     parameters = Parameters()
+    parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
 
     parameters.use_state_discrimination = True
     parameters.reset_type = "thermal"

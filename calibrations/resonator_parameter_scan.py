@@ -21,13 +21,13 @@ import pandas as pd
 import xarray as xr
 from qm.qua import align, declare, fixed, for_, program, save, stream_processing
 from qualang_tools.loops import from_array
-from qualang_tools.multi_user import qm_session
+from utils.qm_session import qm_session
 from qualang_tools.units import unit
 from qualibrate import NodeParameters
-from qualibration_libs.data import XarrayDataFetcher, convert_IQ_to_V
+from qualibration_libs.data import convert_IQ_to_V
 
 from calibration_io import CalibrationSaver, current_profile_name
-from calibrations.runtime_estimation import progress_counter
+from calibration_utils.state_acquisition import AcquisitionLayout, StateAcquisitionParameters
 from quam_config import Quam, create_machine
 from utils.plotting_settings import FIGURE_SIZE
 
@@ -53,12 +53,21 @@ every parameter combination separately.
 """
 
 
-def build_program(machine, qubit):
+class Parameters(NodeParameters, StateAcquisitionParameters):
+    num_shots: int = NUM_SHOTS
+
+
+def build_program(machine, qubit, *, acquisition_layout=None):
     """Build one program containing the full scan."""
     u = unit(coerce_to_integer=True)
     rr_points = len(RESONATOR_DETUNINGS_HZ)
     q_points = len(QUBIT_OFFSETS_HZ)
     amp_points = len(READOUT_AMPLITUDE_FACTORS)
+    layout = acquisition_layout or AcquisitionLayout((
+        ("shot", NUM_SHOTS), ("readout_amplitude_factor", amp_points),
+        ("qubit_offset_hz", q_points), ("resonator_detuning_hz", rr_points),
+    ))
+    num_shots = dict(layout.loops)[layout.shot_axis]
 
     with program() as qua_program:
         Ig, Ig_st, Qg, Qg_st, n, n_st = machine.declare_qua_variables()
@@ -67,7 +76,7 @@ def build_program(machine, qubit):
         q_df = declare(int)
         readout_amp = declare(fixed)
 
-        with for_(n, 0, n < NUM_SHOTS, n + 1):
+        with for_(n, 0, n < num_shots, n + 1):
             save(n, n_st)
             with for_(*from_array(readout_amp, READOUT_AMPLITUDE_FACTORS)):
                 with for_(*from_array(q_df, QUBIT_OFFSETS_HZ)):
@@ -111,7 +120,7 @@ def build_program(machine, qubit):
                 (Id_st[0], "Id1"),
                 (Qd_st[0], "Qd1"),
             ):
-                stream.buffer(rr_points).buffer(q_points).buffer(amp_points).average().save(name)
+                layout.save(stream, name)
 
     return qua_program
 
@@ -244,12 +253,12 @@ def analyze_and_save(dataset: xr.Dataset, output_dir: Path) -> pd.DataFrame:
     return summary
 
 
-class ResonatorParameterScan(BaseCalibration[NodeParameters, Quam]):
+class ResonatorParameterScan(BaseCalibration[Parameters, Quam]):
     """Class-based calibration for ``calibrations/resonator_parameter_scan.py``."""
 
     def __init__(
         self,
-        parameters: NodeParameters,
+        parameters: Parameters,
         machine: Quam | None = None,
         **kwargs,
     ) -> None:
@@ -270,11 +279,14 @@ class ResonatorParameterScan(BaseCalibration[NodeParameters, Quam]):
             "qubit_offset_hz": xr.DataArray(QUBIT_OFFSETS_HZ),
             "resonator_detuning_hz": xr.DataArray(RESONATOR_DETUNINGS_HZ),
         }
-        self.namespace["qua_program"] = build_program(self.machine, qubit)
+        self.configure_acquisition()
+        self.namespace["qua_program"] = build_program(
+            self.machine, qubit, acquisition_layout=self.namespace["acquisition_layout"]
+        )
         return self.namespace["qua_program"]
 
     def progress_total(self) -> int:
-        return NUM_SHOTS
+        return self.parameters.num_shots
 
     def run(self):
         self._start_run_timer()
@@ -303,6 +315,13 @@ class ResonatorParameterScan(BaseCalibration[NodeParameters, Quam]):
             )
             self.namespace["calibration_run_directory"] = output_dir
             self.log(f"Raw calibration results saved to {output_dir.resolve()}")
+            self.prepare_acquisition_results()
+            ds = self.results["ds_raw"]
+            self.results["ds_raw"] = ds.assign(
+                ground_abs=np.hypot(ds.Ig, ds.Qg),
+                driven_abs=np.hypot(ds.Id, ds.Qd),
+                complex_separation=np.hypot(ds.Id - ds.Ig, ds.Qd - ds.Qg),
+            )
             summary = analyze_and_save(self.results["ds_raw"], output_dir)
             self.results["summary"] = summary
             self.namespace["output_directory"] = output_dir
@@ -318,16 +337,8 @@ class ResonatorParameterScan(BaseCalibration[NodeParameters, Quam]):
         config = self.machine.generate_config()
         with qm_session(self.machine.connect(), config, timeout=300) as qm:
             job = qm.execute(self.namespace["qua_program"])
-            fetcher = XarrayDataFetcher(job, self.namespace["sweep_axes"])
-            dataset = None
-            for dataset in fetcher:
-                progress_counter(
-                    fetcher.get("n", 0),
-                    NUM_SHOTS,
-                    start_time=fetcher.t_start,
-                )
+            dataset = self.fetch_result_dataset(job)
             print()
-            self.log(job.execution_report())
 
         dataset = convert_IQ_to_V(
             dataset,
@@ -345,12 +356,14 @@ class ResonatorParameterScan(BaseCalibration[NodeParameters, Quam]):
             resonator_base_frequency_hz=float(qubit.resonator.RF_frequency),
             qubit_drive_amplitude_factor=QUBIT_DRIVE_AMPLITUDE,
             base_readout_pulse_amplitude=float(qubit.resonator.operations["readout"].amplitude),
-            num_shots=NUM_SHOTS,
+            num_shots=self.parameters.num_shots,
+            acquisition=self.parameters.acquisition,
         )
 
 
 if __name__ == "__main__":
-    parameters = NodeParameters()
+    parameters = Parameters()
+    parameters.acquisition = "averaged"  # or "single_shot"
 
     options = CalibrationOptions()
 

@@ -208,13 +208,24 @@ class CalibrationSaver:
         """Save all xarray coordinates as sweeps and data variables as results."""
         sweep = {name: coordinate.values for name, coordinate in dataset.coords.items()}
         results = {name: variable.values for name, variable in dataset.data_vars.items()}
+        metadata = dict(extra_metadata or {})
+        # Keep support for lightweight array containers without xarray dimensions.
+        values = [*dataset.coords.values(), *dataset.data_vars.values()]
+        if all(hasattr(value, "dims") for value in values):
+            metadata["dataset_schema"] = {
+                "attrs": dict(getattr(dataset, "attrs", {})),
+                "coords": {name: {"dims": list(value.dims), "attrs": dict(value.attrs)}
+                           for name, value in dataset.coords.items()},
+                "data_vars": {name: {"dims": list(value.dims), "attrs": dict(value.attrs)}
+                              for name, value in dataset.data_vars.items()},
+            }
         return self.save(
             experiment_name,
             sweep,
             results,
             profile_name=profile_name,
             parameters=parameters,
-            extra_metadata=extra_metadata,
+            extra_metadata=metadata,
             now=now,
         )
 

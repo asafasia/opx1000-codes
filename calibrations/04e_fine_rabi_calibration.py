@@ -15,9 +15,7 @@ import numpy as np
 import xarray as xr
 from qm.qua import *
 from qualang_tools.loops import from_array
-from qualang_tools.multi_user import qm_session
-from calibrations.runtime_estimation import progress_counter
-from qualibration_libs.data import XarrayDataFetcher
+from utils.qm_session import qm_session
 from utils.simulation import simulate_and_plot
 from calibration_io import CalibrationSaver, current_profile_name
 from calibration_utils.fine_rabi import (
@@ -30,7 +28,6 @@ from calibration_utils.fine_rabi import (
     pulses_per_repetition_group,
 )
 from quam_config import Quam, create_machine
-from profiles import ProfileUpdater, load_profile
 from utils.plotting_settings import plot_per_qubit
 
 if __package__ in {None, ""}:
@@ -125,6 +122,8 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
             ),
         }
 
+        self.configure_acquisition()
+
         with program() as node.namespace["qua_program"]:
             I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
             group_count = declare(int)
@@ -177,17 +176,10 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
             with stream_processing():
                 n_st.save("n")
                 for i in range(num_qubits):
-                    if node.parameters.use_state_discrimination:
-                        state_st[i].buffer(len(amps)).buffer(
-                            len(repetition_groups)
-                        ).average().save(f"state{i + 1}")
-                    else:
-                        I_st[i].buffer(len(amps)).buffer(
-                            len(repetition_groups)
-                        ).average().save(f"I{i + 1}")
-                        Q_st[i].buffer(len(amps)).buffer(
-                            len(repetition_groups)
-                        ).average().save(f"Q{i + 1}")
+                    self.process_readout_streams(
+                        i, state_st if self.parameters.use_state_discrimination else None,
+                        I_st, Q_st,
+                    )
 
         return node.namespace.get("qua_program")
 
@@ -211,14 +203,7 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
         config = node.machine.generate_config()
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             job = qm.execute(node.namespace["qua_program"])
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_shots,
-                    start_time=data_fetcher.t_start,
-                )
-            node.log(job.execution_report())
+            dataset = self.fetch_result_dataset(job)
         validate_readout_dataset(dataset, node.parameters.use_state_discrimination)
         node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
@@ -241,6 +226,7 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
         node.log(f"Raw calibration results saved to {output_directory}")
 
     def analyse_data(self):
+        self.prepare_acquisition_results()
         node = self
         validate_readout_dataset(
             node.results["ds_raw"], node.parameters.use_state_discrimination
@@ -273,53 +259,15 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
             )
             node.log(f"Calibration figures saved to {figures_directory}")
 
-    def propose_profile_update(self):
-        node = self
-        """Stage x180 amplitude updates from the fitted Fine Rabi amplitude factor."""
-        updates = {}
-        profile_name = current_profile_name()
-        profile = load_profile(profile_name)
-        qubit_profiles = profile["qubits"]["qubits"]
-        pulse_profiles = profile["pulses"]["pulses"]
-
-        for q in node.namespace["qubits"]:
-            result = node.results.get("fit_results", {}).get(q.name)
-            if not result:
-                node.log(
-                    f"Profile update skipped for {q.name}: no Fine Rabi optimum was found."
-                )
-                continue
-
-            opt_amp_factor = float(result["optimal_amp_prefactor"])
-            if not np.isfinite(opt_amp_factor) or opt_amp_factor <= 0:
-                node.log(
-                    f"Profile update skipped for {q.name}: invalid Fine Rabi amplitude factor "
-                    f"{opt_amp_factor!r}."
-                )
-                continue
-
-            qubit_profile = qubit_profiles[q.name]
-            if "x180" not in qubit_profile["operations"]:
-                node.log(
-                    f"Profile update skipped for {q.name}: profile has no x180 operation."
-                )
-                continue
-
-            pulse_name = qubit_profile["operations"]["x180"]
-            current_amplitude = float(pulse_profiles[q.name][pulse_name]["amplitude"])
-            updates[f"pulses.json.pulses.{q.name}.{pulse_name}.amplitude"] = (
-                current_amplitude * opt_amp_factor
-            )
-
-        if updates:
-            proposal = ProfileUpdater().stage(
-                node.name, updates, profile_name=profile_name
-            )
-            ProfileUpdater().confirm_and_apply(proposal)
+    def profile_updates(self):
+        return self.pulse_profile_updates(
+            "x180", amplitude_scale="optimal_amp_prefactor",
+        )
 
 
 if __name__ == "__main__":
     parameters = Parameters()
+    parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
 
     parameters.use_state_discrimination = False
     parameters.rotation_type = "PI"

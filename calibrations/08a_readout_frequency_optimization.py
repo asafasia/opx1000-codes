@@ -16,8 +16,7 @@ import xarray as xr
 from dataclasses import asdict
 from qm.qua import *
 from qualang_tools.loops import from_array
-from qualang_tools.multi_user import qm_session
-from calibrations.runtime_estimation import progress_counter
+from utils.qm_session import qm_session
 from qualang_tools.units import unit
 from quam_config import Quam, create_machine
 from calibration_io import CalibrationSaver, current_profile_name
@@ -32,7 +31,6 @@ from calibration_utils.readout_frequency_optimization import (
     plot_IQ_abs_with_fit,
 )
 from utils.simulation import simulate_and_plot
-from qualibration_libs.data import XarrayDataFetcher
 
 if __package__ in {None, ""}:
     from calibrations.core import BaseCalibration, CalibrationOptions
@@ -108,6 +106,8 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
             ),
         }
 
+        self.configure_acquisition()
+
         with program() as node.namespace["qua_program"]:
             n = declare(int)
             I_g = [declare(fixed) for _ in range(num_qubits)]
@@ -169,10 +169,10 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
             with stream_processing():
                 n_st.save("n")
                 for i in range(num_qubits):
-                    I_g_st[i].buffer(len(dfs)).average().save(f"I_g{i + 1}")
-                    Q_g_st[i].buffer(len(dfs)).average().save(f"Q_g{i + 1}")
-                    I_e_st[i].buffer(len(dfs)).average().save(f"I_e{i + 1}")
-                    Q_e_st[i].buffer(len(dfs)).average().save(f"Q_e{i + 1}")
+                    self.save_acquisition_stream(I_g_st[i], f'I_g{i + 1}')
+                    self.save_acquisition_stream(Q_g_st[i], f'Q_g{i + 1}')
+                    self.save_acquisition_stream(I_e_st[i], f'I_e{i + 1}')
+                    self.save_acquisition_stream(Q_e_st[i], f'Q_e{i + 1}')
 
         return node.namespace.get("qua_program")
 
@@ -205,16 +205,8 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             # The job is stored in the node namespace to be reused in the fetching_data run_action
             node.namespace["job"] = job = qm.execute(node.namespace["qua_program"])
-            # Display the progress bar
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_shots,
-                    start_time=data_fetcher.t_start,
-                )
-            # Display the execution report to expose possible runtime errors
-            node.log(job.execution_report())
+            # Wait for complete buffers while displaying the shot counter.
+            dataset = self.fetch_result_dataset(job)
         # Register the raw dataset
         node.results["ds_raw"] = self.annotate_readout_dataset(dataset)
 
@@ -241,6 +233,7 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
         node.namespace["qubits"] = self.get_qubits()
 
     def analyse_data(self):
+        self.prepare_acquisition_results()
         node = self
         """Analyse the raw data and store the fitted data in another xarray dataset "ds_fit" and the fitted results in the "fit_results" dictionary."""
         node.results["ds_raw"] = process_raw_dataset(node.results["ds_raw"], node)
@@ -291,21 +284,12 @@ class ReadoutFrequencyOptimization(BaseCalibration[Parameters, Quam]):
                     q.chi = node.results["fit_results"][q.name]["chi"]
 
     def profile_updates(self):
-        section = "readout_gef" if len(self.parameters.readout_states) == 3 else "readout"
-        frequency_field = "readout_gef.frequency_hz" if section == "readout_gef" else "frequencies_hz.resonator"
-        updates = {}
-        for q in self.namespace["qubits"]:
-            fit = self.results["fit_results"][q.name]
-            if not fit["success"]:
-                continue
-            updates[f"qubits.json.qubits.{q.name}.{frequency_field}"] = float(fit["optimal_frequency"])
-            updates[f"qubits.json.qubits.{q.name}.{section}.gef_centers"] = None
-            updates[f"qubits.json.qubits.{q.name}.{section}.confusion_matrix"] = None
-        return updates
+        return self.readout_profile_updates(frequency="optimal_frequency")
 
 
 if __name__ == "__main__":
     parameters = Parameters()
+    parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
 
     options = CalibrationOptions()
 

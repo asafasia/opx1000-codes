@@ -16,8 +16,7 @@ import xarray as xr
 from dataclasses import asdict
 from qm.qua import *
 from qualang_tools.loops import from_array
-from qualang_tools.multi_user import qm_session
-from calibrations.runtime_estimation import progress_counter
+from utils.qm_session import qm_session
 from qualang_tools.units import unit
 from quam_config import Quam, create_machine
 from calibration_utils.qubit_spectroscopy import (
@@ -29,9 +28,7 @@ from calibration_utils.qubit_spectroscopy import (
 )
 from calibration_io import CalibrationSaver, current_profile_name
 from utils.plotting_settings import plot_per_qubit
-from profiles import ProfileUpdater
 from utils.simulation import simulate_and_plot
-from qualibration_libs.data import XarrayDataFetcher
 
 if __package__ in {None, ""}:
     from calibrations.core import BaseCalibration, CalibrationOptions
@@ -167,12 +164,17 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
             ),
         }
 
+        self.configure_acquisition()
+
         with program() as node.namespace["qua_program"]:
             # Macro to declare I, Q, n and their respective streams for a given number of qubit
             I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
             if node.parameters.use_state_discrimination:
                 state = [declare(int) for _ in range(num_qubits)]
-                state_st = [self.declare_state_stream() for _ in range(num_qubits)]
+                state_st = [
+                    self.declare_state_stream()
+                    for _ in range(num_qubits)
+                ]
             df = declare(int)  # QUA variable for the qubit frequency
 
             for multiplexed_qubits in qubits.batch():
@@ -223,14 +225,12 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
                         align()
 
             with stream_processing():
-                # pass
                 n_st.save("n")
                 for i in range(num_qubits):
-                    if node.parameters.use_state_discrimination:
-                        state_st[i].buffer(len(dfs)).average().save(f"state{i + 1}")
-                    else:
-                        I_st[i].buffer(len(dfs)).average().save(f"I{i + 1}")
-                        Q_st[i].buffer(len(dfs)).average().save(f"Q{i + 1}")
+                    self.process_readout_streams(
+                        i, state_st if self.parameters.use_state_discrimination else None,
+                        I_st, Q_st,
+                    )
 
         return node.namespace.get("qua_program")
 
@@ -264,16 +264,8 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             # The job is stored in the node namespace to be reused in the fetching_data run_action
             node.namespace["job"] = job = qm.execute(node.namespace["qua_program"])
-            # Display the progress bar
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_shots,
-                    start_time=data_fetcher.t_start,
-                )
-            # Display the execution report to expose possible runtime errors
-            node.log(job.execution_report())
+            # Wait for complete buffers while displaying the shot counter.
+            dataset = self.fetch_result_dataset(job)
         # Register the raw dataset
         validate_readout_dataset(dataset, node.parameters.use_state_discrimination)
         node.results["ds_raw"] = self.annotate_readout_dataset(dataset).assign_coords(
@@ -310,6 +302,7 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
         node.log(f"Raw calibration results saved to {output_directory}")
 
     def analyse_data(self):
+        self.prepare_acquisition_results()
         node = self
         """Analyse the raw data and store the fitted data in another xarray dataset "ds_fit" and the fitted results in the "fit_results" dictionary."""
         validate_readout_dataset(
@@ -365,36 +358,20 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
                 q.f_12 = fitted_ef_frequency
                 q.anharmonicity = float(q.f_01) - fitted_ef_frequency
 
-    def propose_profile_update(self):
-        node = self
-        """Stage fitted transition frequencies and apply them only after confirmation."""
-        transition = node.parameters.transition
+    def profile_updates(self):
+        transition = self.parameters.transition
         validate_transition(transition)
-        updates = {}
-        for q in node.namespace["qubits"]:
-            if node.outcomes[q.name] != "successful":
-                continue
-            fitted_frequency = float(node.results["fit_results"][q.name]["frequency"])
-            if transition == "ef":
-                updates[f"qubits.json.qubits.{q.name}.frequencies_hz.qubit_f12"] = (
-                    fitted_frequency
-                )
-                updates[f"qubits.json.qubits.{q.name}.transmon.anharmonicity_hz"] = (
-                    float(q.f_01) - fitted_frequency
-                )
-            else:
-                updates[f"qubits.json.qubits.{q.name}.frequencies_hz.qubit_f01"] = (
-                    fitted_frequency
-                )
-        if updates:
-            proposal = ProfileUpdater().stage(
-                node.name, updates, profile_name=current_profile_name()
-            )
-            ProfileUpdater().confirm_and_apply(proposal)
+        if transition == "ef":
+            return self.qubit_profile_updates({
+                "frequencies_hz.qubit_f12": "frequency",
+                "transmon.anharmonicity_hz": lambda q, fit: float(q.f_01) - float(fit["frequency"]),
+            })
+        return self.qubit_profile_updates({"frequencies_hz.qubit_f01": "frequency"})
 
 
 if __name__ == "__main__":
     parameters = Parameters()
+    parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
 
     qubit = "q6"
 

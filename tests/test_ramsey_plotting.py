@@ -72,3 +72,42 @@ def test_fft_spectrum_excludes_zero_frequency():
     assert frequency_mhz.size == amplitude.size
     assert frequency_mhz.size > 0
     assert np.all(frequency_mhz > 0)
+
+
+def test_fft_view_excludes_zero_and_spectrum_is_offset_invariant():
+    from calibration_utils.ramsey.plotting import plot_fft_peak
+    time = np.arange(1024) * 4.
+    signal = np.cos(2 * np.pi * 32 * np.arange(1024) / 1024)
+    ds = xr.Dataset({"state": (("detuning_signs", "idle_time"), [signal, signal])},
+                    coords={"detuning_signs": [1, -1], "idle_time": time})
+    shifted = ds.assign(state=ds.state + 100.)
+    f, a = ramsey_fft_spectrum(ds, 1)
+    fs, amps = ramsey_fft_spectrum(shifted, 1)
+    np.testing.assert_allclose(fs, f)
+    np.testing.assert_allclose(amps, a, atol=1e-10)
+    fig, ax = plt.subplots()
+    plot_fft_peak(ax, shifted)
+    fig.canvas.draw()
+    assert ax.get_xlim()[0] == f[0]
+    assert ax.get_xlim()[0] > 0
+    for line in ax.lines:
+        assert np.all(np.asarray(line.get_xdata()) > 0)
+    plt.close(fig)
+
+
+def test_fft_removes_linear_baseline_in_analysis_and_plot():
+    from calibration_utils.ramsey.analysis import _fft_frequency_guess
+    time = np.arange(1000) * 4.
+    oscillation = .2 * np.cos(2 * np.pi * .001 * time)
+    baseline = 10. + .001 * time
+    signals = np.stack([oscillation, oscillation + baseline])
+    original = signals.copy()
+    ds = xr.Dataset({"state": (("detuning_signs", "idle_time"), signals)},
+                    coords={"detuning_signs": [1, -1], "idle_time": time})
+    f, clean = ramsey_fft_spectrum(ds, 1)
+    fd, drifted = ramsey_fft_spectrum(ds, -1)
+    np.testing.assert_allclose(fd, f)
+    np.testing.assert_allclose(drifted, clean, atol=1e-10)
+    assert f[np.argmax(drifted)] == 1.
+    assert _fft_frequency_guess(time, signals[1]) * 1000 == f[np.argmax(drifted)]
+    np.testing.assert_array_equal(signals, original)

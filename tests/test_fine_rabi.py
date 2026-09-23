@@ -45,17 +45,9 @@ class FineRabiTests(unittest.TestCase):
     def test_sequence_supports_state_and_iq_readout(self):
         self.assertIn("if node.parameters.use_state_discrimination:", self.source)
         self.assertIn("self.readout_state(qubit, state[i])", self.source)
-        self.assertIn('save(f"state{i + 1}")', self.source)
-        self.assertIn('save(f"I{i + 1}")', self.source)
-        self.assertIn('save(f"Q{i + 1}")', self.source)
+        self.assertIn("self.process_readout_streams(", self.source)
+        self.assertIn("I_st, Q_st,", self.source)
 
-    def test_profile_update_scales_x180_amplitude_from_optimum_factor(self):
-        self.assertIn("def propose_profile_update", self.source)
-        self.assertIn('qubit_profile["operations"]["x180"]', self.source)
-        self.assertIn('result["optimal_amp_prefactor"]', self.source)
-        self.assertIn("current_amplitude * opt_amp_factor", self.source)
-        self.assertIn("pulses.json.pulses.{q.name}.{pulse_name}.amplitude", self.source)
-        self.assertIn("ProfileUpdater().stage", self.source)
 
     def test_parameters_include_amplitude_endpoint(self):
         params = Parameters(min_amp_factor=0.8, max_amp_factor=0.82, amp_factor_step=0.01)

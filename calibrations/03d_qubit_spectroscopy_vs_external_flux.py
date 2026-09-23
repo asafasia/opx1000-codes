@@ -25,7 +25,7 @@ from qm.qua import (
     stream_processing,
 )
 from qualang_tools.loops import from_array
-from qualang_tools.multi_user import qm_session
+from utils.qm_session import qm_session
 
 from calibration_utils.qubit_spectroscopy_vs_flux import (
     process_raw_dataset,
@@ -130,6 +130,7 @@ class QubitSpectroscopyVsExternalFlux(BaseCalibration):
         }
         self.namespace["drive_frequency_hz"] = float(q.xy.RF_frequency)
         self.namespace["bias_center_v"] = float(center)
+        self.configure_acquisition(loop_order=("flux_bias", "shot", "detuning"))
         with program() as qua_program:
             i = declare(int)
             n = declare(int)
@@ -156,9 +157,7 @@ class QubitSpectroscopyVsExternalFlux(BaseCalibration):
                 pause()
             with stream_processing():
                 for stream, name in ((I_st, "I"), (Q_st, "Q")):
-                    stream.buffer(len(dfs)).buffer(p.num_shots).map(
-                        FUNCTIONS.average(0)
-                    ).save_all(name)
+                    self.save_acquisition_stream(stream, name, split_outer_axis="flux_bias")
         return qua_program
 
     def _wait_for(self, predicate, description):
@@ -195,6 +194,8 @@ class QubitSpectroscopyVsExternalFlux(BaseCalibration):
         axes = self.namespace["sweep_axes"]
         voltages = axes["flux_bias"].values
         size = len(axes["detuning"])
+        if self.single_shot_acquisition:
+            size *= self.parameters.num_shots
         rows = {"I": [], "Q": []}
         qmm = self.machine.connect()
         config = self.machine.generate_config()
@@ -246,18 +247,23 @@ class QubitSpectroscopyVsExternalFlux(BaseCalibration):
                 # Also covers failure entering the source context or the initial pause.
                 job.halt()
                 raise
-            self.log(job.execution_report())
 
     def _dataset(self, rows, count):
         axes = self.namespace["sweep_axes"]
-        return xr.Dataset(
-            {
-                name: (
-                    ("qubit", "detuning", "flux_bias"),
-                    np.asarray(values).T[None, ...],
-                )
+        if self.single_shot_acquisition:
+            variables = {
+                name: (("qubit", "shot", "detuning", "flux_bias"),
+                       np.asarray(values).reshape(count, self.parameters.num_shots, -1)
+                       .transpose(1, 2, 0)[None, ...])
                 for name, values in rows.items()
-            },
+            }
+        else:
+            variables = {
+                name: (("qubit", "detuning", "flux_bias"), np.asarray(values).T[None, ...])
+                for name, values in rows.items()
+            }
+        dataset = xr.Dataset(
+            variables,
             coords={
                 "qubit": axes["qubit"].values,
                 "detuning": axes["detuning"],
@@ -278,7 +284,12 @@ class QubitSpectroscopyVsExternalFlux(BaseCalibration):
             )
         )
 
+        if self.single_shot_acquisition:
+            dataset = dataset.assign_coords(shot=axes["shot"])
+        return self.annotate_readout_dataset(dataset)
+
     def analyse_data(self):
+        self.prepare_acquisition_results()
         ds = process_raw_dataset(self.results["ds_raw"], self)
         # Preserve the acquisition frequency when analysing after profile changes.
         ds = ds.assign_coords(full_freq=ds.drive_frequency_hz + ds.detuning)
@@ -330,6 +341,13 @@ class QubitSpectroscopyVsExternalFlux(BaseCalibration):
         # NPZ saves coordinate values without dimension names. Restore explicitly,
         # including the drive-frequency coordinate, even when axis lengths match.
         directory = Path(run_directory)
+        metadata = directory / "metadata.json"
+        if metadata.is_file():
+            import json
+            if json.loads(metadata.read_text(encoding="utf-8")).get("dataset_schema"):
+                self.results["ds_raw"] = self.load_saved_run(directory)
+                self.get_qubits()
+                return
         with np.load(directory / "sweep.npz", allow_pickle=False) as axes, np.load(
             directory / "results.npz", allow_pickle=False
         ) as values:
@@ -465,16 +483,10 @@ class QubitSpectroscopyVsExternalFlux(BaseCalibration):
         plt.show()
 
     def profile_updates(self):
-        updates = {}
-        for name, result in self.results.get("fit_results", {}).items():
-            if result["success"]:
-                updates[f"qubits.json.qubits.{name}.dc_bias_v"] = float(
-                    result["idle_offset"]
-                )
-                updates[f"qubits.json.qubits.{name}.frequencies_hz.qubit_f01"] = float(
-                    result["qubit_frequency"]
-                )
-        return updates
+        return self.qubit_profile_updates({
+            "dc_bias_v": "idle_offset",
+            "frequencies_hz.qubit_f01": "qubit_frequency",
+        })
 
 
 if __name__ == "__main__":

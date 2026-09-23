@@ -10,6 +10,10 @@ RBGateFamily = Literal["square", "drag", "cos", "cosine"]
 
 
 class NodeSpecificParameters(RunnableParameters):
+    mode: Literal["standard", "interleaved", "leakage"] = "standard"
+    """RB protocol: standard, matched-reference interleaved, or GEF leakage."""
+    interleaved_gate_operation: Literal["I", "x180", "y180", "x90", "-x90", "y90", "-y90"] = "x180"
+    """Gate inserted after each random Clifford in interleaved mode."""
     use_state_discrimination: bool = True
     """Perform qubit state discrimination. Default is True."""
     use_strict_timing: bool = False

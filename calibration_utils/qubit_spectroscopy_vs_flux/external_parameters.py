@@ -5,9 +5,10 @@ from typing import Literal
 from pydantic import Field
 
 from .parameters import Parameters as FluxParameters
+from calibration_utils.state_acquisition import StateAcquisitionParameters
 
 
-class Parameters(FluxParameters):
+class Parameters(FluxParameters, StateAcquisitionParameters):
     num_shots: int = Field(default=50, gt=0)
     frequency_span_in_mhz: float = Field(default=100.0, gt=0, allow_inf_nan=False)
     frequency_step_in_mhz: float = Field(default=0.5, gt=0, allow_inf_nan=False)
