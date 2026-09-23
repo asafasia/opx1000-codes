@@ -19,9 +19,16 @@ def plot_raw_data(
     use_state_discrimination: bool = False,
     *,
     ds_fit: xr.Dataset | None = None,
+    population: str | None = None,
 ):
     """Plot the frequency-versus-amplitude Rabi chevron."""
+    if population is not None and (
+        not use_state_discrimination or population not in ("g", "e", "f")
+    ):
+        raise ValueError("Population plots require state discrimination and g, e, or f.")
     variables = ("state",) if use_state_discrimination else ("I", "Q")
+    if population is not None:
+        variables = (f"population_{population}",)
     missing = [variable for variable in variables if variable not in ds]
     if missing:
         raise RuntimeError(
@@ -30,7 +37,6 @@ def plot_raw_data(
             f"but dataset contains {list(ds.data_vars)}"
         )
 
-    variables = ("state",) if use_state_discrimination else ("I", "Q")
     figure, axes = plt.subplots(
         len(variables) * len(qubits),
         1,
@@ -46,10 +52,12 @@ def plot_raw_data(
                 {"qubit": qubit.name},
                 use_state_discrimination=use_state_discrimination,
                 variable=variable,
-                ds_fit=ds_fit,
+                ds_fit=ds_fit if population is None else None,
             )
 
     figure.suptitle(
+        f"Power Rabi chevron: P{'gef'.index(population)} ({population})"
+        if population is not None else
         "Power Rabi chevron: measured state"
         if use_state_discrimination
         else "Power Rabi chevron: I and Q quadratures"
@@ -69,7 +77,10 @@ def plot_individual_data_with(
 ):
     """Plot one power-Rabi chevron panel with the same axes style as 04a."""
     data = variable or ("state" if use_state_discrimination else "I")
-    expected_variables = ("state",) if use_state_discrimination else ("I", "Q")
+    expected_variables = (
+        ("state", "population_g", "population_e", "population_f")
+        if use_state_discrimination else ("I", "Q")
+    )
     if data not in expected_variables:
         raise ValueError(
             f"Power-Rabi-chevron variable {data!r} is incompatible with "
@@ -97,8 +108,14 @@ def plot_individual_data_with(
         selected = selected.assign_coords(
             rabi_frequency_MHz=selected.rabi_frequency_hz / u.MHz,
         )
-    scale = 1 if data == "state" else 1 / u.mV
+    is_population = data.startswith("population_")
+    scale = 1 if use_state_discrimination else 1 / u.mV
     data_label = "Measured state" if data == "state" else f"{data} [mV]"
+
+    if is_population:
+        label = data.removeprefix("population_")
+        data_label = f"P{'gef'.index(label)} ({label}-state population)"
+    color_options = {"vmin": 0, "vmax": 1, "cmap": "viridis"} if is_population else {}
 
     plotted = (selected[data] * scale).plot(
         ax=ax,
@@ -106,6 +123,7 @@ def plot_individual_data_with(
         y=y_coord,
         add_colorbar=True,
         robust=True,
+        **color_options,
     )
     plotted.colorbar.set_label(data_label)
     ax.set_title(f"{qubit['qubit']}: {data_label}")
@@ -126,6 +144,7 @@ def plot_individual_data_with(
         y=y_coord,
         add_colorbar=False,
         robust=True,
+        **color_options,
     )
     ax2.set_title("")
     ax2.set_xlabel("Detuning [MHz]")

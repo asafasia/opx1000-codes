@@ -296,3 +296,38 @@ def plot_raw_data_with_fit(
     calibration_plot.add_timestamp()
     calibration_plot.tight_layout_for_parameters(len(parameter_lines))
     return fig
+
+
+def plot_population(
+    ds: xr.Dataset,
+    qubits: List[AnyTransmon],
+    *,
+    population: str,
+):
+    """Plot one measured population without applying the P(e) resonance fit."""
+    if population not in ("g", "e", "f"):
+        raise ValueError("Population must be g, e, or f.")
+    variable = f"population_{population}"
+    if variable not in ds:
+        raise RuntimeError(f"Qubit-spectroscopy plot requires {variable!r}.")
+    index = "gef".index(population)
+    label = f"P{index} ({population}-state population)"
+    fig, axes = plt.subplots(len(qubits), 1, figsize=FIGURE_SIZE, squeeze=False)
+    for ax, qubit in zip(axes[:, 0], qubits):
+        selected = ds.sel(qubit=qubit.name)
+        frequency_ghz = selected.full_freq / u.GHz
+        ax.plot(frequency_ghz, selected[variable], color=f"C{index}")
+        ax.set_title(f"{qubit.name}: {label}")
+        ax.set_xlabel("RF frequency [GHz]")
+        ax.set_ylabel(label)
+        ax.set_ylim(0, 1)
+        ax.grid(alpha=0.25)
+        # Use the saved sweep center, including targeted and EF scans.
+        center_hz = float((selected.full_freq - selected.detuning).values[0])
+        _add_detuning_axis(ax, center_hz / u.GHz).set_xlabel(
+            "Detuning from scan center [MHz]"
+        )
+    fig.suptitle(f"Qubit spectroscopy: P{index} ({population})")
+    CalibrationPlot(fig).add_timestamp()
+    fig.tight_layout()
+    return fig

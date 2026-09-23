@@ -169,8 +169,10 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
                 n_st.save("n")
                 for i in range(num_qubits):
                     self.process_readout_streams(
-                        i, state_st if self.parameters.use_state_discrimination else None,
-                        I_st, Q_st,
+                        i,
+                        state_st if self.parameters.use_state_discrimination else None,
+                        I_st,
+                        Q_st,
                     )
 
         return node.namespace.get("qua_program")
@@ -305,6 +307,19 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
                     fit_results=node.results["fit_results"],
                 )
             )
+        if node.parameters.use_state_discrimination:
+            for index, label in enumerate(("g", "e", "f")):
+                if f"population_{label}" in node.results["ds_raw"]:
+                    figures.update(
+                        plot_per_qubit(
+                            plot_raw_data,
+                            node.results["ds_raw"],
+                            node.namespace["qubits"],
+                            figure_name=f"power_rabi_chevron_P{index}",
+                            use_state_discrimination=True,
+                            population=label,
+                        )
+                    )
         node.results["figures"] = figures
         if "calibration_run_directory" in node.namespace:
             figures_directory = CalibrationSaver().save_figures(
@@ -317,10 +332,13 @@ class PowerRabiChevron(BaseCalibration[Parameters, Quam]):
 
 if __name__ == "__main__":
     parameters = Parameters()
-    parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
+    parameters.acquisition = (
+        "single_shot"  # or "single_shot" to retain every measurement
+    )
 
     parameters.operation = "saturation"
     parameters.reset_type = "active"
+    parameters.readout_states = ["g", "e", "f"]  # GE readout; add "f" for readout_GEF.
 
     parameters.frequency_span_in_mhz = 200
     parameters.frequency_step_in_mhz = 0.2

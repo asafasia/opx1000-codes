@@ -25,6 +25,7 @@ from calibration_utils.qubit_spectroscopy import (
     fit_raw_data,
     log_fitted_results,
     plot_raw_data_with_fit,
+    plot_population,
 )
 from calibration_io import CalibrationSaver, current_profile_name
 from utils.plotting_settings import plot_per_qubit
@@ -171,10 +172,7 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
             I, I_st, Q, Q_st, n, n_st = node.machine.declare_qua_variables()
             if node.parameters.use_state_discrimination:
                 state = [declare(int) for _ in range(num_qubits)]
-                state_st = [
-                    self.declare_state_stream()
-                    for _ in range(num_qubits)
-                ]
+                state_st = [self.declare_state_stream() for _ in range(num_qubits)]
             df = declare(int)  # QUA variable for the qubit frequency
 
             for multiplexed_qubits in qubits.batch():
@@ -228,8 +226,10 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
                 n_st.save("n")
                 for i in range(num_qubits):
                     self.process_readout_streams(
-                        i, state_st if self.parameters.use_state_discrimination else None,
-                        I_st, Q_st,
+                        i,
+                        state_st if self.parameters.use_state_discrimination else None,
+                        I_st,
+                        Q_st,
                     )
 
         return node.namespace.get("qua_program")
@@ -334,7 +334,18 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
             operation_len_in_ns=node.parameters.operation_len_in_ns,
             transition=node.parameters.transition,
         )
-        plt.show()
+        if node.parameters.use_state_discrimination:
+            for index, label in enumerate(("g", "e", "f")):
+                if f"population_{label}" in node.results["ds_raw"]:
+                    figures.update(
+                        plot_per_qubit(
+                            plot_population,
+                            node.results["ds_raw"],
+                            node.namespace["qubits"],
+                            figure_name=f"qubit_spectroscopy_P{index}",
+                            population=label,
+                        )
+                    )
         node.results["figures"] = figures
         if "calibration_run_directory" in node.namespace:
             figures_directory = CalibrationSaver().save_figures(
@@ -342,6 +353,8 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
                 node.results["figures"],
             )
             node.log(f"Calibration figures saved to {figures_directory}")
+
+        plt.show()
 
     def update_state(self):
         node = self
@@ -362,29 +375,33 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
         transition = self.parameters.transition
         validate_transition(transition)
         if transition == "ef":
-            return self.qubit_profile_updates({
-                "frequencies_hz.qubit_f12": "frequency",
-                "transmon.anharmonicity_hz": lambda q, fit: float(q.f_01) - float(fit["frequency"]),
-            })
+            return self.qubit_profile_updates(
+                {
+                    "frequencies_hz.qubit_f12": "frequency",
+                    "transmon.anharmonicity_hz": lambda q, fit: float(q.f_01)
+                    - float(fit["frequency"]),
+                }
+            )
         return self.qubit_profile_updates({"frequencies_hz.qubit_f01": "frequency"})
 
 
 if __name__ == "__main__":
     parameters = Parameters()
-    parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
+    parameters.acquisition = "single_shot"
+    parameters.readout_states = ["g", "e", "f"]  # GE readout; add "f" for readout_GEF.
 
     qubit = "q6"
 
-    parameters.use_state_discrimination = False
+    parameters.use_state_discrimination = True
     parameters.use_readout_mitigation = False
 
     parameters.num_shots = 500
-    parameters.operation_amplitude_factor = 0.002
+    parameters.operation_amplitude_factor = 0.5
     parameters.operation_len_in_ns = 30000
-    parameters.frequency_span_in_mhz = 10
-    parameters.frequency_step_in_mhz = 0.1
-    parameters.reset_type = "thermal"
-    parameters.transition = "ef"
+    parameters.frequency_span_in_mhz = 500
+    parameters.frequency_step_in_mhz = 0.4
+    parameters.reset_type = "active_reset"
+    parameters.transition = "ge"
 
     options = CalibrationOptions()
 

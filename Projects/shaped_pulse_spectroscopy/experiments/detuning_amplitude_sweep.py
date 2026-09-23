@@ -22,6 +22,8 @@ from qualang_tools.units import unit
 from calibrations.base import BaseCalibration, CalibrationOptions
 from shaped_pulse_spectroscopy.lorentzian import (
     _pulse_metadata,
+    add_state_populations,
+    plot_population,
     amplitude_prefactors,
     install_lorentzian_operation,
     plot_raw_data,
@@ -317,6 +319,14 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
             },
             now=now,
         )
+        populations = add_state_populations(self.results["ds_raw"])
+        population_arrays = {
+            name: populations[name].values
+            for name in ("population_g", "population_e", "population_f")
+            if name in populations
+        }
+        if population_arrays:
+            np.savez_compressed(run_directory / "populations.npz", **population_arrays)
         self.namespace["calibration_run_directory"] = run_directory
         self.log(f"Raw calibration results saved to {run_directory}")
         return run_directory
@@ -336,8 +346,20 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
             figure_name="echo_lorentzian",
             use_state_discrimination=self.parameters.use_state_discrimination,
         )
-        plt.show()
+        if self.parameters.use_state_discrimination:
+            for index, label in enumerate(("g", "e", "f")):
+                if f"population_{label}" in self.results["ds_raw"]:
+                    figures.update(
+                        plot_per_qubit(
+                            plot_population,
+                            self.results["ds_raw"],
+                            self.namespace["qubits"],
+                            figure_name=f"echo_lorentzian_P{index}",
+                            population=label,
+                        )
+                    )
         self.results["figures"] = figures
+        plt.show()
 
 
 if __name__ == "__main__":

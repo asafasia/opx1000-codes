@@ -111,3 +111,30 @@ def _add_fit_text(ax, fit):
         verticalalignment="top",
         bbox=dict(facecolor="white", alpha=0.5),
     )
+
+
+def plot_population(ds: xr.Dataset, qubits: List[AnyTransmon], *, population: str):
+    """Plot an individual state population versus idle time without a decay fit."""
+    if population not in ("g", "e", "f"):
+        raise ValueError("Population must be g, e, or f.")
+    variable = f"population_{population}"
+    if variable not in ds:
+        raise RuntimeError(f"T1 population plot requires {variable!r}.")
+    index = "gef".index(population)
+    label = f"P{index} ({population}-state population)"
+    grid = QubitGrid(ds, qubit_grid_locations(qubits))
+    for ax, qubit in grid_iter(grid):
+        selected = ds.sel(qubit=qubit["qubit"])
+        ax.plot(
+            selected.idle_time, selected[variable],
+            marker=".", linestyle="-", markersize=5, color=f"C{index}",
+        )
+        ax.set_title(f"{qubit['qubit']}: {label}")
+        ax.set_xlabel("Idle time [ns]")
+        ax.set_ylabel(label)
+        ax.set_ylim(0, 1)
+        ax.grid(alpha=0.25)
+    grid.fig.suptitle(f"T1: {label} vs. idle time")
+    grid.fig.set_size_inches(*FIGURE_SIZE)
+    grid.fig.tight_layout()
+    return grid.fig

@@ -590,8 +590,30 @@ def amplitude_prefactors(parameters) -> np.ndarray:
     )
 
 
+def add_state_populations(ds: xr.Dataset) -> xr.Dataset:
+    """Recover GEF probabilities from total excitation and leakage streams."""
+    if "state" not in ds or "leakage" not in ds:
+        return ds
+    # Legacy mitigation corrects total excitation only. Keep these plots as
+    # measured populations using the matching unmitigated excitation stream.
+    excitation = ds.get("state_unmitigated", ds["state"])
+    populations = {
+        "g": 1 - excitation,
+        "e": excitation - ds["leakage"],
+        "f": ds["leakage"].copy(deep=True),
+    }
+    additions = {}
+    for label, values in populations.items():
+        name = f"population_{label}"
+        if name not in ds:
+            values.attrs = {"long_name": f"{label}-state population", "population_state": label}
+            additions[name] = values
+    return ds.assign(additions)
+
+
 def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode) -> xr.Dataset:
     """Add physical frequency and Lorentzian peak-amplitude coordinates."""
+    ds = add_state_populations(ds)
     if not node.parameters.use_state_discrimination:
         ds = convert_IQ_to_V(ds, node.namespace["qubits"])
 
@@ -1151,7 +1173,19 @@ def _scatter_fwhm_edges(
         )
 
 
-def _plot_state(ds: xr.Dataset, qubits: List[AnyTransmon]):
+def plot_population(ds: xr.Dataset, qubits: List[AnyTransmon], *, population: str):
+    """Plot an individual GEF population with the existing sweep axes."""
+    if population not in ("g", "e", "f"):
+        raise ValueError("Population must be g, e, or f.")
+    variable = f"population_{population}"
+    if variable not in ds:
+        raise RuntimeError(f"Population plot requires {variable!r}.")
+    label = f"P{'gef'.index(population)} ({population}-state population)"
+    return _plot_state(ds, qubits, variable=variable, label=label)
+
+
+def _plot_state(ds: xr.Dataset, qubits: List[AnyTransmon], *, variable="state", label="Measured state"):
+    is_population = variable.startswith("population_")
     qubits_by_name = {qubit.name: qubit for qubit in qubits}
     grid = QubitGrid(ds, qubit_grid_locations(qubits))
     for ax, qubit_ref in grid_iter(grid):
@@ -1161,15 +1195,17 @@ def _plot_state(ds: xr.Dataset, qubits: List[AnyTransmon]):
         if selected.sizes.get("amp_prefactor", 0) == 1:
             ax.plot(
                 selected.detuning_MHz,
-                selected["state"].isel(amp_prefactor=0),
+                selected[variable].isel(amp_prefactor=0),
                 marker="o",
                 linewidth=1.2,
                 markersize=3,
             )
-            ax.set_ylabel("Measured state")
+            ax.set_ylabel(label)
+            if is_population:
+                ax.set_ylim(0, 1)
         else:
             plotted = (
-                selected["state"]
+                selected[variable]
                 .transpose("amp_prefactor", "detuning")
                 .plot(
                     ax=ax,
@@ -1177,20 +1213,21 @@ def _plot_state(ds: xr.Dataset, qubits: List[AnyTransmon]):
                     y="rabi_frequency_MHz",
                     cmap="magma",
                     vmin=0,
+                    **({"vmax": 1} if is_population else {}),
                     add_colorbar=True,
                     cbar_kwargs={"pad": 0.16},
                 )
             )
-            plotted.colorbar.set_label("Measured state")
+            plotted.colorbar.set_label(label)
             _add_absolute_amplitude_axis(ax, qubit)
             ax.set_ylabel("Rabi frequency [MHz]")
         _add_absolute_frequency_axis(ax, _rf_frequency_ghz(selected))
         _add_t2_limit_lines(ax, qubit)
-        ax.set_title(f"{qubit_name}: measured state")
+        ax.set_title(f"{qubit_name}: {label}")
         ax.set_xlabel("Detuning [MHz]")
 
     grid.fig.set_size_inches(*FIGURE_SIZE)
-    _finish_figure_layout(grid.fig, "Echo Lorentzian: state", ds, qubits)
+    _finish_figure_layout(grid.fig, f"Echo Lorentzian: {label}" if is_population else "Echo Lorentzian: state", ds, qubits)
     return grid.fig
 
 

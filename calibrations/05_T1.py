@@ -26,6 +26,7 @@ from calibration_utils.T1 import (
     fit_raw_data,
     log_fitted_results,
     plot_raw_data_with_fit,
+    plot_population,
 )
 from calibration_utils.analysis_base import FunctionalAnalysis
 
@@ -245,7 +246,14 @@ class T1(BaseCalibration[Parameters, Quam]):
                 node.results["ds_fit"],
             )
         }
-        plt.show()
+        if node.parameters.use_state_discrimination:
+            for index, label in enumerate(("g", "e", "f")):
+                if f"population_{label}" in node.results["ds_raw"]:
+                    figures[f"T1_P{index}"] = plot_population(
+                        node.results["ds_raw"],
+                        node.namespace["qubits"],
+                        population=label,
+                    )
         node.results["figures"] = figures
         if "calibration_run_directory" in node.namespace:
             figures_directory = CalibrationSaver().save_figures(
@@ -253,6 +261,8 @@ class T1(BaseCalibration[Parameters, Quam]):
                 node.results["figures"],
             )
             node.log(f"Calibration figures saved to {figures_directory}")
+
+        plt.show()
 
     def update_state(self):
         node = self
@@ -272,9 +282,13 @@ class T1(BaseCalibration[Parameters, Quam]):
 
     def profile_updates(self):
         metric = "t1_ge_ns" if self.parameters.initial_state == "g" else "t1_ns"
-        return self.metric_profile_updates({
-            f"coherence.{metric}": lambda q, fit: float(self.results["ds_fit"].sel(qubit=q.name).tau),
-        })
+        return self.metric_profile_updates(
+            {
+                f"coherence.{metric}": lambda q, fit: float(
+                    self.results["ds_fit"].sel(qubit=q.name).tau
+                ),
+            }
+        )
 
 
 if __name__ == "__main__":
@@ -283,7 +297,7 @@ if __name__ == "__main__":
     parameters.readout_states = ["g", "e", "f"]  # GE readout; add "f" for readout_GEF.
 
     parameters.use_state_discrimination = True
-    parameters.reset_type = "thermal"  # "active" or "thermal"
+    parameters.reset_type = "active"  # "active" or "thermal"
     parameters.use_readout_mitigation = False
 
     parameters.max_wait_time_in_ns = 250_000
@@ -296,6 +310,6 @@ if __name__ == "__main__":
     calibration = T1(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q6"),
     )
     calibration.run()
