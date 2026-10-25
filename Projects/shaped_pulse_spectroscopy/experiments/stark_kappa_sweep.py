@@ -30,6 +30,7 @@ import xarray as xr
 from calibrations.base import BaseCalibration, CalibrationOptions
 from experiments.detuning_amplitude_sweep import EchoLorentzian
 from shaped_pulse_spectroscopy.parameters import Parameters
+from shaped_pulse_spectroscopy.echo_parameters import fast_echo_parameters
 from quam_config import Quam, create_machine
 
 DEFAULT_KAPPAS_MHZ_INV = np.linspace(0.0, -0.03, 50)
@@ -89,6 +90,7 @@ def add_simple_negative_gaussian_fits(dataset: xr.Dataset) -> xr.Dataset:
     scores = np.full(shape, np.nan)
     contrasts = np.full(shape, np.nan)
     center_errors = np.full(shape, np.nan)
+    offsets = np.full(shape, np.nan)
     if detuning.size < 5:
         return dataset
 
@@ -165,9 +167,11 @@ def add_simple_negative_gaussian_fits(dataset: xr.Dataset) -> xr.Dataset:
             scores[qubit_index, amp_index] = r_squared
             contrasts[qubit_index, amp_index] = float(params[1])
             center_errors[qubit_index, amp_index] = center_error
+            offsets[qubit_index, amp_index] = float(params[0])
 
     return dataset.assign(
         gaussian_negative_center_hz=(("qubit", "amp_prefactor"), centers),
+        gaussian_negative_offset=(("qubit", "amp_prefactor"), offsets),
         gaussian_negative_fwhm_hz=(("qubit", "amp_prefactor"), widths),
         gaussian_negative_fit_r_squared=(("qubit", "amp_prefactor"), scores),
         gaussian_negative_fit_contrast=(("qubit", "amp_prefactor"), contrasts),
@@ -385,32 +389,8 @@ def run_stark_kappa_sweep(
 
 
 def _experiment_parameters(kappa_mhz_inv: float) -> Parameters:
-    parameters = Parameters()
-    parameters.use_state_discrimination = True
-    parameters.reset_type = "active"
-    parameters.use_readout_mitigation = True
-
-    parameters.simulate = False
-    parameters.pulse_shape = "root_lorentzian"
-    parameters.echo = True
-    parameters.ac_stark_correction = True
-    parameters.stark_kappa_mhz_inv = kappa_mhz_inv
-    parameters.stark_chirp_max_error_hz = 100.0
-    parameters.cutoff = 0.005
-    parameters.num_shots = 50
-    parameters.lorentzian_length_in_ns = 10000
-    parameters.waveform_template_length_in_ns = 10000
-    parameters.lorentzian_peak_amplitude = 0.2
-    parameters.min_amp_factor = 0.0
-    parameters.max_amp_factor = 1
-    parameters.amp_factor_step = 0.01
-    parameters.amp_factor_points = None
-    parameters.amp_factor_spacing = "linear"
-    parameters.frequency_span_in_mhz = 1
-    parameters.frequency_step_in_mhz = 0.005
-    parameters.frequency_points = None
-    parameters.fit_fwhm = False
-    return parameters
+    return fast_echo_parameters(ac_stark_correction=True,
+                                stark_kappa_mhz_inv=kappa_mhz_inv)
 
 
 def _write_csv(path: Path, records: list[dict[str, Any]]) -> None:

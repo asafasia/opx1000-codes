@@ -36,6 +36,7 @@ PLAN = beta_refinement_plan(
         cutoff=0.005,
         peak_amplitude_v=0.7,
         echo_transition_time_ns=16.0,
+        edge_smoothing="none",  # Preserve this historical campaign's waveform.
     ),
     grid=SpectroscopyGrid(
         detuning_span_mhz=2.0,

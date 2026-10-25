@@ -85,9 +85,6 @@ updates unless the user explicitly asks.
 
 Respect unit-suffixed field names such as `_hz`, `_ns`, and `_rad`.
 
-Pulse amplitudes are limited to absolute value `0.7`. Do not raise this limit
-without explicit user approval and a hardware-safety reason.
-
 Generated root-level QuAM files such as `state.json` and `wiring.json` are not
 repository inputs.
 

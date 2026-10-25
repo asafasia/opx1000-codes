@@ -47,6 +47,12 @@ def beta_label(beta: float) -> str:
 def simulate_one(payload: dict[str, Any]) -> tuple[float, str]:
     beta = float(payload["beta"])
     simulation_beta = SIMULATION_BETA_SIGN * beta
+    pulse_options = {
+        "echo_transition_time_ns": float(payload["transition_time_ns"]),
+        "edge_smoothing": payload.get("edge_smoothing", "none"),
+        "edge_smoothing_power": payload.get("edge_smoothing_power", 5),
+    }
+    pulse_options_json = json.dumps(pulse_options, sort_keys=True)
     output_path = Path(payload["output_path"])
     if output_path.is_file() and not payload["force"]:
         with np.load(output_path) as cached:
@@ -55,7 +61,14 @@ def simulate_one(payload: dict[str, Any]) -> tuple[float, str]:
                 if "simulation_drag_beta" in cached.files
                 else np.nan
             )
-        if np.isclose(cached_beta, simulation_beta, rtol=0.0, atol=1e-15):
+            cached_options = (
+                str(cached["pulse_options_json"])
+                if "pulse_options_json" in cached.files else None
+            )
+        if (
+            np.isclose(cached_beta, simulation_beta, rtol=0.0, atol=1e-15)
+            and cached_options == pulse_options_json
+        ):
             return beta, str(output_path)
     result = simulate_qutrit_slices(
         duration_us=float(payload["duration_us"]),
@@ -69,15 +82,14 @@ def simulate_one(payload: dict[str, Any]) -> tuple[float, str]:
         echo=True,
         pulse_shape="root_lorentzian",
         drag_beta=simulation_beta,
-        echo_transition_time_ns=(
-            float(payload["transition_time_ns"]) if simulation_beta != 0.0 else 0.0
-        ),
+        **pulse_options,
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
         output_path,
         beta=beta,
         simulation_drag_beta=simulation_beta,
+        pulse_options_json=pulse_options_json,
         detuning_mhz=np.asarray(payload["detuning_mhz"], dtype=float),
         rabi_mhz=np.asarray(payload["rabi_mhz"], dtype=float),
         ground=result.ground,
@@ -156,6 +168,8 @@ def main() -> None:
                 "num_steps_per_half": num_steps_per_half,
                 "cutoff": float(waveform["cutoff"]),
                 "transition_time_ns": float(waveform["echo_transition_time_ns"]),
+                "edge_smoothing": waveform.get("edge_smoothing", "none"),
+                "edge_smoothing_power": waveform.get("edge_smoothing_power", 5),
                 "force": bool(args.force),
             }
         )
@@ -182,6 +196,8 @@ def main() -> None:
         "duration_us": duration_us,
         "cutoff": float(waveform["cutoff"]),
         "echo_transition_time_ns": float(waveform["echo_transition_time_ns"]),
+        "edge_smoothing": waveform.get("edge_smoothing", "none"),
+        "edge_smoothing_power": waveform.get("edge_smoothing_power", 5),
         "detuning_points": int(grid["detuning_points"]),
         "amplitude_points": int(grid["amplitude_points"]),
         "steps_per_us": int(args.steps_per_us),

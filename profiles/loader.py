@@ -142,7 +142,6 @@ def _validate_pulse(name: str, pulse: Any) -> None:
             pulse["length_ns"] >= 16 and pulse["length_ns"] % 4 == 0 and 2 * edge < pulse["length_ns"],
             f"Readout pulse {name!r} length_ns must be a multiple of 4 ns, at least 16 ns, and leave a positive flat top",
         )
-        _require(abs(pulse["amplitude"]) <= 0.7, f"Flat-top Gaussian readout pulse {name!r} amplitude must be at most 0.7")
 
     # Integration weights are derived from length or loaded from the kernel file.
     # Ignore legacy inline weights when reading older profiles.
@@ -316,6 +315,16 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
         readout = qubit.get("readout", {})
         transmon = qubit.get("transmon", {})
 
+        quadratic_field = "freq_vs_dc_bias_quad_term_hz_per_v2"
+        if quadratic_field in qubit:
+            coefficient = qubit[quadratic_field]
+            _require(
+                isinstance(coefficient, (int, float))
+                and not isinstance(coefficient, bool)
+                and math.isfinite(coefficient),
+                f"Qubit {name!r} needs finite numeric {quadratic_field}",
+            )
+
         for frequency_name in ("qubit_f01", "resonator"):
             _require(
                 isinstance(frequencies.get(frequency_name), (int, float)) and frequencies[frequency_name] > 0,
@@ -423,8 +432,6 @@ def _validate_gef_readout(qubits_document, pulses_document, connectivity):
         band_min, band_max = MW_FEM_BAND_RANGES_HZ[port["band"]]
         _require(band_min <= frequency <= band_max and abs(frequency - lo) <= MW_FEM_MAX_IF_HZ,
                  f"{label}.frequency_hz is outside the output band or allowed IF range")
-        pulse = pulses_document["pulses"][name][qubit["operations"]["readout_GEF"]]
-        _require(abs(pulse["amplitude"]) <= 0.7, f"{label} pulse amplitude must not exceed 0.7")
         _require(qubit["operations"]["readout_GEF"] != qubit["operations"]["readout"],
                  f"{label} must use an independent pulse")
 

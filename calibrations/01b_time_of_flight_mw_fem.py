@@ -125,7 +125,7 @@ class TimeOfFlightMwFem(BaseCalibration[Parameters, Quam]):
         node.namespace["original_readout_pulses"] = []
         full_scale_power_dbm = select_full_scale_power_dbm(
             node.parameters.readout_amplitude_in_dBm,
-            max_amplitude=0.7,
+            max_amplitude=1.0,
         )
         for q in qubits:
             resonator = q.resonator

@@ -9,6 +9,75 @@ Reusable waveform, analysis, and plotting helpers live in
 Clean command wrappers live in `scripts/`. The PC-only QuTiP simulator lives in
 `simulation/qutip/`.
 
+## Current shared echo settings and fast beta scan
+
+Edit `shaped_pulse_spectroscopy/echo_parameters.py` for the current echo pulse:
+20,000 ns root-Lorentzian and full-length template, cutoff 0.001, nominal
+amplitude 0.7 V, beta **-1.0972249303804549**, 16 ns midpoint smoothing,
+polynomial edge smoothing with power 5, and no AC-Stark chirp. `DEFAULT_QUBIT`
+is q1. Active reset and unmitigated two-state discrimination are used.
+
+The general 2D, amplitude-only, fixed-amplitude, fixed-amplitude batch, kappa,
+cutoff, pulse-length, and beta entrypoints now obtain their starting pulse
+from this file. Generic `Parameters()` remains a neutral model; new echo
+scripts should call `echo_parameters()` or `fast_echo_parameters()`.
+Explicit CLI values, swept quantities, campaign configurations and saved
+reproduction parameters take precedence. The named historical q6 plans keep
+their explicit waveform settings; paper-reproduction and saved-data analysis
+scripts continue to use their own specified/saved parameters.
+
+`FAST_ECHO_SCAN` in the same file controls the ordinary echo 2D map and the
+new beta-map preset: **13 linear amplitude factors from 0.2 to 1.0**, **81
+detunings over 1 MHz**, **200 averages**. Both endpoints are included. This is
+1,053 points per map versus 6,200 in the previous 31 x 200 verification scan.
+Zero amplitude is excluded because it has no dip to fit. Amplitudes are
+dimensionless multipliers of the shared 0.7 V nominal waveform.
+
+The existing `scripts/optimize_echo_drag_beta.py` already acquires a 2D map at
+each beta; its original three-amplitude defaults remain available. The new
+`scripts/optimize_echo_drag_beta_2d.py` reuses its acquisition and fitting code
+with **40 betas from 0 down to -1.5** and the shared fast grid:
+
+```powershell
+$env:PYTHONPATH = (Get-Location).Path
+python Projects/shaped_pulse_spectroscopy/scripts/optimize_echo_drag_beta_2d.py --dry-run
+python Projects/shaped_pulse_spectroscopy/scripts/optimize_echo_drag_beta_2d.py --execute
+```
+
+Omitting `--execute` only validates every beta's complete I/Q voltage and
+generates QUA offline. Override the grid/range as needed with `--beta-min`,
+`--beta-max`, `--beta-points`, `--amplitude-points`, `--frequency-points`, or
+`--num-shots`. For example, `--beta-min -1.3 --beta-max -0.9 --beta-points 21`
+restricts the scan near the previous optimum. Existing direct experiment
+entrypoints retain their normal acquisition behavior.
+
+At each beta the existing bounded negative-Gaussian fitter fits every
+amplitude trace. With centers c_i and fit errors sigma_i, the score is:
+
+```text
+c_ref = sum(c_i / sigma_i^2) / sum(1 / sigma_i^2)
+center_rms_hz = sqrt(mean((c_i - c_ref)^2))
+```
+
+This measures resonance-line variation across amplitudes after removing a
+common detuning offset. It is not the residual RMS of a Gaussian fit.
+Every requested amplitude must have a finite center/error, positive FWHM,
+contrast >= 0.02, and R-squared >= 0.1. Otherwise that beta is rejected,
+rather than benefiting from dropping a difficult amplitude. The best sampled
+beta is reported only when the full sweep completes; boundary minima are
+flagged. No device profile or shared default beta is updated automatically.
+
+Results go under `data/echo_drag_beta_2d/<timestamp>/`: raw calibration folders,
+`settings.json` with the resolved pulse and grids, per-beta `*_scan.npz` and
+`*_map.png` (map plus fitted line), `fits.csv`, `records.json`, `summary.json`,
+and `beta_summary.png`. The CSV contains center/error, FWHM, contrast,
+R-squared and acceptance for every amplitude, plus the total RMS per beta.
+
+An offline subsampling check of the 2026-10-23 q1 verification data retained
+all 13 fits: 15.03 kHz RMS on the 13 x 81 grid, versus 14.96 kHz on the dense
+25-amplitude fitted subset. This check used existing 1,000-average data; it
+does not establish the noise at the new 200-average setting.
+
 The standard Lorentzian pulse envelope is
 
 ```text
@@ -59,10 +128,13 @@ parameters are:
   and Gaussian pulses.
 - `echo`: when `True`, multiply the waveform by a midpoint sign flip so the
   first half is positive and the second half is negative.
-- `drag_beta`: optional dimensionless DRAG coefficient. `0.0` retains the
-  historical I-only waveform and instantaneous echo inversion exactly.
-- `echo_transition_time_ns`: hardware-resolvable smooth echo inversion used
-  only when `drag_beta` is nonzero (16 ns by default).
+- `drag_beta`: optional dimensionless DRAG coefficient. `0.0` disables the
+  DRAG quadrature.
+- `echo_transition_time_ns`: hardware-resolvable smooth echo inversion with
+  or without DRAG (16 ns by default). Set to `0.0` for an abrupt inversion.
+- `edge_smoothing`: `"none"` (default) or `"polynomial"` for root-Lorentzian
+  pulses, with or without echo and DRAG.
+- `edge_smoothing_power`: positive integer window power (default `5`).
 - `stark_kappa_mhz_inv`: quadratic AC-Stark coefficient applied as a QUA
   real-time frequency chirp. It is not also applied as IQ phase modulation.
 - `lorentzian_peak_amplitude`: unscaled peak amplitude `A`.
@@ -82,6 +154,36 @@ The right y-axis shows the absolute Lorentzian peak amplitude in V. When a
 qubit has a Ramsey T2* value, dashed vertical lines mark
 `+-1 / (2 * pi * T2*)`.
 
+The polynomial option implements Eqs. (4)-(7) of the amplitude-robust
+spectroscopy paper (`../amplitude-robust-spectrscopy/paper/main.pdf`, p. 3):
+
+```text
+f(t) = 1 / sqrt(1 + (t/tau)^2)
+tau = (L/2) / sqrt(c^(-2) - 1)
+g(t) = (f(t)-c)/(1-c) * [1-(2*t/L)^2]^p   for |t| < L/2
+g(t) = 0                                otherwise
+I(t) = A*g(t)*s(t)                       with echo enabled
+```
+
+For example:
+
+```python
+parameters.pulse_shape = "root_lorentzian"
+parameters.edge_smoothing = "polynomial"
+parameters.edge_smoothing_power = 5
+parameters.echo = True
+parameters.echo_transition_time_ns = 16.0
+```
+
+The cutoff now sets the underlying core width; the corrected endpoints are
+zero. At `c=1` the continuous limit is `[1-(2*t/L)^2]^(p+1)`. The continuous
+unsigned center remains one, with no area or sampled-peak normalization.
+The existing envelope grid includes both endpoints; the midpoint transition
+uses centered sample times with spacing `L/N`. This small sampling convention
+difference is retained for compatibility. Stretched templates must still
+resolve the transition with at least four samples. For even sample counts,
+the signed echo remains antisymmetric and its discrete area cancels.
+
 `WaveformPulse` defines the complex envelope as `I + iQ`. DRAG differentiates
 the complete smooth signed I waveform with respect to physical time:
 
@@ -89,12 +191,57 @@ the complete smooth signed I waveform with respect to physical time:
 Q = -drag_beta * dI/dt_us / (2*pi*abs(anharmonicity_MHz))
 ```
 
+The paper's supplemental pulse definition uses `I - iQ` with this same Q
+formula. For the same complex-envelope representation this reverses the
+beta sign; do not directly transfer a paper beta value to hardware without
+checking the mixer/Hamiltonian convention. Edge smoothing does not alter
+the existing hardware Q convention. DRAG differentiates the complete
+floor-corrected, windowed, signed envelope, including both edge and midpoint
+contributions.
+
 Both lanes are arbitrary-waveform samples in volts and QUA's amplitude
 prefactor scales I and Q together. The pulse factory checks
 `max(abs(I + 1j*Q))` after the largest sweep prefactor against the existing
-1 V OPX waveform bound and records the peak and remaining headroom. The wider
-repository's conservative pulse-amplitude ceiling is 0.7 V; proposed DRAG
-grids should remain below that ceiling before approval.
+1 V OPX waveform bound and records the peak and remaining headroom.
+
+To optimize DRAG beta using 1D spectroscopy slices at several amplitudes, run:
+
+```powershell
+python Projects/shaped_pulse_spectroscopy/scripts/optimize_echo_drag_beta.py --dry-run
+python Projects/shaped_pulse_spectroscopy/scripts/optimize_echo_drag_beta.py --execute
+```
+
+The default is an offline check. Acquisition requires `--execute`. The script
+uses the existing `EchoLorentzian` calibration lifecycle and negative-Gaussian
+dip fit. By default it acquires three amplitude prefactors (`0.25`, `0.5`, `1.0`)
+together at each of 40 equally spaced betas from `-0.7` through `+0.1` (120
+slices total). The winning sampled beta minimizes the RMS of all fitted
+centers about their inverse-variance-weighted mean. A common frequency offset
+is therefore allowed; amplitude-dependent resonance motion is penalized.
+All amplitude fits must have finite positive center uncertainty, contrast at least
+`0.02`, and R-squared at least `0.1`; a beta with any failed slice cannot win.
+
+Defaults are q1, 20 us, cutoff `0.001`, a 16 ns midpoint transition, polynomial
+edge power 5, no AC-Stark chirp, 201 frequencies over 1 MHz, and 200 shots. The
+waveform's nominal scale is `0.7 V`; the amplitudes are dimensionless
+prefactors, not voltages. Every complete I/Q waveform is checked against the
+1 V waveform bound before connecting. Examples of overrides:
+
+```powershell
+python Projects/shaped_pulse_spectroscopy/scripts/optimize_echo_drag_beta.py --dry-run --qubit q6 --beta-min -0.6 --beta-max 0 --beta-points 40 --peak-amplitude-v 0.5
+python Projects/shaped_pulse_spectroscopy/scripts/optimize_echo_drag_beta.py --dry-run --beta-min -1.5 --beta-max 0 --beta-points 200 --beta-order descending --amplitude-min 0.2 --amplitude-max 1 --amplitude-points 5 --amplitude-spacing linear --frequency-points 200 --num-shots 1000
+```
+
+The second example visits beta from 0 down to -1.5 and measures amplitude
+prefactors 0.2, 0.4, 0.6, 0.8, and 1.0. Replace `--dry-run` with `--execute`
+to acquire. The amplitude count, bounds, and linear/log spacing are configurable.
+
+Each acquisition saves `settings.json`, raw runs, `records.json`, `fits.csv`,
+one amplitude-slice fit plot per beta, `beta_summary.png`, and `summary.json` under
+`data/echo_drag_beta_1d/<timestamp>/`. `summary.json` fills in `best_beta`
+only after the full sweep completes; provisional scores and progress are retained
+on interruption. A boundary minimum is flagged. No selected beta is applied
+to device profiles automatically.
 
 The two-stage DRAG/AC-Stark workflow fixes `L=20 us` and `cutoff=0.0025` and is
 approval gated. First write a review-only coarse plan:
@@ -126,8 +273,7 @@ python Projects\shaped_pulse_spectroscopy\scripts\run_rabi_frequency_linearity.p
 For every constant drive voltage, this experiment fits the observed time-domain
 oscillation frequency. Its result compares the measured frequency with the
 square-`x180` prediction and plots the relative error. It never updates the
-device profile, and its default amplitudes remain below the `0.7 V` project
-safety ceiling.
+device profile, and amplitudes are checked against the `1 V` waveform bound.
 For each amplitude in the 2D spectroscopy scan, analysis fits a Gaussian versus
 detuning, stores the fitted FWHM and signal amplitude, and overlays the fitted
 FWHM edges as paired markers on the heatmap.

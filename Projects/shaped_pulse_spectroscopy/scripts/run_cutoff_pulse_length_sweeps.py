@@ -90,6 +90,9 @@ def child_arguments(args: argparse.Namespace, cutoff: float, output_dir: Path) -
         "--min-amplitude-v", f"{args.min_amplitude_v:g}",
         "--max-amplitude-v", f"{args.max_amplitude_v:g}",
         "--pulse-shape", "root_lorentzian",
+        # This historical campaign predates the shared echo defaults.
+        "--drag-beta", "0",
+        "--edge-smoothing", "none",
         "--cutoff", f"{cutoff:.12g}",
         "--template-length-ns", str(args.template_length_ns),
         "--no-ac-stark-correction",

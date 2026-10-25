@@ -45,6 +45,7 @@ PLAN = CalibrationPlan(
         cutoff=0.00075,
         peak_amplitude_v=1.0,
         echo_transition_time_ns=16.0,
+        edge_smoothing="none",  # Preserve this historical campaign's waveform.
     ),
     grid=SpectroscopyGrid(
         # The grid spans -0.2 MHz through +0.2 MHz, inclusively.

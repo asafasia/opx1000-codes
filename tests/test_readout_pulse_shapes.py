@@ -23,7 +23,7 @@ def pulse_definition(**changes):
 @pytest.mark.parametrize("field,value", [
     ("edge_length_ns", None), ("edge_length_ns", 0), ("edge_length_ns", -4),
     ("edge_length_ns", True), ("edge_length_ns", 10), ("edge_length_ns", 1000),
-    ("length_ns", 2002), ("amplitude", 0.71), ("target", "qubit"),
+    ("length_ns", 2002), ("amplitude", 1.01), ("target", "qubit"),
 ])
 def test_reject_invalid_gaussian_readout_profile(field, value):
     pulse = pulse_definition()
@@ -33,7 +33,8 @@ def test_reject_invalid_gaussian_readout_profile(field, value):
 
 
 @pytest.mark.parametrize("operation", ["readout", "readout_GEF"])
-def test_selected_shape_reaches_measurement_config(operation, monkeypatch):
+@pytest.mark.parametrize("amplitude", [0.1, 0.8, -1.0])
+def test_selected_shape_reaches_measurement_config(operation, amplitude, monkeypatch):
     profile = deepcopy(load_profile("single_qubit", qubit="q6"))
     profile["manifest"].pop("readout_pulse", None)
     profile["manifest"].pop("readout_gef_pulse", None)
@@ -41,7 +42,7 @@ def test_selected_shape_reaches_measurement_config(operation, monkeypatch):
         if entry["target"] == "resonator":
             entry["type"] = "constant"
     selected = profile["pulses"]["pulses"]["q6"][operation]
-    selected.update(type="flat_top_gaussian", edge_length_ns=100, amplitude=0.1)
+    selected.update(type="flat_top_gaussian", edge_length_ns=100, amplitude=amplitude)
     validate_profile(profile)
     module = importlib.import_module("quam_config.create_machine_from_profile")
     monkeypatch.setattr(module, "load_profile", lambda *a, **kw: profile)
@@ -60,7 +61,7 @@ def test_selected_shape_reaches_measurement_config(operation, monkeypatch):
     samples = next(np.asarray(w["samples"]) for w in waveforms if w["type"] == "arbitrary" and max(np.abs(w["samples"])) > 0)
     assert len(samples) == selected["length_ns"]
     assert abs(samples[0]) < 1e-4
-    np.testing.assert_allclose(samples[100:-100], 0.1)
+    np.testing.assert_allclose(samples[100:-100], amplitude)
     assert pulse.integration_weights == [(1, selected["length_ns"]) ]
 
     shaped_signature = readout_signature(q, operation)

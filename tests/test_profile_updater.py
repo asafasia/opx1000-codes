@@ -11,6 +11,7 @@ from profiles import ProfileUpdater
 
 class ProfileUpdaterTests(unittest.TestCase):
     def setUp(self):
+        clear_active_profile()
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
         self.profile = self.root / "profiles" / "main"
@@ -50,7 +51,7 @@ class ProfileUpdaterTests(unittest.TestCase):
             "resonator_spectroscopy",
             {"qubits.json.qubits.q1.frequencies_hz.resonator": 7471000000},
         )
-        with patch("builtins.input", return_value="yes"):
+        with patch("builtins.input", return_value="y"):
             self.assertTrue(self.updater.confirm_and_apply(proposal))
         document = json.loads((self.profile / "qubits.json").read_text())
         self.assertEqual(document["qubits"]["q1"]["frequencies_hz"]["resonator"], 7471000000)

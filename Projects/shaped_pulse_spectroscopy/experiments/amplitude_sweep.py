@@ -26,6 +26,7 @@ from shaped_pulse_spectroscopy.lorentzian import (
     process_amplitude_dataset,
 )
 from shaped_pulse_spectroscopy.parameters import Parameters
+from shaped_pulse_spectroscopy.echo_parameters import DEFAULT_QUBIT, echo_parameters
 from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
 
@@ -233,32 +234,21 @@ class EchoLorentzianAmplitude(BaseCalibration[Parameters, Quam]):
 
 
 if __name__ == "__main__":
-    parameters = Parameters()
-    parameters.use_state_discrimination = True
-    parameters.reset_type = "active"
-    parameters.simulate = False
-    parameters.pulse_shape = "root_lorentzian"
-    parameters.echo = False
-    parameters.ac_stark_correction = False
-    parameters.stark_kappa_mhz_inv = 0.00225
-    parameters.stark_chirp_max_error_hz = 100.0
-    parameters.cutoff = 0.01
+    parameters = echo_parameters()
     parameters.num_shots = 1000
-    parameters.lorentzian_length_in_ns = 30000
-    parameters.waveform_template_length_in_ns = 2000
-    parameters.lorentzian_peak_amplitude = 0.5
     parameters.min_amp_factor = 0.0
     parameters.max_amp_factor = 1.0
     parameters.amp_factor_step = 0.05
     parameters.amp_factor_points = None
     parameters.amp_factor_spacing = "linear"
 
-    options = CalibrationOptions()
+    options = CalibrationOptions(update_state=False, propose_profile_update=False,
+                                 apply_profile_update=False)
 
     calibration = EchoLorentzianAmplitude(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit=DEFAULT_QUBIT),
         auto_connect=not parameters.simulate,
     )
     calibration.run()

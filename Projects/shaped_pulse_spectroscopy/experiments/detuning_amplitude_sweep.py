@@ -374,15 +374,18 @@ if __name__ == "__main__":
     parameters.ac_stark_correction = False
     parameters.stark_kappa_mhz_inv = 0.000
     parameters.stark_chirp_max_error_hz = 10
-    parameters.cutoff = 0.00075
+    parameters.cutoff = 0.001
+    parameters.edge_smoothing = "polynomial"  # Use "none" to disable edge smoothing.
+    parameters.edge_smoothing_power = 5
     parameters.num_shots = 200
-    parameters.drag_beta = 0
+    # RMS-squared fit to the 2026-10-22 q1 sweep (200 betas, five amplitudes).
+    parameters.drag_beta = -1.0972249303804549
     parameters.lorentzian_length_in_ns = 20000
     parameters.waveform_template_length_in_ns = 20000
-    parameters.lorentzian_peak_amplitude = 1
+    parameters.lorentzian_peak_amplitude = 0.7
     parameters.min_amp_factor = 0.0
     parameters.max_amp_factor = 1
-    parameters.amp_factor_step = 1 / 100
+    parameters.amp_factor_step = 1 / 30
     parameters.amp_factor_points = None
     parameters.amp_factor_spacing = "linear"
     parameters.frequency_span_in_mhz = 1
@@ -404,7 +407,7 @@ if __name__ == "__main__":
     calibration = EchoLorentzian(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q6"),
+        machine=create_machine(qubit="q1"),
         auto_connect=not parameters.simulate,
     )
     calibration.run()

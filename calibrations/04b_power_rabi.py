@@ -246,23 +246,22 @@ class PowerRabi(BaseCalibration[Parameters, Quam]):
 
     def profile_updates(self):
         return self.pulse_profile_updates(
-            active_operation(self.parameters), amplitude="opt_amp",
+            active_operation(self.parameters),
+            amplitude="opt_amp",
         )
 
 
 if __name__ == "__main__":
 
     parameters = Parameters()
-    parameters.acquisition = (
-        "single_shot"  # or "single_shot" to retain every measurement
-    )
-    parameters.reset_type = "active"  # "active" or "thermal"
-    parameters.use_state_discrimination = True
-    parameters.readout_states = ["g", "e", "f"]  # GE readout; add "f" for readout_GEF.
+    parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
+    parameters.reset_type = "thermal"  # "active" or "thermal"
+    parameters.use_state_discrimination = False  # True or False
+    parameters.readout_states = ["g", "e"]  # GE readout; add "f" for readout_GEF.
 
     parameters.use_readout_mitigation = 0
-    parameters.num_shots = 2000
-    parameters.transition = "ef"
+    parameters.num_shots = 200
+    parameters.transition = "ge"
     parameters.pi_repetitions = 3
     parameters.operation = "x180"
 

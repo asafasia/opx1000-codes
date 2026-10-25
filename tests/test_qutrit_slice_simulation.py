@@ -57,7 +57,7 @@ class QutritSliceSimulationTests(unittest.TestCase):
             self.assertLessEqual(float(result.ground.max()), 1.0)
         self.assertFalse(np.allclose(no_echo.excited, echo.excited))
 
-    def test_beta_zero_with_transition_is_exactly_backward_compatible(self):
+    def test_beta_zero_with_zero_transition_is_exactly_backward_compatible(self):
         common = {
             "duration_us": 1.0,
             "detuning_mhz": np.linspace(-0.2, 0.2, 3),
@@ -72,7 +72,7 @@ class QutritSliceSimulationTests(unittest.TestCase):
         legacy = qutrit_slices.simulate_qutrit_slices(**common)
         explicit = qutrit_slices.simulate_qutrit_slices(
             drag_beta=0.0,
-            echo_transition_time_ns=16.0,
+            echo_transition_time_ns=0.0,
             **common,
         )
 

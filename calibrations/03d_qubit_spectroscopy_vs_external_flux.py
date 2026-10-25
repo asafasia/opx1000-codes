@@ -26,6 +26,7 @@ from qm.qua import (
 )
 from qualang_tools.loops import from_array
 from utils.qm_session import qm_session
+from utils.result_fetching import AcquisitionError, AcquisitionStopped
 
 from calibration_utils.qubit_spectroscopy_vs_flux import (
     process_raw_dataset,
@@ -227,6 +228,8 @@ class QubitSpectroscopyVsExternalFlux(BaseCalibration):
                             self._wait_for(
                                 job.is_paused, "OPX pause after spectroscopy sweep"
                             )
+                            if any(handle.has_dataloss() for handle in handles.values()):
+                                raise AcquisitionError("External-flux acquisition reported data loss.")
                             for name, handle in handles.items():
                                 rows[name].append(
                                     self._fetch_row(
@@ -243,6 +246,23 @@ class QubitSpectroscopyVsExternalFlux(BaseCalibration):
                     finally:
                         # Stop RF execution before returning the source to zero.
                         job.halt()
+            except KeyboardInterrupt:
+                job.halt()
+                self.namespace["acquisition_interrupted"] = True
+                count = min(len(values) for values in rows.values())
+                if not count:
+                    raise AcquisitionStopped(
+                        "Stopped before a complete bias point was available; no results to plot."
+                    ) from None
+                if any(job.result_handles.get(name).has_dataloss() for name in rows):
+                    raise AcquisitionError("External-flux acquisition reported data loss.") from None
+                dataset = self._dataset({name: values[:count] for name, values in rows.items()}, count)
+                dataset.attrs.update(
+                    acquisition_interrupted=True, completed_iterations=count,
+                    partial_axis="flux_bias", requested_iterations=len(voltages),
+                )
+                self.results["ds_raw"] = dataset
+                self.log(f"Acquisition stopped; continuing analysis with {count} complete bias points.")
             except BaseException:
                 # Also covers failure entering the source context or the initial pause.
                 job.halt()
@@ -486,6 +506,7 @@ class QubitSpectroscopyVsExternalFlux(BaseCalibration):
         return self.qubit_profile_updates({
             "dc_bias_v": "idle_offset",
             "frequencies_hz.qubit_f01": "qubit_frequency",
+            "freq_vs_dc_bias_quad_term_hz_per_v2": "curvature_hz_per_v2",
         })
 
 

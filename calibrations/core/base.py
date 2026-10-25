@@ -374,9 +374,13 @@ class BaseCalibration(ABC, Generic[P, M]):
                     figures_saved = self.save_figures()
                 if self.options.ai_review:
                     ai_review_saved = self.save_ai_review()
-                if self.options.update_state and not self.namespace.get("acquisition_interrupted"):
+                updates_allowed = (
+                    not self.namespace.get("acquisition_interrupted")
+                    or any(self.profile_update_results())
+                )
+                if self.options.update_state and updates_allowed:
                     self.update_state()
-                if self.options.propose_profile_update and not self.namespace.get("acquisition_interrupted"):
+                if self.options.propose_profile_update and updates_allowed:
                     profile_update_proposed = self._propose_profile_update_from_options()
         except AcquisitionStopped as error:
             self.namespace["acquisition_interrupted"] = True
@@ -895,10 +899,17 @@ class BaseCalibration(ABC, Generic[P, M]):
 
     def profile_update_results(self, *, successful_only=True):
         """Yield selected qubits and fits, respecting explicit failed outcomes."""
+        # Recovered data requires a successful result even for hooks that
+        # normally use their own acceptance criteria.
+        successful_only = successful_only or bool(self.namespace.get("acquisition_interrupted"))
         fits = self.results.get("fit_results", {})
         for qubit in self.namespace.get("qubits", ()):
             fit = fits.get(qubit.name, {})
             outcome = self.outcomes.get(qubit.name)
+            if (outcome is not None and outcome != "successful") or (
+                "success" in fit and not fit["success"]
+            ):
+                continue
             if successful_only and outcome != "successful":
                 if outcome is not None or not fit.get("success", False):
                     continue
@@ -967,8 +978,8 @@ class BaseCalibration(ABC, Generic[P, M]):
                     values["amplitude"] = float(pulse["amplitude"]) * factor
                 if not all(np.isfinite(value) for value in values.values()):
                     raise ValueError("pulse values must be finite")
-                if abs(values.get("amplitude", 0)) > 0.7:
-                    raise ValueError("pulse amplitude exceeds 0.7 V")
+                if abs(values.get("amplitude", 0)) > 1.0:
+                    raise ValueError("pulse amplitude exceeds 1.0")
             except (KeyError, TypeError, ValueError) as error:
                 self.log(f"Profile update skipped for {qubit.name}: {error}.")
                 continue
@@ -1005,10 +1016,10 @@ class BaseCalibration(ABC, Generic[P, M]):
                 pending[f"qubits.json.qubits.{qubit.name}.{frequency_field}"] = value
             if amplitude is not None:
                 value = float(self._profile_update_value(amplitude, qubit, fit))
-                if not np.isfinite(value) or abs(value) > 0.7:
+                if not np.isfinite(value) or abs(value) > 1.0:
                     self.log(
                         f"Profile update skipped for {qubit.name}: "
-                        "non-finite readout amplitude or amplitude exceeds 0.7 V."
+                        "non-finite readout amplitude or amplitude exceeds 1.0."
                     )
                     continue
                 operation = self.parameters.readout_operation

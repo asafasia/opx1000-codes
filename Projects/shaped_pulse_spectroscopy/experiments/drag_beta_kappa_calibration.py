@@ -31,6 +31,7 @@ from calibrations.base import CalibrationOptions
 from experiments.detuning_amplitude_sweep import EchoLorentzian
 from experiments.stark_kappa_sweep import add_simple_negative_gaussian_fits
 from shaped_pulse_spectroscopy.parameters import Parameters
+from shaped_pulse_spectroscopy.echo_parameters import ECHO_PULSE, echo_parameters
 from quam_config import Quam, create_machine
 from utils.rabi_amplitude import amplitude_to_rabi_frequency_hz
 
@@ -57,12 +58,14 @@ class SpectroscopyGrid:
 class WaveformSpec:
     """Fixed waveform settings for the approval-gated calibration."""
 
-    pulse_shape: str = "root_lorentzian"
-    duration_ns: int = 20_000
-    template_length_ns: int = 20_000
-    cutoff: float = 0.0025
-    peak_amplitude_v: float = 0.2
-    echo_transition_time_ns: float = 16.0
+    pulse_shape: str = ECHO_PULSE.pulse_shape
+    duration_ns: int = ECHO_PULSE.lorentzian_length_in_ns
+    template_length_ns: int = ECHO_PULSE.waveform_template_length_in_ns
+    cutoff: float = ECHO_PULSE.cutoff
+    peak_amplitude_v: float = ECHO_PULSE.lorentzian_peak_amplitude
+    echo_transition_time_ns: float = ECHO_PULSE.echo_transition_time_ns
+    edge_smoothing: Literal["none", "polynomial"] = ECHO_PULSE.edge_smoothing
+    edge_smoothing_power: int = ECHO_PULSE.edge_smoothing_power
     complex_envelope_sign: str = "I+iQ"
     derivative_convention: str = (
         "Q=-beta*dI/dt/(2*pi*alpha_MHz), physical t in microseconds"
@@ -252,7 +255,7 @@ def write_plan(plan: CalibrationPlan, path: Path) -> Path:
 
 def parameters_for_point(plan: CalibrationPlan, point: CalibrationPoint) -> Parameters:
     """Translate one approved point into the shared spectroscopy parameters."""
-    parameters = Parameters()
+    parameters = echo_parameters()
     parameters.use_state_discrimination = True
     parameters.use_three_state_discrimination = True
     parameters.reset_type = "active"
@@ -264,6 +267,8 @@ def parameters_for_point(plan: CalibrationPlan, point: CalibrationPoint) -> Para
     parameters.stark_kappa_mhz_inv = point.stark_kappa_mhz_inv
     parameters.drag_beta = point.drag_beta
     parameters.echo_transition_time_ns = plan.waveform.echo_transition_time_ns
+    parameters.edge_smoothing = plan.waveform.edge_smoothing
+    parameters.edge_smoothing_power = plan.waveform.edge_smoothing_power
     parameters.stark_chirp_max_error_hz = 100.0
     parameters.cutoff = plan.waveform.cutoff
     parameters.num_shots = plan.grid.num_shots

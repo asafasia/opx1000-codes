@@ -25,7 +25,7 @@ from experiments.drag_beta_kappa_calibration import (
 from shaped_pulse_spectroscopy import lorentzian
 
 
-def test_beta_zero_is_exactly_backward_compatible() -> None:
+def test_zero_transition_is_exactly_backward_compatible() -> None:
     envelope = lorentzian.root_lorentzian_envelope(101, 0.0025, 0.2)
     legacy = lorentzian.apply_echo_phase_jump(envelope)
     parameters = SimpleNamespace(
@@ -35,7 +35,7 @@ def test_beta_zero_is_exactly_backward_compatible() -> None:
         cutoff=0.0025,
         echo=True,
         drag_beta=0.0,
-        echo_transition_time_ns=16.0,
+        echo_transition_time_ns=0.0,
     )
 
     np.testing.assert_array_equal(lorentzian.build_waveform(parameters), legacy)
@@ -59,6 +59,24 @@ def test_beta_zero_is_exactly_backward_compatible() -> None:
     )
     np.testing.assert_array_equal(new_i, old_i)
     np.testing.assert_array_equal(new_q, old_q)
+
+
+def test_echo_smoothing_is_independent_of_drag_beta() -> None:
+    parameters = SimpleNamespace(
+        pulse_shape="root_lorentzian",
+        lorentzian_length_in_ns=101,
+        lorentzian_peak_amplitude=0.2,
+        cutoff=0.0025,
+        echo=True,
+        drag_beta=0.0,
+        echo_transition_time_ns=16.0,
+    )
+    without_drag = np.asarray(lorentzian.build_waveform(parameters))
+    parameters.drag_beta = 0.5
+    np.testing.assert_array_equal(lorentzian.build_waveform(parameters), without_drag)
+    assert without_drag[50] == 0.0
+    assert without_drag[49] > 0.0
+    assert without_drag[51] < 0.0
 
 
 def test_drag_derivative_has_correct_sign_and_physical_time_normalization() -> None:
@@ -215,7 +233,9 @@ def test_two_stage_plan_is_exact_hashable_and_joint_grid_centers_on_best_beta() 
     joint = joint_plan(coarse, best_fixed_kappa_beta=0.5)
 
     assert coarse.waveform.duration_ns == 20_000
-    assert coarse.waveform.cutoff == 0.0025
+    from shaped_pulse_spectroscopy.echo_parameters import ECHO_PULSE
+    assert coarse.waveform.cutoff == ECHO_PULSE.cutoff
+    assert coarse.waveform.edge_smoothing == ECHO_PULSE.edge_smoothing
     assert len(coarse.points) == 7
     assert len(plan_sha256(coarse)) == 64
     assert len(joint.points) == 9

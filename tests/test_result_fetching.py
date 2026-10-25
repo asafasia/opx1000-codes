@@ -10,6 +10,7 @@ import xarray as xr
 from calibrations.core import CalibrationError, CalibrationOptions
 from utils import result_fetching
 from utils.qm_session import qm_session
+from calibrations.registry import CALIBRATIONS
 
 
 class Handle:
@@ -91,10 +92,157 @@ class Job:
         return "No execution errors"
 
 
+class LiveHandle(Handle):
+    """QOP serves completed live buffers but loses headers after cancellation."""
+    def count_so_far(self):
+        if self.name == "n":
+            return super().count_so_far()
+        if self.job.status == "Canceled":
+            raise result_fetching.QMConnectionError("Unexpected error in RPC handling")
+        return int(self.job.values[self.name].size > 0)
+
+    def fetch_all(self, *, flat_struct=False):
+        if self.name == "n":
+            return super().fetch_all(flat_struct=flat_struct)
+        assert self.job.status == "Running", "Buffers must be captured before cancellation"
+        return self.job.values[self.name].copy()
+
+
+@pytest.mark.parametrize("single_shot", [False, True])
+@pytest.mark.parametrize("unavailable", ["headers", "wait", "status"])
+def test_ctrl_c_captures_buffers_before_qop_loses_canceled_results(monkeypatch, single_shot, unavailable):
+    job = Job(single_shot=single_shot, analog=True)
+    job.timeline = iter([("Running", 1)])
+    if single_shot:
+        job.values = {name: value[:2] for name, value in job.values.items()}
+    job.result_handles.handles = {name: LiveHandle(job, name) for name in ("n", *job.values)}
+    original_status = job.get_status
+    original_wait = job.result_handles.wait_for_all_values
+
+    def status():
+        if unavailable == "status" and job.status == "Canceled":
+            raise result_fetching.QMConnectionError("Unexpected error in RPC handling")
+        return original_status()
+
+    def wait(**kwargs):
+        if unavailable == "wait":
+            raise result_fetching.QMConnectionError("Unexpected error in RPC handling")
+        return original_wait(**kwargs)
+
+    def interrupt(_):
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(job, "get_status", status)
+    monkeypatch.setattr(job.result_handles, "wait_for_all_values", wait)
+    monkeypatch.setattr(result_fetching.time, "sleep", interrupt)
+    ds = result_fetching.fetch_result_dataset(job, axes(single_shot))
+    assert job.cancel_calls == 1
+    assert ds.attrs["acquisition_interrupted"]
+    np.testing.assert_array_equal(ds.I[0], job.values["I1"])
+    np.testing.assert_array_equal(ds.Q[0], job.values["Q1"])
+    if single_shot:
+        assert ds.attrs["completed_iterations"] == 2
+
+
+def test_ctrl_c_without_snapshot_reports_unavailable_qop_results(monkeypatch):
+    job = Job(analog=True)
+    job.timeline = iter([("Running", 0)])
+    # Regular handles have no completed live buffers; canceled headers fail.
+    original_count = job.result_handles.get("I1").count_so_far
+
+    def count():
+        if job.status == "Canceled":
+            raise result_fetching.QMConnectionError("Unexpected error in RPC handling")
+        return original_count()
+
+    def interrupt(_):
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(job.result_handles.get("I1"), "count_so_far", count)
+    monkeypatch.setattr(result_fetching.time, "sleep", interrupt)
+    with pytest.raises(result_fetching.AcquisitionError, match="no complete buffers were recovered"):
+        result_fetching.fetch_result_dataset(job, axes())
+    assert job.cancel_calls == 1
+
+
+def test_second_ctrl_c_during_snapshot_still_stops_job(monkeypatch):
+    job = Job(analog=True)
+    job.timeline = iter([("Running", 0)])
+    job.result_handles.handles = {name: LiveHandle(job, name) for name in ("n", *job.values)}
+
+    def interrupt(*args, **kwargs):
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(result_fetching.time, "sleep", interrupt)
+    monkeypatch.setattr(job.result_handles.get("I1"), "fetch_all", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        result_fetching.fetch_result_dataset(job, axes())
+    assert job.cancel_calls == 1
+
+
 def axes(single_shot=True):
     return {"qubit": xr.DataArray(["q1"]),
             **({"shot": xr.DataArray(np.arange(3))} if single_shot else {}),
             "idle_time": xr.DataArray([16, 100])}
+
+
+@pytest.mark.parametrize("key", sorted(set(CALIBRATIONS) - {"hello", "qubit-external-flux"}))
+@pytest.mark.parametrize("acquisition", ["averaged", "single_shot"])
+def test_registered_experiments_recover_actual_stream_layouts(monkeypatch, tmp_path, key, acquisition):
+    import re
+    from qm import generate_qua_script
+    from quam_config import create_machine
+
+    entry = CALIBRATIONS[key]
+    cloud_keys = {"resonator", "iq-blobs", "iq-blobs-gef", "readout-power", "readout-frequency-amplitude"}
+    if key in cloud_keys and acquisition == "averaged":
+        with pytest.raises(ValueError, match="single_shot"):
+            entry.load_parameters_class()(acquisition=acquisition)
+        return
+    if key == "tof":
+        monkeypatch.setattr(import_module(entry.module), "Path", lambda *_: tmp_path / "calibrations" / "tof.py")
+    params = entry.load_parameters_class()(
+        acquisition=acquisition, num_shots=3, reset_type="thermal", simulate=True,
+    )
+    if key.startswith("rb"):
+        params.num_random_sequences = 3
+        params.max_circuit_depth = 5
+    node = entry.load_class()(parameters=params, machine=create_machine(qubit="q6"))
+    try:
+        script = generate_qua_script(node.create_qua_program())
+        layout = node.namespace["acquisition_layout"]
+        result_axes = node.namespace["sweep_axes"]
+        dims = [name for name in result_axes if name != "qubit"]
+        shape = tuple(len(result_axes[name]) for name in dims)
+        partial = layout.single_shot or layout.loops[0][0] != layout.shot_axis
+        if partial:
+            shape = (min(2, shape[0]), *shape[1:])
+        names = set(re.findall(r'\.(?:save|save_all)\("([^"]+)"\)', script)) - {"n"}
+        names -= set(result_fetching.XarrayDataFetcher.ignore_handles)
+        assert names, "No measurement streams found in the built program"
+        job = Job()
+        job.timeline = iter([("Running", 0)])
+        job.values = {}
+        for name in names:
+            value = np.zeros(shape)
+            singleton_axes = tuple(i for i, size in enumerate(shape) if size == 1 and (i or not partial))
+            job.values[name] = np.squeeze(value, axis=singleton_axes)
+        job.result_handles = Handles(job)
+
+        def interrupt(_):
+            raise KeyboardInterrupt()
+
+        monkeypatch.setattr(result_fetching.time, "sleep", interrupt)
+        ds = node.fetch_result_dataset(job)
+        assert job.cancel_calls == 1
+        assert ds.attrs["acquisition_interrupted"]
+        assert node.namespace["acquisition_interrupted"]
+        for name in dims:
+            assert ds.sizes[name] == shape[dims.index(name)]
+        if partial:
+            assert ds.attrs["completed_iterations"] == shape[0]
+    finally:
+        node.cleanup()
 
 
 @pytest.mark.parametrize("single_shot", [True, False])
@@ -216,7 +364,8 @@ def test_session_closes_and_preserves_cancellation(monkeypatch, error_type):
 
 
 @pytest.mark.parametrize("has_data", [False, True])
-def test_t1_interrupt_recovers_data_and_restores_bias(monkeypatch, has_data):
+@pytest.mark.parametrize("fit_success", [False, True])
+def test_t1_interrupt_recovers_data_and_restores_bias(monkeypatch, has_data, fit_success):
     module = import_module("calibrations.05_T1")
     session_module = import_module("utils.qm_session")
     events = []
@@ -249,7 +398,12 @@ def test_t1_interrupt_recovers_data_and_restores_bias(monkeypatch, has_data):
             apply_profile_update=False, report_runtime_estimate=False))
     node.namespace["sweep_axes"] = axes()
     node.create_qua_program = lambda: "program"
-    node.analyse_data = lambda: events.append("analysed")
+    node.namespace["qubits"] = [SimpleNamespace(name="q1")]
+    def analyse():
+        events.append("analysed")
+        node.outcomes = {"q1": "successful" if fit_success else "failed"}
+
+    node.analyse_data = analyse
     node.plot_data = lambda: events.append("plotted")
     node.update_state = lambda: events.append("state_updated")
     node._propose_profile_update_from_options = lambda: events.append("profile_proposed")
@@ -264,7 +418,9 @@ def test_t1_interrupt_recovers_data_and_restores_bias(monkeypatch, has_data):
     assert status.interrupted
     assert job.cancel_calls == 1
     assert events == ["bias_applied", "qm_closed", "bias_zeroed"] + (
-        ["analysed", "plotted"] if has_data else [])
+        ["analysed", "plotted"] + (
+            ["state_updated", "profile_proposed"] if fit_success else []
+        ) if has_data else [])
     assert ("ds_raw" in node.results) == has_data
     if has_data:
         ds = node.results["ds_raw"]
@@ -366,6 +522,68 @@ def test_sdk_structured_save_all_preserves_length_one_axes():
     })
     assert ds.state.shape == (1, 1, 1, 2)
     np.testing.assert_array_equal(ds.state.values, [[[[1, 0]]]])
+
+
+@pytest.mark.parametrize("label", ["I", "Q", "state", "population_e"])
+@pytest.mark.parametrize("shape", [(1, 200), (200, 1), (1, 200, 1)])
+@pytest.mark.parametrize("interrupted", [False, True])
+def test_results_restore_omitted_singleton_sweep_axes(monkeypatch, label, shape, interrupted):
+    job = Job()
+    job.timeline = iter([("Running" if interrupted else "Done", 0)])
+    job.values = {f"{label}1": np.arange(200)}
+    job.result_handles = Handles(job)
+    result_axes = {"qubit": ["q1"], **{
+        f"sweep_{i}": np.arange(size) for i, size in enumerate(shape)
+    }}
+
+    def interrupt(_):
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(result_fetching.time, "sleep", interrupt)
+    ds = result_fetching.fetch_result_dataset(job, result_axes)
+    assert ds[label].shape == (1, *shape)
+    assert job.cancel_calls == int(interrupted)
+    assert bool(ds.attrs.get("acquisition_interrupted")) == interrupted
+    np.testing.assert_array_equal(ds[label].values.reshape(-1), np.arange(200))
+
+
+@pytest.mark.parametrize("shots", [1, 2])
+def test_ctrl_c_restores_singleton_sweeps_without_padding_partial_shots(monkeypatch, shots):
+    job = Job(analog=True)
+    job.timeline = iter([("Running", 0)])
+    job.values = {"I1": np.arange(shots * 200).reshape(shots, 200),
+                  "Q1": -np.arange(600).reshape(3, 200)}
+    job.result_handles = Handles(job)
+
+    def interrupt(_):
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(result_fetching.time, "sleep", interrupt)
+    ds = result_fetching.fetch_result_dataset(job, {
+        "qubit": ["q1"], "shot": np.arange(5),
+        "nb_of_pulses": [1], "amp_prefactor": np.arange(200),
+    })
+    assert ds.I.shape == ds.Q.shape == (1, shots, 1, 200)
+    assert ds.attrs["completed_iterations"] == shots
+    np.testing.assert_array_equal(ds.I.values[0, :, 0, :], job.values["I1"])
+    np.testing.assert_array_equal(ds.Q.values[0, :, 0, :], job.values["Q1"][:shots])
+
+
+@pytest.mark.parametrize("interrupted", [False, True])
+def test_results_reject_flattened_non_singleton_axes(monkeypatch, interrupted):
+    job = Job()
+    job.timeline = iter([("Running" if interrupted else "Done", 0)])
+    job.values = {"I1": np.arange(200)}
+    job.result_handles = Handles(job)
+
+    def interrupt(_):
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(result_fetching.time, "sleep", interrupt)
+    with pytest.raises(result_fetching.AcquisitionError, match="Unexpected result shape"):
+        result_fetching.fetch_result_dataset(job, {
+            "qubit": ["q1"], "pulses": [1, 3], "amplitude": np.arange(100),
+        })
 
 
 def test_second_ctrl_c_aborts_recovery(monkeypatch):

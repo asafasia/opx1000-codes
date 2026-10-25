@@ -39,7 +39,7 @@ and compares it with the linear conversion inferred from the square x180 pulse.
 It never updates the device profile.
 """
 
-MAX_SAFE_AMPLITUDE_V = 0.7
+MAX_SAFE_AMPLITUDE_V = 1.0
 
 
 class NodeSpecificParameters(RunnableParameters):

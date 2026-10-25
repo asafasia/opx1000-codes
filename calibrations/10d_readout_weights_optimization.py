@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import sys
+import json
+import shutil
+from uuid import uuid4
 from pathlib import Path
 
 if __package__ in {None, ""}:
@@ -39,7 +42,8 @@ description = """
         READOUT WEIGHTS OPTIMIZATION
 Acquire averaged sliced-demod traces for |g> and |e>, calculate the state-difference
 trace, normalize it into an optimal complex kernel, and save the traces plus profile
-kernel under profiles/<active-profile>/kernels/.
+kernel as a proposal under data/. Install it under profiles/<active-profile>/kernels/
+only after confirming the profile update.
 
 State update:
     - profiles/<profile>/kernels/<qubit>_readout_kernel.npz
@@ -257,13 +261,14 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
         )
         node.results["ds_fit"] = analysed
         output_directory = save_kernel_artifacts(
-            profile_name=current_profile_name(),
+            profile_name=self.active_profile_name(),
             experiment_name=node.name,
             analysed=analysed,
             parameters=node.parameters,
+            root=self.profile_updater.output_root / "kernel_candidates" / uuid4().hex,
         )
         node.namespace["kernel_artifact_directory"] = output_directory
-        node.log(f"Readout traces and kernels saved to {output_directory}")
+        node.log(f"Candidate readout traces and kernels saved to {output_directory}; profile unchanged.")
         node.outcomes = {q.name: "successful" for q in node.namespace["qubits"]}
 
     def plot_data(self):
@@ -286,7 +291,7 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
     def update_state(self):
         node = self
         with node.record_state_updates():
-            for q in node.namespace["qubits"]:
+            for q, _ in node.profile_update_results():
                 weights = node.results["ds_fit"].profile_kernel.sel(qubit=q.name).values
                 operation = q.resonator.operations[node.parameters.operation]
                 operation.integration_weights = None
@@ -304,6 +309,28 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
         return self.readout_profile_updates(
             settings={"use_kernel": True}, invalidate_discrimination=True,
         )
+
+    def propose_profile_update(self, *, apply: bool = True) -> bool:
+        proposed = super().propose_profile_update(apply=apply)
+        candidates = self.namespace.get("kernel_artifact_directory")
+        if not proposed or not apply or candidates is None:
+            return proposed
+        proposal = self.namespace["profile_update_proposal"]
+        document = json.loads((proposal / "proposal.json").read_text(encoding="utf-8"))
+        if document["status"] != "applied":
+            return proposed
+        target = self.profile_updater.profiles_root / self.active_profile_name() / "kernels"
+        target.mkdir(parents=True, exist_ok=True)
+        for qubit, _ in self.profile_update_results():
+            filename = f"{qubit.name}_{self.parameters.readout_operation}_kernel.npz"
+            destination = target / filename
+            if destination.exists():
+                backup = proposal / "profile_before_update" / "kernels"
+                backup.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(destination, backup / filename)
+            shutil.copy2(candidates / filename, destination)
+        self.log(f"Confirmed readout kernels installed in {target}.")
+        return proposed
 
 
 if __name__ == "__main__":

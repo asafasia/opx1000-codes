@@ -64,14 +64,34 @@ def test_pulse_updates_resolve_dedicated_pulses_and_only_stage_successful_fits(
     assert node.namespace["profile_update_proposal"] is node.profile_updater.stage.return_value
 
 
-@pytest.mark.parametrize("amplitude", [np.nan, np.inf, .701, -.701])
+@pytest.mark.parametrize("amplitude", [np.nan, np.inf, 1.001, -1.001])
 def test_pulse_updates_reject_invalid_amplitudes(pulse_profile, amplitude):
     node = make_node("04b_power_rabi", "PowerRabi", fit={"opt_amp": amplitude})
     assert node.profile_updates() == {}
 
 
+@pytest.mark.parametrize("amplitude", [0.701, -0.8, 1.0, -1.0])
+def test_pulse_updates_accept_above_former_ceiling(pulse_profile, amplitude):
+    node = make_node("04b_power_rabi", "PowerRabi", fit={"opt_amp": amplitude})
+    assert node.profile_updates() == {"pulses.json.pulses.q1.ge.amplitude": amplitude}
+
+
+@pytest.mark.parametrize("states", [["g", "e"], ["g", "e", "f"]])
+@pytest.mark.parametrize("amplitude", [0.8, -1.0, 1.01, -1.01, np.nan, np.inf])
+def test_readout_updates_use_profile_amplitude_limit(states, amplitude):
+    node = make_node("07_iq_blobs", "IqBlobs", {"readout_states": states})
+    node.outcomes["q3"] = "failed"
+    node.namespace["qubits"][0].resonator = SimpleNamespace(readout_pulse_names={})
+    updates = node.readout_profile_updates(amplitude=amplitude)
+    if np.isfinite(amplitude) and abs(amplitude) <= 1.0:
+        operation = node.parameters.readout_operation
+        assert updates[f"pulses.json.pulses.q1.{operation}.amplitude"] == amplitude
+    else:
+        assert updates == {}
+
+
 @pytest.mark.parametrize("fit", [{}, {"optimal_amp_prefactor": -1}, {"optimal_amp_prefactor": 0},
-                                      {"optimal_amp_prefactor": np.nan}, {"optimal_amp_prefactor": 4}])
+                                      {"optimal_amp_prefactor": np.nan}, {"optimal_amp_prefactor": 6}])
 def test_fine_rabi_skips_missing_or_invalid_scale(pulse_profile, fit):
     node = make_node("04e_fine_rabi_calibration", "FineRabiCalibration", fit=fit)
     assert node.profile_updates() == {}
@@ -129,3 +149,19 @@ def test_explicit_failed_outcome_wins_over_fit_success():
     node = make_node("03a_qubit_spectroscopy", "QubitSpectroscopy", fit={"success": True, "frequency": 5e9})
     node.outcomes = {name: "failed" for name in node.outcomes}
     assert node.profile_updates() == {}
+
+
+def test_interrupted_results_require_success_even_with_custom_acceptance():
+    node = make_node("03a_qubit_spectroscopy", "QubitSpectroscopy",
+                     fit={"success": True, "frequency": 5e9})
+    node.namespace["acquisition_interrupted"] = True
+    assert [q.name for q, _ in node.profile_update_results(successful_only=False)] == ["q1", "q3"]
+
+
+@pytest.mark.parametrize("interrupted", [False, True])
+@pytest.mark.parametrize("successful_only", [False, True])
+def test_failed_fit_never_overridden_by_successful_outcome(interrupted, successful_only):
+    node = make_node("03a_qubit_spectroscopy", "QubitSpectroscopy",
+                     fit={"success": False, "frequency": 5e9})
+    node.namespace["acquisition_interrupted"] = interrupted
+    assert list(node.profile_update_results(successful_only=successful_only)) == []

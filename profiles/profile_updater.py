@@ -151,10 +151,10 @@ class ProfileUpdater:
         for change in proposal["changes"]:
             print(f"  {change['path']}: {change['old']!r} -> {change['new']!r}")
         try:
-            response = input("Apply these calibration updates? Type 'yes' to confirm: ")
+            response = input("Apply these calibration updates? Type 'y' to confirm: ")
         except EOFError:
             response = ""
-        if response.strip().lower() != "yes":
+        if response.strip().lower() not in {"y", "yes"}:
             print(f"Profile not updated. Proposal kept at {proposal_directory}")
             return False
         self.apply(proposal_directory)

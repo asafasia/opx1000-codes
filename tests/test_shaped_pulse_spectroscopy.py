@@ -519,9 +519,9 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertIn("Cast.mul_int_by_fixed", v2_source)
         self.assertNotIn("with switch_(amp_index", v2_source)
         self.assertIn("chirp=(", v2_source)
-        self.assertIn("parameters.amp_factor_points", v2_source)
-        self.assertIn("parameters.amp_factor_spacing", v2_source)
-        self.assertIn("parameters.frequency_points", v2_source)
+        self.assertIn("amplitude_prefactors(self.parameters)", v2_source)
+        self.assertIn("parameters = fast_echo_parameters()", v2_source)
+        self.assertIn('getattr(self.parameters, "frequency_points", None)', v2_source)
         self.assertIn(
             'getattr(self.parameters, "frequency_points", None)', fixed_source
         )
@@ -619,7 +619,7 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         self.assertIn('("Root-Lorentzian", "#00838f", "#00474e")', source)
         self.assertIn('("Echo-root-Lorentzian", "#6a1b9a", "#350b4e")', source)
         self.assertIn('"mathtext.fontset": "stix"', source)
-        self.assertIn("MAX_SAFE_AMPLITUDE_V = 0.7", source)
+        self.assertIn("MAX_SAFE_AMPLITUDE_V = 1.0", source)
 
     def test_paper_slice_global_mitigation_fit_recovers_known_strength(self):
         script_path = SCRIPTS_ROOT / "run_paper_figure3_slices.py"
@@ -1263,8 +1263,11 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         )
 
         parameters = LinearityParameters()
-        parameters.max_drive_amplitude_v = 0.71
-        with self.assertRaisesRegex(ValueError, "0.7 V safety limit"):
+        parameters.max_drive_amplitude_v = 0.8
+        amplitudes, _ = sweep_values(parameters)
+        self.assertAlmostEqual(amplitudes[-1], 0.8)
+        parameters.max_drive_amplitude_v = 1.05
+        with self.assertRaisesRegex(ValueError, "1 V safety limit"):
             sweep_values(parameters)
 
 

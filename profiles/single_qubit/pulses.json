@@ -29,7 +29,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.4571135211323505,
+        "amplitude": 0.3095272550117577,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -355,7 +355,7 @@
       "x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.20377604886330902,
+        "amplitude": 0.20705667065082664,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -589,7 +589,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.07298666316471625,
+        "amplitude": 0.21963544169933702,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -603,7 +603,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.207202216066482,
+        "amplitude": 0.15,
         "length_ns": 3000,
         "digital_marker": "ON"
       },

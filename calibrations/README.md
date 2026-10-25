@@ -79,8 +79,8 @@ return self.metric_profile_updates({"coherence.t2_ramsey_ns": "decay"})
 Strings select keys from each qubit's `fit_results`; a callable `(qubit, fit)`
 can compute a value, and numbers, booleans, lists, and `None` are literal values.
 The helpers select successful qubits, resolve profile paths, and preserve the
-0.7 V pulse-amplitude limit. Drive pulse updates require an explicit operation
-mapping; derived aliases never silently update a parent pulse. Readout updates
+1.0 absolute profile pulse-amplitude limit. Drive pulse updates require an
+explicit operation mapping; derived aliases never silently update a parent pulse. Readout updates
 use the selected pulse and mode. Custom calculations can iterate over
 `self.profile_update_results()`.
 
@@ -224,6 +224,20 @@ print(estimate.estimated_seconds, estimate.workload_units)
 
 By default, profile updates may be staged but are not applied. Pass `--apply`
 only when you explicitly want the runner to apply a proposed profile update.
+
+All class-based calibrations can propose updates from successful fits to
+recovered measurements after Ctrl+C. Failed fits and stops without recoverable
+measurements do not update the profile. With `apply_profile_update=True`, the
+proposed changes are displayed and the profile is written only after you type
+`y` (`yes` is also accepted). Declining or pressing Enter keeps the proposal
+pending. Set `apply_profile_update=False` to stage proposals without prompting;
+the runner requires `--apply` to enable the confirmation prompt. Applied updates
+include a backup. Updates happen after plotting returns, so close the plot
+windows to finish the run.
+
+For `03a_qubit_spectroscopy.py` with `transition="ge"`, successful fits also
+update the in-memory `f_01` and drive RF frequency. Its profile update uses the
+same confirmation flow as other experiments.
 
 Use `--dry-run` to print the resolved calibration, parameters, and options
 without constructing a machine:
@@ -455,13 +469,31 @@ after each completed outer iteration (one sweep, cloud shot, or RB sequence),
 and storage scales with `num_shots`. The progress counter remains live.
 For measurements using `BaseCalibration.fetch_result_dataset()`, Ctrl+C stops the
 job and continues saving, analysis, and plotting with the completed measurements.
+Recovery first snapshots complete buffers before canceling the job, because
+some QOP versions stop serving result headers after cancellation. If those RPCs
+fail after the stop, the validated snapshot is used. Without a readable snapshot
+or final buffers, the run reports unavailable results and makes no proposal.
 Single-shot data keeps only the common completed prefix across measurement streams;
 missing shots are never filled with zeroes. Interrupted datasets are marked in
-metadata and do not automatically update device state or profiles. If no complete
+metadata; successful fits remain eligible for state updates and profile proposals.
+Profile writes still require confirmation with `y`. If no complete
 sweep exists yet, the run exits with a message. A second Ctrl+C aborts recovery.
 Actual controller failures and data loss still raise errors. The repository's
 `utils.qm_session` wrapper preserves unhandled interrupts after QM cleanup.
 ADC time-of-flight measurements also support single-shot traces.
+
+External-flux spectroscopy (`03d`) recovers only complete bias rows, halts the
+OPX before resetting the bias source to zero, and then follows the same
+successful-fit proposal flow. Readout-weight optimization (`10d`) stages kernel
+files under `data/calibration_updates/`; it installs them in the profile only
+after confirmation, backing up existing kernels alongside the proposal.
+
+This recovery flow covers the registered measurement calibrations. The legacy,
+unregistered `03b_qubit_spectroscopy_vs_flux.py` still uses QualibrationNode and
+does not support this recovery/proposal lifecycle. `00_hello_qua.py` is a pulse
+example without measurement streams or fitted profile updates. Experiments
+without a defined profile update (including XY8/CPMG) save analysis results but
+do not propose unrelated device settings.
 
 IQ blobs, resonator spectroscopy with cloud-fidelity analysis, readout-power
 optimization, and readout-frequency/amplitude optimization require individual

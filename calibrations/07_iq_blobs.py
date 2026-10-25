@@ -278,14 +278,14 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
                 n_st.save("n")
                 for i in range(num_qubits):
                     if "g" in states:
-                        self.save_acquisition_stream(I_g_st[i], f'Ig{i + 1}')
-                        self.save_acquisition_stream(Q_g_st[i], f'Qg{i + 1}')
+                        self.save_acquisition_stream(I_g_st[i], f"Ig{i + 1}")
+                        self.save_acquisition_stream(Q_g_st[i], f"Qg{i + 1}")
                     if "e" in states:
-                        self.save_acquisition_stream(I_e_st[i], f'Ie{i + 1}')
-                        self.save_acquisition_stream(Q_e_st[i], f'Qe{i + 1}')
+                        self.save_acquisition_stream(I_e_st[i], f"Ie{i + 1}")
+                        self.save_acquisition_stream(Q_e_st[i], f"Qe{i + 1}")
                     if "f" in states:
-                        self.save_acquisition_stream(I_f_st[i], f'If{i + 1}')
-                        self.save_acquisition_stream(Q_f_st[i], f'Qf{i + 1}')
+                        self.save_acquisition_stream(I_f_st[i], f"If{i + 1}")
+                        self.save_acquisition_stream(Q_f_st[i], f"Qf{i + 1}")
 
         return node.namespace.get("qua_program")
 
@@ -448,7 +448,9 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
         from utils.readout_macro import readout_settings
 
         self.namespace["fitted_readout_settings"] = {}
-        for q in self.namespace["qubits"]:
+        for q, _ in self.profile_update_results(
+            successful_only=bool(self.namespace.get("acquisition_interrupted"))
+        ):
             values = self._fitted_readout_settings(q)
             if values is None:
                 continue
@@ -472,7 +474,8 @@ class IqBlobs(BaseCalibration[Parameters, Quam]):
             return self._fitted_readout_settings(q) if values is None else values
 
         return self.readout_profile_updates(
-            settings=fitted_settings, fidelity="readout_fidelity",
+            settings=fitted_settings,
+            fidelity="readout_fidelity",
             successful_only=False,  # _fitted_readout_settings validates the acquired states and centers.
         )
 
@@ -482,9 +485,9 @@ if __name__ == "__main__":
     parameters.center_method = "median"  # "median" or "mean" for IQ cloud centers.
 
     parameters.qubit_operation = "x180"
-    parameters.readout_states = ["g", "e", "f"]  # Selects the readout_GEF pulse.
+    parameters.readout_states = ["g", "e"]  # Selects the readout_GEF pulse.
     parameters.states = None  # Prepare the same states as readout_states.
-    parameters.reset_type = "active"  # Use "active" after GEF centers are calibrated.
+    parameters.reset_type = "thermal"  # Use "active" after GEF centers are calibrated.
     # parameters.active_gef_reset_attempts = 3
 
     parameters.num_shots = 10000
@@ -495,7 +498,7 @@ if __name__ == "__main__":
     )
     # options.ai_review = True
 
-    machine = create_machine(qubit="q6")
+    machine = create_machine(qubit="q1")
 
     calibration = IqBlobs(
         parameters=parameters,

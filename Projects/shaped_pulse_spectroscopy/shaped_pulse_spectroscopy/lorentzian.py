@@ -25,8 +25,13 @@ from utils.rabi_amplitude import (
 )
 
 try:
+    from .envelopes import polynomial_root_envelope, validate_edge_smoothing
     from .fwhm import add_gaussian_fwhm_analysis
 except ImportError:  # Support direct file loading in focused tests.
+    from Projects.shaped_pulse_spectroscopy.shaped_pulse_spectroscopy.envelopes import (
+        polynomial_root_envelope,
+        validate_edge_smoothing,
+    )
     from Projects.shaped_pulse_spectroscopy.shaped_pulse_spectroscopy.fwhm import (
         add_gaussian_fwhm_analysis,
     )
@@ -110,6 +115,9 @@ def gaussian_envelope(
 def build_waveform(parameters) -> list[float]:
     """Build the selected Lorentzian-like waveform from calibration parameters."""
     waveform_length = waveform_template_length(parameters)
+    edge_smoothing = getattr(parameters, "edge_smoothing", "none")
+    edge_power = getattr(parameters, "edge_smoothing_power", 5)
+    validate_edge_smoothing(edge_smoothing, edge_power, parameters.pulse_shape)
     if parameters.pulse_shape == "lorentzian":
         waveform = lorentzian_envelope(
             waveform_length,
@@ -133,13 +141,18 @@ def build_waveform(parameters) -> list[float]:
             "pulse_shape must be 'lorentzian', 'root_lorentzian', or 'gaussian'."
         )
 
-    if getattr(parameters, "echo", False):
-        drag_beta = float(getattr(parameters, "drag_beta", 0.0))
-        transition_time_ns = (
-            float(getattr(parameters, "echo_transition_time_ns", 0.0))
-            if drag_beta != 0.0
-            else 0.0
+    if edge_smoothing == "polynomial":
+        # Preserve the existing endpoint-inclusive envelope sampling grid.
+        envelope, _ = polynomial_root_envelope(
+            np.linspace(-waveform_length / 2.0, waveform_length / 2.0, waveform_length),
+            duration=waveform_length,
+            cutoff=parameters.cutoff,
+            power=edge_power,
         )
+        waveform = (parameters.lorentzian_peak_amplitude * envelope).tolist()
+
+    if getattr(parameters, "echo", False):
+        transition_time_ns = float(getattr(parameters, "echo_transition_time_ns", 0.0))
         waveform = apply_echo_phase_jump(
             waveform,
             transition_time_ns=transition_time_ns,
@@ -189,8 +202,8 @@ def apply_echo_phase_jump(
     """Apply the echo inversion, optionally using a smooth finite transition.
 
     A zero transition retains the historical instantaneous sign flip exactly.
-    Nonzero DRAG pulses use a raised-cosine sign transition so differentiating
-    the complete signed I envelope never differentiates a discontinuity.
+    A positive transition smoothly takes the signed I envelope through zero,
+    with or without DRAG, and avoids a discontinuity in its derivative.
     """
     envelope = np.asarray(waveform, dtype=float)
     if envelope.ndim != 1 or envelope.size == 0:
@@ -676,6 +689,8 @@ def _pulse_metadata(parameters, namespace: dict | None = None) -> dict[str, obje
         "lorentzian_play_duration_cycles": lorentzian_play_duration_cycles(parameters),
         "lorentzian_tau_in_ns": getattr(parameters, "lorentzian_tau_in_ns", None),
         "cutoff": getattr(parameters, "cutoff", None),
+        "edge_smoothing": getattr(parameters, "edge_smoothing", "none"),
+        "edge_smoothing_power": getattr(parameters, "edge_smoothing_power", 5),
         "lorentzian_peak_amplitude": getattr(
             parameters, "lorentzian_peak_amplitude", None
         ),
@@ -687,7 +702,7 @@ def _pulse_metadata(parameters, namespace: dict | None = None) -> dict[str, obje
         "echo_transition_time_ns": getattr(parameters, "echo_transition_time_ns", 0.0),
         "applied_echo_transition_time_ns": (
             getattr(parameters, "echo_transition_time_ns", 0.0)
-            if drag_beta != 0.0
+            if getattr(parameters, "echo", False)
             else 0.0
         ),
         "drag_derivative_convention": DRAG_DERIVATIVE_CONVENTION,

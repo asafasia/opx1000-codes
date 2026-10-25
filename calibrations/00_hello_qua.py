@@ -15,13 +15,11 @@ import numpy as np
 import xarray as xr
 from qm.qua import *
 from qualang_tools.loops import from_array
-from qualang_tools.multi_user import qm_session
-from calibrations.runtime_estimation import progress_counter
+from utils.qm_session import qm_session
 from qualang_tools.units import unit
 from quam_config import Quam, create_machine
 from qualibration_libs.parameters import get_qubits
 from utils.simulation import simulate_and_plot
-from qualibration_libs.data import XarrayDataFetcher
 from qualibrate import NodeParameters
 
 if __package__ in {None, ""}:
@@ -141,16 +139,7 @@ class HelloQua(BaseCalibration[NodeParameters, Quam]):
         with qm_session(qmm, config, timeout=node.parameters.timeout) as qm:
             # The job is stored in the node namespace to be reused in the fetching_data run_action
             node.namespace["job"] = job = qm.execute(node.namespace["qua_program"])
-            # Display the progress bar
-            data_fetcher = XarrayDataFetcher(job, node.namespace["sweep_axes"])
-            for dataset in data_fetcher:
-                progress_counter(
-                    data_fetcher.get("n", 0),
-                    node.parameters.num_shots,
-                    start_time=data_fetcher.t_start,
-                )
-            # Display the execution report to expose possible runtime errors
-            print(job.execution_report())
+            dataset = self.fetch_result_dataset(job)
         # Register the raw dataset
         node.results["ds_raw"] = dataset
 

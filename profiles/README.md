@@ -116,8 +116,9 @@ those for the newly selected shape before using discrimination or optimized weig
 plateau, and a 100 ns fall. Gaussian sigma is `edge_length_ns / 5`.
 The amplitude is the plateau amplitude; no area normalization is applied.
 Edge and total durations must be multiples of 4 ns, with a positive plateau;
-total duration must be at least 16 ns. The Gaussian readout amplitude is capped
-at 0.7. Each readout mode selects its shape independently.
+total duration must be at least 16 ns. Gaussian readout amplitudes use the same
+absolute limit of 1.0 as other profile pulses. Each readout mode selects its
+shape independently.
 
 Changing shape or edge duration changes the IQ response. Recalibrate IQ blobs
 with thermal reset and, if used, optimized integration weights before relying
@@ -456,6 +457,14 @@ hardcoded in `ArduinoDCBias` and shared by every qubit. Use
 and reliably return channel 0 (physical output 1) to zero afterward.
 
 ## Recommended Workflow
+
+External DC-bias spectroscopy stores the optional qubit field
+`freq_vs_dc_bias_quad_term_hz_per_v2`. This is the signed coefficient `a` in
+`f(V) = f01 + a * (V - dc_bias_v)^2`, with frequency in Hz and external source
+voltage in V. It is a local parabolic approximation around the fitted extremum;
+it is not an OPX Z-line coefficient or the second derivative (which is `2*a`).
+The external-flux calibration proposes this coefficient together with the fitted
+bias and frequency only for successful fits.
 
 Keep `main` as the currently trusted calibration. Create a new profile folder
 for experiments or cooldowns, validate it, and promote it to `main` only after

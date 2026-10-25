@@ -357,19 +357,18 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
         plt.show()
 
     def update_state(self):
+        """Update the in-memory transition frequency for accepted fits."""
         node = self
-        """Update the in-memory machine state after successful EF spectroscopy."""
-        if node.parameters.transition != "ef":
-            return
+        validate_transition(node.parameters.transition)
         with node.record_state_updates():
-            for q in node.namespace["qubits"]:
-                if node.outcomes[q.name] == "failed":
-                    continue
-                fitted_ef_frequency = float(
-                    node.results["fit_results"][q.name]["frequency"]
-                )
-                q.f_12 = fitted_ef_frequency
-                q.anharmonicity = float(q.f_01) - fitted_ef_frequency
+            for q, fit in node.profile_update_results():
+                frequency = float(fit["frequency"])
+                if node.parameters.transition == "ge":
+                    q.f_01 = frequency
+                    q.xy.RF_frequency = frequency
+                else:
+                    q.f_12 = frequency
+                    q.anharmonicity = float(q.f_01) - frequency
 
     def profile_updates(self):
         transition = self.parameters.transition
@@ -387,24 +386,23 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
 
 if __name__ == "__main__":
     parameters = Parameters()
-    parameters.acquisition = "single_shot"
-    parameters.readout_states = ["g", "e", "f"]  # GE readout; add "f" for readout_GEF.
+    parameters.acquisition = "averaged"
+    parameters.readout_states = ["g", "e"]  # GE readout; add "f" for readout_GEF.
 
-    qubit = "q6"
+    qubit = "q1"
 
-    parameters.use_state_discrimination = True
+    parameters.use_state_discrimination = False
     parameters.use_readout_mitigation = False
 
-    parameters.num_shots = 500
-    parameters.operation_amplitude_factor = 0.5
+    parameters.num_shots = 1500
+    parameters.operation_amplitude_factor = 0.0002
     parameters.operation_len_in_ns = 30000
-    parameters.frequency_span_in_mhz = 500
-    parameters.frequency_step_in_mhz = 0.4
-    parameters.reset_type = "active_reset"
+    parameters.frequency_span_in_mhz = 2
+    parameters.frequency_step_in_mhz = 0.02
+    parameters.reset_type = "thermal"  # "active" or "thermal"
     parameters.transition = "ge"
 
     options = CalibrationOptions()
-
     # options.ai_review = True
 
     machine = create_machine(qubit=qubit)

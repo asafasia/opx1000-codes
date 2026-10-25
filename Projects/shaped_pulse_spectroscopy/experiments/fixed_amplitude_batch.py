@@ -21,16 +21,17 @@ from calibrations.base import CalibrationOptions
 from experiments.fixed_amplitude_spectroscopy import EchoLorentzianFixedAmplitude
 from shaped_pulse_spectroscopy.lorentzian import _t2_star_seconds
 from shaped_pulse_spectroscopy.parameters import Parameters
+from shaped_pulse_spectroscopy.echo_parameters import DEFAULT_QUBIT, ECHO_PULSE, echo_parameters
 from quam_config import create_machine
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--qubit", default="q1")
-    parser.add_argument("--cutoff", type=float, default=0.005)
-    parser.add_argument("--pulse-length-us", type=float, default=20.0)
-    parser.add_argument("--template-length-us", type=float, default=20.0)
-    parser.add_argument("--peak-amplitude", type=float, default=0.2)
+    parser.add_argument("--qubit", default=DEFAULT_QUBIT)
+    parser.add_argument("--cutoff", type=float, default=ECHO_PULSE.cutoff)
+    parser.add_argument("--pulse-length-us", type=float, default=ECHO_PULSE.lorentzian_length_in_ns/1000)
+    parser.add_argument("--template-length-us", type=float, default=ECHO_PULSE.waveform_template_length_in_ns/1000)
+    parser.add_argument("--peak-amplitude", type=float, default=ECHO_PULSE.lorentzian_peak_amplitude)
     parser.add_argument("--num-shots", type=int, default=1500)
     parser.add_argument("--num-points", type=int, default=1000)
     parser.add_argument("--frequency-span-mhz", type=float, default=1.0)
@@ -54,11 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
 def parameters_for(
     args: argparse.Namespace, *, echo: bool, rabi_mhz: float
 ) -> Parameters:
-    parameters = Parameters()
-    parameters.use_state_discrimination = True
-    parameters.reset_type = "active"
-    parameters.pulse_shape = "root_lorentzian"
-    parameters.echo = echo
+    parameters = echo_parameters(echo=echo)
     parameters.cutoff = args.cutoff
     parameters.fixed_rabi_frequency_mhz = float(rabi_mhz)
     parameters.num_shots = args.num_shots

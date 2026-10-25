@@ -253,14 +253,14 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
                 n_st.save("n")
                 for i in range(num_qubits):
                     if "g" in states:
-                        self.save_acquisition_stream(Ig_st[i], f'Ig{i + 1}')
-                        self.save_acquisition_stream(Qg_st[i], f'Qg{i + 1}')
+                        self.save_acquisition_stream(Ig_st[i], f"Ig{i + 1}")
+                        self.save_acquisition_stream(Qg_st[i], f"Qg{i + 1}")
                     if "e" in states:
-                        self.save_acquisition_stream(Im_st[i], f'Im{i + 1}')
-                        self.save_acquisition_stream(Qm_st[i], f'Qm{i + 1}')
+                        self.save_acquisition_stream(Im_st[i], f"Im{i + 1}")
+                        self.save_acquisition_stream(Qm_st[i], f"Qm{i + 1}")
                     if use_f_state:
-                        self.save_acquisition_stream(If_st[i], f'If{i + 1}')
-                        self.save_acquisition_stream(Qf_st[i], f'Qf{i + 1}')
+                        self.save_acquisition_stream(If_st[i], f"If{i + 1}")
+                        self.save_acquisition_stream(Qf_st[i], f"Qf{i + 1}")
 
         return node.namespace.get("qua_program")
 
@@ -396,11 +396,11 @@ class ResonatorSpectroscopy(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
 
-    parameters.qubit_operation = "x180"
+    parameters.qubit_operation = "saturation"
     parameters.num_shots = 200
     parameters.frequency_span_in_mhz = 30
     parameters.frequency_step_in_mhz = 0.3
-    parameters.states = ["g", "e", "f"]
+    parameters.states = ["g", "e"]
 
     options = CalibrationOptions()
     # options.ai_review = True
@@ -408,7 +408,7 @@ if __name__ == "__main__":
     calibration = ResonatorSpectroscopy(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q4"),
     )
     calibration.run()
 

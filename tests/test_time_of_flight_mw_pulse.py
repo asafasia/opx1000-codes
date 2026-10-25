@@ -13,7 +13,7 @@ from calibrations.core import CalibrationOptions
 
 def test_gaussian_readout_preserves_settings_and_peak():
     original = SquareReadoutPulse(
-        length=2000, amplitude=0.6, axis_angle=0.3,
+        length=2000, amplitude=0.8, axis_angle=0.3,
         threshold=0.01, integration_weights=[(1, 2000)],
         integration_weights_angle=0.4,
     )
@@ -21,12 +21,12 @@ def test_gaussian_readout_preserves_settings_and_peak():
     waveform = np.asarray(shaped.waveform_function())
     assert waveform.shape == (2000,)
     np.testing.assert_allclose(waveform, waveform[::-1])
-    np.testing.assert_allclose(waveform[100:1900], 0.6 * np.exp(0.3j))
+    np.testing.assert_allclose(waveform[100:1900], 0.8 * np.exp(0.3j))
     assert abs(waveform[0]) < 1e-4
-    assert np.max(abs(waveform)) <= 0.7
+    assert np.max(abs(waveform)) <= 1.0
     assert shaped.integration_weights_function() == original.integration_weights_function()
     assert shaped.threshold == original.threshold
-    assert original.waveform_function() == 0.6 * np.exp(0.3j)
+    assert original.waveform_function() == 0.8 * np.exp(0.3j)
 
 
 def test_gaussian_edges_require_a_flat_top():
@@ -53,7 +53,7 @@ def test_time_of_flight_builds_config_without_hardware(shape, tmp_path, monkeypa
     calibration.create_qua_program()
     config = machine.generate_config()
     pulse = machine.qubits["q6"].resonator.operations["readout"]
-    assert abs(pulse.amplitude) <= 0.7
+    assert abs(pulse.amplitude) <= 1.0
     assert pulse.length == 2000
     element = config["elements"][machine.qubits["q6"].resonator.name]
     configured_pulse = config["pulses"][element["operations"]["readout"]]

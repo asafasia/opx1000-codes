@@ -3,8 +3,8 @@
 The default campaign acquires one detuning-versus-amplitude map for each of
 1, 2, 5, 10, 15, 20, 25, 30, 35, and 40 us.  Every map uses 200 detuning
 points across a 2 MHz total span and 100 log-spaced peak amplitudes from
-0.01 V through the lab-requested 1 V ceiling.  The pulse midpoint phase jump
-is enabled (``echo=True``).
+0.01 V through the shared nominal amplitude (currently 0.7 V). Pulse shape,
+DRAG beta, and smoothing start from the shared echo settings; length is swept.
 
 The command is plan-only unless ``--execute`` is supplied.  Use
 ``--execute --simulate`` to compile/simulate without driving hardware.
@@ -35,9 +35,12 @@ for path in (PROJECT_ROOT, REPOSITORY_ROOT):
         sys.path.insert(0, str(path))
 
 
+from shaped_pulse_spectroscopy.echo_parameters import DEFAULT_QUBIT, ECHO_PULSE, echo_parameters
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--qubit", default="q6")
+    parser.add_argument("--qubit", default=DEFAULT_QUBIT)
     parser.add_argument(
         "--lengths-us",
         type=float,
@@ -50,13 +53,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--frequency-points", type=int, default=200)
     parser.add_argument("--amplitude-points", type=int, default=100)
     parser.add_argument("--min-amplitude-v", type=float, default=0.01)
-    parser.add_argument("--max-amplitude-v", type=float, default=1.0)
-    parser.add_argument("--pulse-shape", choices=["lorentzian", "root_lorentzian", "gaussian"], default="root_lorentzian")
-    parser.add_argument("--cutoff", type=float, default=0.005)
+    parser.add_argument("--max-amplitude-v", type=float, default=ECHO_PULSE.lorentzian_peak_amplitude)
+    parser.add_argument("--pulse-shape", choices=["lorentzian", "root_lorentzian", "gaussian"], default=ECHO_PULSE.pulse_shape)
+    parser.add_argument("--cutoff", type=float, default=ECHO_PULSE.cutoff)
+    parser.add_argument("--drag-beta", type=float, default=ECHO_PULSE.drag_beta)
+    parser.add_argument("--edge-smoothing", choices=["none", "polynomial"], default=ECHO_PULSE.edge_smoothing)
     parser.add_argument(
         "--template-length-ns",
         type=int,
-        default=2_000,
+        default=ECHO_PULSE.waveform_template_length_in_ns,
         help=(
             "Maximum stored waveform length. Shorter physical pulses use their "
             "full length; longer pulses stretch this template in QUA."
@@ -65,10 +70,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ac-stark-correction",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=ECHO_PULSE.ac_stark_correction,
     )
-    parser.add_argument("--stark-kappa-mhz-inv", type=float, default=0.005)
-    parser.add_argument("--stark-chirp-max-error-hz", type=float, default=10.0)
+    parser.add_argument("--stark-kappa-mhz-inv", type=float, default=ECHO_PULSE.stark_kappa_mhz_inv)
+    parser.add_argument("--stark-chirp-max-error-hz", type=float, default=ECHO_PULSE.stark_chirp_max_error_hz)
     parser.add_argument("--readout-mitigation", type=int, choices=[0, 1, 2], default=0)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument("--campaign-id")
@@ -128,12 +133,11 @@ def campaign_directory(args: argparse.Namespace) -> Path:
 
 
 def parameters_for(args: argparse.Namespace, pulse_length_us: float):
-    from shaped_pulse_spectroscopy.parameters import Parameters
-
     pulse_length_ns = int(round(pulse_length_us * 1_000))
-    parameters = Parameters()
-    parameters.use_state_discrimination = True
-    parameters.reset_type = "active"
+    parameters = echo_parameters(
+        pulse_shape=args.pulse_shape, drag_beta=args.drag_beta,
+        edge_smoothing=args.edge_smoothing,
+    )
     parameters.use_readout_mitigation = args.readout_mitigation
     parameters.simulate = bool(args.simulate)
     parameters.pulse_shape = args.pulse_shape
@@ -186,6 +190,10 @@ def settings_snapshot(args: argparse.Namespace, output_dir: Path) -> dict[str, A
         "max_amplitude_v": args.max_amplitude_v,
         "cutoff": args.cutoff,
         "template_length_ns": args.template_length_ns,
+        "drag_beta": args.drag_beta,
+        "echo_transition_time_ns": ECHO_PULSE.echo_transition_time_ns,
+        "edge_smoothing": args.edge_smoothing,
+        "edge_smoothing_power": ECHO_PULSE.edge_smoothing_power,
         "ac_stark_correction": args.ac_stark_correction,
         "stark_kappa_mhz_inv": args.stark_kappa_mhz_inv,
         "stark_chirp_max_error_hz": args.stark_chirp_max_error_hz,
@@ -280,6 +288,10 @@ def run_campaign(args: argparse.Namespace, output_dir: Path) -> None:
     manifest_path = output_dir / "manifest.json"
     if args.resume and manifest_path.is_file():
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        # Older manifests predate configurable DRAG and polynomial smoothing.
+        for key, value in dict(drag_beta=0.0, echo_transition_time_ns=16.0,
+                               edge_smoothing="none", edge_smoothing_power=5).items():
+            manifest.setdefault(key, value)
         expected = settings_snapshot(args, output_dir)
         immutable_keys = (
             "mode",
@@ -296,6 +308,10 @@ def run_campaign(args: argparse.Namespace, output_dir: Path) -> None:
             "max_amplitude_v",
             "cutoff",
             "template_length_ns",
+            "drag_beta",
+            "echo_transition_time_ns",
+            "edge_smoothing",
+            "edge_smoothing_power",
             "ac_stark_correction",
             "readout_mitigation",
         )

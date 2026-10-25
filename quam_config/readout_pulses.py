@@ -31,8 +31,8 @@ class FlatTopGaussianReadoutPulse(SquareReadoutPulse):
             or self.flat_length <= 0
         ):
             raise ValueError("Gaussian edges must be positive multiples of 4 ns and leave a positive flat-top duration.")
-        if not np.isfinite(self.amplitude) or abs(self.amplitude) > 0.7:
-            raise ValueError("Flat-top Gaussian readout amplitude must be finite and at most 0.7.")
+        if not np.isfinite(self.amplitude) or abs(self.amplitude) > 1.0:
+            raise ValueError("Flat-top Gaussian readout amplitude must be finite and at most 1.0.")
         waveform = np.asarray(flattop_gaussian_waveform(
             amplitude=self.amplitude,
             flat_length=self.flat_length,

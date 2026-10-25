@@ -6,6 +6,17 @@ from dataclasses import dataclass
 
 import numpy as np
 
+try:
+    from shaped_pulse_spectroscopy.envelopes import (
+        polynomial_root_envelope,
+        validate_edge_smoothing,
+    )
+except ImportError:
+    from Projects.shaped_pulse_spectroscopy.shaped_pulse_spectroscopy.envelopes import (
+        polynomial_root_envelope,
+        validate_edge_smoothing,
+    )
+
 
 @dataclass(frozen=True)
 class QutritSliceResult:
@@ -80,12 +91,23 @@ def _integrate_half(
     echo: bool,
     drag_beta: float,
     echo_transition_time_us: float,
+    duration_us: float,
+    cutoff: float,
+    edge_smoothing: str,
+    edge_smoothing_power: int,
 ) -> np.ndarray:
     """Integrate one pulse half with vectorized RK4."""
     step = (time_stop_us - time_start_us) / num_steps
 
     def derivative(current_state: np.ndarray, time_us: float) -> np.ndarray:
-        if pulse_shape == "root_lorentzian":
+        if edge_smoothing == "polynomial":
+            envelope, envelope_derivative = polynomial_root_envelope(
+                time_us,
+                duration=duration_us,
+                cutoff=cutoff,
+                power=edge_smoothing_power,
+            )
+        elif pulse_shape == "root_lorentzian":
             envelope = 1.0 / np.sqrt(1.0 + (time_us / sigma_us) ** 2)
             envelope_derivative = (
                 -time_us * envelope / (sigma_us**2 + time_us**2)
@@ -96,8 +118,8 @@ def _integrate_half(
         else:  # Guarded by simulate_qutrit_slices; keeps this helper defensive.
             raise ValueError(f"Unsupported pulse_shape: {pulse_shape!r}")
 
-        if drag_beta == 0.0:
-            # Preserve the established beta=0 simulation exactly.
+        if drag_beta == 0.0 and (not echo or echo_transition_time_us == 0.0):
+            # Preserve the abrupt-transition simulation when smoothing is disabled.
             scale = drive_sign * envelope
         else:
             if not echo:
@@ -157,8 +179,11 @@ def simulate_qutrit_slices(
     pulse_shape: str = "root_lorentzian",
     drag_beta: float = 0.0,
     echo_transition_time_ns: float = 0.0,
+    edge_smoothing: str = "none",
+    edge_smoothing_power: int = 5,
 ) -> QutritSliceResult:
     """Simulate root-Lorentzian or constant slices with the qutrit model."""
+    validate_edge_smoothing(edge_smoothing, edge_smoothing_power, pulse_shape)
     if duration_us <= 0:
         raise ValueError("duration_us must be positive.")
     if t1_us <= 0 or t2_star_us <= 0:
@@ -167,8 +192,8 @@ def simulate_qutrit_slices(
         raise ValueError("T2* must be less than 2*T1 for positive pure dephasing.")
     if num_steps_per_half < 1:
         raise ValueError("num_steps_per_half must be positive.")
-    if not 0 < cutoff < 1:
-        raise ValueError("cutoff must lie strictly between zero and one.")
+    if not 0 < cutoff <= 1:
+        raise ValueError("cutoff must satisfy 0 < cutoff <= 1.")
     if pulse_shape not in {"root_lorentzian", "constant"}:
         raise ValueError("pulse_shape must be 'root_lorentzian' or 'constant'.")
     if anharmonicity_mhz == 0:
@@ -191,7 +216,7 @@ def simulate_qutrit_slices(
     state = np.zeros((6, *detuning.shape), dtype=np.complex128)
     state[0] = 1.0
     half_duration_us = duration_us / 2.0
-    sigma_us = half_duration_us / np.sqrt(cutoff**-2 - 1.0)
+    sigma_us = half_duration_us / np.sqrt(cutoff**-2 - 1.0) if cutoff < 1 else np.inf
     inv_t1 = 1.0 / t1_us
     inv_t_phi = 1.0 / t2_star_us - 0.5 * inv_t1
     common = {
@@ -206,6 +231,10 @@ def simulate_qutrit_slices(
         "echo": echo,
         "drag_beta": drag_beta,
         "echo_transition_time_us": echo_transition_time_ns / 1e3,
+        "duration_us": duration_us,
+        "cutoff": cutoff,
+        "edge_smoothing": edge_smoothing,
+        "edge_smoothing_power": edge_smoothing_power,
     }
     state = _integrate_half(
         state,

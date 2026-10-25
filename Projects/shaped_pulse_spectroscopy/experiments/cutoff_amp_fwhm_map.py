@@ -34,6 +34,7 @@ from calibrations.base import CalibrationOptions
 from experiments.detuning_amplitude_sweep import EchoLorentzian
 from shaped_pulse_spectroscopy.lorentzian import _t2_star_seconds, plot_raw_data
 from shaped_pulse_spectroscopy.parameters import Parameters
+from shaped_pulse_spectroscopy.echo_parameters import DEFAULT_QUBIT, echo_parameters, fast_echo_parameters
 from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
 from utils.rabi_amplitude import amplitude_to_rabi_frequency_hz
@@ -60,7 +61,7 @@ def run_cutoff_amp_fwhm_map(
     auto_connect: bool = True,
 ) -> dict[str, Any]:
     """Run one echo-Lorentzian spectroscopy experiment per cutoff value."""
-    base_parameters = base_parameters or Parameters()
+    base_parameters = base_parameters or fast_echo_parameters(fit_fwhm=True)
     base_parameters.pulse_shape = "root_lorentzian"
     cutoffs = list(cutoffs)
     if output_dir is None:
@@ -768,15 +769,8 @@ def _format_duration(seconds: float) -> str:
 
 
 if __name__ == "__main__":
-    parameters = Parameters()
-    parameters.use_state_discrimination = True
-    parameters.reset_type = "active"
-    parameters.pulse_shape = "root_lorentzian"
-    parameters.echo = True
+    parameters = echo_parameters()
     parameters.num_shots = 60
-    parameters.lorentzian_length_in_ns = 20000
-    parameters.waveform_template_length_in_ns = 20000
-    parameters.lorentzian_peak_amplitude = 0.2
     parameters.min_amp_factor = 0.0
     parameters.max_amp_factor = 1
     parameters.amp_factor_step = 0.04
@@ -785,8 +779,8 @@ if __name__ == "__main__":
 
     result = run_cutoff_amp_fwhm_map(
         parameters,
-        machine=create_machine(qubit="q1"),
-        qubit="q1",
+        machine=create_machine(qubit=DEFAULT_QUBIT),
+        qubit=DEFAULT_QUBIT,
         cutoffs=cutoff_points(20),
     )
     print(f"Cutoff amplitude FWHM map results saved to {result['output_dir']}")

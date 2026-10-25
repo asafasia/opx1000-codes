@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from copy import deepcopy
 from importlib import import_module
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -11,9 +12,20 @@ from qm import generate_qua_script
 
 from quam_config.components import ArduinoDCBias
 from quam_config.create_machine_from_profile import create_machine_from_profile
+from profiles import load_profile, ProfileError
+from profiles.loader import _validate_qubits
 
 
 module = import_module("calibrations.03d_qubit_spectroscopy_vs_external_flux")
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), True, "-6e12"])
+def test_external_bias_coefficient_rejects_invalid_profile_values(value):
+    profile = load_profile("single_qubit")
+    document = deepcopy(profile["qubits"])
+    document["qubits"]["q9"]["freq_vs_dc_bias_quad_term_hz_per_v2"] = value
+    with pytest.raises(ProfileError, match="finite numeric freq_vs_dc_bias"):
+        _validate_qubits(document, profile["pulses"])
 
 
 @pytest.fixture
@@ -89,6 +101,7 @@ def mock_execution(calibration, events, *, fail_resume=None):
     handles = {}
     for name, offset in (("I", 0), ("Q", 100)):
         handle = MagicMock()
+        handle.has_dataloss.return_value = False
         handle.count_so_far.side_effect = lambda: state["row"] + 1
         handle.fetch.side_effect = lambda index, timeout, offset=offset: {
             "value": np.arange(4) + 10 * index + offset
@@ -149,6 +162,47 @@ def test_failed_resume_halts_and_zeros_source(calibration):
     assert events.index(("halt",)) < events.index(("voltage", 0.0))
     controller.close.assert_called_once()
     assert calibration.results["ds_raw"].sizes["flux_bias"] == 1
+
+
+@pytest.mark.parametrize("stop_row", [0, 1, 2])
+def test_ctrl_c_keeps_only_complete_bias_rows_and_zeros_source(calibration, stop_row):
+    events = []
+    job, handles, session, controller = mock_execution(calibration, events)
+    resume = job.resume.side_effect
+
+    def interrupted_resume():
+        if job.resume.call_count == stop_row + 1:
+            raise KeyboardInterrupt()
+        resume()
+
+    job.resume.side_effect = interrupted_resume
+    with patch.object(module, "qm_session", session), \
+         patch.object(module, "assert_outputs_allowed"), \
+         patch("quam_config.components.dc_bias.open_controller", return_value=controller):
+        if stop_row:
+            calibration.execute_qua_program()
+            ds = calibration.results["ds_raw"]
+            assert ds.sizes["flux_bias"] == stop_row
+            assert ds.attrs["acquisition_interrupted"]
+            assert ds.attrs["completed_iterations"] == stop_row
+        else:
+            with pytest.raises(module.AcquisitionStopped):
+                calibration.execute_qua_program()
+    assert events.index(("halt",)) < events.index(("voltage", 0.0))
+    controller.close.assert_called_once()
+
+
+def test_data_loss_never_reaches_external_flux_analysis(calibration):
+    events = []
+    job, handles, session, controller = mock_execution(calibration, events)
+    handles["Q"].has_dataloss.return_value = True
+    with patch.object(module, "qm_session", session), \
+         patch.object(module, "assert_outputs_allowed"), \
+         patch("quam_config.components.dc_bias.open_controller", return_value=controller):
+        with pytest.raises(module.AcquisitionError, match="data loss"):
+            calibration.execute_qua_program()
+    assert "ds_raw" not in calibration.results
+    controller.close.assert_called_once()
 
 
 def test_wait_timeout_is_bounded(calibration):
@@ -228,6 +282,7 @@ def test_parabolic_map_rejects_false_high_peak_and_fits_absolute_bias(calibratio
     assert result["idle_offset"] == pytest.approx(sweet_spot, abs=5e-5)
     updates = calibration.profile_updates()
     assert updates["qubits.json.qubits.q3.dc_bias_v"] == result["idle_offset"]
+    assert updates["qubits.json.qubits.q3.freq_vs_dc_bias_quad_term_hz_per_v2"] == pytest.approx(-6e12, rel=0.05)
     assert result["qubit_frequency"] == pytest.approx(
         calibration.namespace["drive_frequency_hz"] + 4e6, abs=3e5,
     )

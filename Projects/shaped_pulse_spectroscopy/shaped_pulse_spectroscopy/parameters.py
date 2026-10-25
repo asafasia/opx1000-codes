@@ -1,3 +1,5 @@
+from typing import Literal
+
 from qualibrate import NodeParameters
 from qualibrate.core.parameters import RunnableParameters
 from qualibration_libs.parameters import (
@@ -22,7 +24,11 @@ class NodeSpecificParameters(RunnableParameters):
     lorentzian_peak_amplitude: float = 0.1
     """Peak amplitude A of the unscaled Lorentzian waveform in V."""
     cutoff: float = 0.2
-    """Shared edge/peak amplitude ratio for every supported pulse shape."""
+    """Uncorrected edge/peak ratio; sets core width when edge smoothing is enabled."""
+    edge_smoothing: Literal["none", "polynomial"] = "none"
+    """Optional root-Lorentzian floor subtraction and polynomial edge window."""
+    edge_smoothing_power: int = 5
+    """Positive polynomial window power; the paper uses 5. No peak/area rematching."""
     echo: bool = False
     """Apply a 180-degree phase jump at the waveform midpoint."""
     ac_stark_correction: bool = False
@@ -30,9 +36,9 @@ class NodeSpecificParameters(RunnableParameters):
     stark_kappa_mhz_inv: float = 0.00225
     """Quadratic AC-Stark correction coefficient in inverse MHz."""
     drag_beta: float = 0.0
-    """Dimensionless DRAG coefficient; zero preserves the legacy waveform."""
+    """Dimensionless DRAG coefficient; zero disables the DRAG quadrature."""
     echo_transition_time_ns: float = 16.0
-    """Smooth echo-inversion duration used only when DRAG is nonzero."""
+    """Smooth echo-inversion duration with or without DRAG; zero gives an abrupt jump."""
     stark_chirp_max_error_hz: float = 100.0
     """Maximum interpolation error for the piecewise-linear Stark chirp."""
     min_amp_factor: float = 0.0

@@ -293,8 +293,8 @@ class T1(BaseCalibration[Parameters, Quam]):
 
 if __name__ == "__main__":
     parameters = Parameters()
-    parameters.acquisition = "single_shot"  # "averaged" or "single_shot"
-    parameters.readout_states = ["g", "e", "f"]  # GE readout; add "f" for readout_GEF.
+    parameters.acquisition = "averaged"  # "averaged" or "single_shot"
+    parameters.readout_states = ["g", "e"]  # GE readout; add "f" for readout_GEF.
 
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"  # "active" or "thermal"
@@ -310,6 +310,6 @@ if __name__ == "__main__":
     calibration = T1(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q6"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

@@ -6,6 +6,7 @@ import time
 import numpy as np
 import xarray as xr
 from qualibration_libs.data import XarrayDataFetcher
+from qm.exceptions import QMConnectionError
 
 
 class AcquisitionError(RuntimeError):
@@ -67,6 +68,19 @@ def _read_dataset(handles, axes, *, job_id, interrupted, partial_axis):
         raise AcquisitionError("The first result axis must be qubit or qubit_pair.")
     dims = [name for name in coords if name != target_axis]
     shape = tuple(coords[name].size for name in dims)
+    # SDK results can omit length-one buffer dimensions, including on Ctrl+C.
+    # For partial save_all streams, preserve each stream's acquired outer count
+    # rather than reshaping to the requested number of shots/sequences.
+    for name, value in raw.items():
+        result_shape = shape
+        if interrupted and partial_axis is not None and value.ndim:
+            result_shape = (value.shape[0], *shape[1:])
+        if (
+            value.ndim < len(result_shape)
+            and tuple(size for size in value.shape if size != 1)
+            == tuple(size for size in result_shape if size != 1)
+        ):
+            raw[name] = value.reshape(result_shape)
     acquired = None
     if interrupted and partial_axis is not None:
         if not dims or dims[0] != partial_axis:
@@ -125,7 +139,6 @@ def fetch_result_dataset(job, axes, *, on_progress=None, poll_interval=0.2, part
         on_progress(0, started)
     job_id = getattr(job, "id", "unknown")
     get_status = getattr(job, "get_status", None)
-    interrupted = False
     try:
         handles = job.result_handles
         counter = handles.get("n")
@@ -152,19 +165,41 @@ def fetch_result_dataset(job, axes, *, on_progress=None, poll_interval=0.2, part
         return _read_dataset(handles, axes, job_id=job_id, interrupted=False, partial_axis=partial_axis)
     except KeyboardInterrupt:
         print("\nStopping acquisition; fetching completed measurements...", flush=True)
-        interrupted = True
         status = get_status() if callable(get_status) else None
         if status == "Error":
             raise AcquisitionError(f"Job {job_id} ended with status Error.") from None
-        if status not in {"Done", "Canceled"}:
-            cancel = getattr(job, "cancel", None) or getattr(job, "halt", None)
-            if not callable(cancel):
-                raise AcquisitionError(f"Job {job_id} cannot be stopped by this SDK.") from None
-            cancel()
-        handles = job.result_handles
+        snapshot = None
+        try:
+            # QOP may stop serving named-result headers as soon as cancel()
+            # returns. Copy complete, validated buffers while they are readable.
+            if status not in {"Done", "Canceled"}:
+                try:
+                    handles = job.result_handles
+                    snapshot = _read_dataset(
+                        handles, axes, job_id=job_id, interrupted=True, partial_axis=partial_axis,
+                    )
+                except (AcquisitionStopped, QMConnectionError):
+                    # No readable snapshot yet; try the final buffers after stop.
+                    pass
+        finally:
+            # Stop even if fetching fails or a second Ctrl+C aborts the snapshot.
+            if status not in {"Done", "Canceled"}:
+                cancel = getattr(job, "cancel", None) or getattr(job, "halt", None)
+                if not callable(cancel):
+                    raise AcquisitionError(f"Job {job_id} cannot be stopped by this SDK.") from None
+                cancel()
         # False is expected for a user-canceled job; existing full buffers remain
         # readable. Bound this wait, and allow a second Ctrl+C to abort recovery.
-        handles.wait_for_all_values(timeout=10)
-        if callable(get_status) and get_status() == "Error":
-            raise AcquisitionError(f"Job {job_id} ended with status Error.") from None
-    return _read_dataset(handles, axes, job_id=job_id, interrupted=interrupted, partial_axis=partial_axis)
+        try:
+            handles = job.result_handles
+            handles.wait_for_all_values(timeout=10)
+            if callable(get_status) and get_status() == "Error":
+                raise AcquisitionError(f"Job {job_id} ended with status Error.") from None
+            if snapshot is None:
+                return _read_dataset(handles, axes, job_id=job_id, interrupted=True, partial_axis=partial_axis)
+        except QMConnectionError as error:
+            if snapshot is None:
+                raise AcquisitionError(
+                    f"Job {job_id} stopped, but QOP results are unavailable and no complete buffers were recovered."
+                ) from error
+        return snapshot

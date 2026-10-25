@@ -28,6 +28,7 @@ from experiments.cutoff_amp_fwhm_map import (
 )
 from profiles import load_profile
 from shaped_pulse_spectroscopy.parameters import Parameters
+from shaped_pulse_spectroscopy.echo_parameters import ECHO_PULSE, echo_parameters
 from quam_config import create_machine
 from utils.rabi_amplitude import rabi_frequency_hz_to_amplitude
 
@@ -162,13 +163,10 @@ def build_parameters(
     }
     defaults.update({key: value for key, value in overrides.items() if value is not None})
 
-    parameters = Parameters()
-    parameters.use_state_discrimination = True
-    parameters.reset_type = "active"
-    parameters.pulse_shape = "root_lorentzian"
+    parameters = echo_parameters()
     parameters.echo = bool(defaults.get("echo", True))
     parameters.num_shots = int(defaults.get("num_shots", 60))
-    parameters.lorentzian_length_in_ns = int(defaults.get("pulse_length_ns", 20000))
+    parameters.lorentzian_length_in_ns = int(defaults.get("pulse_length_ns", ECHO_PULSE.lorentzian_length_in_ns))
     parameters.waveform_template_length_in_ns = int(
         defaults.get("template_length_ns", parameters.lorentzian_length_in_ns)
     )
@@ -206,7 +204,7 @@ def optional_int(value: Any) -> int | None:
 def peak_amplitude_for(args: argparse.Namespace, defaults: dict[str, Any]) -> float:
     max_rabi_mhz = defaults.get("max_rabi_frequency_mhz")
     if max_rabi_mhz is None:
-        return float(defaults.get("peak_amplitude", 0.2))
+        return float(defaults.get("peak_amplitude", ECHO_PULSE.lorentzian_peak_amplitude))
 
     profile = load_machine_profile(args.qubit)
     qubit_config = profile["qubits"]["qubits"][args.qubit]

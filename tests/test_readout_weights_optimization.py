@@ -1,17 +1,21 @@
 import json
 import tempfile
 import unittest
+from importlib import import_module
+from types import SimpleNamespace
 from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
 import xarray as xr
+import pytest
 
 from calibration_utils.readout_weights_optimization import (
     kernel_to_segments,
     process_sliced_traces,
     save_kernel_artifacts,
 )
+from profiles import ProfileUpdater
 
 
 class ReadoutWeightsOptimizationTests(unittest.TestCase):
@@ -93,6 +97,50 @@ class ReadoutWeightsOptimizationTests(unittest.TestCase):
             self.assertEqual([path.name for path in kernel_files], ["q1_readout_kernel.npz"])
             with np.load(output / "q1_readout_kernel.npz") as kernel_file:
                 np.testing.assert_allclose(kernel_file["profile_kernel"], [0.5, -0.5])
+
+
+@pytest.mark.parametrize("answer", ["y", "n", ""])
+def test_kernel_analysis_stages_candidates_and_installs_only_after_y(tmp_path, monkeypatch, answer):
+    module = import_module("calibrations.10d_readout_weights_optimization")
+    profile = tmp_path / "profiles" / "example"
+    kernels = profile / "kernels"
+    kernels.mkdir(parents=True)
+    kernel = kernels / "q1_readout_kernel.npz"
+    kernel.write_bytes(b"original kernel")
+    qubits = profile / "qubits.json"
+    original = {"qubits": {"q1": {"readout": {"use_kernel": True,
+                 "gef_centers": [[0, 0], [1, 1]], "confusion_matrix": [[1, 0], [0, 1]]}}}}
+    qubits.write_text(json.dumps(original))
+    node = module.ReadoutWeightsOptimization(
+        parameters=module.Parameters(), machine=object(), profile_name="example",
+        profile_updater=ProfileUpdater(tmp_path / "updates", profile.parent), logger=lambda _: None,
+    )
+    node.namespace.update(qubits=[SimpleNamespace(name="q1")], acquisition_interrupted=True)
+    node.results["ds_raw"] = xr.Dataset(
+        {name: (("qubit", "time_slice"), [[1.0, 0.0]] if name == "IIe" else [[0.0, 0.0]])
+         for name in ("IIg", "IQg", "QIg", "QQg", "IIe", "IQe", "QIe", "QQe")},
+        coords={"qubit": ["q1"], "time_slice": [1, 2]},
+    )
+    node.analyse_data()
+    assert kernel.read_bytes() == b"original kernel"
+    assert json.loads(qubits.read_text()) == original
+    candidates = node.namespace["kernel_artifact_directory"]
+    assert candidates.is_relative_to(tmp_path / "updates")
+
+    def respond(prompt):
+        assert kernel.read_bytes() == b"original kernel"
+        assert json.loads(qubits.read_text()) == original
+        return answer
+
+    monkeypatch.setattr("builtins.input", respond)
+    assert node.propose_profile_update(apply=True)
+    if answer == "y":
+        assert kernel.read_bytes() == (candidates / kernel.name).read_bytes()
+        backup = node.namespace["profile_update_proposal"] / "profile_before_update" / "kernels" / kernel.name
+        assert backup.read_bytes() == b"original kernel"
+    else:
+        assert kernel.read_bytes() == b"original kernel"
+        assert json.loads(qubits.read_text()) == original
 
 
 if __name__ == "__main__":
