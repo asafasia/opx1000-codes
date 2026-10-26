@@ -629,10 +629,10 @@ def test_recovered_t1_data_can_be_fitted_and_plotted(monkeypatch):
 
     module = import_module("calibrations.05_T1")
     node = module.T1(parameters=module.Parameters(acquisition="single_shot", num_shots=300, use_state_discrimination=True),
-                     machine=create_machine(qubit="q1"))
+                     machine=create_machine(qubit="q1b"))
     node.get_qubits()
     times = np.linspace(16, 60000, 41)
-    node.namespace["sweep_axes"] = {"qubit": np.array(["q1"]), "shot": np.arange(300),
+    node.namespace["sweep_axes"] = {"qubit": np.array(["q1b"]), "shot": np.arange(300),
                                       "idle_time": xr.DataArray(times, attrs={"units": "ns"})}
     job = Job(states=("g", "e"))
     probability = 0.8 * np.exp(-times / 20000) + 0.05

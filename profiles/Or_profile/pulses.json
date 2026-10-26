@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "pulses": {
-    "q1": {
+    "q1b": {
       "x180_const": {
         "target": "qubit",
         "type": "constant",
@@ -24,18 +24,41 @@
         "digital_marker": "ON"
       }
     },
-    "q2": {
+    "q2b": {
       "x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.5,
+        "amplitude": 0.18175251785616983,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
       "saturation": {
         "target": "qubit",
         "type": "saturation",
-        "amplitude": 1,
+        "amplitude": 0.999,
+        "length_ns": 100000,
+        "axis_angle_rad": 0
+      },
+      "readout": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.0711051851851852,
+        "length_ns": 3000,
+        "digital_marker": "ON"
+      }
+    },
+    "q3b": {
+      "x180_const": {
+        "target": "qubit",
+        "type": "constant",
+        "amplitude": 0.99,
+        "length_ns": 400,
+        "axis_angle_rad": 0
+      },
+      "saturation": {
+        "target": "qubit",
+        "type": "saturation",
+        "amplitude": 0.1,
         "length_ns": 100000,
         "axis_angle_rad": 0
       },
@@ -47,7 +70,53 @@
         "digital_marker": "ON"
       }
     },
-    "q3": {
+    "q1a": {
+      "x180_const": {
+        "target": "qubit",
+        "type": "constant",
+        "amplitude": 0.4,
+        "length_ns": 40,
+        "axis_angle_rad": 0
+      },
+      "saturation": {
+        "target": "qubit",
+        "type": "saturation",
+        "amplitude": 0.999,
+        "length_ns": 100000,
+        "axis_angle_rad": 0
+      },
+      "readout": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.1,
+        "length_ns": 3000,
+        "digital_marker": "ON"
+      }
+    },
+    "q2a": {
+      "x180_const": {
+        "target": "qubit",
+        "type": "constant",
+        "amplitude": 0.18175251785616983,
+        "length_ns": 40,
+        "axis_angle_rad": 0
+      },
+      "saturation": {
+        "target": "qubit",
+        "type": "saturation",
+        "amplitude": 0.999,
+        "length_ns": 100000,
+        "axis_angle_rad": 0
+      },
+      "readout": {
+        "target": "resonator",
+        "type": "constant",
+        "amplitude": 0.0711051851851852,
+        "length_ns": 3000,
+        "digital_marker": "ON"
+      }
+    },
+    "q3a": {
       "x180_const": {
         "target": "qubit",
         "type": "constant",

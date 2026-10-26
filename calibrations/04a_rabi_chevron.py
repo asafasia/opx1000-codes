@@ -329,6 +329,6 @@ if __name__ == "__main__":
     calibration = RabiChevron(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q3"),
+        machine=create_machine(qubit="q3b"),
     )
     calibration.run()

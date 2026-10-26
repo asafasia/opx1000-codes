@@ -43,6 +43,6 @@ if __name__ == "__main__":
     calibration = QubitSpectroscopy(
         parameters=parameters,
         options=CalibrationOptions(),
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q1b"),
     )
     calibration.run()

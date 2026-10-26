@@ -48,7 +48,7 @@ if __name__ == "__main__":
     power_rabi = PowerRabiEf(
         parameters=parameters,
         # options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q1b"),
         auto_connect=True,
     )
     power_rabi.run()

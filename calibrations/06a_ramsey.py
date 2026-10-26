@@ -368,6 +368,6 @@ if __name__ == "__main__":
     calibration = Ramsey(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q3"),
+        machine=create_machine(qubit="q2b"),
     )
     calibration.run()

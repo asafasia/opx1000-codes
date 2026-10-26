@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
     parameters = Parameters(simulate=True)
     calibration = SingleQubitRandomizedBenchmarkingInterleaved(
-        parameters, machine=create_machine(qubit="q1"),
+        parameters, machine=create_machine(qubit="q1b"),
         options=CalibrationOptions(save_raw_data=False, save_figures=False,
             update_state=False, propose_profile_update=False, apply_profile_update=False))
     calibration.run()

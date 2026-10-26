@@ -297,7 +297,7 @@ if __name__ == "__main__":
     parameters.readout_states = ["g", "e"]  # GE readout; add "f" for readout_GEF.
 
     parameters.use_state_discrimination = True
-    parameters.reset_type = "active"  # "active" or "thermal"
+    parameters.reset_type = "thermal"  # "active" or "thermal"
     parameters.use_readout_mitigation = False
 
     parameters.max_wait_time_in_ns = 250_000
@@ -310,6 +310,6 @@ if __name__ == "__main__":
     calibration = T1(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q2b"),
     )
     calibration.run()

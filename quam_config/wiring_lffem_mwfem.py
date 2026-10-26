@@ -40,12 +40,15 @@ def _controller_number(controller_name: str) -> int:
     return int(match.group(1))
 
 
-def _qubit_reference(qubit_name: str) -> int:
-    """Convert profile qubit names such as 'q9' to wirer qubit IDs."""
-    match = re.fullmatch(r"q(\d+)", qubit_name)
+def _qubit_reference(qubit_name: str) -> int | str:
+    """Convert q9 or q2b to distinct wirer indices, preserving chip suffixes."""
+    match = re.fullmatch(r"q(\d+[ab]?)", qubit_name)
     if match is None:
-        raise ProfileError(f"Qubit {qubit_name!r} must use the form 'q<number>'")
-    return int(match.group(1))
+        raise ProfileError(
+            f"Qubit {qubit_name!r} must use 'q<number>' with an optional 'a' or 'b' suffix"
+        )
+    index = match.group(1)
+    return int(index) if index.isdigit() else index
 
 
 def _mw_fem_inventory(connectivity_profile: dict[str, Any]) -> dict[int, list[int]]:
@@ -65,9 +68,9 @@ def _mw_fem_inventory(connectivity_profile: dict[str, Any]) -> dict[int, list[in
 
 def _resonator_lines(
     connections: dict[str, Any], active_qubits: list[str]
-) -> dict[tuple[int, int, int, int], list[int]]:
+) -> dict[tuple[int, int, int, int], list[int | str]]:
     """Group qubits that share the same resonator input/output feedline."""
-    lines: dict[tuple[int, int, int, int], list[int]] = defaultdict(list)
+    lines: dict[tuple[int, int, int, int], list[int | str]] = defaultdict(list)
     for qubit_name in active_qubits:
         connection = connections[qubit_name]
         output = connection["resonator_output"]
@@ -90,9 +93,9 @@ def _resonator_lines(
 
 def _xy_lines(
     connections: dict[str, Any], active_qubits: list[str]
-) -> dict[tuple[int, int, int], list[int]]:
+) -> dict[tuple[int, int, int], list[int | str]]:
     """Group qubits that share the same XY output line."""
-    lines: dict[tuple[int, int, int], list[int]] = defaultdict(list)
+    lines: dict[tuple[int, int, int], list[int | str]] = defaultdict(list)
     for qubit_name in active_qubits:
         output = connections[qubit_name]["xy_output"]
         key = (

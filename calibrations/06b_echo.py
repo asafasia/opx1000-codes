@@ -133,8 +133,10 @@ class Echo(BaseCalibration[Parameters, Quam]):
                 n_st.save("n")
                 for i in range(num_qubits):
                     self.process_readout_streams(
-                        i, state_st if self.parameters.use_state_discrimination else None,
-                        I_st, Q_st,
+                        i,
+                        state_st if self.parameters.use_state_discrimination else None,
+                        I_st,
+                        Q_st,
                     )
 
         return node.namespace.get("qua_program")
@@ -219,9 +221,13 @@ class Echo(BaseCalibration[Parameters, Quam]):
                 q.T2echo = node.results["fit_results"][q.name]["T2_echo"]
 
     def profile_updates(self):
-        return self.metric_profile_updates({
-            "coherence.t2_echo_ns": lambda q, fit: float(self.results["ds_fit"].sel(qubit=q.name).T2_echo),
-        })
+        return self.metric_profile_updates(
+            {
+                "coherence.t2_echo_ns": lambda q, fit: float(
+                    self.results["ds_fit"].sel(qubit=q.name).T2_echo
+                ),
+            }
+        )
 
 
 if __name__ == "__main__":
@@ -229,7 +235,7 @@ if __name__ == "__main__":
     parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
 
     parameters.use_state_discrimination = True
-    parameters.reset_type = "active"
+    parameters.reset_type = "thermal"  # "active" or "thermal"
     parameters.max_wait_time_in_ns = 50e3
     parameters.wait_time_num_points = 150
     parameters.log_or_linear_sweep = "log"
@@ -240,6 +246,6 @@ if __name__ == "__main__":
     calibration = Echo(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q6"),
+        machine=create_machine(qubit="q2b"),
     )
     calibration.run()

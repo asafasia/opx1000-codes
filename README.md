@@ -74,7 +74,7 @@ python -m pip install -r Projects/ising_simulation/requirements.txt
 ## Device Profiles
 
 The profile system is the source of truth for machine construction. The default
-profile is `profiles/Or_profile` (Or 1A/2A/3A, with 3A active). Select
+profile is `profiles/Or_profile` (Or `q1b`/`q2b`/`q3b` and `q1a`/`q2a`/`q3a`, with `q3b` active). Select
 `main` or `single_qubit` explicitly to use those profiles.
 
 Validate the main profile:

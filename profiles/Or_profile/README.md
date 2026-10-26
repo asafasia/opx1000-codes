@@ -1,20 +1,27 @@
 # Or_profile
 
-Or chip profile for the wiring recorded on 25 October 2026. Profile keys
-`q1`, `q2`, and `q3` represent Or qubits **1A**, **2A**, and **3A** respectively.
-The machine builder requires the `q<number>` naming format.
+Or chip profile for the wiring recorded on 25 October 2026. The original
+`q1`, `q2`, and `q3` entries are now named **q1b**, **q2b**, and **q3b**.
+On 26 October 2026, independent **q1a**, **q2a**, and **q3a** copies were added
+with the same parameters, pulses, metrics, and connectivity as their B counterparts.
+Use these exact lowercase keys, including the `q` prefix, to select a qubit.
 
 | Profile key | Chip label | Drive output | Readout output | Readout input |
 | --- | --- | --- | --- | --- |
-| q1 | 1A | 3 | 8 | 2 |
-| q2 | 2A | 5 | 8 | 2 |
-| q3 | 3A | 7 | 8 | 2 |
+| q1b | 1B | 3 | 8 | 2 |
+| q2b | 2B | 5 | 8 | 2 |
+| q3b | 3B | 7 | 8 | 2 |
+| q1a | 1A | 3 | 8 | 2 |
+| q2a | 2A | 5 | 8 | 2 |
+| q3a | 3A | 7 | 8 | 2 |
 
 All ports are on `con1`, MW-FEM slot 7. Wiring follows the
 [dated port assignments](../../docs/hardware/opx1000_ports_2026-10-25.md).
-Only Or's chip is included; `q3` is active by default.
+Only Or's chip is included; `q3b` is active by default.
 `Or_profile` is the repository default profile. Single-qubit selection
-is supported for any of the three qubits.
+is supported for any of the six entries. A/B counterparts initially share the
+same physical ports and display grid positions. The A/B qubits use the same
+lines, with connections switched manually. Subsequent calibration updates affect only the selected entry.
 
 ## Parameter source
 
@@ -33,7 +40,7 @@ Drive and readout full-scale power are both 10 dBm. Readout uses band 2
 and a shared 6.3 GHz LO; drive uses band 1 with per-output LOs.
 Input gain remains unspecified, matching the source.
 
-For 3A (`q3`):
+Original imported values for the entry now named `q3b` (see JSON for current values):
 
 | Parameter | Value |
 | --- | --- |
@@ -61,19 +68,20 @@ Grid locations are display-only positions, not measured chip coordinates.
 from quam_config import CreateMachine
 from quam_config.create_machine_from_profile import create_machine_from_profile
 
-cm = CreateMachine("Or_profile")  # All three qubits, q3 active
-machine = create_machine_from_profile("Or_profile", qubit="q3", save=False)
+cm = CreateMachine("Or_profile")  # All six entries, q3b active
+machine = create_machine_from_profile("Or_profile", qubit="q2b", save=False)
+machine_a = create_machine_from_profile("Or_profile", qubit="q2a", save=False)
 ```
 
-`CreateMachine()` uses this profile by default. `CreateMachine(qubit="q3")`
-or `CreateMachine("Or_profile", qubit="q3")` builds only Or 3A. Explicit
+`CreateMachine()` uses this profile by default. `CreateMachine(qubit="q3b")`
+or `CreateMachine("Or_profile", qubit="q3b")` builds only Or 3B. Explicit
 profile choices and `QUAM_PROFILE` environment overrides remain supported.
 
 ```powershell
 python -m profiles.validate_profile Or_profile
-python -m profiles.validate_profile Or_profile --qubit q3
+python -m profiles.validate_profile Or_profile --qubit q3b
 python -m quam_config.create_machine_from_profile --profile Or_profile --no-save
-python -m quam_config.create_machine_from_profile --profile Or_profile --qubit q3 --no-save
+python -m quam_config.create_machine_from_profile --profile Or_profile --qubit q3b --no-save
 ```
 
 Profile creation and validation do not run hardware calibrations.

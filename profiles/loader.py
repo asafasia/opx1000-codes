@@ -7,7 +7,6 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
-
 DEFAULT_PROFILE_NAME = "Or_profile"
 PROFILES_ROOT = Path(__file__).resolve().parent
 SUPPORTED_SCHEMA_VERSION = 1
@@ -106,10 +105,16 @@ def _validate_dc_bias(connectivity: dict[str, Any]) -> None:
 
 def _validate_pulses(pulses_document: dict[str, Any]) -> None:
     pulses_by_qubit = pulses_document.get("pulses")
-    _require(isinstance(pulses_by_qubit, dict) and pulses_by_qubit, "pulses.json must define pulses")
+    _require(
+        isinstance(pulses_by_qubit, dict) and pulses_by_qubit,
+        "pulses.json must define pulses",
+    )
 
     for qubit_name, pulses in pulses_by_qubit.items():
-        _require(isinstance(pulses, dict) and pulses, f"Qubit {qubit_name!r} must define pulses")
+        _require(
+            isinstance(pulses, dict) and pulses,
+            f"Qubit {qubit_name!r} must define pulses",
+        )
         for name, pulse in pulses.items():
             _validate_pulse(f"{qubit_name}.{name}", pulse)
 
@@ -118,29 +123,48 @@ def _validate_pulse(name: str, pulse: Any) -> None:
     _require(isinstance(pulse, dict), f"Pulse {name!r} must be an object")
     pulse_type = pulse.get("type")
     target = pulse.get("target")
-    _require(pulse_type in PULSE_TYPES, f"Pulse {name!r} has unsupported type {pulse_type!r}")
-    _require(target in {"qubit", "resonator"}, f"Pulse {name!r} has invalid target {target!r}")
-    _require(isinstance(pulse.get("amplitude"), (int, float)), f"Pulse {name!r} needs amplitude")
+    _require(
+        pulse_type in PULSE_TYPES, f"Pulse {name!r} has unsupported type {pulse_type!r}"
+    )
+    _require(
+        target in {"qubit", "resonator"},
+        f"Pulse {name!r} has invalid target {target!r}",
+    )
+    _require(
+        isinstance(pulse.get("amplitude"), (int, float)),
+        f"Pulse {name!r} needs amplitude",
+    )
     _require(pulse["amplitude"] != 0, f"Pulse {name!r} amplitude cannot be zero")
     _require(
         abs(pulse["amplitude"]) <= MAX_PROFILE_PULSE_AMPLITUDE,
         f"Pulse {name!r} amplitude is too high: {pulse['amplitude']!r}. "
         f"Maximum allowed absolute amplitude is {MAX_PROFILE_PULSE_AMPLITUDE}.",
     )
-    _require(isinstance(pulse.get("length_ns"), int) and pulse["length_ns"] > 0, f"Pulse {name!r} needs positive integer length_ns")
+    _require(
+        isinstance(pulse.get("length_ns"), int) and pulse["length_ns"] > 0,
+        f"Pulse {name!r} needs positive integer length_ns",
+    )
     _require(
         target != "resonator" or pulse_type in {"constant", "flat_top_gaussian"},
         f"Readout pulse {name!r} must use type 'constant' or 'flat_top_gaussian'",
     )
     if pulse_type == "flat_top_gaussian":
-        _require(target == "resonator", f"Flat-top Gaussian pulse {name!r} must target 'resonator'")
+        _require(
+            target == "resonator",
+            f"Flat-top Gaussian pulse {name!r} must target 'resonator'",
+        )
         edge = pulse.get("edge_length_ns", 100)
         _require(
-            isinstance(edge, int) and not isinstance(edge, bool) and edge > 0 and edge % 4 == 0,
+            isinstance(edge, int)
+            and not isinstance(edge, bool)
+            and edge > 0
+            and edge % 4 == 0,
             f"Readout pulse {name!r} needs positive integer edge_length_ns in multiples of 4 ns",
         )
         _require(
-            pulse["length_ns"] >= 16 and pulse["length_ns"] % 4 == 0 and 2 * edge < pulse["length_ns"],
+            pulse["length_ns"] >= 16
+            and pulse["length_ns"] % 4 == 0
+            and 2 * edge < pulse["length_ns"],
             f"Readout pulse {name!r} length_ns must be a multiple of 4 ns, at least 16 ns, and leave a positive flat top",
         )
 
@@ -148,12 +172,23 @@ def _validate_pulse(name: str, pulse: Any) -> None:
     # Ignore legacy inline weights when reading older profiles.
 
     if pulse_type == "drag":
-        _require(isinstance(pulse.get("sigma_ns"), (int, float)) and pulse["sigma_ns"] > 0, f"DRAG pulse {name!r} needs positive sigma_ns")
-        _require(isinstance(pulse.get("beta"), (int, float)), f"DRAG pulse {name!r} needs beta")
-        _require(isinstance(pulse.get("detuning_hz"), (int, float)), f"DRAG pulse {name!r} needs detuning_hz")
+        _require(
+            isinstance(pulse.get("sigma_ns"), (int, float)) and pulse["sigma_ns"] > 0,
+            f"DRAG pulse {name!r} needs positive sigma_ns",
+        )
+        _require(
+            isinstance(pulse.get("beta"), (int, float)),
+            f"DRAG pulse {name!r} needs beta",
+        )
+        _require(
+            isinstance(pulse.get("detuning_hz"), (int, float)),
+            f"DRAG pulse {name!r} needs detuning_hz",
+        )
 
 
-def _get_port(connectivity: dict[str, Any], reference: dict[str, Any], direction: str, label: str) -> dict[str, Any]:
+def _get_port(
+    connectivity: dict[str, Any], reference: dict[str, Any], direction: str, label: str
+) -> dict[str, Any]:
     try:
         controller = connectivity["controllers"][reference["controller"]]
         fem = controller["fems"][str(reference["fem"])]
@@ -165,7 +200,9 @@ def _get_port(connectivity: dict[str, Any], reference: dict[str, Any], direction
 def _validate_mw_port(port: dict[str, Any], label: str) -> None:
     band = port.get("band")
     lo_frequency = port.get("lo_frequency_hz")
-    _require(band in MW_FEM_BAND_RANGES_HZ, f"{label} has unsupported MW-FEM band {band!r}")
+    _require(
+        band in MW_FEM_BAND_RANGES_HZ, f"{label} has unsupported MW-FEM band {band!r}"
+    )
     _require(
         isinstance(lo_frequency, (int, float)) and lo_frequency > 0,
         f"{label} needs positive lo_frequency_hz",
@@ -180,10 +217,14 @@ def _validate_mw_port(port: dict[str, Any], label: str) -> None:
 
 def _validate_mw_input_port(port: dict[str, Any], label: str) -> None:
     band = port.get("band")
-    _require(band in MW_FEM_BAND_RANGES_HZ, f"{label} has unsupported MW-FEM band {band!r}")
+    _require(
+        band in MW_FEM_BAND_RANGES_HZ, f"{label} has unsupported MW-FEM band {band!r}"
+    )
     gain_db = port.get("gain_db", 0)
     _require(
-        isinstance(gain_db, int) and not isinstance(gain_db, bool) and 0 <= gain_db <= 32,
+        isinstance(gain_db, int)
+        and not isinstance(gain_db, bool)
+        and 0 <= gain_db <= 32,
         f"{label} gain_db must be an integer from 0 to 32 dB",
     )
     _require(
@@ -205,7 +246,8 @@ def _validate_shared_lo_output_pairs(connectivity: dict[str, Any]) -> None:
                 if first_port is None or second_port is None:
                     continue
                 _require(
-                    first_port.get("lo_frequency_hz") == second_port.get("lo_frequency_hz"),
+                    first_port.get("lo_frequency_hz")
+                    == second_port.get("lo_frequency_hz"),
                     f"{controller_name} MW-FEM {fem_name} outputs {first} and {second} "
                     "share an LO and must use the same lo_frequency_hz",
                 )
@@ -249,9 +291,13 @@ def _validate_connectivity(
     _validate_shared_lo_output_pairs(connectivity)
 
     for qubit_name in qubits:
-        _require(qubit_name in connections, f"Qubit {qubit_name!r} has no connectivity entry")
+        _require(
+            qubit_name in connections, f"Qubit {qubit_name!r} has no connectivity entry"
+        )
         connection = connections[qubit_name]
-        xy_output = _get_port(connectivity, connection["xy_output"], "outputs", f"{qubit_name}.xy_output")
+        xy_output = _get_port(
+            connectivity, connection["xy_output"], "outputs", f"{qubit_name}.xy_output"
+        )
         resonator_output = _get_port(
             connectivity,
             connection["resonator_output"],
@@ -267,14 +313,21 @@ def _validate_connectivity(
         frequencies = qubits[qubit_name]["frequencies_hz"]
         _validate_mw_port(xy_output, f"Qubit {qubit_name!r} XY output")
         _validate_mw_port(resonator_output, f"Qubit {qubit_name!r} resonator output")
-        _validate_mw_input_port(resonator_input, f"Qubit {qubit_name!r} resonator input")
+        _validate_mw_input_port(
+            resonator_input, f"Qubit {qubit_name!r} resonator input"
+        )
         if "resonator_band" in connection:
             band = connection["resonator_band"]
-            _require(use_connection_los,
-                     f"Qubit {qubit_name!r} resonator_band requires a single-qubit profile")
-            _require(isinstance(band, int) and not isinstance(band, bool)
-                     and band in MW_FEM_BAND_RANGES_HZ,
-                     f"Qubit {qubit_name!r} has unsupported resonator_band {band!r}")
+            _require(
+                use_connection_los,
+                f"Qubit {qubit_name!r} resonator_band requires a single-qubit profile",
+            )
+            _require(
+                isinstance(band, int)
+                and not isinstance(band, bool)
+                and band in MW_FEM_BAND_RANGES_HZ,
+                f"Qubit {qubit_name!r} has unsupported resonator_band {band!r}",
+            )
             resonator_output = {**resonator_output, "band": band}
             resonator_input = {**resonator_input, "band": band}
         _require(
@@ -308,7 +361,9 @@ def _validate_connectivity(
         )
 
 
-def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str, Any]) -> None:
+def _validate_qubits(
+    qubits_document: dict[str, Any], pulses_document: dict[str, Any]
+) -> None:
     qubits = qubits_document.get("qubits")
     pulses = pulses_document["pulses"]
     _require(isinstance(qubits, dict) and qubits, "qubits.json must define qubits")
@@ -337,11 +392,15 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
 
         for frequency_name in ("qubit_f01", "resonator"):
             _require(
-                isinstance(frequencies.get(frequency_name), (int, float)) and frequencies[frequency_name] > 0,
+                isinstance(frequencies.get(frequency_name), (int, float))
+                and frequencies[frequency_name] > 0,
                 f"Qubit {name!r} needs positive frequencies_hz.{frequency_name}",
             )
 
-        _require(readout.get("state_1_when") in STATE_1_RULES, f"Qubit {name!r} has invalid readout.state_1_when")
+        _require(
+            readout.get("state_1_when") in STATE_1_RULES,
+            f"Qubit {name!r} has invalid readout.state_1_when",
+        )
         for threshold_name in ("threshold", "rus_exit_threshold"):
             _require(
                 isinstance(readout.get(threshold_name), (int, float)),
@@ -400,13 +459,24 @@ def _validate_qubits(qubits_document: dict[str, Any], pulses_document: dict[str,
             and transmon["thermalization_time_ns"] > 0,
             f"Qubit {name!r} needs positive integer transmon.thermalization_time_ns",
         )
-        _require(isinstance(operations, dict) and operations, f"Qubit {name!r} must define operations")
+        _require(
+            isinstance(operations, dict) and operations,
+            f"Qubit {name!r} must define operations",
+        )
 
         for operation_name, pulse_name in operations.items():
-            _require(pulse_name in qubit_pulses, f"Qubit {name!r} operation {operation_name!r} references unknown pulse {pulse_name!r}")
+            _require(
+                pulse_name in qubit_pulses,
+                f"Qubit {name!r} operation {operation_name!r} references unknown pulse {pulse_name!r}",
+            )
             target = qubit_pulses[pulse_name]["target"]
-            expected_target = "resonator" if operation_name.startswith("readout") else "qubit"
-            _require(target == expected_target, f"Qubit {name!r} operation {operation_name!r} must target {expected_target}")
+            expected_target = (
+                "resonator" if operation_name.startswith("readout") else "qubit"
+            )
+            _require(
+                target == expected_target,
+                f"Qubit {name!r} operation {operation_name!r} must target {expected_target}",
+            )
 
 
 def _validate_gef_readout(qubits_document, pulses_document, connectivity):
@@ -414,36 +484,80 @@ def _validate_gef_readout(qubits_document, pulses_document, connectivity):
     for name, qubit in qubits_document["qubits"].items():
         settings = qubit.get("readout_gef")
         if settings is None:
-            _require("readout_GEF" not in qubit["operations"],
-                     f"Qubit {name!r} readout_GEF needs readout_gef settings")
+            _require(
+                "readout_GEF" not in qubit["operations"],
+                f"Qubit {name!r} readout_GEF needs readout_gef settings",
+            )
             continue
         label = f"Qubit {name!r} readout_gef"
         _require(isinstance(settings, dict), f"{label} must be an object")
-        _require("readout_GEF" in qubit["operations"], f"{label} needs a readout_GEF operation")
-        for key in ("frequency_hz", "threshold", "rus_exit_threshold", "integration_weights_angle_rad"):
+        _require(
+            "readout_GEF" in qubit["operations"],
+            f"{label} needs a readout_GEF operation",
+        )
+        for key in (
+            "frequency_hz",
+            "threshold",
+            "rus_exit_threshold",
+            "integration_weights_angle_rad",
+        ):
             value = settings.get(key)
-            _require(isinstance(value, (int, float)) and not isinstance(value, bool)
-                     and math.isfinite(value), f"{label}.{key} must be finite and numeric")
-        _require(settings.get("state_1_when") in STATE_1_RULES, f"{label}.state_1_when is invalid")
-        _require(isinstance(settings.get("use_kernel", False), bool), f"{label}.use_kernel must be boolean")
+            _require(
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and math.isfinite(value),
+                f"{label}.{key} must be finite and numeric",
+            )
+        _require(
+            settings.get("state_1_when") in STATE_1_RULES,
+            f"{label}.state_1_when is invalid",
+        )
+        _require(
+            isinstance(settings.get("use_kernel", False), bool),
+            f"{label}.use_kernel must be boolean",
+        )
         depletion = settings.get("depletion_time_ns")
-        _require(isinstance(depletion, int) and depletion >= 0 and depletion % 4 == 0,
-                 f"{label}.depletion_time_ns must be a nonnegative multiple of 4")
+        _require(
+            isinstance(depletion, int) and depletion >= 0 and depletion % 4 == 0,
+            f"{label}.depletion_time_ns must be a nonnegative multiple of 4",
+        )
         for key, width in (("gef_centers", 2), ("confusion_matrix", 3)):
             value = settings.get(key)
-            _require(value is None or (isinstance(value, list) and len(value) == 3 and
-                     all(isinstance(row, list) and len(row) == width and
-                         all(isinstance(x, (int, float)) and math.isfinite(x) for x in row)
-                         for row in value)), f"{label}.{key} must be null or a finite 3x{width} list")
+            _require(
+                value is None
+                or (
+                    isinstance(value, list)
+                    and len(value) == 3
+                    and all(
+                        isinstance(row, list)
+                        and len(row) == width
+                        and all(
+                            isinstance(x, (int, float)) and math.isfinite(x)
+                            for x in row
+                        )
+                        for row in value
+                    )
+                ),
+                f"{label}.{key} must be null or a finite 3x{width} list",
+            )
         connection = connectivity["connections"][name]
         port = _get_port(connectivity, connection["resonator_output"], "outputs", label)
-        lo = connection.get("lo_frequencies_hz", {}).get("resonator_output", port["lo_frequency_hz"])
+        lo = connection.get("lo_frequencies_hz", {}).get(
+            "resonator_output", port["lo_frequency_hz"]
+        )
         frequency = settings["frequency_hz"]
-        band_min, band_max = MW_FEM_BAND_RANGES_HZ[connection.get("resonator_band", port["band"])]
-        _require(band_min <= frequency <= band_max and abs(frequency - lo) <= MW_FEM_MAX_IF_HZ,
-                 f"{label}.frequency_hz is outside the output band or allowed IF range")
-        _require(qubit["operations"]["readout_GEF"] != qubit["operations"]["readout"],
-                 f"{label} must use an independent pulse")
+        band_min, band_max = MW_FEM_BAND_RANGES_HZ[
+            connection.get("resonator_band", port["band"])
+        ]
+        _require(
+            band_min <= frequency <= band_max
+            and abs(frequency - lo) <= MW_FEM_MAX_IF_HZ,
+            f"{label}.frequency_hz is outside the output band or allowed IF range",
+        )
+        _require(
+            qubit["operations"]["readout_GEF"] != qubit["operations"]["readout"],
+            f"{label} must use an independent pulse",
+        )
 
 
 def _validate_qubit_dc_biases(
@@ -472,7 +586,9 @@ def _validate_qubit_dc_biases(
         )
 
 
-def _validate_metrics(metrics_document: dict[str, Any], qubits_document: dict[str, Any]) -> None:
+def _validate_metrics(
+    metrics_document: dict[str, Any], qubits_document: dict[str, Any]
+) -> None:
     metrics = metrics_document.get("qubits")
     qubits = qubits_document.get("qubits")
     _require(isinstance(metrics, dict), "metrics.json must define qubits")
@@ -480,9 +596,14 @@ def _validate_metrics(metrics_document: dict[str, Any], qubits_document: dict[st
     for qubit_name in qubits:
         _require(qubit_name in metrics, f"Qubit {qubit_name!r} has no metrics entry")
         qubit_metrics = metrics[qubit_name]
-        _require(isinstance(qubit_metrics, dict), f"Metrics for {qubit_name!r} must be an object")
+        _require(
+            isinstance(qubit_metrics, dict),
+            f"Metrics for {qubit_name!r} must be an object",
+        )
         coherence = qubit_metrics.get("coherence", {})
-        _require(isinstance(coherence, dict), f"Metrics for {qubit_name!r} need coherence")
+        _require(
+            isinstance(coherence, dict), f"Metrics for {qubit_name!r} need coherence"
+        )
         for metric_name in ("t1_ns", "t1_ge_ns", "t2_ramsey_ns", "t2_echo_ns"):
             value = coherence.get(metric_name)
             _require(
@@ -491,7 +612,10 @@ def _validate_metrics(metrics_document: dict[str, Any], qubits_document: dict[st
             )
         readout = qubit_metrics.get("readout", {})
         fidelity = readout.get("fidelity_percent", {})
-        _require(isinstance(fidelity, dict), f"Metrics for {qubit_name!r} need readout.fidelity_percent")
+        _require(
+            isinstance(fidelity, dict),
+            f"Metrics for {qubit_name!r} need readout.fidelity_percent",
+        )
         for reset_name in ("active", "thermal"):
             value = fidelity.get(reset_name)
             _require(
@@ -520,17 +644,26 @@ def _validate_readout_pulse_selection(manifest, qubits, pulses):
         if field not in manifest:
             continue  # Older profiles continue using their operation mappings.
         selected = manifest[field]
-        _require(isinstance(selected, str) and selected in choices,
-                 f"profile.json {field} must be one of {sorted(choices)}")
+        _require(
+            isinstance(selected, str) and selected in choices,
+            f"profile.json {field} must be one of {sorted(choices)}",
+        )
         for name, settings in qubits["qubits"].items():
             if operation not in settings["operations"]:
                 continue
             definition = pulses["pulses"][name].get(selected)
-            _require(definition is not None,
-                     f"Qubit {name!r} is missing selected readout pulse {selected!r}")
-            expected_type = "flat_top_gaussian" if selected.endswith("_flattop") else "constant"
-            _require(definition["target"] == "resonator" and definition["type"] == expected_type,
-                     f"Selected readout pulse {name}.{selected} must target resonator and use type {expected_type!r}")
+            _require(
+                definition is not None,
+                f"Qubit {name!r} is missing selected readout pulse {selected!r}",
+            )
+            expected_type = (
+                "flat_top_gaussian" if selected.endswith("_flattop") else "constant"
+            )
+            _require(
+                definition["target"] == "resonator"
+                and definition["type"] == expected_type,
+                f"Selected readout pulse {name}.{selected} must target resonator and use type {expected_type!r}",
+            )
 
 
 def validate_profile(profile: dict[str, Any]) -> None:
@@ -563,9 +696,14 @@ def validate_profile(profile: dict[str, Any]) -> None:
     _validate_gef_readout(qubits, pulses, connectivity)
 
     active_qubits = manifest.get("active_qubits")
-    _require(isinstance(active_qubits, list) and active_qubits, "profile.json must define active_qubits")
+    _require(
+        isinstance(active_qubits, list) and active_qubits,
+        "profile.json must define active_qubits",
+    )
     for qubit_name in active_qubits:
-        _require(qubit_name in qubits["qubits"], f"Active qubit {qubit_name!r} is undefined")
+        _require(
+            qubit_name in qubits["qubits"], f"Active qubit {qubit_name!r} is undefined"
+        )
 
 
 def _load_profile_documents(name: str, root: Path = PROFILES_ROOT) -> dict[str, Any]:
@@ -575,7 +713,9 @@ def _load_profile_documents(name: str, root: Path = PROFILES_ROOT) -> dict[str, 
     files = manifest.get("files", {})
     return {
         "manifest": manifest,
-        "connectivity": _read_json(profile_directory / files.get("connectivity", "connectivity.json")),
+        "connectivity": _read_json(
+            profile_directory / files.get("connectivity", "connectivity.json")
+        ),
         "qubits": _read_json(profile_directory / files.get("qubits", "qubits.json")),
         "pulses": _read_json(profile_directory / files.get("pulses", "pulses.json")),
         **(
@@ -666,7 +806,10 @@ def _select_qubit(profile: dict[str, Any], qubit: str) -> dict[str, Any]:
     profile["connectivity"] = _selected_hardware(profile["connectivity"], connection)
     profile["connectivity"]["connections"] = {qubit: connection}
     xy_output = _get_port(
-        profile["connectivity"], connection["xy_output"], "outputs", f"{qubit}.xy_output"
+        profile["connectivity"],
+        connection["xy_output"],
+        "outputs",
+        f"{qubit}.xy_output",
     )
     resonator_output = _get_port(
         profile["connectivity"],
@@ -679,7 +822,9 @@ def _select_qubit(profile: dict[str, Any], qubit: str) -> dict[str, Any]:
     if "resonator_band" in connection:
         resonator_output["band"] = connection["resonator_band"]
         resonator_input = _get_port(
-            profile["connectivity"], connection["resonator_input"], "inputs",
+            profile["connectivity"],
+            connection["resonator_input"],
+            "inputs",
             f"{qubit}.resonator_input",
         )
         resonator_input["band"] = connection["resonator_band"]
@@ -736,7 +881,8 @@ class Profile:
         files = profile["manifest"].get("files", {})
         paths = {
             "manifest": self.directory / "profile.json",
-            "connectivity": self.directory / files.get("connectivity", "connectivity.json"),
+            "connectivity": self.directory
+            / files.get("connectivity", "connectivity.json"),
             "qubits": self.directory / files.get("qubits", "qubits.json"),
             "pulses": self.directory / files.get("pulses", "pulses.json"),
         }
@@ -775,11 +921,11 @@ def current_profile_name() -> str:
     return current_profile().name
 
 
-def load_profile(name: str = DEFAULT_PROFILE_NAME, *, qubit: str | None = None) -> dict[str, Any]:
+def load_profile(
+    name: str = DEFAULT_PROFILE_NAME, *, qubit: str | None = None
+) -> dict[str, Any]:
     """Load and validate a named profile from the profiles directory."""
     return Profile(name, qubit=qubit).load()
-
-
 
 
 if __name__ == "__main__":

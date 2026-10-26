@@ -7,8 +7,9 @@ Physical wiring constraints and vendor reference data are documented under
 [`docs/hardware`](../docs/hardware/). Profiles are the executable configuration
 and must respect those hardware constraints.
 
-[`Or_profile`](Or_profile/README.md) contains Or's 1A/2A/3A qubits with the
-25 October 2026 wiring and parameters imported from `opx1000_Or`.
+[`Or_profile`](Or_profile/README.md) contains Or's `q1b`/`q2b`/`q3b` qubits and
+independent `q1a`/`q2a`/`q3a` copies, initialized with matching parameters and wiring.
+The original parameters were imported from `opx1000_Or` with 25 October 2026 wiring.
 
 ```text
 profiles/
@@ -193,10 +194,10 @@ from quam_config import create_machine
 
 machine = create_machine()          # profiles/Or_profile
 machine = create_machine("testing") # profiles/testing
-machine = create_machine(qubit="q3") # profiles/Or_profile, Or 3A only
+machine = create_machine(qubit="q3b") # profiles/Or_profile, Or 3B only
 ```
 
-`create_machine(qubit="q3")` builds a machine containing only `q3`, its
+`create_machine(qubit="q3b")` builds a machine containing only `q3b`, its
 resonator, its drive line, and the controller/FEM ports those objects use. The
 default single-qubit machine uses only the files under
 `profiles/Or_profile`. The selected qubit is isolated before wiring is built.
@@ -223,7 +224,7 @@ cm = CreateMachine()            # profiles/Or_profile
 machine = cm.machine
 cm.profile.save()
 
-cm = CreateMachine(qubit="q3")  # profiles/Or_profile, Or 3A only
+cm = CreateMachine(qubit="q3b")  # profiles/Or_profile, Or 3B only
 machine = cm.machine
 cm.profile.save()               # saves the loaded full profile documents
 ```
@@ -273,7 +274,7 @@ that receives `cm` can often use it like the machine itself. Prefer
 ### Profile Selection Rules
 
 By default, `CreateMachine()`, `Profile()`, `load_profile()`, and the machine
-CLI tools use `profiles/Or_profile`, with Or 3A (`q3`) active:
+CLI tools use `profiles/Or_profile`, with Or 3B (`q3b`) active:
 
 ```python
 cm = CreateMachine()

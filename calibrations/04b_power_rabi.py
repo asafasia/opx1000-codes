@@ -256,11 +256,11 @@ if __name__ == "__main__":
     parameters = Parameters()
     parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
     parameters.reset_type = "thermal"  # "active" or "thermal"
-    parameters.use_state_discrimination = False  # True or False
+    parameters.use_state_discrimination = True  # True or False
     parameters.readout_states = ["g", "e"]  # GE readout; add "f" for readout_GEF.
 
     parameters.use_readout_mitigation = 0
-    parameters.num_shots = 200
+    parameters.num_shots = 1000
     parameters.transition = "ge"
     parameters.pi_repetitions = 5
     parameters.operation = "x180"
@@ -270,6 +270,6 @@ if __name__ == "__main__":
     power_rabi = PowerRabi(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q3"),
+        machine=create_machine(qubit="q2b"),
     )
     power_rabi.run()

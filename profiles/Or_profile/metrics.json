@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "qubits": {
-    "q1": {
+    "q1b": {
       "coherence": {
         "t1_ns": null,
         "t2_ramsey_ns": null,
@@ -17,7 +17,39 @@
         }
       }
     },
-    "q2": {
+    "q2b": {
+      "coherence": {
+        "t1_ns": 17819.296439676134,
+        "t2_ramsey_ns": null,
+        "t2_echo_ns": null
+      },
+      "gates": {
+        "single_qubit_average_fidelity": null
+      },
+      "readout": {
+        "fidelity_percent": {
+          "active": null,
+          "thermal": 65.605
+        }
+      }
+    },
+    "q3b": {
+      "coherence": {
+        "t1_ns": null,
+        "t2_ramsey_ns": null,
+        "t2_echo_ns": null
+      },
+      "gates": {
+        "single_qubit_average_fidelity": null
+      },
+      "readout": {
+        "fidelity_percent": {
+          "active": null,
+          "thermal": 70.6
+        }
+      }
+    },
+    "q1a": {
       "coherence": {
         "t1_ns": null,
         "t2_ramsey_ns": null,
@@ -33,7 +65,23 @@
         }
       }
     },
-    "q3": {
+    "q2a": {
+      "coherence": {
+        "t1_ns": 17819.296439676134,
+        "t2_ramsey_ns": null,
+        "t2_echo_ns": null
+      },
+      "gates": {
+        "single_qubit_average_fidelity": null
+      },
+      "readout": {
+        "fidelity_percent": {
+          "active": null,
+          "thermal": 65.605
+        }
+      }
+    },
+    "q3a": {
       "coherence": {
         "t1_ns": null,
         "t2_ramsey_ns": null,

@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "qubits": {
-    "q1": {
+    "q1b": {
       "grid_location": [
         0,
         0
       ],
       "frequencies_hz": {
         "qubit_f01": 3650000000,
-        "qubit_f12": null,
+        "qubit_f12": 3410000000,
         "resonator": 6160800000,
         "resonator_bare": null
       },
       "transmon": {
-        "anharmonicity_hz": null,
+        "anharmonicity_hz": -240000000,
         "t1_ns": null,
         "t2_ramsey_ns": null,
         "t2_echo_ns": null,
@@ -37,19 +37,19 @@
         "readout": "readout"
       }
     },
-    "q2": {
+    "q2b": {
       "grid_location": [
         1,
         0
       ],
       "frequencies_hz": {
-        "qubit_f01": 3950000000,
-        "qubit_f12": null,
-        "resonator": 6260000000,
+        "qubit_f01": 3680500000.0,
+        "qubit_f12": 3440500000.0,
+        "resonator": 6258800000.0,
         "resonator_bare": null
       },
       "transmon": {
-        "anharmonicity_hz": null,
+        "anharmonicity_hz": -240000000,
         "t1_ns": null,
         "t2_ramsey_ns": null,
         "t2_echo_ns": null,
@@ -59,13 +59,32 @@
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0,
-        "rus_exit_threshold": 0,
+        "threshold": -0.00023599804432190992,
+        "rus_exit_threshold": -0.00023599804432190992,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 0,
+        "integration_weights_angle_rad": -1.8956051168401677,
         "use_kernel": false,
-        "gef_centers": null,
-        "confusion_matrix": null
+        "gef_centers": [
+          [
+            -0.00031863465763097933,
+            -0.00011179828557921613
+          ],
+          [
+            -0.00018380406265620198,
+            -0.00011179828557921613
+          ]
+        ],
+        "confusion_matrix": [
+          [
+            0.6512,
+            0.3488
+          ],
+          [
+            0.3442,
+            0.6558
+          ]
+        ],
+        "calibration_signature": "a71e2fc0a2c2c28545f136567d657dfaa26efec99225a133f1ce532ad6081832"
       },
       "operations": {
         "x180": "x180_const",
@@ -73,19 +92,165 @@
         "readout": "readout"
       }
     },
-    "q3": {
+    "q3b": {
       "grid_location": [
         2,
         0
       ],
       "frequencies_hz": {
         "qubit_f01": 3904411423.0,
-        "qubit_f12": null,
+        "qubit_f12": 3664411423.0,
         "resonator": 6415000000.0,
         "resonator_bare": null
       },
       "transmon": {
-        "anharmonicity_hz": null,
+        "anharmonicity_hz": -240000000,
+        "t1_ns": null,
+        "t2_ramsey_ns": null,
+        "t2_echo_ns": null,
+        "thermalization_time_ns": 300000
+      },
+      "readout": {
+        "time_of_flight_ns": 320,
+        "smearing_ns": 0,
+        "depletion_time_ns": 2500,
+        "threshold": -0.0001888046942944002,
+        "rus_exit_threshold": -0.0001888046942944002,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0.021054786481740723,
+        "use_kernel": false,
+        "gef_centers": [
+          [
+            -0.00026338761507093577,
+            -6.8343922410508e-05
+          ],
+          [
+            -0.0001224931917566988,
+            -6.834392241050801e-05
+          ]
+        ],
+        "confusion_matrix": [
+          [
+            0.7226,
+            0.2774
+          ],
+          [
+            0.3155,
+            0.6845
+          ]
+        ],
+        "calibration_signature": "41bb5930c6f100e0ef6a01657a027cdd186c2c70694adaa7851be8131440d84d"
+      },
+      "operations": {
+        "x180": "x180_const",
+        "saturation": "saturation",
+        "readout": "readout"
+      }
+    },
+    "q1a": {
+      "grid_location": [
+        0,
+        0
+      ],
+      "frequencies_hz": {
+        "qubit_f01": 3650000000,
+        "qubit_f12": 3410000000,
+        "resonator": 6160800000,
+        "resonator_bare": null
+      },
+      "transmon": {
+        "anharmonicity_hz": -240000000,
+        "t1_ns": null,
+        "t2_ramsey_ns": null,
+        "t2_echo_ns": null,
+        "thermalization_time_ns": 300000
+      },
+      "readout": {
+        "time_of_flight_ns": 320,
+        "smearing_ns": 0,
+        "depletion_time_ns": 2500,
+        "threshold": 0,
+        "rus_exit_threshold": 0,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": 0,
+        "use_kernel": false,
+        "gef_centers": null,
+        "confusion_matrix": null
+      },
+      "operations": {
+        "x180": "x180_const",
+        "saturation": "saturation",
+        "readout": "readout"
+      }
+    },
+    "q2a": {
+      "grid_location": [
+        1,
+        0
+      ],
+      "frequencies_hz": {
+        "qubit_f01": 3680500000.0,
+        "qubit_f12": 3440500000.0,
+        "resonator": 6258800000.0,
+        "resonator_bare": null
+      },
+      "transmon": {
+        "anharmonicity_hz": -240000000,
+        "t1_ns": null,
+        "t2_ramsey_ns": null,
+        "t2_echo_ns": null,
+        "thermalization_time_ns": 300000
+      },
+      "readout": {
+        "time_of_flight_ns": 320,
+        "smearing_ns": 0,
+        "depletion_time_ns": 2500,
+        "threshold": -0.00023599804432190992,
+        "rus_exit_threshold": -0.00023599804432190992,
+        "state_1_when": "above_threshold",
+        "integration_weights_angle_rad": -1.8956051168401677,
+        "use_kernel": false,
+        "gef_centers": [
+          [
+            -0.00031863465763097933,
+            -0.00011179828557921613
+          ],
+          [
+            -0.00018380406265620198,
+            -0.00011179828557921613
+          ]
+        ],
+        "confusion_matrix": [
+          [
+            0.6512,
+            0.3488
+          ],
+          [
+            0.3442,
+            0.6558
+          ]
+        ],
+        "calibration_signature": "a71e2fc0a2c2c28545f136567d657dfaa26efec99225a133f1ce532ad6081832"
+      },
+      "operations": {
+        "x180": "x180_const",
+        "saturation": "saturation",
+        "readout": "readout"
+      }
+    },
+    "q3a": {
+      "grid_location": [
+        2,
+        0
+      ],
+      "frequencies_hz": {
+        "qubit_f01": 3904411423.0,
+        "qubit_f12": 3664411423.0,
+        "resonator": 6415000000.0,
+        "resonator_bare": null
+      },
+      "transmon": {
+        "anharmonicity_hz": -240000000,
         "t1_ns": null,
         "t2_ramsey_ns": null,
         "t2_echo_ns": null,

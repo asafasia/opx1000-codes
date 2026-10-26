@@ -4,7 +4,10 @@ import numpy as np
 import xarray as xr
 from matplotlib.figure import Figure
 
-from calibration_utils.qubit_spectroscopy.analysis import MIN_FIT_R_SQUARED
+from calibration_utils.qubit_spectroscopy.analysis import (
+    MIN_FIT_R_SQUARED,
+    _spectroscopy_center_frequency,
+)
 from qualang_tools.units import unit
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 from utils.plotting_settings import (
@@ -31,11 +34,7 @@ def _add_detuning_axis(ax, current_frequency_ghz: float):
 
 
 def _transition_frequency(qubit, transition: str) -> float:
-    if transition == "ef":
-        if qubit.f_12 is not None:
-            return float(qubit.f_12)
-        return float(qubit.f_01 - qubit.anharmonicity)
-    return float(qubit.xy.RF_frequency)
+    return _spectroscopy_center_frequency(qubit, transition)
 
 
 def _lorentzian_peak(x, offset, amplitude, center, gamma):

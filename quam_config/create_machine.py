@@ -94,7 +94,7 @@ def create_machine(
 
 
 if __name__ == "__main__":
-    machine = create_machine(qubit="q2")
+    machine = create_machine(qubit="q2b")
     config = machine.generate_config()
 
     from pprint import pprint

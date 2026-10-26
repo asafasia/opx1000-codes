@@ -285,6 +285,6 @@ if __name__ == "__main__":
     calibration = CPMG(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q1b"),
     )
     calibration.run()

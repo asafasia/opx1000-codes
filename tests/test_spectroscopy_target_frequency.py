@@ -15,7 +15,7 @@ module = import_module("calibrations.03a_qubit_spectroscopy")
 
 @pytest.mark.parametrize("transition", ["ge", "ef"])
 def test_target_centers_program_without_changing_profile_or_ge_preparation(transition):
-    machine = create_machine(qubit="q6")
+    machine = create_machine("single_qubit", qubit="q6")
     q = machine.qubits["q6"]
     original = (q.xy.RF_frequency, q.xy.intermediate_frequency, q.f_01, q.f_12)
     node = module.QubitSpectroscopy(
@@ -62,3 +62,28 @@ def test_none_keeps_existing_transition_offsets():
     q = SimpleNamespace(anharmonicity=3e8, xy=SimpleNamespace(RF_frequency=4.8e9))
     assert module.transition_frequency_offset(q, "ge", None) == 0
     assert module.transition_frequency_offset(q, "ef", None) == -3e8
+
+
+@pytest.mark.parametrize("anharmonicity", [-240e6, 240e6])
+@pytest.mark.parametrize("f12", [None, 3.43e9])
+def test_ef_sweep_analysis_and_plot_agree(anharmonicity, f12):
+    from calibration_utils.qubit_spectroscopy.analysis import _spectroscopy_center_frequency
+    from calibration_utils.qubit_spectroscopy.plotting import _transition_frequency
+
+    q = SimpleNamespace(f_01=3.6805e9, f_12=f12, anharmonicity=anharmonicity,
+                        xy=SimpleNamespace(RF_frequency=3.6805e9))
+    expected = f12 if f12 is not None else 3.4405e9
+    assert q.xy.RF_frequency + module.transition_frequency_offset(q, "ef") == expected
+    assert _spectroscopy_center_frequency(q, "ef") == expected
+    assert _transition_frequency(q, "ef") == expected
+
+
+def test_or_2b_ef_program_uses_configured_f12():
+    machine = create_machine("Or_profile", qubit="q2b")
+    q = machine.qubits["q2b"]
+    node = module.QubitSpectroscopy(parameters=Parameters(
+        transition="ef", num_shots=2, frequency_span_in_mhz=10,
+        frequency_step_in_mhz=1, use_state_discrimination=False), machine=machine)
+    node.create_qua_program()
+    assert node.namespace["scan_centers_hz"]["q2b"] == q.f_12
+    assert q.f_12 < q.f_01

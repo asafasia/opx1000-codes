@@ -39,6 +39,16 @@ def test_memory_updates_only_successful_transition(transition, success):
     assert qubit.anharmonicity == (2e8 if success and transition == "ef" else 3e8)
 
 
+def test_ef_updates_preserve_negative_anharmonicity():
+    node, qubit = make_node("ef")
+    qubit.anharmonicity = -3e8
+    updates = node.profile_updates()
+    assert updates["qubits.json.qubits.q1.transmon.anharmonicity_hz"] == -2e8
+    node.update_state()
+    assert qubit.f_12 == 4.2e9
+    assert qubit.anharmonicity == -2e8
+
+
 @pytest.mark.parametrize("apply", [True, False])
 @pytest.mark.parametrize("success", [True, False])
 @pytest.mark.parametrize("interrupted", [True, False])

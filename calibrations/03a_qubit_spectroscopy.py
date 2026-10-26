@@ -28,6 +28,7 @@ from calibration_utils.qubit_spectroscopy import (
     plot_population,
 )
 from calibration_io import CalibrationSaver, current_profile_name
+from calibration_utils.qubit_spectroscopy.analysis import _spectroscopy_center_frequency
 from utils.plotting_settings import plot_per_qubit
 from utils.simulation import simulate_and_plot
 
@@ -99,8 +100,19 @@ def transition_frequency_offset(qubit, transition: str, target_frequency_in_mhz=
     if target_frequency_in_mhz is not None:
         return int(round(target_frequency_in_mhz * 1e6 - qubit.xy.RF_frequency))
     if transition == "ef":
-        return -qubit.anharmonicity
+        return int(
+            round(
+                _spectroscopy_center_frequency(qubit, transition)
+                - qubit.xy.RF_frequency
+            )
+        )
     return 0
+
+
+def fitted_anharmonicity(qubit, frequency):
+    """Preserve signed profiles and the positive-magnitude convention of older profiles."""
+    signed = float(frequency) - float(qubit.f_01)
+    return signed if (getattr(qubit, "anharmonicity", None) or 0) < 0 else -signed
 
 
 class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
@@ -368,7 +380,7 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
                     q.xy.RF_frequency = frequency
                 else:
                     q.f_12 = frequency
-                    q.anharmonicity = float(q.f_01) - frequency
+                    q.anharmonicity = fitted_anharmonicity(q, frequency)
 
     def profile_updates(self):
         transition = self.parameters.transition
@@ -377,8 +389,9 @@ class QubitSpectroscopy(BaseCalibration[Parameters, Quam]):
             return self.qubit_profile_updates(
                 {
                     "frequencies_hz.qubit_f12": "frequency",
-                    "transmon.anharmonicity_hz": lambda q, fit: float(q.f_01)
-                    - float(fit["frequency"]),
+                    "transmon.anharmonicity_hz": lambda q, fit: fitted_anharmonicity(
+                        q, fit["frequency"]
+                    ),
                 }
             )
         return self.qubit_profile_updates({"frequencies_hz.qubit_f01": "frequency"})
@@ -389,21 +402,21 @@ if __name__ == "__main__":
     parameters.acquisition = "averaged"
     parameters.readout_states = ["g", "e"]  # GE readout; add "f" for readout_GEF.
 
-    parameters.use_state_discrimination = False
+    parameters.use_state_discrimination = False  # True or False
     parameters.use_readout_mitigation = False
 
     parameters.num_shots = 1500
-    parameters.operation_amplitude_factor = 0.2
-    parameters.operation_len_in_ns = 30000
-    parameters.frequency_span_in_mhz = 2
-    parameters.frequency_step_in_mhz = 0.02
+    parameters.operation_amplitude_factor = 0.02
+    parameters.operation_len_in_ns = 100
+    parameters.frequency_span_in_mhz = 200
+    parameters.frequency_step_in_mhz = 1
     parameters.reset_type = "thermal"  # "active" or "thermal"
-    parameters.transition = "ge"
+    parameters.transition = "ef"
 
     options = CalibrationOptions()
     # options.ai_review = True
 
-    machine = create_machine(qubit="q3")
+    machine = create_machine(qubit="q2b")
 
     calibration = QubitSpectroscopy(
         parameters=parameters,

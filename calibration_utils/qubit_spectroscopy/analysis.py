@@ -18,9 +18,10 @@ MIN_FIT_R_SQUARED = 0.8
 def _spectroscopy_center_frequency(qubit, transition: str) -> float:
     """Return the configured transition frequency around which the experiment sweeps."""
     if transition == "ef":
-        if qubit.f_12 is not None:
+        if getattr(qubit, "f_12", None) is not None:
             return float(qubit.f_12)
-        return float(qubit.f_01 - qubit.anharmonicity)
+        # Older profiles store a positive magnitude; signed transmon values are negative.
+        return float(getattr(qubit, "f_01", qubit.xy.RF_frequency) - abs(qubit.anharmonicity))
     return float(qubit.xy.RF_frequency)
 
 
