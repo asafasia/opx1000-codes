@@ -4,6 +4,7 @@ This directory contains stable reference information about the physical device
 and control hardware.
 
 - [Wiring and shared-LO rules](wiring.md)
+- [OPX1000 output and input assignments — 25/10/2026](opx1000_ports_2026-10-25.md)
 - [OPX output inhibit during refrigerator heating](output_inhibit.md)
 - [JDry-250-QT remote data access](jdry_remote_data_access.md)
 - [IQM qubit summary](iqm_qubit_summary.csv)

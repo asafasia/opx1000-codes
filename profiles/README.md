@@ -7,6 +7,9 @@ Physical wiring constraints and vendor reference data are documented under
 [`docs/hardware`](../docs/hardware/). Profiles are the executable configuration
 and must respect those hardware constraints.
 
+[`Or_profile`](Or_profile/README.md) contains Or's 1A/2A/3A qubits with the
+25 October 2026 wiring and parameters imported from `opx1000_Or`.
+
 ```text
 profiles/
   main/
@@ -188,15 +191,15 @@ Calibration experiments use the shorter in-memory factory at startup. Generated
 ```python
 from quam_config import create_machine
 
-machine = create_machine()          # profiles/main
+machine = create_machine()          # profiles/Or_profile
 machine = create_machine("testing") # profiles/testing
-machine = create_machine(qubit="q3") # profiles/single_qubit, q3 only
+machine = create_machine(qubit="q3") # profiles/Or_profile, Or 3A only
 ```
 
 `create_machine(qubit="q3")` builds a machine containing only `q3`, its
 resonator, its drive line, and the controller/FEM ports those objects use. The
-single-qubit machine uses only the independent files under
-`profiles/single_qubit`. The selected qubit is isolated before wiring is built.
+default single-qubit machine uses only the files under
+`profiles/Or_profile`. The selected qubit is isolated before wiring is built.
 Nothing is copied or inferred from `main` at load time, so its LOs,
 frequencies, pulses, amplitudes, and readout parameters can be calibrated
 independently.
@@ -205,16 +208,22 @@ Per-qubit drive and readout LOs are stored under each connection's
 `lo_frequencies_hz` in `profiles/single_qubit/connectivity.json`. They override
 the selected physical output ports only after one qubit has been selected.
 
+A single-qubit connection may also set `resonator_band` to `1`, `2`, or `3`.
+This overrides both resonator input and output bands when that qubit is
+selected, without changing the shared port defaults or other qubits. Validation
+checks its readout LO and G/E/F frequency against that band. Multi-qubit profiles
+must configure bands on physical ports instead.
+
 The factory class is also available directly:
 
 ```python
 from quam_config import CreateMachine
 
-cm = CreateMachine()            # profiles/main
+cm = CreateMachine()            # profiles/Or_profile
 machine = cm.machine
 cm.profile.save()
 
-cm = CreateMachine(qubit="q3")  # profiles/single_qubit, q3 only
+cm = CreateMachine(qubit="q3")  # profiles/Or_profile, Or 3A only
 machine = cm.machine
 cm.profile.save()               # saves the loaded full profile documents
 ```
@@ -263,7 +272,8 @@ that receives `cm` can often use it like the machine itself. Prefer
 
 ### Profile Selection Rules
 
-By default, `CreateMachine()` uses `profiles/main`:
+By default, `CreateMachine()`, `Profile()`, `load_profile()`, and the machine
+CLI tools use `profiles/Or_profile`, with Or 3A (`q3`) active:
 
 ```python
 cm = CreateMachine()
@@ -283,8 +293,8 @@ copies those metrics into QuAM's `T1`, `T2ramsey`, and `T2echo` fields. The
 similarly named values under `qubits.json.transmon` are read only as a legacy
 fallback for profiles without a metrics document.
 
-Single-qubit work uses the independent `profiles/single_qubit` profile. Passing
-only a qubit name selects that profile automatically:
+Passing only a qubit name selects it from the default `Or_profile`
+(or the `QUAM_PROFILE` environment override):
 
 ```python
 cm = CreateMachine(qubit="q3")

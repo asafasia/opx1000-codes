@@ -665,9 +665,9 @@
         -1
       ],
       "frequencies_hz": {
-        "qubit_f01": 4296500000,
+        "qubit_f01": 4500000000,
         "qubit_f12": null,
-        "resonator": 7674300000,
+        "resonator": 6160800000,
         "resonator_bare": null
       },
       "transmon": {
@@ -698,7 +698,7 @@
         "readout_GEF": "readout_GEF"
       },
       "readout_gef": {
-        "frequency_hz": 7674300000,
+        "frequency_hz": 6160800000,
         "depletion_time_ns": 2500,
         "threshold": 0,
         "rus_exit_threshold": 0,

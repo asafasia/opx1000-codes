@@ -193,7 +193,12 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
                             # with for_(*from_array(a, amps)):
                             with for_each_(a, amps):
                                 # readout the resonator
-                                self.measure_readout(qubit, frequency_offset=df, qua_vars=(I[i], Q[i]), amplitude_scale=a)
+                                self.measure_readout(
+                                    qubit,
+                                    frequency_offset=df,
+                                    qua_vars=(I[i], Q[i]),
+                                    amplitude_scale=a,
+                                )
                                 # wait for the resonator to deplete
                                 rr.wait(rr.depletion_time * u.ns)
                                 # save data
@@ -203,8 +208,8 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
             with stream_processing():
                 n_st.save("n")
                 for i in range(num_qubits):
-                    self.save_acquisition_stream(I_st[i], f'I{i + 1}')
-                    self.save_acquisition_stream(Q_st[i], f'Q{i + 1}')
+                    self.save_acquisition_stream(I_st[i], f"I{i + 1}")
+                    self.save_acquisition_stream(Q_st[i], f"Q{i + 1}")
 
         return node.namespace.get("qua_program")
 
@@ -335,7 +340,6 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
                     q.resonator.readout_ge["confusion_matrix"] = None
 
 
-
 if __name__ == "__main__":
     parameters = Parameters()
     parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
@@ -345,6 +349,6 @@ if __name__ == "__main__":
     calibration = ResonatorSpectroscopyVsPower(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q11"),
     )
     calibration.run()

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "name": "Or_profile",
+  "description": "Or chip 1A/2A/3A (q1/q2/q3), wiring dated 25 October 2026; parameters imported from opx1000_Or.",
+  "build_mode": "single_qubit",
+  "readout_discriminator": "nearest_center",
+  "readout_pulse": "readout",
+  "files": {
+    "connectivity": "connectivity.json",
+    "qubits": "qubits.json",
+    "pulses": "pulses.json",
+    "metrics": "metrics.json"
+  },
+  "active_qubits": [
+    "q3"
+  ]
+}

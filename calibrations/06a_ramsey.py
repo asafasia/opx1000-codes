@@ -186,8 +186,10 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
                 n_st.save("n")
                 for i in range(num_qubits):
                     self.process_readout_streams(
-                        i, state_st if self.parameters.use_state_discrimination else None,
-                        I_st, Q_st,
+                        i,
+                        state_st if self.parameters.use_state_discrimination else None,
+                        I_st,
+                        Q_st,
                     )
 
         return node.namespace.get("qua_program")
@@ -342,7 +344,9 @@ class Ramsey(BaseCalibration[Parameters, Quam]):
         for q, fit in self.profile_update_results():
             target = fit.get("qubit_frequency_hz")
             if target is not None and math.isfinite(target) and target > 0:
-                updates[f"qubits.json.qubits.{q.name}.frequencies_hz.qubit_f01"] = float(target)
+                updates[f"qubits.json.qubits.{q.name}.frequencies_hz.qubit_f01"] = (
+                    float(target)
+                )
         return updates
 
 
@@ -354,7 +358,7 @@ if __name__ == "__main__":
     parameters.use_state_discrimination = True
     parameters.use_readout_mitigation = 0
 
-    parameters.reset_type = "active"
+    parameters.reset_type = "thermal"
     parameters.max_wait_time_in_ns = 20e3
     parameters.wait_time_num_points = 250
     parameters.frequency_detuning_in_mhz = 1
@@ -364,6 +368,6 @@ if __name__ == "__main__":
     calibration = Ramsey(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q3"),
     )
     calibration.run()

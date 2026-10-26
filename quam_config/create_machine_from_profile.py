@@ -14,7 +14,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from profiles import Profile, load_profile
+from profiles import DEFAULT_PROFILE_NAME, Profile, load_profile
 from quam_config import Quam
 from quam_config.components import ArduinoDCBias
 from quam_config.populate_quam_lf_mw_fems import apply_profile
@@ -24,7 +24,7 @@ from quam_builder.builder.qop_connectivity import build_quam_wiring
 from quam_builder.builder.superconducting import build_quam
 
 
-DEFAULT_PROFILE = "main"
+DEFAULT_PROFILE = DEFAULT_PROFILE_NAME
 
 
 @contextmanager

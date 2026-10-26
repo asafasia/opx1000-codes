@@ -487,7 +487,7 @@ if __name__ == "__main__":
     parameters.qubit_operation = "x180"
     parameters.readout_states = ["g", "e"]  # Selects the readout_GEF pulse.
     parameters.states = None  # Prepare the same states as readout_states.
-    parameters.reset_type = "thermal"  # Use "active" after GEF centers are calibrated.
+    parameters.reset_type = "active"  # Use "active" after GEF centers are calibrated.
     # parameters.active_gef_reset_attempts = 3
 
     parameters.num_shots = 10000
@@ -498,7 +498,7 @@ if __name__ == "__main__":
     )
     # options.ai_review = True
 
-    machine = create_machine(qubit="q1")
+    machine = create_machine(qubit="q3")
 
     calibration = IqBlobs(
         parameters=parameters,

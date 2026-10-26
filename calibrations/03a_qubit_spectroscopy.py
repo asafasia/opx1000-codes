@@ -389,13 +389,11 @@ if __name__ == "__main__":
     parameters.acquisition = "averaged"
     parameters.readout_states = ["g", "e"]  # GE readout; add "f" for readout_GEF.
 
-    qubit = "q1"
-
     parameters.use_state_discrimination = False
     parameters.use_readout_mitigation = False
 
     parameters.num_shots = 1500
-    parameters.operation_amplitude_factor = 0.0002
+    parameters.operation_amplitude_factor = 0.2
     parameters.operation_len_in_ns = 30000
     parameters.frequency_span_in_mhz = 2
     parameters.frequency_step_in_mhz = 0.02
@@ -405,7 +403,7 @@ if __name__ == "__main__":
     options = CalibrationOptions()
     # options.ai_review = True
 
-    machine = create_machine(qubit=qubit)
+    machine = create_machine(qubit="q3")
 
     calibration = QubitSpectroscopy(
         parameters=parameters,

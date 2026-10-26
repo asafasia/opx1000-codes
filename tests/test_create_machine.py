@@ -125,16 +125,32 @@ class CreateMachineTests(unittest.TestCase):
     def tearDown(self):
         clear_active_profile()
 
+    @patch.dict("os.environ", {}, clear=True)
+    def test_default_profile_loaders_use_or_profile(self):
+        clear_active_profile()
+        self.assertEqual(Profile().name, "Or_profile")
+        self.assertEqual(load_profile()["manifest"]["name"], "Or_profile")
+        self.assertEqual(current_profile_name(), "Or_profile")
+
+    @patch.dict("os.environ", {}, clear=True)
+    def test_default_qubit_selection_builds_or_3a_on_output_7(self):
+        machine = create_machine(qubit="q3")
+        machine.generate_config()
+        self.assertEqual(list(machine.qubits), ["q3"])
+        self.assertEqual(machine.qubits["q3"].xy.opx_output.port_id, 7)
+        self.assertEqual(machine.qubits["q3"].resonator.opx_output.port_id, 8)
+        self.assertEqual(machine.qubits["q3"].resonator.opx_input.port_id, 2)
+
     @patch("quam_config.create_machine_from_profile.create_machine_from_profile")
-    def test_create_machine_class_returns_default_main_machine(self, build):
+    def test_create_machine_class_returns_default_or_machine(self, build):
         expected = object()
         build.return_value = expected
 
         cm = CreateMachine()
 
         self.assertIs(cm.machine, expected)
-        self.assertEqual(cm.profile.name, "main")
-        self.assertEqual(current_profile_name(), "main")
+        self.assertEqual(cm.profile.name, "Or_profile")
+        self.assertEqual(current_profile_name(), "Or_profile")
         build.assert_called_once_with(cm.profile, save=False)
 
     @patch("quam_config.create_machine_from_profile.create_machine_from_profile")
@@ -150,16 +166,16 @@ class CreateMachineTests(unittest.TestCase):
         build.assert_called_once_with(profile, save=False)
 
     @patch("quam_config.create_machine_from_profile.create_machine_from_profile")
-    def test_qubit_selection_uses_single_qubit_profile(self, build):
+    def test_qubit_selection_uses_default_or_profile(self, build):
         expected = object()
         build.return_value = expected
 
         self.assertIs(create_machine(qubit="q3"), expected)
 
         profile = build.call_args.args[0]
-        self.assertEqual(profile.name, "single_qubit")
+        self.assertEqual(profile.name, "Or_profile")
         self.assertEqual(profile.qubit, "q3")
-        self.assertEqual(current_profile_name(), "single_qubit")
+        self.assertEqual(current_profile_name(), "Or_profile")
         build.assert_called_once_with(profile, save=False)
 
     @patch.dict("os.environ", {"QUAM_PROFILE": "single_qubit", "QUAM_QUBIT": "q5"})

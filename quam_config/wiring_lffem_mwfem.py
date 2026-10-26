@@ -23,11 +23,11 @@ from qualang_tools.wirer.wirer.channel_specs import mw_fem_spec
 from quam_builder.builder.qop_connectivity import build_quam_wiring
 from quam_builder.builder.superconducting import build_quam
 
-from profiles import ProfileError, load_profile
+from profiles import DEFAULT_PROFILE_NAME, ProfileError, load_profile
 from quam_config import Quam
 
 
-DEFAULT_PROFILE = "main"
+DEFAULT_PROFILE = DEFAULT_PROFILE_NAME
 
 
 def _controller_number(controller_name: str) -> int:

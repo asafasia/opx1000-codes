@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 
+DEFAULT_PROFILE_NAME = "Or_profile"
 PROFILES_ROOT = Path(__file__).resolve().parent
 SUPPORTED_SCHEMA_VERSION = 1
 PULSE_TYPES = {"constant", "drag", "cosine", "saturation", "flat_top_gaussian"}
@@ -267,6 +268,15 @@ def _validate_connectivity(
         _validate_mw_port(xy_output, f"Qubit {qubit_name!r} XY output")
         _validate_mw_port(resonator_output, f"Qubit {qubit_name!r} resonator output")
         _validate_mw_input_port(resonator_input, f"Qubit {qubit_name!r} resonator input")
+        if "resonator_band" in connection:
+            band = connection["resonator_band"]
+            _require(use_connection_los,
+                     f"Qubit {qubit_name!r} resonator_band requires a single-qubit profile")
+            _require(isinstance(band, int) and not isinstance(band, bool)
+                     and band in MW_FEM_BAND_RANGES_HZ,
+                     f"Qubit {qubit_name!r} has unsupported resonator_band {band!r}")
+            resonator_output = {**resonator_output, "band": band}
+            resonator_input = {**resonator_input, "band": band}
         _require(
             resonator_input["band"] == resonator_output["band"],
             f"Qubit {qubit_name!r} resonator input and output bands do not match",
@@ -429,7 +439,7 @@ def _validate_gef_readout(qubits_document, pulses_document, connectivity):
         port = _get_port(connectivity, connection["resonator_output"], "outputs", label)
         lo = connection.get("lo_frequencies_hz", {}).get("resonator_output", port["lo_frequency_hz"])
         frequency = settings["frequency_hz"]
-        band_min, band_max = MW_FEM_BAND_RANGES_HZ[port["band"]]
+        band_min, band_max = MW_FEM_BAND_RANGES_HZ[connection.get("resonator_band", port["band"])]
         _require(band_min <= frequency <= band_max and abs(frequency - lo) <= MW_FEM_MAX_IF_HZ,
                  f"{label}.frequency_hz is outside the output band or allowed IF range")
         _require(qubit["operations"]["readout_GEF"] != qubit["operations"]["readout"],
@@ -666,6 +676,13 @@ def _select_qubit(profile: dict[str, Any], qubit: str) -> dict[str, Any]:
     )
     xy_output["lo_frequency_hz"] = lo_frequencies["xy_output"]
     resonator_output["lo_frequency_hz"] = lo_frequencies["resonator_output"]
+    if "resonator_band" in connection:
+        resonator_output["band"] = connection["resonator_band"]
+        resonator_input = _get_port(
+            profile["connectivity"], connection["resonator_input"], "inputs",
+            f"{qubit}.resonator_input",
+        )
+        resonator_input["band"] = connection["resonator_band"]
     validate_profile(profile)
     return profile
 
@@ -675,7 +692,7 @@ class Profile:
 
     def __init__(
         self,
-        name: str = "main",
+        name: str = DEFAULT_PROFILE_NAME,
         *,
         qubit: str | None = None,
         root: Path | str = PROFILES_ROOT,
@@ -751,14 +768,14 @@ def clear_active_profile() -> None:
 def current_profile() -> Profile:
     if _active_profile is not None:
         return _active_profile
-    return Profile(os.environ.get("QUAM_PROFILE", "main"))
+    return Profile(os.environ.get("QUAM_PROFILE", DEFAULT_PROFILE_NAME))
 
 
 def current_profile_name() -> str:
     return current_profile().name
 
 
-def load_profile(name: str = "main", *, qubit: str | None = None) -> dict[str, Any]:
+def load_profile(name: str = DEFAULT_PROFILE_NAME, *, qubit: str | None = None) -> dict[str, Any]:
     """Load and validate a named profile from the profiles directory."""
     return Profile(name, qubit=qubit).load()
 

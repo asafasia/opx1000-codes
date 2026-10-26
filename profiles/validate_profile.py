@@ -2,12 +2,12 @@
 
 import argparse
 
-from profiles import ProfileError, load_profile
+from profiles import DEFAULT_PROFILE_NAME, ProfileError, load_profile
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("name", nargs="?", default="main", help="Profile folder name")
+    parser.add_argument("name", nargs="?", default=DEFAULT_PROFILE_NAME, help="Profile folder name")
     parser.add_argument("--qubit", help="Qubit selection for a single-qubit profile")
     args = parser.parse_args()
 

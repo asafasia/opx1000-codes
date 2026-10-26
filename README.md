@@ -73,9 +73,9 @@ python -m pip install -r Projects/ising_simulation/requirements.txt
 
 ## Device Profiles
 
-The profile system is the source of truth for machine construction. The main
-profile is `profiles/main`; isolated single-qubit work uses
-`profiles/single_qubit`.
+The profile system is the source of truth for machine construction. The default
+profile is `profiles/Or_profile` (Or 1A/2A/3A, with 3A active). Select
+`main` or `single_qubit` explicitly to use those profiles.
 
 Validate the main profile:
 
@@ -97,7 +97,7 @@ python -m quam_config.create_machine_from_profile --profile single_qubit --qubit
 ```
 
 Calibration scripts call `quam_config.create_machine()` and default to
-`profiles/main`. Set `QUAM_PROFILE` to select another profile without editing
+`profiles/Or_profile`. Set `QUAM_PROFILE` to select another profile without editing
 the calibration source:
 
 ```powershell

@@ -10,7 +10,7 @@ if __package__ in {None, ""}:
     if str(repository_root) not in sys.path:
         sys.path.insert(0, str(repository_root))
 
-from profiles import Profile, ProfileError, set_active_profile
+from profiles import DEFAULT_PROFILE_NAME, Profile, ProfileError, set_active_profile
 
 if __package__ in {None, ""}:
     from quam_config.my_quam import Quam
@@ -18,7 +18,7 @@ else:
     from .my_quam import Quam
 
 
-DEFAULT_PROFILE = Profile("main")
+DEFAULT_PROFILE = Profile(DEFAULT_PROFILE_NAME)
 SINGLE_QUBIT_PROFILE = "single_qubit"
 
 
@@ -53,13 +53,7 @@ class CreateMachine:
         selected_profile = (
             profile if isinstance(profile, Profile) else Profile(str(profile))
         )
-        if (
-            qubit is not None
-            and selected_profile.name == DEFAULT_PROFILE.name
-            and not explicit_profile
-        ):
-            selected_profile = Profile(SINGLE_QUBIT_PROFILE, qubit=qubit)
-        elif qubit is not None:
+        if qubit is not None:
             selected_profile = selected_profile.for_qubit(qubit)
 
         if (
@@ -67,13 +61,7 @@ class CreateMachine:
             and selected_profile.qubit is None
         ):
             raise ProfileError("Mode 'single_qubit' requires a qubit selection")
-        if (
-            selected_profile.name != SINGLE_QUBIT_PROFILE
-            and selected_profile.qubit is not None
-        ):
-            raise ProfileError(
-                f"Profile {selected_profile.name!r} does not support selecting a single qubit"
-            )
+        # Profile.load() validates selection against the manifest's build_mode.
 
         if __package__ in {None, ""}:
             from quam_config.create_machine_from_profile import (

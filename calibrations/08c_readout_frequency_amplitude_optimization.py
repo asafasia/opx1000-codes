@@ -160,10 +160,10 @@ class ReadoutFrequencyAmplitudeOptimization(BaseCalibration[Parameters, Quam]):
             with stream_processing():
                 n_st.save("n")
                 for i in range(num_qubits):
-                    self.save_acquisition_stream(Ig_st[i], f'Ig{i + 1}')
-                    self.save_acquisition_stream(Qg_st[i], f'Qg{i + 1}')
-                    self.save_acquisition_stream(Ie_st[i], f'Ie{i + 1}')
-                    self.save_acquisition_stream(Qe_st[i], f'Qe{i + 1}')
+                    self.save_acquisition_stream(Ig_st[i], f"Ig{i + 1}")
+                    self.save_acquisition_stream(Qg_st[i], f"Qg{i + 1}")
+                    self.save_acquisition_stream(Ie_st[i], f"Ie{i + 1}")
+                    self.save_acquisition_stream(Qe_st[i], f"Qe{i + 1}")
 
         return node.namespace.get("qua_program")
 
@@ -218,7 +218,8 @@ class ReadoutFrequencyAmplitudeOptimization(BaseCalibration[Parameters, Quam]):
 
     def profile_updates(self):
         return self.readout_profile_updates(
-            frequency="optimal_frequency", amplitude="optimal_amplitude",
+            frequency="optimal_frequency",
+            amplitude="optimal_amplitude",
             fidelity="readout_fidelity",
         )
 
@@ -242,10 +243,10 @@ if __name__ == "__main__":
     parameters.reset_type = "thermal"
     parameters.num_shots = 100
     parameters.frequency_span_in_mhz = 20
-    parameters.frequency_step_in_mhz = 0.1
+    parameters.frequency_step_in_mhz = 0.2
     parameters.start_amp = 0.1
     parameters.end_amp = 2.0
-    parameters.num_amps = 20
+    parameters.num_amps = 10
 
     options = CalibrationOptions(
         update_state=False,
@@ -256,6 +257,6 @@ if __name__ == "__main__":
     calibration = ReadoutFrequencyAmplitudeOptimization(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q3"),
     )
     calibration.run()

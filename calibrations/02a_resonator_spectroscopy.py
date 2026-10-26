@@ -398,8 +398,8 @@ if __name__ == "__main__":
 
     parameters.qubit_operation = "saturation"
     parameters.num_shots = 200
-    parameters.frequency_span_in_mhz = 30
-    parameters.frequency_step_in_mhz = 0.3
+    parameters.frequency_span_in_mhz = 130
+    parameters.frequency_step_in_mhz = 1
     parameters.states = ["g", "e"]
 
     options = CalibrationOptions()
@@ -408,7 +408,7 @@ if __name__ == "__main__":
     calibration = ResonatorSpectroscopy(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q4"),
+        machine=create_machine(qubit="q2"),
     )
     calibration.run()
 

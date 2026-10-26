@@ -294,9 +294,10 @@
       }
     },
     "q11": {
+      "resonator_band": 2,
       "lo_frequencies_hz": {
-        "xy_output": 4300000000,
-        "resonator_output": 7700000000
+        "xy_output": 4700000000,
+        "resonator_output": 6360800000
       },
       "xy_output": {
         "controller": "con1",
@@ -306,12 +307,12 @@
       "resonator_output": {
         "controller": "con1",
         "fem": 7,
-        "port": 1
+        "port": 8
       },
       "resonator_input": {
         "controller": "con1",
         "fem": 7,
-        "port": 1
+        "port": 2
       }
     },
     "q12": {

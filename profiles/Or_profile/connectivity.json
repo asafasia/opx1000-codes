@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "network": {
+    "host": "192.168.88.249",
+    "port": null,
+    "cluster_name": "katz_cluster"
+  },
+  "controllers": {
+    "con1": {
+      "type": "opx1000",
+      "fems": {
+        "7": {
+          "type": "mw_fem",
+          "outputs": {
+            "3": {
+              "band": 1,
+              "lo_frequency_hz": 4000000000,
+              "full_scale_power_dbm": 10,
+              "sampling_rate_hz": 1000000000
+            },
+            "5": {
+              "band": 1,
+              "lo_frequency_hz": 4000000000,
+              "full_scale_power_dbm": 10,
+              "sampling_rate_hz": 1000000000
+            },
+            "7": {
+              "band": 1,
+              "lo_frequency_hz": 4000000000,
+              "full_scale_power_dbm": 10,
+              "sampling_rate_hz": 1000000000
+            },
+            "8": {
+              "band": 2,
+              "lo_frequency_hz": 6300000000,
+              "full_scale_power_dbm": 10,
+              "sampling_rate_hz": 1000000000
+            }
+          },
+          "inputs": {
+            "2": {
+              "band": 2,
+              "sampling_rate_hz": 1000000000
+            }
+          }
+        }
+      }
+    }
+  },
+  "connections": {
+    "q1": {
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 3
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 8
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 2
+      },
+      "lo_frequencies_hz": {
+        "xy_output": 3500000000,
+        "resonator_output": 6300000000
+      }
+    },
+    "q2": {
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 5
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 8
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 2
+      },
+      "lo_frequencies_hz": {
+        "xy_output": 4000000000,
+        "resonator_output": 6300000000
+      }
+    },
+    "q3": {
+      "xy_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 7
+      },
+      "resonator_output": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 8
+      },
+      "resonator_input": {
+        "controller": "con1",
+        "fem": 7,
+        "port": 2
+      },
+      "lo_frequencies_hz": {
+        "xy_output": 4000000000,
+        "resonator_output": 6300000000
+      }
+    }
+  }
+}

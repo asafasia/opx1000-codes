@@ -19,14 +19,14 @@ from quam.components.pulses import (
     SquareReadoutPulse,
 )
 
-from profiles import MAX_PROFILE_PULSE_AMPLITUDE, ProfileError, load_profile
+from profiles import DEFAULT_PROFILE_NAME, MAX_PROFILE_PULSE_AMPLITUDE, ProfileError, load_profile
 from profiles.loader import PROFILES_ROOT, selected_readout_pulse
 from quam_config import Quam
 from quam_config.derived_gates import add_derived_single_qubit_gates
 from quam_config.readout_pulses import FlatTopGaussianReadoutPulse
 
 
-DEFAULT_PROFILE = "main"
+DEFAULT_PROFILE = DEFAULT_PROFILE_NAME
 
 
 def _port_definition(

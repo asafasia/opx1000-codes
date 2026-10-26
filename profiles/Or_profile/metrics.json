@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "qubits": {
+    "q1": {
+      "coherence": {
+        "t1_ns": null,
+        "t2_ramsey_ns": null,
+        "t2_echo_ns": null
+      },
+      "gates": {
+        "single_qubit_average_fidelity": null
+      },
+      "readout": {
+        "fidelity_percent": {
+          "active": null,
+          "thermal": null
+        }
+      }
+    },
+    "q2": {
+      "coherence": {
+        "t1_ns": null,
+        "t2_ramsey_ns": null,
+        "t2_echo_ns": null
+      },
+      "gates": {
+        "single_qubit_average_fidelity": null
+      },
+      "readout": {
+        "fidelity_percent": {
+          "active": null,
+          "thermal": null
+        }
+      }
+    },
+    "q3": {
+      "coherence": {
+        "t1_ns": null,
+        "t2_ramsey_ns": null,
+        "t2_echo_ns": null
+      },
+      "gates": {
+        "single_qubit_average_fidelity": null
+      },
+      "readout": {
+        "fidelity_percent": {
+          "active": null,
+          "thermal": 70.6
+        }
+      }
+    }
+  }
+}
