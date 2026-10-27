@@ -36,7 +36,7 @@ description = """
 
 # Any parameters that should change for debugging purposes only should go in here
 # These parameters are ignored when run through the GUI or as part of a graph
-# Create the machine directly from profiles/main without loading state.json.
+# Create the machine directly from profiles/iqm_chip without loading state.json.
 
 
 

@@ -29,7 +29,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from parameter_scans.runner import ExperimentSpec, LongScanRunner, ScanConfig
 
 CALIBRATIONS_ROOT = PROJECT_ROOT / "calibrations"
-SINGLE_QUBIT_PROFILE_ROOT = PROJECT_ROOT / "profiles" / "single_qubit"
+SINGLE_QUBIT_PROFILE_ROOT = PROJECT_ROOT / "profiles" / "iqm_chip"
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "data" / "parameter_scans"
 PREFERRED_EXPERIMENTS = {
     "03a_qubit_spectroscopy.py",
@@ -266,7 +266,7 @@ class ScanJob:
                 interval_seconds=max(0.0, interval_seconds),
                 continue_on_error=bool(payload.get("continue_on_error", False)),
                 save_full_results=bool(payload.get("save_full_results", False)),
-                profile_name="single_qubit",
+                profile_name="iqm_chip",
                 qubit=str(payload.get("qubit") or "q1"),
                 output_root=DEFAULT_OUTPUT_ROOT,
             )
@@ -276,7 +276,7 @@ class ScanJob:
             self.error = None
             self.terminal_output = (
                 f"Starting parameter scan at {self.started_at}\n"
-                f"Profile: single_qubit | Qubit: {config.qubit}\n"
+                f"Profile: iqm_chip | Qubit: {config.qubit}\n"
                 "Experiments:\n"
                 + "".join(f"  - {spec.script.as_posix()}\n" for spec in config.experiments)
                 + "\n"

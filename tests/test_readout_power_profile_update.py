@@ -6,7 +6,7 @@ from quam_config import create_machine
 @pytest.mark.parametrize("states, section, pulse", [(["g","e"],"readout","readout"),(["g","e","f"],"readout_gef","readout_GEF")])
 def test_power_update_targets_only_selected_pulse_and_invalidates_centers(states, section, pulse):
     module = import_module("calibrations.08b_readout_power_optimization")
-    machine = create_machine(profile_name="single_qubit", qubit="q1")
+    machine = create_machine(profile_name="iqm_chip", qubit="q1")
     node = module.ReadoutPowerOptimization(parameters=module.Parameters(readout_states=states), machine=machine)
     node.namespace["qubits"] = [machine.qubits["q1"]]
     node.outcomes = {"q1":"successful"}

@@ -53,7 +53,7 @@ Prerequisites:
 
 State update:
     - The readout frequency at the optimal readout power: qubit.resonator.f_01 & qubit.resonator.RF_frequency
-    - The readout power: qubit.resonator.set_output_power()
+    - The readout pulse amplitude, keeping the current full-scale output power.
     - The readout frequency for the optimal readout power. 
 """
 
@@ -61,21 +61,38 @@ State update:
 # Be sure to include [Parameters, Quam] so the node has proper type hinting
 
 
-def select_full_scale_power_dbm(power_in_dbm: float, max_amplitude: float) -> int:
-    """Select the lowest QOP 3.2 MW-FEM full-scale power that supports the target power."""
-    allowed_full_scale_powers = np.arange(-11, 1, 3)
-    compatible_powers = [
-        int(full_scale_power)
-        for full_scale_power in allowed_full_scale_powers
-        if calculate_voltage_scaling_factor(full_scale_power, power_in_dbm)
-        <= max_amplitude
-    ]
-    if not compatible_powers:
+def readout_amplitude_at_power(full_scale_power_dbm, power_dbm, max_amplitude):
+    """Convert power to pulse amplitude without allowing a gain increase."""
+    amplitude = float(calculate_voltage_scaling_factor(full_scale_power_dbm, power_dbm))
+    if not np.isfinite(amplitude) or amplitude > max_amplitude:
         raise ValueError(
-            f"Cannot reach {power_in_dbm} dBm with max_amp={max_amplitude}. "
-            "Increase max_amp or lower max_power_dbm."
+            f"Cannot reach {power_dbm} dBm at the current full-scale power "
+            f"{full_scale_power_dbm} dBm with max_amp={max_amplitude}. "
+            "Lower max_power_dbm or increase max_amp up to 1.0; gain will not be changed."
         )
-    return compatible_powers[0]
+    return amplitude
+
+
+def resolve_power_sweep(qubits, parameters):
+    """Resolve the common dBm axis using current output settings."""
+    full_scales = {q.name: float(q.resonator.opx_output.full_scale_power_dbm) for q in qubits}
+    if not full_scales or not all(np.isfinite(value) for value in full_scales.values()):
+        raise ValueError("Readout power sweep requires finite full-scale output settings.")
+    maximum = parameters.max_power_dbm
+    if maximum is None:
+        if len(set(full_scales.values())) != 1:
+            raise ValueError(
+                "Selected resonators have different full-scale powers. Run them separately "
+                "to reach each current gain, or set a common lower max_power_dbm."
+            )
+        maximum = next(iter(full_scales.values()))
+    if parameters.min_power_dbm >= maximum:
+        raise ValueError("min_power_dbm must be below the resolved maximum output power.")
+    amplitudes = {
+        name: readout_amplitude_at_power(value, maximum, parameters.max_amp)
+        for name, value in full_scales.items()
+    }
+    return float(maximum), full_scales, amplitudes
 
 
 # Any parameters that should change for debugging purposes only should go in here
@@ -116,36 +133,28 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
         # Get the active qubits from the node and organize them by batches
         node.namespace["qubits"] = qubits = self.get_qubits()
         num_qubits = len(qubits)
-        # Update the readout power to match the desired range, this change will be reverted at the end of the node.
+        # Scale the readout pulse for the sweep while preserving the configured gain.
+        max_power_dbm, full_scales, peak_amplitudes = resolve_power_sweep(qubits, node.parameters)
+        node.namespace["max_power_dbm"] = max_power_dbm
+        node.namespace["full_scale_power_dbm"] = full_scales
         node.namespace["tracked_resonators"] = []
-        node.namespace["full_scale_power_dbm"] = full_scale_power_dbm = (
-            select_full_scale_power_dbm(
-                node.parameters.max_power_dbm,
-                node.parameters.max_amp,
-            )
-        )
         for i, qubit in enumerate(qubits):
             with tracked_updates(
                 qubit.resonator, auto_revert=False, dont_assign_to_none=True
             ) as resonator:
-                resonator.set_output_power(
-                    power_in_dbm=node.parameters.max_power_dbm,
-                    full_scale_power_dbm=full_scale_power_dbm,
-                    max_amplitude=node.parameters.max_amp,
-                    operation=node.parameters.readout_operation,
-                )
+                resonator.operations[node.parameters.readout_operation].amplitude = peak_amplitudes[qubit.name]
                 node.namespace["tracked_resonators"].append(resonator)
 
         # Extract the sweep parameters and axes from the node parameters
         n_avg = node.parameters.num_shots
         # The readout amplitude sweep (as a pre-factor of the readout amplitude) - must be within [-2; 2)
         amp_min = calculate_voltage_scaling_factor(
-            node.parameters.max_power_dbm, node.parameters.min_power_dbm
+            max_power_dbm, node.parameters.min_power_dbm
         )
         amps = np.geomspace(amp_min, 1, node.parameters.num_power_points)
         power_dbm = np.linspace(
             node.parameters.min_power_dbm,
-            node.parameters.max_power_dbm,
+            max_power_dbm,
             node.parameters.num_power_points,
         )
         # The frequency sweep around the resonator resonance frequency
@@ -312,21 +321,16 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
             tracked_resonator.revert_changes()
 
         # Update the state
-        full_scale_power_dbm = select_full_scale_power_dbm(
-            node.parameters.max_power_dbm,
-            node.parameters.max_amp,
-        )
         with node.record_state_updates():
             for q in node.namespace["qubits"]:
                 if node.outcomes[q.name] == "failed":
                     continue
 
                 # Update the readout power
-                q.resonator.set_output_power(
-                    power_in_dbm=node.results["fit_results"][q.name]["optimal_power"],
-                    full_scale_power_dbm=full_scale_power_dbm,
-                    max_amplitude=node.parameters.max_amp,
-                    operation=node.parameters.readout_operation,
+                q.resonator.operations[node.parameters.readout_operation].amplitude = readout_amplitude_at_power(
+                    q.resonator.opx_output.full_scale_power_dbm,
+                    node.results["fit_results"][q.name]["optimal_power"],
+                    node.parameters.max_amp,
                 )
                 shift = node.results["fit_results"][q.name]["frequency_shift"]
                 if len(node.parameters.readout_states) == 3:
@@ -349,6 +353,6 @@ if __name__ == "__main__":
     calibration = ResonatorSpectroscopyVsPower(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q11"),
+        machine=create_machine(qubit="q1a"),
     )
     calibration.run()

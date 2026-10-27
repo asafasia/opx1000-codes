@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.profile_fixtures import multi_qubit_profile
 from profiles import Profile, ProfileError, clear_active_profile, current_profile_name, load_profile
 from profiles.loader import MW_FEM_MAX_IF_HZ, _read_json
 from quam_config import CreateMachine, create_machine
@@ -11,7 +12,7 @@ from quam_config.my_quam import apply_temporary_mw_fem_lo_mode_bugfix
 
 class SingleQubitProfileTests(unittest.TestCase):
     def test_single_qubit_profile_is_complete_and_independent(self):
-        profile_directory = Path(__file__).parent.parent / "profiles" / "single_qubit"
+        profile_directory = Path(__file__).parent.parent / "profiles" / "iqm_chip"
 
         self.assertEqual(
             {path.name for path in profile_directory.glob("*.json")},
@@ -29,13 +30,13 @@ class SingleQubitProfileTests(unittest.TestCase):
             return _read_json(path)
 
         with patch("profiles.loader._read_json", side_effect=record_read):
-            load_profile("single_qubit", qubit="q3")
+            load_profile("iqm_chip", qubit="q3")
 
         self.assertTrue(paths)
-        self.assertTrue(all(path.parent.name == "single_qubit" for path in paths))
+        self.assertTrue(all(path.parent.name == "iqm_chip" for path in paths))
 
     def test_single_qubit_profile_contains_only_selected_qubit_and_ports(self):
-        profile = load_profile("single_qubit", qubit="q3")
+        profile = load_profile("iqm_chip", qubit="q3")
         connectivity = profile["connectivity"]
         fem = connectivity["controllers"]["con1"]["fems"]["7"]
 
@@ -49,7 +50,7 @@ class SingleQubitProfileTests(unittest.TestCase):
         self.assertEqual(fem["outputs"]["1"]["lo_frequency_hz"], 6_900_000_000)
 
     def test_single_qubit_profile_validates_against_per_qubit_los(self):
-        profile = load_profile("single_qubit", qubit="q11")
+        profile = load_profile("iqm_chip", qubit="q11")
         connection = profile["connectivity"]["connections"]["q11"]
         fem = profile["connectivity"]["controllers"]["con1"]["fems"]["7"]
 
@@ -57,14 +58,14 @@ class SingleQubitProfileTests(unittest.TestCase):
         self.assertEqual(fem["outputs"]["1"]["lo_frequency_hz"], 7_700_000_000)
 
     def test_single_qubit_profile_can_be_loaded_without_selection_for_editing(self):
-        profile = load_profile("single_qubit")
+        profile = load_profile("iqm_chip")
 
         self.assertIn("q3", profile["qubits"]["qubits"])
         self.assertNotIn("selected_qubit", profile["manifest"])
 
     def test_single_qubit_profile_rejects_unknown_qubit(self):
-        with self.assertRaisesRegex(ProfileError, "does not exist in profile 'single_qubit'"):
-            load_profile("single_qubit", qubit="q99")
+        with self.assertRaisesRegex(ProfileError, "does not exist in profile 'iqm_chip'"):
+            load_profile("iqm_chip", qubit="q99")
 
     def test_single_qubit_profile_rejects_missing_selected_qubit_data(self):
         def read_without_q3_pulses(path):
@@ -75,7 +76,7 @@ class SingleQubitProfileTests(unittest.TestCase):
 
         with patch("profiles.loader._read_json", side_effect=read_without_q3_pulses):
             with self.assertRaisesRegex(ProfileError, "has no pulse definitions"):
-                load_profile("single_qubit", qubit="q3")
+                load_profile("iqm_chip", qubit="q3")
 
     def test_single_qubit_profile_rejects_missing_per_qubit_lo(self):
         def read_without_q3_lo(path):
@@ -86,15 +87,15 @@ class SingleQubitProfileTests(unittest.TestCase):
 
         with patch("profiles.loader._read_json", side_effect=read_without_q3_lo):
             with self.assertRaisesRegex(ProfileError, "has no lo_frequencies_hz"):
-                load_profile("single_qubit", qubit="q3")
+                load_profile("iqm_chip", qubit="q3")
 
     def test_every_single_qubit_profile_qubit_can_be_selected(self):
-        profile_directory = Path(__file__).parent.parent / "profiles" / "single_qubit"
+        profile_directory = Path(__file__).parent.parent / "profiles" / "iqm_chip"
         qubits = _read_json(profile_directory / "qubits.json")["qubits"]
 
         for qubit in qubits:
             with self.subTest(qubit=qubit):
-                profile = load_profile("single_qubit", qubit=qubit)
+                profile = load_profile("iqm_chip", qubit=qubit)
                 self.assertEqual(list(profile["qubits"]["qubits"]), [qubit])
                 frequencies = profile["qubits"]["qubits"][qubit]["frequencies_hz"]
                 connection = profile["connectivity"]["connections"][qubit]
@@ -115,7 +116,7 @@ class SingleQubitProfileTests(unittest.TestCase):
                 )
 
     def test_single_qubit_profile_builds_one_qubit_machine(self):
-        machine = create_machine_from_profile("single_qubit", save=False, qubit="q3")
+        machine = create_machine_from_profile("iqm_chip", save=False, qubit="q3")
 
         self.assertEqual(list(machine.qubits), ["q3"])
         self.assertEqual(machine.active_qubit_names, ["q3"])
@@ -126,15 +127,15 @@ class CreateMachineTests(unittest.TestCase):
         clear_active_profile()
 
     @patch.dict("os.environ", {}, clear=True)
-    def test_default_profile_loaders_use_or_profile(self):
+    def test_default_profile_loaders_use_iqm_chip(self):
         clear_active_profile()
-        self.assertEqual(Profile().name, "Or_profile")
-        self.assertEqual(load_profile()["manifest"]["name"], "Or_profile")
-        self.assertEqual(current_profile_name(), "Or_profile")
+        self.assertEqual(Profile().name, "iqm_chip")
+        self.assertEqual(load_profile()["manifest"]["name"], "iqm_chip")
+        self.assertEqual(current_profile_name(), "iqm_chip")
 
     @patch.dict("os.environ", {}, clear=True)
-    def test_default_qubit_selection_builds_or_3b_on_output_7(self):
-        machine = create_machine(qubit="q3b")
+    def test_explicit_or_profile_builds_3b_on_output_7(self):
+        machine = create_machine("Or_profile", qubit="q3b")
         machine.generate_config()
         self.assertEqual(list(machine.qubits), ["q3b"])
         self.assertEqual(machine.qubits["q3b"].xy.opx_output.port_id, 7)
@@ -142,15 +143,15 @@ class CreateMachineTests(unittest.TestCase):
         self.assertEqual(machine.qubits["q3b"].resonator.opx_input.port_id, 2)
 
     @patch("quam_config.create_machine_from_profile.create_machine_from_profile")
-    def test_create_machine_class_returns_default_or_machine(self, build):
+    def test_create_machine_class_returns_default_iqm_machine(self, build):
         expected = object()
         build.return_value = expected
 
-        cm = CreateMachine()
+        cm = CreateMachine(qubit="q1")
 
         self.assertIs(cm.machine, expected)
-        self.assertEqual(cm.profile.name, "Or_profile")
-        self.assertEqual(current_profile_name(), "Or_profile")
+        self.assertEqual(cm.profile.name, "iqm_chip")
+        self.assertEqual(current_profile_name(), "iqm_chip")
         build.assert_called_once_with(cm.profile, save=False)
 
     @patch("quam_config.create_machine_from_profile.create_machine_from_profile")
@@ -166,19 +167,19 @@ class CreateMachineTests(unittest.TestCase):
         build.assert_called_once_with(profile, save=False)
 
     @patch("quam_config.create_machine_from_profile.create_machine_from_profile")
-    def test_qubit_selection_uses_default_or_profile(self, build):
+    def test_qubit_selection_uses_default_iqm_chip(self, build):
         expected = object()
         build.return_value = expected
 
-        self.assertIs(create_machine(qubit="q3b"), expected)
+        self.assertIs(create_machine(qubit="q3"), expected)
 
         profile = build.call_args.args[0]
-        self.assertEqual(profile.name, "Or_profile")
-        self.assertEqual(profile.qubit, "q3b")
-        self.assertEqual(current_profile_name(), "Or_profile")
+        self.assertEqual(profile.name, "iqm_chip")
+        self.assertEqual(profile.qubit, "q3")
+        self.assertEqual(current_profile_name(), "iqm_chip")
         build.assert_called_once_with(profile, save=False)
 
-    @patch.dict("os.environ", {"QUAM_PROFILE": "single_qubit", "QUAM_QUBIT": "q5"})
+    @patch.dict("os.environ", {"QUAM_PROFILE": "iqm_chip", "QUAM_QUBIT": "q5"})
     @patch("quam_config.create_machine_from_profile.create_machine_from_profile")
     def test_environment_can_override_script_qubit_selection(self, build):
         expected = object()
@@ -187,18 +188,18 @@ class CreateMachineTests(unittest.TestCase):
         self.assertIs(create_machine(qubit="q1"), expected)
 
         profile = build.call_args.args[0]
-        self.assertEqual(profile.name, "single_qubit")
+        self.assertEqual(profile.name, "iqm_chip")
         self.assertEqual(profile.qubit, "q5")
 
-    def test_main_mode_rejects_qubit_selection(self):
+    def test_full_chip_profile_rejects_qubit_selection(self):
         with self.assertRaisesRegex(ProfileError, "does not support"):
-            create_machine(mode="main", qubit="q3")
+            create_machine(multi_qubit_profile(), qubit="q3")
 
     def test_profile_object_can_be_passed_to_create_machine(self):
         with patch("quam_config.create_machine_from_profile.create_machine_from_profile") as build:
             expected = object()
             build.return_value = expected
-            profile = Profile("single_qubit", qubit="q3")
+            profile = Profile("iqm_chip", qubit="q3")
 
             self.assertIs(create_machine(profile), expected)
 

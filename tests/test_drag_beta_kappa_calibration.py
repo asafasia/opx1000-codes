@@ -85,7 +85,7 @@ def test_drag_derivative_has_correct_sign_and_physical_time_normalization() -> N
     beta = 0.75
     alpha_mhz = 200.0
     dt_us = pulse_length_ns / len(signed_i) / 1000.0
-    expected = -beta * 0.1 / dt_us / (2 * np.pi * alpha_mhz)
+    expected = beta * 0.1 / dt_us / (2 * np.pi * alpha_mhz)
 
     waveform_q = lorentzian.drag_quadrature_waveform(
         signed_i,
@@ -95,7 +95,7 @@ def test_drag_derivative_has_correct_sign_and_physical_time_normalization() -> N
     )
 
     np.testing.assert_allclose(waveform_q, expected, rtol=1e-14, atol=1e-14)
-    assert np.all(np.asarray(waveform_q) < 0)
+    assert np.all(np.asarray(waveform_q) > 0)
 
 
 def test_drag_uses_complete_smooth_signed_echo_and_has_finite_endpoints() -> None:

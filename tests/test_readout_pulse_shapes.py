@@ -35,7 +35,7 @@ def test_reject_invalid_gaussian_readout_profile(field, value):
 @pytest.mark.parametrize("operation", ["readout", "readout_GEF"])
 @pytest.mark.parametrize("amplitude", [0.1, 0.8, -1.0])
 def test_selected_shape_reaches_measurement_config(operation, amplitude, monkeypatch):
-    profile = deepcopy(load_profile("single_qubit", qubit="q6"))
+    profile = deepcopy(load_profile("iqm_chip", qubit="q6"))
     profile["manifest"].pop("readout_pulse", None)
     profile["manifest"].pop("readout_gef_pulse", None)
     for entry in profile["pulses"]["pulses"]["q6"].values():
@@ -46,7 +46,7 @@ def test_selected_shape_reaches_measurement_config(operation, amplitude, monkeyp
     validate_profile(profile)
     module = importlib.import_module("quam_config.create_machine_from_profile")
     monkeypatch.setattr(module, "load_profile", lambda *a, **kw: profile)
-    machine = module.create_machine_from_profile("single_qubit", save=False, qubit="q6")
+    machine = module.create_machine_from_profile("iqm_chip", save=False, qubit="q6")
     q = machine.qubits["q6"]
     pulse = q.resonator.operations[operation]
     assert isinstance(pulse, FlatTopGaussianReadoutPulse)

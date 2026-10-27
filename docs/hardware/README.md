@@ -11,4 +11,4 @@ and control hardware.
 
 Update these files when the physical wiring or vendor characterization changes.
 Apply corresponding operational changes separately in
-[`profiles/main`](../../profiles/main/).
+[`profiles/iqm_chip`](../../profiles/iqm_chip/).

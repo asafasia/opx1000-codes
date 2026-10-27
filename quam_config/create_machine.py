@@ -19,7 +19,7 @@ else:
 
 
 DEFAULT_PROFILE = Profile(DEFAULT_PROFILE_NAME)
-SINGLE_QUBIT_PROFILE = "single_qubit"
+SINGLE_QUBIT_PROFILE = "iqm_chip"
 
 
 class CreateMachine:
@@ -60,7 +60,7 @@ class CreateMachine:
             selected_profile.name == SINGLE_QUBIT_PROFILE
             and selected_profile.qubit is None
         ):
-            raise ProfileError("Mode 'single_qubit' requires a qubit selection")
+            raise ProfileError("Profile 'iqm_chip' requires a qubit selection")
         # Profile.load() validates selection against the manifest's build_mode.
 
         if __package__ in {None, ""}:
@@ -94,7 +94,7 @@ def create_machine(
 
 
 if __name__ == "__main__":
-    machine = create_machine(qubit="q2b")
+    machine = create_machine(qubit="q1")
     config = machine.generate_config()
 
     from pprint import pprint

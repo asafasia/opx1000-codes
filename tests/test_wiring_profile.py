@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import numpy as np
 
+from tests.profile_fixtures import multi_qubit_profile
 from profiles import ProfileError, load_profile
 from profiles.loader import validate_profile
 from quam_config import Quam
@@ -18,7 +19,7 @@ from quam_config.wiring_lffem_mwfem import _xy_lines
 
 class WiringProfileTests(unittest.TestCase):
     def test_active_qubits_are_defined_only_in_manifest(self):
-        profile = load_profile("main")
+        profile = multi_qubit_profile().load()
 
         self.assertTrue(profile["manifest"]["active_qubits"])
         for qubit_name in profile["manifest"]["active_qubits"]:
@@ -27,14 +28,14 @@ class WiringProfileTests(unittest.TestCase):
             self.assertNotIn("enabled", qubit)
 
     def test_profile_rejects_per_qubit_enabled_field(self):
-        profile = deepcopy(load_profile("main"))
+        profile = deepcopy(multi_qubit_profile().load())
         profile["qubits"]["qubits"]["q9"]["enabled"] = True
 
         with self.assertRaisesRegex(ProfileError, "use profile.json active_qubits"):
             validate_profile(profile)
 
     def test_profile_rejects_non_boolean_readout_use_kernel(self):
-        profile = deepcopy(load_profile("main"))
+        profile = deepcopy(multi_qubit_profile().load())
         qubit_name = profile["manifest"]["active_qubits"][0]
         profile["qubits"]["qubits"][qubit_name]["readout"]["use_kernel"] = "yes"
 
@@ -62,7 +63,7 @@ class WiringProfileTests(unittest.TestCase):
         self.assertEqual(float(rows["8"]["Measured readout frequency (GHz)"]), 7.3834)
 
     def test_new_qubits_use_vendor_table_frequencies(self):
-        profile = load_profile("main")
+        profile = multi_qubit_profile().load()
         qubits = profile["qubits"]["qubits"]
         csv_path = Path(__file__).parent.parent / "docs" / "hardware" / "iqm_qubit_summary.csv"
         with csv_path.open(newline="", encoding="utf-8") as file:
@@ -82,7 +83,7 @@ class WiringProfileTests(unittest.TestCase):
             )
 
     def test_q11_q12_use_vendor_table_frequencies(self):
-        profile = load_profile("main")
+        profile = multi_qubit_profile().load()
         qubits = profile["qubits"]["qubits"]
         csv_path = Path(__file__).parent.parent / "docs" / "hardware" / "iqm_qubit_summary.csv"
         with csv_path.open(newline="", encoding="utf-8") as file:
@@ -102,7 +103,7 @@ class WiringProfileTests(unittest.TestCase):
             )
 
     def test_all_configured_qubits_use_requested_shared_drive_ports(self):
-        profile = load_profile("main")
+        profile = multi_qubit_profile().load()
         connections = profile["connectivity"]["connections"]
         qubit_names = [f"q{index}" for index in range(1, 13)]
         lines = _xy_lines(connections, qubit_names)
@@ -111,28 +112,28 @@ class WiringProfileTests(unittest.TestCase):
             self.assertEqual(lines[(1, 7, port)], [first_qubit, first_qubit + 1])
 
     def test_all_drive_lines_use_same_lo(self):
-        outputs = load_profile("main")["connectivity"]["controllers"]["con1"]["fems"]["7"]["outputs"]
+        outputs = multi_qubit_profile().load()["connectivity"]["controllers"]["con1"]["fems"]["7"]["outputs"]
 
         for port in range(3, 8):
             self.assertEqual(outputs["2"]["lo_frequency_hz"], outputs[str(port)]["lo_frequency_hz"])
             self.assertEqual(outputs["2"]["band"], outputs[str(port)]["band"])
 
     def test_q11_q12_use_second_resonator_line(self):
-        connections = load_profile("main")["connectivity"]["connections"]
+        connections = multi_qubit_profile().load()["connectivity"]["connections"]
 
         for qubit_name in ("q11", "q12"):
             self.assertEqual(connections[qubit_name]["resonator_output"]["port"], 8)
             self.assertEqual(connections[qubit_name]["resonator_input"]["port"], 2)
 
     def test_resonator_input_los_are_derived_from_outputs(self):
-        profile = load_profile("main")
+        profile = multi_qubit_profile().load()
         connectivity = profile["connectivity"]
         inputs = connectivity["controllers"]["con1"]["fems"]["7"]["inputs"]
 
         for input_port in inputs.values():
             self.assertNotIn("lo_frequency_hz", input_port)
 
-        machine = create_machine_from_profile("main", save=False)
+        machine = create_machine_from_profile(multi_qubit_profile(), save=False)
         for qubit_name, connection in connectivity["connections"].items():
             output_port = connection["resonator_output"]["port"]
             output = connectivity["controllers"]["con1"]["fems"]["7"]["outputs"][
@@ -145,9 +146,9 @@ class WiringProfileTests(unittest.TestCase):
             )
 
     def test_resonator_input_gain_is_applied(self):
-        profile = load_profile("main")
+        profile = multi_qubit_profile().load()
         connectivity = profile["connectivity"]
-        machine = create_machine_from_profile("main", save=False)
+        machine = create_machine_from_profile(multi_qubit_profile(), save=False)
 
         for qubit_name, connection in connectivity["connections"].items():
             input_port = connection["resonator_input"]["port"]
@@ -168,7 +169,7 @@ class WiringProfileTests(unittest.TestCase):
         )
 
     def test_profile_contains_q1_through_q12_only(self):
-        profile = load_profile("main")
+        profile = multi_qubit_profile().load()
 
         expected = {f"q{index}" for index in range(1, 13)}
         self.assertEqual(set(profile["qubits"]["qubits"]), expected)
@@ -176,7 +177,7 @@ class WiringProfileTests(unittest.TestCase):
         self.assertEqual(set(profile["pulses"]["pulses"]), expected)
 
     def test_profile_rejects_different_los_on_shared_output_pair(self):
-        profile = deepcopy(load_profile("main"))
+        profile = deepcopy(multi_qubit_profile().load())
         outputs = profile["connectivity"]["controllers"]["con1"]["fems"]["7"]["outputs"]
         outputs["3"]["lo_frequency_hz"] = outputs["2"]["lo_frequency_hz"] + 100e6
 
@@ -198,8 +199,8 @@ class WiringProfileTests(unittest.TestCase):
         create_machine.assert_called_once_with()
 
     def test_machine_wiring_contains_all_configured_qubits(self):
-        machine = create_machine_from_profile("main", save=False)
-        profile = load_profile("main")
+        machine = create_machine_from_profile(multi_qubit_profile(), save=False)
+        profile = multi_qubit_profile().load()
 
         self.assertEqual(set(machine.qubits), {f"q{index}" for index in range(1, 13)})
         self.assertEqual(machine.active_qubit_names, profile["manifest"]["active_qubits"])
@@ -222,8 +223,8 @@ class WiringProfileTests(unittest.TestCase):
                 self.assertNotIn("Quam.load()", calibration.read_text(encoding="utf-8"))
 
     def test_readout_acquisition_timing_is_applied_to_quam(self):
-        machine = create_machine_from_profile("main", save=False)
-        profile = load_profile("main")
+        machine = create_machine_from_profile(multi_qubit_profile(), save=False)
+        profile = multi_qubit_profile().load()
         qubit_name = profile["manifest"]["active_qubits"][0]
         readout = profile["qubits"]["qubits"][qubit_name]["readout"]
         resonator = machine.qubits[qubit_name].resonator
@@ -233,7 +234,7 @@ class WiringProfileTests(unittest.TestCase):
         self.assertEqual(resonator.depletion_time, readout["depletion_time_ns"])
 
     def test_active_gef_reset_compatibility_aliases_are_applied(self):
-        machine = create_machine_from_profile("single_qubit", save=False, qubit="q1")
+        machine = create_machine_from_profile("iqm_chip", save=False, qubit="q1")
         qubit = machine.qubits["q1"]
 
         self.assertIs(qubit.rr, qubit.resonator)
@@ -243,8 +244,8 @@ class WiringProfileTests(unittest.TestCase):
         )
 
     def test_global_readout_discriminator_is_applied_to_machine_and_resonators(self):
-        machine = create_machine_from_profile("main", save=False)
-        profile = load_profile("main")
+        machine = create_machine_from_profile(multi_qubit_profile(), save=False)
+        profile = multi_qubit_profile().load()
 
         self.assertEqual(
             machine.readout_discriminator,
@@ -257,8 +258,8 @@ class WiringProfileTests(unittest.TestCase):
             )
 
     def test_constant_readout_integration_weights_and_angle_are_applied(self):
-        machine = create_machine_from_profile("main", save=False)
-        profile = load_profile("main")
+        machine = create_machine_from_profile(multi_qubit_profile(), save=False)
+        profile = multi_qubit_profile().load()
         qubit_name = profile["manifest"]["active_qubits"][0]
         readout = profile["qubits"]["qubits"][qubit_name]["readout"]
         pulse_profile = profile["pulses"]["pulses"][qubit_name]["readout"]
@@ -273,7 +274,7 @@ class WiringProfileTests(unittest.TestCase):
         self.assertEqual(pulse.rus_exit_threshold, readout["rus_exit_threshold"])
 
     def test_readout_use_kernel_false_uses_automatic_constant_weights(self):
-        profile = load_profile("main")
+        profile = multi_qubit_profile().load()
         qubit_name = profile["manifest"]["active_qubits"][0]
         readout = deepcopy(profile["qubits"]["qubits"][qubit_name]["readout"])
         readout["use_kernel"] = False
@@ -291,7 +292,7 @@ class WiringProfileTests(unittest.TestCase):
         self.assertEqual(weights, "#./default_integration_weights")
 
     def test_readout_use_kernel_true_loads_optimized_kernel_file(self):
-        profile = load_profile("main")
+        profile = multi_qubit_profile().load()
         qubit_name = profile["manifest"]["active_qubits"][0]
         readout = deepcopy(profile["qubits"]["qubits"][qubit_name]["readout"])
         readout["use_kernel"] = True
@@ -320,7 +321,7 @@ class WiringProfileTests(unittest.TestCase):
         self.assertEqual(weights, [[1.0, 40], [-0.25, 40]])
 
     def test_readout_kernel_reaches_generated_config(self):
-        machine = create_machine_from_profile("single_qubit", save=False, qubit="q1")
+        machine = create_machine_from_profile("iqm_chip", save=False, qubit="q1")
         pulse = machine.qubits["q1"].resonator.operations["readout"]
 
         self.assertEqual(len(pulse.integration_weights), 50)
@@ -340,7 +341,7 @@ class WiringProfileTests(unittest.TestCase):
         self.assertNotEqual(cosine_weights, [(1.0, 2000)])
 
     def test_readout_use_kernel_true_requires_matching_kernel_length(self):
-        profile = load_profile("main")
+        profile = multi_qubit_profile().load()
         qubit_name = profile["manifest"]["active_qubits"][0]
         readout = deepcopy(profile["qubits"]["qubits"][qubit_name]["readout"])
         readout["use_kernel"] = True
@@ -368,7 +369,7 @@ class WiringProfileTests(unittest.TestCase):
                 )
 
     def test_rb_gates_are_derived_from_x180(self):
-        machine = create_machine_from_profile("main", save=False)
+        machine = create_machine_from_profile(multi_qubit_profile(), save=False)
         qubit = machine.qubits[machine.active_qubit_names[0]]
         x180 = qubit.xy.operations["x180"]
         expected = {
@@ -386,7 +387,7 @@ class WiringProfileTests(unittest.TestCase):
             self.assertAlmostEqual(gate.axis_angle, axis_angle)
 
     def test_profile_does_not_duplicate_derived_rb_gates(self):
-        profile = load_profile("main")
+        profile = multi_qubit_profile().load()
         derived_gates = {"y180", "x90", "-x90", "y90", "-y90"}
 
         for qubit_name, qubit in profile["qubits"]["qubits"].items():
@@ -394,9 +395,9 @@ class WiringProfileTests(unittest.TestCase):
             self.assertTrue(derived_gates.isdisjoint(profile["pulses"]["pulses"][qubit_name]))
 
     def test_quam_coherence_uses_metrics_as_source_of_truth(self):
-        profile = load_profile("single_qubit", qubit="q6")
+        profile = load_profile("iqm_chip", qubit="q6")
         machine = create_machine_from_profile(
-            "single_qubit",
+            "iqm_chip",
             save=False,
             qubit="q6",
         )

@@ -74,34 +74,34 @@ python -m pip install -r Projects/ising_simulation/requirements.txt
 ## Device Profiles
 
 The profile system is the source of truth for machine construction. The default
-profile is `profiles/Or_profile` (Or `q1b`/`q2b`/`q3b` and `q1a`/`q2a`/`q3a`, with `q3b` active). Select
-`main` or `single_qubit` explicitly to use those profiles.
+profile is `profiles/iqm_chip` (formerly `single_qubit`). Select a qubit when
+building a machine. `Or_profile` remains available explicitly; `main` has been removed.
 
-Validate the main profile:
+Validate the IQM chip profile:
 
 ```powershell
-python -m profiles.validate_profile main
+python -m profiles.validate_profile iqm_chip
 ```
 
 Validate a selected single-qubit profile:
 
 ```powershell
-python -m profiles.validate_profile single_qubit --qubit q3
+python -m profiles.validate_profile iqm_chip --qubit q3
 ```
 
 Build a machine in memory without writing generated QuAM files:
 
 ```powershell
-python -m quam_config.create_machine_from_profile --profile main --no-save
-python -m quam_config.create_machine_from_profile --profile single_qubit --qubit q3 --no-save
+python -m quam_config.create_machine_from_profile --profile iqm_chip --qubit q3 --no-save
 ```
 
 Calibration scripts call `quam_config.create_machine()` and default to
-`profiles/Or_profile`. Set `QUAM_PROFILE` to select another profile without editing
+`profiles/iqm_chip`. Set `QUAM_PROFILE` to select another profile without editing
 the calibration source:
 
 ```powershell
-$env:QUAM_PROFILE = "main"
+$env:QUAM_PROFILE = "iqm_chip"
+$env:QUAM_QUBIT = "q1"
 python calibrations/03a_qubit_spectroscopy.py
 ```
 

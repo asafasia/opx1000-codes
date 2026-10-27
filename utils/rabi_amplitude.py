@@ -5,6 +5,29 @@ from typing import Any
 import numpy as np
 
 
+def pi_pulse_effective_length_ns(pi_pulse: Any) -> float:
+    """Area/nominal amplitude of a calibrated pi envelope, in ns.
+
+    A cosine pi pulse's peak is not the peak of a square pi pulse with the
+    same duration. Use its sampled area without changing its calibrated
+    amplitude. Simple amplitude/length records describe square references.
+    """
+    length = float(pi_pulse.length)
+    amplitude = abs(float(pi_pulse.amplitude))
+    if not np.isfinite(length) or length <= 0 or not np.isfinite(amplitude) or amplitude == 0:
+        raise ValueError("Pi reference requires positive length and nonzero finite amplitude.")
+    waveform_function = getattr(pi_pulse, "waveform_function", None)
+    if not callable(waveform_function):
+        return length
+    waveform = np.asarray(waveform_function(), dtype=complex)
+    if waveform.ndim > 1 or waveform.size == 0 or not np.isfinite(waveform).all():
+        raise ValueError("Pi reference waveform must be finite and scalar or one-dimensional.")
+    effective = float(abs(np.mean(waveform)) * length / amplitude)
+    if not np.isfinite(effective) or effective <= 0:
+        raise ValueError("Pi reference must have nonzero integrated envelope area.")
+    return effective
+
+
 def pi_pulse_rabi_frequency_hz(pi_pulse: Any) -> float:
     """Return the Rabi frequency of a square pi pulse."""
     length_ns = float(pi_pulse.length)

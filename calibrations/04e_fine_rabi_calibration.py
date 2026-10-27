@@ -177,8 +177,10 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
                 n_st.save("n")
                 for i in range(num_qubits):
                     self.process_readout_streams(
-                        i, state_st if self.parameters.use_state_discrimination else None,
-                        I_st, Q_st,
+                        i,
+                        state_st if self.parameters.use_state_discrimination else None,
+                        I_st,
+                        Q_st,
                     )
 
         return node.namespace.get("qua_program")
@@ -261,7 +263,8 @@ class FineRabiCalibration(BaseCalibration[Parameters, Quam]):
 
     def profile_updates(self):
         return self.pulse_profile_updates(
-            "x180", amplitude_scale="optimal_amp_prefactor",
+            "x180",
+            amplitude_scale="optimal_amp_prefactor",
         )
 
 
@@ -271,7 +274,7 @@ if __name__ == "__main__":
 
     parameters.use_state_discrimination = False
     parameters.rotation_type = "PI"
-    parameters.reset_type = "thermal"
+    parameters.reset_type = "active"  # "active" or "thermal"
     parameters.num_shots = 100
     parameters.max_repetition_groups = 200
     parameters.amp_factor_step = 0.0021
@@ -281,6 +284,6 @@ if __name__ == "__main__":
     calibration = FineRabiCalibration(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1b"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

@@ -120,7 +120,7 @@ class ReadoutMacroTests(unittest.TestCase):
             readout_state_configured(Qubit(), object())
 
     def test_active_reset_builds_for_both_discriminators_and_state_counts(self):
-        machine = create_machine(profile_name="single_qubit", qubit="q1")
+        machine = create_machine(profile_name="iqm_chip", qubit="q1")
         qubit = machine.qubits["q1"]
         qubit.resonator.readout_gef["gef_centers"] = [[-0.001, 0.0], [0.001, 0.0], [0.0, 0.002]]
 

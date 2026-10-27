@@ -23,6 +23,7 @@ from calibrations.base import BaseCalibration, CalibrationOptions
 from shaped_pulse_spectroscopy.lorentzian import (
     _pulse_metadata,
     add_state_populations,
+    add_peak_complex_amplitude,
     plot_population,
     amplitude_prefactors,
     install_lorentzian_operation,
@@ -30,6 +31,11 @@ from shaped_pulse_spectroscopy.lorentzian import (
     process_raw_dataset,
 )
 from shaped_pulse_spectroscopy.parameters import Parameters
+from shaped_pulse_spectroscopy.echo_parameters import fast_echo_parameters
+from shaped_pulse_spectroscopy.sweep_diagnostics import (
+    add_sweep_diagnostics,
+    plot_sweep_diagnostics,
+)
 from quam_config import Quam, create_machine
 from utils.plotting_settings import plot_per_qubit
 from utils.readout_macro import readout_state_configured
@@ -308,6 +314,7 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
 
     def save_raw_results(self, *, now=None) -> Path:
         """Save arrays plus the exact applied pulse metadata and headroom."""
+        self.results["ds_raw"] = add_peak_complex_amplitude(self.results["ds_raw"], self)
         run_directory = self.saver.save_xarray(
             self.name,
             self.results["ds_raw"],
@@ -337,6 +344,22 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
             self.parameters.use_state_discrimination,
         )
         self.results["ds_raw"] = process_raw_dataset(self.results["ds_raw"], self)
+        if (
+            self.options.plot_data
+            and self.parameters.plot_sweep_diagnostics
+            and self.parameters.echo
+            and self.parameters.use_state_discrimination
+        ):
+            fitted = add_sweep_diagnostics(self.results["ds_raw"], self.namespace["qubits"])
+            self.results["ds_raw"] = fitted
+            if "sweep_fit_accepted" in fitted:
+                self.results["analysis"] = {
+                    "model": fitted.attrs["sweep_diagnostic_model"],
+                    "quality_criteria": fitted.attrs["sweep_diagnostic_quality"],
+                    "sweep_diagnostics": fitted[
+                        [name for name in fitted.data_vars if name.startswith("sweep_")]
+                    ].to_dict(),
+                }
 
     def plot_data(self) -> None:
         figures = plot_per_qubit(
@@ -345,6 +368,7 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
             self.namespace["qubits"],
             figure_name="echo_lorentzian",
             use_state_discrimination=self.parameters.use_state_discrimination,
+            cmap="viridis",
         )
         if self.parameters.use_state_discrimination:
             for index, label in enumerate(("g", "e", "f")):
@@ -356,14 +380,17 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
                             self.namespace["qubits"],
                             figure_name=f"echo_lorentzian_P{index}",
                             population=label,
+                            cmap="viridis",
                         )
                     )
+        if self.parameters.plot_sweep_diagnostics:
+            figures.update(plot_sweep_diagnostics(self.results["ds_raw"]))
         self.results["figures"] = figures
         plt.show()
 
 
 if __name__ == "__main__":
-    parameters = Parameters()
+    parameters = fast_echo_parameters()
     parameters.use_state_discrimination = True
     parameters.reset_type = "active"
     parameters.use_readout_mitigation = 0
@@ -374,19 +401,18 @@ if __name__ == "__main__":
     parameters.ac_stark_correction = False
     parameters.stark_kappa_mhz_inv = 0.000
     parameters.stark_chirp_max_error_hz = 10
-    parameters.cutoff = 0.001
+    parameters.cutoff = 0.007
     parameters.edge_smoothing = "polynomial"  # Use "none" to disable edge smoothing.
-    parameters.edge_smoothing_power = 5
+    parameters.edge_smoothing_power = 2
     parameters.num_shots = 200
-    # RMS-squared fit to the 2026-10-22 q1 sweep (200 betas, five amplitudes).
-    parameters.drag_beta = -1.0972249303804549
+    # Beta follows the shared Gaussian-matched convention and current setting.
     parameters.lorentzian_length_in_ns = 20000
     parameters.waveform_template_length_in_ns = 20000
-    parameters.lorentzian_peak_amplitude = 0.7
+    parameters.lorentzian_peak_amplitude = 1.0
     parameters.min_amp_factor = 0.0
-    parameters.max_amp_factor = 1
-    parameters.amp_factor_step = 1 / 30
-    parameters.amp_factor_points = None
+    parameters.max_amp_factor = 0.3
+    parameters.amp_factor_step = None
+    parameters.amp_factor_points = 100
     parameters.amp_factor_spacing = "linear"
     parameters.frequency_span_in_mhz = 1
     parameters.frequency_step_in_mhz = 1.0 / 199

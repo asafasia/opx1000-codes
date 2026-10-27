@@ -262,7 +262,7 @@ if __name__ == "__main__":
     parameters.use_readout_mitigation = 0
     parameters.num_shots = 1000
     parameters.transition = "ge"
-    parameters.pi_repetitions = 5
+    parameters.pi_repetitions = 2
     parameters.operation = "x180"
 
     options = CalibrationOptions()
@@ -270,6 +270,6 @@ if __name__ == "__main__":
     power_rabi = PowerRabi(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q2b"),
+        machine=create_machine(qubit="q1"),
     )
     power_rabi.run()

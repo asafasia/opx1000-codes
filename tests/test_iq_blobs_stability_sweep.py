@@ -74,13 +74,13 @@ class IqBlobsStabilitySweepTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            profile = root / "profiles" / "single_qubit"
+            profile = root / "profiles" / "iqm_chip"
             profile.mkdir(parents=True)
             (profile / "profile.json").write_text("{}\n", encoding="utf-8")
 
             parameters = IqBlobsStabilitySweepParameters(
                 qubit="q1",
-                profile_name="single_qubit",
+                profile_name="iqm_chip",
                 duration_seconds=30 * 60,
                 interval_seconds=0,
                 max_points=3,
@@ -118,13 +118,13 @@ class IqBlobsStabilitySweepTests(unittest.TestCase):
         clock = FakeClock()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            profile = root / "profiles" / "single_qubit"
+            profile = root / "profiles" / "iqm_chip"
             profile.mkdir(parents=True)
             (profile / "profile.json").write_text("{}\n", encoding="utf-8")
 
             parameters = IqBlobsStabilitySweepParameters(
                 qubit="q1",
-                profile_name="single_qubit",
+                profile_name="iqm_chip",
                 duration_seconds=60,
                 save_results=True,
                 plot_results=False,

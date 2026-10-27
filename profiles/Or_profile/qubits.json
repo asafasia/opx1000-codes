@@ -155,7 +155,7 @@
       "frequencies_hz": {
         "qubit_f01": 3650000000,
         "qubit_f12": 3410000000,
-        "resonator": 6160800000,
+        "resonator": 6168800000,
         "resonator_bare": null
       },
       "transmon": {

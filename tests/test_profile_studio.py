@@ -11,13 +11,15 @@ class ProfileStudioTests(unittest.TestCase):
     def test_complete_repository_profiles_are_available(self):
         profiles = list_profiles()
 
-        self.assertIn("main", profiles)
-        self.assertIn("single_qubit", profiles)
+        self.assertIn("Or_profile", profiles)
+        self.assertNotIn("main", profiles)
+        self.assertNotIn("single_qubit", profiles)
+        self.assertIn("iqm_chip", profiles)
 
     def test_profiles_are_edited_independently(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for profile_name, value in (("main", 1), ("single_qubit", 2)):
+            for profile_name, value in (("main", 1), ("iqm_chip", 2)):
                 profile = root / profile_name
                 profile.mkdir()
                 for filename in ("profile.json", "qubits.json", "pulses.json", "connectivity.json"):
@@ -27,9 +29,9 @@ class ProfileStudioTests(unittest.TestCase):
                     )
 
             with patch("apps.profile_studio.server.PROFILES_ROOT", root):
-                section = read_section("single_qubit", "qubits")
+                section = read_section("iqm_chip", "qubits")
                 write_section(
-                    "single_qubit",
+                    "iqm_chip",
                     "qubits",
                     {"value": 3},
                     section["digest"],
@@ -40,7 +42,7 @@ class ProfileStudioTests(unittest.TestCase):
                 1,
             )
             self.assertEqual(
-                json.loads((root / "single_qubit" / "qubits.json").read_text())["value"],
+                json.loads((root / "iqm_chip" / "qubits.json").read_text())["value"],
                 3,
             )
 

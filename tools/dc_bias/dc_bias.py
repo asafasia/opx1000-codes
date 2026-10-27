@@ -12,7 +12,7 @@ if str(REPOSITORY_ROOT) not in sys.path:
 
 from quam_config import create_machine
 
-# The voltage comes from profiles/single_qubit/qubits.json.
+# The voltage comes from profiles/iqm_chip/qubits.json.
 QUBIT = "q6"
 HOLD_TIME_S = 10000
 

@@ -224,7 +224,7 @@ def peak_amplitude_for(args: argparse.Namespace, defaults: dict[str, Any]) -> fl
 
 
 def load_machine_profile(qubit_name: str) -> dict[str, Any]:
-    return load_profile("single_qubit", qubit=qubit_name)
+    return load_profile("iqm_chip", qubit=qubit_name)
 
 
 def print_plan(

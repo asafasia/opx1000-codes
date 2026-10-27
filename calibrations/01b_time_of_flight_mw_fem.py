@@ -62,7 +62,7 @@ State update:
 """
 
 
-# Create the machine directly from profiles/main without loading state.json.
+# Create the machine directly from profiles/iqm_chip without loading state.json.
 
 
 def select_full_scale_power_dbm(power_in_dbm: float, max_amplitude: float = 1) -> int:

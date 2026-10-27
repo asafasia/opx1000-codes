@@ -155,7 +155,7 @@ class ParameterScanTests(unittest.TestCase):
                 "    results={'fit_results': {'q7': {'frequency': 4.2e9, 'success': True}}},\n"
                 "    outcomes={},\n"
                 ")\n"
-                "assert os.environ['QUAM_PROFILE'] == 'single_qubit'\n"
+                "assert os.environ['QUAM_PROFILE'] == 'iqm_chip'\n"
                 "assert os.environ['QUAM_QUBIT'] == 'q7'\n",
                 encoding="utf-8",
             )
@@ -163,7 +163,7 @@ class ParameterScanTests(unittest.TestCase):
                 name="test_scan",
                 experiments=[ExperimentSpec(script=script)],
                 repetitions=1,
-                profile_name="single_qubit",
+                profile_name="iqm_chip",
                 qubit="q7",
                 output_root=root / "data" / "parameter_scans",
             )

@@ -40,7 +40,7 @@ def test_time_of_flight_builds_config_without_hardware(shape, tmp_path, monkeypa
     module = importlib.import_module("calibrations.01b_time_of_flight_mw_fem")
     # Keep the generated debug script out of the user's existing debug directory.
     monkeypatch.setattr(module, "Path", lambda *_: tmp_path / "calibrations" / "tof.py")
-    machine = create_machine(profile_name="single_qubit", qubit="q6")
+    machine = create_machine(profile_name="iqm_chip", qubit="q6")
     original_tof = machine.qubits["q6"].resonator.time_of_flight
     original = machine.qubits["q6"].resonator.operations["readout"].to_dict()
     calibration = module.TimeOfFlightMwFem(

@@ -21,6 +21,7 @@ from utils.plotting_settings import (
 )
 from utils.rabi_amplitude import (
     amplitude_to_rabi_frequency_hz,
+    pi_pulse_effective_length_ns,
     rabi_frequency_hz_to_amplitude,
 )
 
@@ -249,7 +250,10 @@ def drag_quadrature_waveform(
 
     The stored waveform is in volts, but the linear volts-to-cyclic-MHz Rabi
     conversion cancels between ``dI/dt`` and Q. With physical time in us and
-    alpha in cyclic MHz this is Q=-beta*dI/dt/(2*pi*alpha_mhz).
+    alpha in cyclic MHz this is Q=+beta*dI/dt/(2*pi*alpha_mhz), matching
+    this repository's Gaussian DRAG convention (positive anharmonicity
+    magnitude). Before 2026-10-27 this function used the opposite beta sign;
+    replaying those historical waveforms requires beta_new = -beta_old.
     """
     samples = np.asarray(signed_i_waveform, dtype=float)
     if samples.ndim != 1 or samples.size < 2:
@@ -272,7 +276,7 @@ def drag_quadrature_waveform(
         sample_duration_us,
         edge_order=edge_order,
     )
-    quadrature = -drag_beta * derivative_v_per_us / (2.0 * np.pi * anharmonicity_mhz)
+    quadrature = drag_beta * derivative_v_per_us / (2.0 * np.pi * anharmonicity_mhz)
     return quadrature.tolist()
 
 
@@ -542,6 +546,7 @@ def install_lorentzian_operation(
                     None if anharmonicity_hz is None else float(anharmonicity_hz)
                 ),
                 "drag_beta": drag_beta,
+                "drag_beta_convention": "gaussian_positive_derivative_v1",
             }
         )
         node.namespace["lorentzian_drag_waveforms_q"][qubit_name] = waveform_q
@@ -556,7 +561,7 @@ def install_lorentzian_operation(
                 waveform,
                 amplitude_factor=reference_amplitude_factor,
                 pi_amplitude=float(pi_pulse.amplitude),
-                pi_length_ns=float(pi_pulse.length),
+                pi_length_ns=pi_pulse_effective_length_ns(pi_pulse),
                 pulse_length_ns=int(node.parameters.lorentzian_length_in_ns),
                 kappa_mhz_inv=float(node.parameters.stark_kappa_mhz_inv),
                 max_error_hz=float(node.parameters.stark_chirp_max_error_hz),
@@ -624,6 +629,57 @@ def add_state_populations(ds: xr.Dataset) -> xr.Dataset:
     return ds.assign(additions)
 
 
+def add_peak_complex_amplitude(ds: xr.Dataset, node: QualibrationNode) -> xr.Dataset:
+    """Attach max_t |a * (I(t) + iQ(t))| for each qubit and sweep factor.
+
+    Prefer the exact installed samples. Offline processing reconstructs samples
+    from the run parameters and the supplied qubit's anharmonicity. Persisted
+    peak coordinates take precedence so later profile changes cannot alter them.
+    """
+    if "peak_complex_amplitude_v" in ds.coords:
+        return ds
+    waveform_i = node.namespace.get("lorentzian_waveform")
+    if waveform_i is None:
+        waveform_i = build_waveform(node.parameters)
+    samples_i = np.asarray(waveform_i, dtype=float)
+    installed_q = node.namespace.get("lorentzian_drag_waveforms_q", {})
+    by_name = {
+        getattr(qubit, "name", str(name)): qubit
+        for name, qubit in zip(ds.qubit.values, node.namespace["qubits"])
+    }
+    peaks = []
+    beta = float(getattr(node.parameters, "drag_beta", 0.0))
+    for name in ds.qubit.values:
+        qubit = by_name[str(name)]
+        samples_q = installed_q.get(str(name))
+        if samples_q is None:
+            samples_q = np.zeros_like(samples_i) if beta == 0 else drag_quadrature_waveform(
+                samples_i, drag_beta=beta,
+                anharmonicity_mhz=abs(float(qubit.anharmonicity)) / 1e6,
+                pulse_length_ns=int(node.parameters.lorentzian_length_in_ns),
+            )
+        peak = complex_waveform_headroom(samples_i, samples_q)["max_abs_complex_waveform_v"]
+        peaks.append(peak * np.abs(ds.amp_prefactor.values))
+    ds = ds.assign_coords(peak_complex_amplitude_v=(("qubit", "amp_prefactor"), peaks))
+    ds.peak_complex_amplitude_v.attrs = {
+        "long_name": "Peak complex pulse amplitude max_t |I(t) + iQ(t)|",
+        "units": "V",
+        "definition": "abs(amp_prefactor) * max(abs(waveform_I + 1j * waveform_Q))",
+    }
+    return ds
+
+
+def peak_rabi_frequency_mhz(selected: xr.Dataset, qubit: AnyTransmon):
+    """Convert the actual complex-envelope peak using the calibrated pi area."""
+    if "peak_complex_amplitude_v" not in selected:
+        raise ValueError("Actual pulse peak is missing; process the dataset with its run parameters first.")
+    pulse = qubit.xy.operations["x180"]
+    return amplitude_to_rabi_frequency_hz(
+        selected.peak_complex_amplitude_v, abs(float(pulse.amplitude)),
+        pi_pulse_effective_length_ns(pulse),
+    ) / u.MHz
+
+
 def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode) -> xr.Dataset:
     """Add physical frequency and Lorentzian peak-amplitude coordinates."""
     ds = add_state_populations(ds)
@@ -644,7 +700,8 @@ def process_raw_dataset(ds: xr.Dataset, node: QualibrationNode) -> xr.Dataset:
         full_amp=(["qubit", "amp_prefactor"], full_amp),
     )
     ds.full_freq.attrs = {"long_name": "RF frequency", "units": "Hz"}
-    ds.full_amp.attrs = {"long_name": "Lorentzian peak amplitude", "units": "V"}
+    ds.full_amp.attrs = {"long_name": "Nominal amplitude before envelope shaping", "units": "V"}
+    ds = add_peak_complex_amplitude(ds, node)
     ds.attrs.update(_pulse_metadata(node.parameters, node.namespace))
     ds = _add_t2_star_coordinates(ds, node.namespace["qubits"])
     if getattr(node.parameters, "fit_fwhm", True):
@@ -671,7 +728,8 @@ def process_amplitude_dataset(ds: xr.Dataset, node: QualibrationNode) -> xr.Data
         full_amp=(["qubit", "amp_prefactor"], full_amp),
         full_freq=(["qubit"], full_freq),
     )
-    ds.full_amp.attrs = {"long_name": "Lorentzian peak amplitude", "units": "V"}
+    ds.full_amp.attrs = {"long_name": "Nominal amplitude before envelope shaping", "units": "V"}
+    ds = add_peak_complex_amplitude(ds, node)
     ds.full_freq.attrs = {"long_name": "RF frequency at zero detuning", "units": "Hz"}
     ds.attrs.update(_pulse_metadata(node.parameters, node.namespace))
     ds.attrs["detuning_hz"] = 0
@@ -699,6 +757,7 @@ def _pulse_metadata(parameters, namespace: dict | None = None) -> dict[str, obje
         "stark_kappa_mhz_inv": getattr(parameters, "stark_kappa_mhz_inv", None),
         "stark_correction_convention": "real-time detuning via QUA chirp",
         "drag_beta": drag_beta,
+        "drag_beta_convention": "gaussian_positive_derivative_v1",
         "echo_transition_time_ns": getattr(parameters, "echo_transition_time_ns", 0.0),
         "applied_echo_transition_time_ns": (
             getattr(parameters, "echo_transition_time_ns", 0.0)
@@ -759,6 +818,8 @@ def plot_raw_data(
     ds: xr.Dataset,
     qubits: List[AnyTransmon],
     use_state_discrimination: bool = False,
+    *,
+    cmap: str = "magma",
 ):
     """Plot Lorentzian data with detuning below and absolute RF frequency above."""
     variables = ("state",) if use_state_discrimination else ("I", "Q")
@@ -770,7 +831,7 @@ def plot_raw_data(
             f"but dataset contains {list(ds.data_vars)}"
         )
 
-    return _plot_state(ds, qubits) if use_state_discrimination else _plot_iq(ds, qubits)
+    return _plot_state(ds, qubits, cmap=cmap) if use_state_discrimination else _plot_iq(ds, qubits, cmap=cmap)
 
 
 def plot_amplitude_sweep(
@@ -809,7 +870,7 @@ def plot_amplitude_sweep(
             )
             _add_absolute_amplitude_xaxis(ax, qubit)
             ax.set_title(f"{qubit.name}: {variable} at zero detuning")
-            ax.set_xlabel("Rabi frequency [MHz]")
+            ax.set_xlabel("Peak Rabi frequency [MHz]")
             ax.set_ylabel(ylabel)
             ax.grid(alpha=0.25)
             axis_index += 1
@@ -824,27 +885,15 @@ def plot_amplitude_sweep(
 
 
 def _with_plot_coords(selected: xr.Dataset, qubit: AnyTransmon) -> xr.Dataset:
-    pi_pulse = qubit.xy.operations["x180"]
     return selected.assign_coords(
         detuning_MHz=selected.detuning / u.MHz,
-        rabi_frequency_MHz=amplitude_to_rabi_frequency_hz(
-            selected.full_amp,
-            float(pi_pulse.amplitude),
-            float(pi_pulse.length),
-        )
-        / u.MHz,
+        rabi_frequency_MHz=peak_rabi_frequency_mhz(selected, qubit),
     )
 
 
 def _with_amplitude_plot_coords(selected: xr.Dataset, qubit: AnyTransmon) -> xr.Dataset:
-    pi_pulse = qubit.xy.operations["x180"]
     return selected.assign_coords(
-        rabi_frequency_MHz=amplitude_to_rabi_frequency_hz(
-            selected.full_amp,
-            float(pi_pulse.amplitude),
-            float(pi_pulse.length),
-        )
-        / u.MHz,
+        rabi_frequency_MHz=peak_rabi_frequency_mhz(selected, qubit),
     )
 
 
@@ -868,8 +917,8 @@ def _add_absolute_frequency_axis(ax, rf_frequency_ghz: float) -> None:
 
 def _add_absolute_amplitude_xaxis(ax, qubit: AnyTransmon) -> None:
     pi_pulse = qubit.xy.operations["x180"]
-    pi_amp = float(pi_pulse.amplitude)
-    pi_length_ns = float(pi_pulse.length)
+    pi_amp = abs(float(pi_pulse.amplitude))
+    pi_length_ns = pi_pulse_effective_length_ns(pi_pulse)
 
     def rabi_mhz_to_amp_v(rabi_mhz):
         return rabi_frequency_hz_to_amplitude(rabi_mhz * u.MHz, pi_amp, pi_length_ns)
@@ -881,13 +930,13 @@ def _add_absolute_amplitude_xaxis(ax, qubit: AnyTransmon) -> None:
         "top",
         functions=(rabi_mhz_to_amp_v, amp_v_to_rabi_mhz),
     )
-    top_axis.set_xlabel("Lorentzian peak amplitude [V]")
+    top_axis.set_xlabel("Peak |I + iQ| [V]")
 
 
 def _add_absolute_amplitude_axis(ax, qubit: AnyTransmon) -> None:
     pi_pulse = qubit.xy.operations["x180"]
-    pi_amp = float(pi_pulse.amplitude)
-    pi_length_ns = float(pi_pulse.length)
+    pi_amp = abs(float(pi_pulse.amplitude))
+    pi_length_ns = pi_pulse_effective_length_ns(pi_pulse)
 
     def rabi_mhz_to_amp_v(rabi_mhz):
         return rabi_frequency_hz_to_amplitude(rabi_mhz * u.MHz, pi_amp, pi_length_ns)
@@ -899,7 +948,7 @@ def _add_absolute_amplitude_axis(ax, qubit: AnyTransmon) -> None:
         "right",
         functions=(rabi_mhz_to_amp_v, amp_v_to_rabi_mhz),
     )
-    right_axis.set_ylabel("Lorentzian peak amplitude [V]")
+    right_axis.set_ylabel("Peak |I + iQ| [V]")
 
 
 def _format_value(value, suffix: str = "") -> str | None:
@@ -979,7 +1028,7 @@ def _parameter_lines(ds: xr.Dataset, qubits: List[AnyTransmon]) -> list[str]:
 
         pi_pulse = qubit.xy.operations["x180"]
         qubit_parts.append(
-            f"x180 square pi: amp={_format_mv(float(pi_pulse.amplitude))}, "
+            f"x180 area reference: amp={_format_mv(float(pi_pulse.amplitude))}, "
             f"t_pi={float(pi_pulse.length):g} ns"
         )
 
@@ -1060,7 +1109,7 @@ def _finish_figure_layout(
 ) -> None:
     parameter_lines = _parameter_lines(ds, qubits)
     add_calibration_parameter_box(figure, parameter_lines, gid="lorentzian_parameters")
-    bottom = min(0.25, 0.055 + 0.018 * len(parameter_lines))
+    bottom = min(0.25, 0.075 + 0.018 * len(parameter_lines))
     figure.subplots_adjust(
         top=0.95, bottom=bottom, right=0.86, hspace=0.35, wspace=0.45
     )
@@ -1188,7 +1237,7 @@ def _scatter_fwhm_edges(
         )
 
 
-def plot_population(ds: xr.Dataset, qubits: List[AnyTransmon], *, population: str):
+def plot_population(ds: xr.Dataset, qubits: List[AnyTransmon], *, population: str, cmap: str = "magma"):
     """Plot an individual GEF population with the existing sweep axes."""
     if population not in ("g", "e", "f"):
         raise ValueError("Population must be g, e, or f.")
@@ -1196,10 +1245,10 @@ def plot_population(ds: xr.Dataset, qubits: List[AnyTransmon], *, population: st
     if variable not in ds:
         raise RuntimeError(f"Population plot requires {variable!r}.")
     label = f"P{'gef'.index(population)} ({population}-state population)"
-    return _plot_state(ds, qubits, variable=variable, label=label)
+    return _plot_state(ds, qubits, variable=variable, label=label, cmap=cmap)
 
 
-def _plot_state(ds: xr.Dataset, qubits: List[AnyTransmon], *, variable="state", label="Measured state"):
+def _plot_state(ds: xr.Dataset, qubits: List[AnyTransmon], *, variable="state", label="Measured state", cmap="magma"):
     is_population = variable.startswith("population_")
     qubits_by_name = {qubit.name: qubit for qubit in qubits}
     grid = QubitGrid(ds, qubit_grid_locations(qubits))
@@ -1226,7 +1275,7 @@ def _plot_state(ds: xr.Dataset, qubits: List[AnyTransmon], *, variable="state", 
                     ax=ax,
                     x="detuning_MHz",
                     y="rabi_frequency_MHz",
-                    cmap="magma",
+                    cmap=cmap,
                     vmin=0,
                     **({"vmax": 1} if is_population else {}),
                     add_colorbar=True,
@@ -1235,7 +1284,12 @@ def _plot_state(ds: xr.Dataset, qubits: List[AnyTransmon], *, variable="state", 
             )
             plotted.colorbar.set_label(label)
             _add_absolute_amplitude_axis(ax, qubit)
-            ax.set_ylabel("Rabi frequency [MHz]")
+            ax.set_ylabel("Peak Rabi frequency [MHz]")
+            if variable == "state" and "sweep_fit_accepted" in selected:
+                centers = selected.sweep_center_hz.where(selected.sweep_fit_accepted) / u.MHz
+                ax.plot(centers, selected.rabi_frequency_MHz, color="darkorange", lw=1.2,
+                        label="Fitted resonance")
+                ax.legend(fontsize=8)
         _add_absolute_frequency_axis(ax, _rf_frequency_ghz(selected))
         _add_t2_limit_lines(ax, qubit)
         ax.set_title(f"{qubit_name}: {label}")
@@ -1246,7 +1300,7 @@ def _plot_state(ds: xr.Dataset, qubits: List[AnyTransmon], *, variable="state", 
     return grid.fig
 
 
-def _plot_iq(ds: xr.Dataset, qubits: List[AnyTransmon]):
+def _plot_iq(ds: xr.Dataset, qubits: List[AnyTransmon], *, cmap="magma"):
     num_qubits = len(qubits)
     figure, axes = plt.subplots(
         num_qubits,
@@ -1278,14 +1332,14 @@ def _plot_iq(ds: xr.Dataset, qubits: List[AnyTransmon]):
                     ax=ax,
                     x="detuning_MHz",
                     y="rabi_frequency_MHz",
-                    cmap="magma",
+                    cmap=cmap,
                     add_colorbar=True,
                     robust=True,
                     cbar_kwargs={"pad": 0.16},
                 )
                 plotted.colorbar.set_label(label)
                 _add_absolute_amplitude_axis(ax, qubit)
-                ax.set_ylabel("Rabi frequency [MHz]")
+                ax.set_ylabel("Peak Rabi frequency [MHz]")
             _add_absolute_frequency_axis(ax, rf_frequency_ghz)
             _add_t2_limit_lines(ax, qubit)
             ax.set_title(f"{qubit_name}: {label}")

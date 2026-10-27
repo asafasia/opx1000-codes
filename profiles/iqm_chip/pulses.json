@@ -5,7 +5,7 @@
       "x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.31413590126856056,
+        "amplitude": 0.15076984441776575,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -19,17 +19,17 @@
       "x180_drag": {
         "target": "qubit",
         "type": "drag",
-        "amplitude": 0.6458004921713766,
-        "length_ns": 40,
+        "amplitude": 0.7171785852846015,
+        "length_ns": 20,
         "sigma_ns": 4,
-        "beta": 1.1000000000000019,
+        "beta": 0.52,
         "detuning_hz": 0,
         "axis_angle_rad": 0
       },
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.3095272550117577,
+        "amplitude": 0.09800856667982125,
         "length_ns": 40,
         "axis_angle_rad": 0
       },

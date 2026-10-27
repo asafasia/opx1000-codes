@@ -2,13 +2,14 @@ from copy import deepcopy
 
 import pytest
 
+from tests.profile_fixtures import multi_qubit_profile
 from profiles import ProfileError, load_profile
 from profiles.loader import _select_qubit, validate_profile
 
 
 @pytest.fixture
 def profile():
-    profile = deepcopy(load_profile("single_qubit"))
+    profile = deepcopy(load_profile("iqm_chip"))
     connection = profile["connectivity"]["connections"]["q11"]
     connection["resonator_band"] = 2
     connection["lo_frequencies_hz"]["resonator_output"] = 6360800000
@@ -56,7 +57,7 @@ def test_band_override_still_checks_gef_frequency(profile):
 
 
 def test_multi_qubit_profile_rejects_band_override():
-    profile = deepcopy(load_profile("main"))
+    profile = deepcopy(multi_qubit_profile().load())
     profile["connectivity"]["connections"]["q11"]["resonator_band"] = 2
     with pytest.raises(ProfileError, match="requires a single-qubit profile"):
         validate_profile(profile)

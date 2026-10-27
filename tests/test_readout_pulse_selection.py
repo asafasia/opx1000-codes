@@ -15,7 +15,7 @@ from utils.readout_macro import measure_readout
 
 
 def selected_profile():
-    profile = deepcopy(load_profile("single_qubit", qubit="q6"))
+    profile = deepcopy(load_profile("iqm_chip", qubit="q6"))
     q = profile["qubits"]["qubits"]["q6"]
     q["readout"]["use_kernel"] = False
     q["readout_gef"]["use_kernel"] = False
@@ -34,7 +34,7 @@ def test_manifest_selects_independent_pulses_and_power_update_targets(ge, gef, m
     validate_profile(profile)
     builder = importlib.import_module("quam_config.create_machine_from_profile")
     monkeypatch.setattr(builder, "load_profile", lambda *a, **kw: profile)
-    machine = builder.create_machine_from_profile("single_qubit", save=False, qubit="q6")
+    machine = builder.create_machine_from_profile("iqm_chip", save=False, qubit="q6")
     q = machine.qubits["q6"]
     assert q.resonator.readout_discriminator == profile["manifest"]["readout_discriminator"]
     config = machine.generate_config()

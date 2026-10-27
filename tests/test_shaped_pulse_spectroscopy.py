@@ -885,6 +885,7 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
                 "amp_prefactor": [0.5, 1.0, 1.5],
                 "full_freq": (("qubit", "detuning"), [[4.099e9, 4.101e9]]),
                 "full_amp": (("qubit", "amp_prefactor"), [[0.06, 0.12, 0.18]]),
+                "peak_complex_amplitude_v": (("qubit", "amp_prefactor"), [[0.05, 0.10, 0.15]]),
             },
         )
         ds.attrs.update(
@@ -921,9 +922,9 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
             if type(child).__name__ == "SecondaryAxis"
         }
         self.assertIn("Detuning [MHz]", labels)
-        self.assertIn("Rabi frequency [MHz]", ylabels)
+        self.assertIn("Peak Rabi frequency [MHz]", ylabels)
         self.assertIn("RF frequency [GHz]", secondary_labels)
-        self.assertIn("Lorentzian peak amplitude [V]", secondary_ylabels)
+        self.assertIn("Peak |I + iQ| [V]", secondary_ylabels)
         self.assertEqual(figure.axes[0].collections[0].get_array().shape, (3, 2))
         self.assertEqual(figure.axes[0].collections[0].norm.vmin, 0)
         self.assertEqual(figure.axes[0].collections[0].norm.vmax, 0.8)
@@ -1090,14 +1091,14 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         np.testing.assert_allclose(processed.full_freq, [4.1e9])
         self.assertNotIn("detuning", processed.coords)
         self.assertEqual(processed.attrs["detuning_hz"], 0)
-        self.assertEqual(figure.axes[0].get_xlabel(), "Rabi frequency [MHz]")
+        self.assertEqual(figure.axes[0].get_xlabel(), "Peak Rabi frequency [MHz]")
         secondary_labels = {
             child.get_xlabel()
             for axis in figure.axes
             for child in axis.get_children()
             if type(child).__name__ == "SecondaryAxis"
         }
-        self.assertIn("Lorentzian peak amplitude [V]", secondary_labels)
+        self.assertIn("Peak |I + iQ| [V]", secondary_labels)
         plt.close(figure)
 
     def test_lorentzian_plot_marks_t2_limit_lines(self):
@@ -1114,6 +1115,7 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
                 "amp_prefactor": [0.5, 1.0],
                 "full_freq": (("qubit", "detuning"), [[4.099e9, 4.101e9]]),
                 "full_amp": (("qubit", "amp_prefactor"), [[0.06, 0.12]]),
+                "peak_complex_amplitude_v": (("qubit", "amp_prefactor"), [[0.05, 0.10]]),
             },
         )
         qubit = make_plot_qubit(t2_ramsey=1e-6)
@@ -1224,7 +1226,7 @@ class ShapedPulseSpectroscopyTests(unittest.TestCase):
         }
 
         with patch.object(
-            lorentzian, "current_profile_name", return_value="single_qubit"
+            lorentzian, "current_profile_name", return_value="iqm_chip"
         ), patch.object(lorentzian, "load_profile", return_value=profile):
             self.assertAlmostEqual(lorentzian._t1_seconds(qubit), 38.82321730255817e-6)
             self.assertAlmostEqual(

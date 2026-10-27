@@ -33,7 +33,7 @@ async function initialize() {
     const result = await api("/api/profiles");
     $("profileSelect").innerHTML = result.profiles.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
     if (!result.profiles.length) throw new Error("No complete profiles were found.");
-    state.profile = result.profiles.includes("main") ? "main" : result.profiles[0];
+    state.profile = result.profiles.includes("iqm_chip") ? "iqm_chip" : result.profiles[0];
     $("profileSelect").value = state.profile;
     renderTabs();
     await loadSection();

@@ -15,7 +15,7 @@ module = import_module("calibrations.06a_ramsey")
 def make_node(offset=2e5, reference=5e9, updater=None):
     q = SimpleNamespace(name="q6", f_01=5.1e9, xy=SimpleNamespace(RF_frequency=5.1e9), T2ramsey=None)
     node = module.Ramsey(parameters=module.Parameters(), machine=SimpleNamespace(),
-                         profile_name="single_qubit", profile_updater=updater, logger=lambda _: None)
+                         profile_name="iqm_chip", profile_updater=updater, logger=lambda _: None)
     node.namespace["qubits"] = [q]
     node.results["ds_raw"] = xr.Dataset(coords={"qubit": ["q6"], "drive_frequency_hz": ("qubit", [reference])})
     node.results["fit_results"] = {"q6": {"success": True, "freq_offset": offset, "decay": 20e-6}}
@@ -45,7 +45,7 @@ def test_staging_only_does_not_ask_to_apply():
 
 @pytest.mark.parametrize("answer, expected", [("no", 5e9), ("yes", 5e9 - 2e5)])
 def test_profile_frequency_changes_only_after_yes(tmp_path, answer, expected):
-    root = tmp_path / "profiles" / "single_qubit"
+    root = tmp_path / "profiles" / "iqm_chip"
     root.mkdir(parents=True)
     qubits = root / "qubits.json"
     qubits.write_text(json.dumps({"qubits": {"q6": {"frequencies_hz": {"qubit_f01": 5e9}}}}))

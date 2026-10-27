@@ -55,7 +55,7 @@ The command performs these actions in this order:
 For a non-default profile, specify it explicitly:
 
 ```powershell
-python -m calibrations.runner outputs inhibit --profile main --reason "dilution refrigerator heating"
+python -m calibrations.runner outputs inhibit --profile iqm_chip --reason "dilution refrigerator heating"
 ```
 
 Do not use `outputs enable` as part of the heating procedure.
@@ -105,7 +105,7 @@ execution. These activities remain available:
 - Loading and analyzing already saved data.
 - Editing and validating profiles.
 
-The latch does not change `profiles/main` or replace calibrated pulse values
+The latch does not change `profiles/iqm_chip` or replace calibrated pulse values
 with zeros. This avoids accidentally restoring stale values after cooldown.
 
 ## Re-enable after cooldown

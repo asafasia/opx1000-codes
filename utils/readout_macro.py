@@ -266,7 +266,7 @@ def active_reset_configured(
     max_attempts: int = 15,
     pulse_name: str | None = None,
     discriminator: Discriminator | None = None,
-    ge_operation: str = "x180",
+    ge_operation: str | None = None,
     ef_operation: str = "EF_x180",
 ):
     """Actively reset G/E or G/E/F using the configured discriminator.
@@ -274,6 +274,10 @@ def active_reset_configured(
     Each attempt measures the state, then applies E->G for state 1 or
     F->E->G for state 2. The loop is bounded even if readout repeatedly reports
     an excited state.
+
+    GE correction defaults to the profile's independent active-reset operation.
+    Profiles without a reset selector retain x180; an explicit ge_operation
+    overrides the selection for diagnostic callers.
 
     Returns:
         ``(state, attempts)`` QUA variables containing the last discriminated
@@ -283,6 +287,8 @@ def active_reset_configured(
         raise ValueError(f"num_states must be 2 or 3, got {num_states!r}")
     if not isinstance(max_attempts, int) or max_attempts < 1:
         raise ValueError("max_attempts must be a positive integer")
+    if ge_operation is None:
+        ge_operation = getattr(qubit, "active_reset_operation", "x180")
     if ge_operation not in qubit.xy.operations:
         raise ValueError(
             f"{qubit.name} does not define GE reset operation {ge_operation!r}"

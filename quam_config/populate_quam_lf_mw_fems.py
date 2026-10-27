@@ -20,7 +20,7 @@ from quam.components.pulses import (
 )
 
 from profiles import DEFAULT_PROFILE_NAME, MAX_PROFILE_PULSE_AMPLITUDE, ProfileError, load_profile
-from profiles.loader import PROFILES_ROOT, selected_readout_pulse
+from profiles.loader import ACTIVE_RESET_OPERATION, PROFILES_ROOT, selected_readout_pulse
 from quam_config import Quam
 from quam_config.derived_gates import add_derived_single_qubit_gates
 from quam_config.readout_pulses import FlatTopGaussianReadoutPulse
@@ -326,6 +326,16 @@ def apply_profile(
             )
             target_operations[operation_name] = pulse
         add_derived_single_qubit_gates(qubit)
+        reset_pulse_name = profile["manifest"].get("active_reset_pulse")
+        qubit.active_reset_operation = "x180"
+        if reset_pulse_name is not None:
+            # Build a separate pulse object: changing an experiment's x180 or
+            # RB gate family must not alter the reset calibration.
+            qubit.xy.operations[ACTIVE_RESET_OPERATION] = _create_pulse(
+                reset_pulse_name, qubit_pulse_profiles[reset_pulse_name],
+                qubit, readout, profile_name, profile_root,
+            )
+            qubit.active_reset_operation = ACTIVE_RESET_OPERATION
 
     machine.active_qubit_names = profile["manifest"]["active_qubits"]
     return machine

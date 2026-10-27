@@ -115,7 +115,7 @@ class CalibrationRunnerTests(unittest.TestCase):
                 entry,
                 parameter_assignments=[parse_assignment("num_shots=3")],
                 option_assignments=[],
-                profile_name="single_qubit",
+                profile_name="iqm_chip",
                 qubit="q1",
                 simulate=True,
                 load_data_id=None,

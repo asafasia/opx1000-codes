@@ -7,7 +7,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
-DEFAULT_PROFILE_NAME = "Or_profile"
+DEFAULT_PROFILE_NAME = "iqm_chip"
 PROFILES_ROOT = Path(__file__).resolve().parent
 SUPPORTED_SCHEMA_VERSION = 1
 PULSE_TYPES = {"constant", "drag", "cosine", "saturation", "flat_top_gaussian"}
@@ -629,6 +629,33 @@ READOUT_PULSE_CHOICES = {
     "readout_GEF": ("readout_gef_pulse", {"readout_GEF", "readout_GEF_flattop"}),
 }
 
+ACTIVE_RESET_OPERATION = "active_reset_x180"
+
+
+def _validate_active_reset_pulse(manifest, qubits, pulses):
+    if "active_reset_pulse" not in manifest:
+        return
+    selected = manifest["active_reset_pulse"]
+    _require(
+        isinstance(selected, str) and bool(selected),
+        "profile.json active_reset_pulse must be a non-empty pulse name",
+    )
+    for name, settings in qubits["qubits"].items():
+        definition = pulses["pulses"][name].get(selected)
+        _require(
+            definition is not None,
+            f"Qubit {name!r} is missing active_reset_pulse {selected!r}",
+        )
+        _require(
+            definition["target"] == "qubit"
+            and definition["type"] in {"constant", "drag", "cosine"},
+            f"Qubit {name!r} active_reset_pulse must be a qubit control pulse",
+        )
+        _require(
+            ACTIVE_RESET_OPERATION not in settings["operations"],
+            f"Operation {ACTIVE_RESET_OPERATION!r} is reserved for active_reset_pulse",
+        )
+
 
 def selected_readout_pulse(manifest, operations, operation_name):
     """Resolve the experiment readout operation to its selected profile pulse."""
@@ -685,6 +712,7 @@ def validate_profile(profile: dict[str, Any]) -> None:
     _validate_pulses(pulses)
     _validate_qubits(qubits, pulses)
     _validate_readout_pulse_selection(manifest, qubits, pulses)
+    _validate_active_reset_pulse(manifest, qubits, pulses)
     if metrics is not None:
         _validate_metrics(metrics, qubits)
     _validate_connectivity(

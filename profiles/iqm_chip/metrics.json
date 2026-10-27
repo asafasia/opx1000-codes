@@ -4,7 +4,7 @@
     "q1": {
       "coherence": {
         "t1_ns": 39186.30473361066,
-        "t2_ramsey_ns": 5.7926067262653325e-06,
+        "t2_ramsey_ns": 7.288356699767607e-06,
         "t2_echo_ns": 17104.916414048766
       },
       "gates": {
@@ -12,7 +12,7 @@
       },
       "readout": {
         "fidelity_percent": {
-          "active": 94.39999999999999,
+          "active": 94.94,
           "thermal": 89.73
         }
       }

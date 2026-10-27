@@ -48,7 +48,7 @@ class VisualiserServerTests(unittest.TestCase):
             (run / "profile").mkdir(parents=True)
             (run / "figures").mkdir()
             (run / "profile" / "profile.json").write_text(
-                '{"name": "single_qubit", "active_qubits": ["q10"]}\n',
+                '{"name": "iqm_chip", "active_qubits": ["q10"]}\n',
                 encoding="utf-8",
             )
             (run / "figures" / "q2_iq_blobs.png").write_bytes(b"not really a png")

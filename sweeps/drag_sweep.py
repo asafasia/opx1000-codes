@@ -39,7 +39,7 @@ class DragSweepParameters:
     """Parameters for sweeping DRAG beta and validating each point with RB."""
 
     qubit: str = "q9"
-    profile_name: str = "single_qubit"
+    profile_name: str = "iqm_chip"
     profile_documents: dict[str, Any] | None = None
     drag_operation: str = "x180_drag"
     beta_values: np.ndarray = field(default_factory=lambda: np.linspace(-1.0, 2.0, 13))
@@ -362,7 +362,7 @@ def default_parameters() -> DragSweepParameters:
 if __name__ == "__main__":
     parameters = default_parameters()
     parameters.qubit = "q9"
-    parameters.profile_name = "single_qubit"
+    parameters.profile_name = "iqm_chip"
     parameters.beta_values = np.linspace(0, 5, 50)
     parameters.save_results = True
     parameters.plot_results = True

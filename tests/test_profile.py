@@ -149,17 +149,17 @@ class ProfileTests(unittest.TestCase):
     def test_profile_save_rejects_selected_projection(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            self._write_profile(root, name="single_qubit")
-            manifest = json.loads((root / "single_qubit" / "profile.json").read_text())
+            self._write_profile(root, name="iqm_chip")
+            manifest = json.loads((root / "iqm_chip" / "profile.json").read_text())
             manifest["build_mode"] = "single_qubit"
-            (root / "single_qubit" / "profile.json").write_text(json.dumps(manifest) + "\n")
-            connectivity = json.loads((root / "single_qubit" / "connectivity.json").read_text())
+            (root / "iqm_chip" / "profile.json").write_text(json.dumps(manifest) + "\n")
+            connectivity = json.loads((root / "iqm_chip" / "connectivity.json").read_text())
             connectivity["connections"]["q1"]["lo_frequencies_hz"] = {
                 "xy_output": 4000000000,
                 "resonator_output": 7000000000,
             }
-            (root / "single_qubit" / "connectivity.json").write_text(json.dumps(connectivity) + "\n")
-            profile = Profile("single_qubit", qubit="q1", root=root)
+            (root / "iqm_chip" / "connectivity.json").write_text(json.dumps(connectivity) + "\n")
+            profile = Profile("iqm_chip", qubit="q1", root=root)
             selected = profile.load()
 
             with self.assertRaisesRegex(ProfileError, "selected single-qubit projection"):

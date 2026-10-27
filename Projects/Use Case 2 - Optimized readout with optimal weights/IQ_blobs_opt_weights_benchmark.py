@@ -1,11 +1,11 @@
 """Benchmark readout fidelity using the repository QuAM machine config.
 
 The selected profile decides whether optimized weights are used. For example,
-profiles/single_qubit/qubits.json can set:
+profiles/iqm_chip/qubits.json can set:
 
     qubits.q1.readout.use_kernel = true
 
-Then create_machine(qubit="q1") loads profiles/single_qubit/kernels/
+Then create_machine(qubit="q1") loads profiles/iqm_chip/kernels/
 q1_readout_kernel.npz and machine.generate_config() emits those weights.
 """
 
@@ -31,7 +31,7 @@ IqBlobs = importlib.import_module("calibrations.07_iq_blobs").IqBlobs
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", default="single_qubit")
+    parser.add_argument("--profile", default="iqm_chip")
     parser.add_argument("--qubit", default="q1")
     parser.add_argument("--operation", default="readout")
     parser.add_argument("--num-shots", type=int, default=20000)

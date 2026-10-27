@@ -9,13 +9,63 @@ Reusable waveform, analysis, and plotting helpers live in
 Clean command wrappers live in `scripts/`. The PC-only QuTiP simulator lives in
 `simulation/qutip/`.
 
+## Figures from the 2D echo sweep
+
+With analysis and plotting enabled, `scripts/run_2d_sweep.py` now adds five
+figures per qubit to the viridis 2D map: resonance detuning, FWHM, fitted dip
+contrast versus calibrated Rabi frequency, up to eight constant-Rabi detuning
+slices with fits, and constant-detuning response slices versus Rabi frequency.
+Every Rabi axis uses the actual pulse peak `max(abs(I + 1j*Q))` after envelope
+and echo smoothing and DRAG, multiplied by `abs(amp_prefactor)`. Conversion to
+MHz uses the calibrated `x180` sampled area. The chosen nominal amplitude is
+retained separately as `full_amp`; it does not set the plotted Rabi frequency.
+The 2D run saves `peak_complex_amplitude_v` with the raw sweep coordinates;
+offline processing of older data reconstructs it from the run parameters and
+the supplied qubit calibration. Use the saved profile for historical runs.
+The resonance plot
+shows reference lines at ±1/(2πT₂*) and the linewidth plot at 1/(πT₂*), using
+Ramsey T₂* when available. These are linewidth references, not bounds on a
+physical resonance shift.
+
+For echo/state readout, `plot_sweep_diagnostics=True` (default) runs a fast
+bounded negative-Gaussian fit independently of the optional `fit_fwhm` fitter.
+Contrast means fitted baseline minus dip minimum, in measured-state units.
+The fit trims up to 40 samples at each frequency edge and smooths by one bin;
+acceptance uses unsmoothed R² ≥ 0.1, contrast ≥ 0.02, a width of at least two
+bins, and both half-height crossings inside the fit window. Rejected or missing
+fits leave gaps and are marked at their Rabi positions along the lower plot edge.
+Figures are registered
+with the normal figure saver, and fit values/quality flags are included in
+`analysis_result.json` when analysis saving is enabled. Set
+`plot_sweep_diagnostics=False` to disable these additions. They are also
+skipped for acquisitions with `CalibrationOptions.plot_data=False`, IQ readout,
+or non-echo pulses.
+
 ## Current shared echo settings and fast beta scan
 
 Edit `shaped_pulse_spectroscopy/echo_parameters.py` for the current echo pulse:
 20,000 ns root-Lorentzian and full-length template, cutoff 0.001, nominal
-amplitude 0.7 V, beta **-1.0972249303804549**, 16 ns midpoint smoothing,
+amplitude 0.7 V, beta **+0.5**, 16 ns midpoint smoothing,
 polynomial edge smoothing with power 5, and no AC-Stark chirp. `DEFAULT_QUBIT`
 is q1. Active reset and unmitigated two-state discrimination are used.
+
+As of 2026-10-27, echo DRAG uses the same positive-derivative beta convention
+as this repository's Gaussian DRAG: `Q = +beta*dI/dt/(2*pi*abs(alpha))`.
+Historical measurements used the opposite sign: replay their physical I/Q
+waveforms with `beta_new = -beta_old`. Saved data are unchanged. In particular,
+the historical -1.097225 optimum corresponds to +1.097225 now. Explicit beta
+ranges in historical scripts/plans must be converted before replaying them.
+New raw pulse metadata records `gaussian_positive_derivative_v1`.
+
+The echo chirp and amplitude-axis conversion now use the reference pi pulse's
+sampled area. This preserves calibrated voltages and corrects the former
+square-pulse assumption when `x180` is cosine shaped.
+
+To compare the four requested inversion times at beta +0.5, run
+`python Projects/shaped_pulse_spectroscopy/scripts/compare_echo_inversion_times.py`
+for offline checks, or add `--execute` to measure. The fixed comparison uses
+4, 8, 16, and 50 ns, 25 amplitudes (0.2–1), 121 detunings (±500 kHz), and 400
+shots, with no detuning chirp and no profile updates.
 
 The general 2D, amplitude-only, fixed-amplitude, fixed-amplitude batch, kappa,
 cutoff, pulse-length, and beta entrypoints now obtain their starting pulse

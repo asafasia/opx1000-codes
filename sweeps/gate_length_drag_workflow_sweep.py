@@ -52,7 +52,7 @@ class GateLengthDragWorkflowSweepParameters:
     """Parameters for sweeping gate length through the full DRAG workflow."""
 
     qubit: str = "q9"
-    profile_name: str = "single_qubit"
+    profile_name: str = "iqm_chip"
     profile_documents: dict[str, Any] | None = None
     gate_lengths_ns: np.ndarray = field(
         default_factory=lambda: gate_lengths_from_range(6, 100, 10)
@@ -355,7 +355,7 @@ def default_parameters() -> GateLengthDragWorkflowSweepParameters:
 if __name__ == "__main__":
     parameters = default_parameters()
     parameters.qubit = "q9"
-    parameters.profile_name = "single_qubit"
+    parameters.profile_name = "iqm_chip"
     parameters.gate_lengths_ns = gate_lengths_from_range(6, 100, 10)
     parameters.save_results = True
     parameters.plot_results = True

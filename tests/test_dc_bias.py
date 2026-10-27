@@ -181,7 +181,7 @@ class ArduinoDCBiasComponentTests(unittest.TestCase):
             _validate_qubit_dc_biases(qubits, connectivity)
 
     def test_all_single_qubit_entries_define_voltage_without_channel(self):
-        profile = load_profile("single_qubit")
+        profile = load_profile("iqm_chip")
 
         for qubit in profile["qubits"]["qubits"].values():
             self.assertIn("dc_bias_v", qubit)
@@ -190,7 +190,7 @@ class ArduinoDCBiasComponentTests(unittest.TestCase):
     def test_profile_machine_contains_dc_bias_component_without_connecting(self):
         with patch("quam_config.components.dc_bias.open_controller") as open_controller:
             machine = create_machine_from_profile(
-                "single_qubit", save=False, qubit="q3"
+                "iqm_chip", save=False, qubit="q3"
             )
             config = machine.generate_config()
 
@@ -198,7 +198,7 @@ class ArduinoDCBiasComponentTests(unittest.TestCase):
         self.assertEqual(machine.dc_bias.port, "COM7")
         self.assertEqual(
             machine.dc_bias.max_abs_voltage_v,
-            load_profile("single_qubit")["connectivity"]["dc_bias"]["max_abs_voltage_v"],
+            load_profile("iqm_chip")["connectivity"]["dc_bias"]["max_abs_voltage_v"],
         )
         self.assertEqual(machine.dc_bias.output_channel, 0)
         self.assertEqual(machine.dc_bias.qubit_biases_v, {"q3": 0.0})
@@ -207,8 +207,8 @@ class ArduinoDCBiasComponentTests(unittest.TestCase):
 
     @patch("quam_config.components.dc_bias.open_controller")
     def test_profile_limit_is_forwarded_unchanged_to_driver(self, open_controller):
-        machine = create_machine_from_profile("single_qubit", save=False, qubit="q3")
-        limit = load_profile("single_qubit")["connectivity"]["dc_bias"]["max_abs_voltage_v"]
+        machine = create_machine_from_profile("iqm_chip", save=False, qubit="q3")
+        limit = load_profile("iqm_chip")["connectivity"]["dc_bias"]["max_abs_voltage_v"]
         machine.dc_bias.set_voltage(0, limit)
         self.assertEqual(open_controller.call_args.kwargs["max_abs_voltage_v"], limit)
         open_controller.return_value.set_voltage.assert_called_once_with(0, limit)

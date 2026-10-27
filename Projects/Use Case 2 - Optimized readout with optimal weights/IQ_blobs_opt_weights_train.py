@@ -31,7 +31,7 @@ ReadoutWeightsOptimization = importlib.import_module(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", default="single_qubit")
+    parser.add_argument("--profile", default="iqm_chip")
     parser.add_argument("--qubit", default="q1")
     parser.add_argument("--operation", default="readout")
     parser.add_argument("--num-shots", type=int, default=100)

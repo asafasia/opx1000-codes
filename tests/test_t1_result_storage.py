@@ -101,7 +101,7 @@ def test_profile_reload_retains_t1_ge_without_changing_thermalization():
 
 
 def test_optional_profile_t1_ge_metric_is_validated():
-    profile = load_profile("main")
+    profile = load_profile("iqm_chip")
     coherence = profile["metrics"]["qubits"]["q1"]["coherence"]
     coherence["t1_ge_ns"] = 30_000
     validate_profile(profile)

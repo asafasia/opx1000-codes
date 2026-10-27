@@ -593,7 +593,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--interval-seconds", type=float, help="Delay between cycles.")
     parser.add_argument("--continue-on-error", action="store_true", help="Record errors and keep running.")
     parser.add_argument("--save-full-results", action="store_true", help="Allow calibration scripts to save raw data.")
-    parser.add_argument("--profile-name", help="Profile to use while running scripts, for example single_qubit.")
+    parser.add_argument("--profile-name", help="Profile to use while running scripts, for example iqm_chip.")
     parser.add_argument("--qubit", help="Selected qubit to pass through QUAM_QUBIT.")
     parser.add_argument("--output-root", type=Path, help="Override output root.")
     return parser

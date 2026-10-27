@@ -84,12 +84,12 @@ class DragSweepTests(unittest.TestCase):
         FakeRB.seen_gate_families = []
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            profile = root / "profiles" / "single_qubit"
+            profile = root / "profiles" / "iqm_chip"
             profile.mkdir(parents=True)
             (profile / "profile.json").write_text("{}\n", encoding="utf-8")
             parameters = DragSweepParameters(
                 qubit="q1",
-                profile_name="single_qubit",
+                profile_name="iqm_chip",
                 profile_documents=minimal_profile(),
                 beta_values=np.asarray([0.0, 0.5, 1.0]),
                 connect_before_run=False,
@@ -127,12 +127,12 @@ class DragSweepTests(unittest.TestCase):
         InterruptingFakeRB.completed_runs = 0
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            profile = root / "profiles" / "single_qubit"
+            profile = root / "profiles" / "iqm_chip"
             profile.mkdir(parents=True)
             (profile / "profile.json").write_text("{}\n", encoding="utf-8")
             parameters = DragSweepParameters(
                 qubit="q1",
-                profile_name="single_qubit",
+                profile_name="iqm_chip",
                 profile_documents=minimal_profile(),
                 beta_values=np.asarray([0.0, 0.5, 1.0]),
                 connect_before_run=False,

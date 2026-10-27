@@ -16,7 +16,8 @@ class ProfileUpdaterTests(unittest.TestCase):
         self.root = Path(self.temporary_directory.name)
         self.profile = self.root / "profiles" / "main"
         self.profile.mkdir(parents=True)
-        self.single_qubit_profile = self.root / "profiles" / "single_qubit"
+        set_active_profile(Profile("main", root=self.root / "profiles"))
+        self.single_qubit_profile = self.root / "profiles" / "iqm_chip"
         self.single_qubit_profile.mkdir(parents=True)
         (self.profile / "qubits.json").write_text(
             '{"qubits":{"q1":{"frequencies_hz":{"resonator":7470000000},"readout":{}}}}\n',
@@ -81,7 +82,7 @@ class ProfileUpdaterTests(unittest.TestCase):
             )
 
     def test_stage_defaults_to_active_profile(self):
-        set_active_profile(Profile("single_qubit", qubit="q3", root=self.root / "profiles"))
+        set_active_profile(Profile("iqm_chip", qubit="q3", root=self.root / "profiles"))
 
         proposal = self.updater.stage(
             "resonator_spectroscopy",
@@ -89,17 +90,17 @@ class ProfileUpdaterTests(unittest.TestCase):
         )
 
         document = json.loads((proposal / "proposal.json").read_text())
-        self.assertEqual(document["profile_name"], "single_qubit")
+        self.assertEqual(document["profile_name"], "iqm_chip")
 
     def test_stage_accepts_profile_object(self):
         proposal = self.updater.stage(
             "resonator_spectroscopy",
             {"qubits.json.qubits.q3.frequencies_hz.resonator": 6876000000},
-            profile_name=Profile("single_qubit", qubit="q3", root=self.root / "profiles"),
+            profile_name=Profile("iqm_chip", qubit="q3", root=self.root / "profiles"),
         )
 
         document = json.loads((proposal / "proposal.json").read_text())
-        self.assertEqual(document["profile_name"], "single_qubit")
+        self.assertEqual(document["profile_name"], "iqm_chip")
 
 
 if __name__ == "__main__":

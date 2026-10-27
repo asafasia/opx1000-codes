@@ -100,7 +100,7 @@ def test_missing_leakage_populations_rejected():
 @pytest.mark.parametrize("mode", ["standard", "interleaved", "leakage"])
 def test_qua_builds_offline_with_gef(mode):
     module = import_module("calibrations.11a_single_qubit_randomized_benchmarking")
-    machine = create_machine_from_profile("single_qubit", qubit="q1", save=False)
+    machine = create_machine_from_profile("iqm_chip", qubit="q1", save=False)
     machine.qubits["q1"].resonator.readout_gef["gef_centers"] = [[-.001, 0], [.001, 0], [0, .002]]
     parameters = Parameters(mode=mode, readout_states=["g", "e", "f"], qubits=["q1"],
         reset_type="thermal", num_shots=2, num_random_sequences=3, max_circuit_depth=7, delta_clifford=3)
@@ -146,7 +146,7 @@ def test_metadata_mode_mismatch_rejected():
 
 def test_legacy_interleaved_uses_paired_acquisition():
     module = import_module("calibrations.11b_single_qubit_randomized_benchmarking_interleaved")
-    machine = create_machine_from_profile("single_qubit", qubit="q1", save=False)
+    machine = create_machine_from_profile("iqm_chip", qubit="q1", save=False)
     node = module.SingleQubitRandomizedBenchmarkingInterleaved(
         module.Parameters(qubits=["q1"], reset_type="thermal", max_circuit_depth=7,
                           delta_clifford=3, num_random_sequences=2, num_shots=2), machine=machine)
@@ -180,7 +180,7 @@ def test_profile_proposal_is_mode_specific_and_never_applies_by_default(mode):
     module = import_module("calibrations.11a_single_qubit_randomized_benchmarking")
     updater = Mock()
     node = module.SingleQubitRandomizedBenchmarking(Parameters(mode=mode),
-        machine=object(), profile_name="single_qubit", profile_updater=updater,
+        machine=object(), profile_name="iqm_chip", profile_updater=updater,
         options=CalibrationOptions(apply_profile_update=False))
     node.namespace["qubits"] = [SimpleNamespace(name="q1")]
     node.outcomes = {"q1": "successful"}

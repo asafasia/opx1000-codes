@@ -15,7 +15,7 @@ module = import_module("calibrations.03a_qubit_spectroscopy")
 
 @pytest.mark.parametrize("transition", ["ge", "ef"])
 def test_target_centers_program_without_changing_profile_or_ge_preparation(transition):
-    machine = create_machine("single_qubit", qubit="q6")
+    machine = create_machine("iqm_chip", qubit="q6")
     q = machine.qubits["q6"]
     original = (q.xy.RF_frequency, q.xy.intermediate_frequency, q.f_01, q.f_12)
     node = module.QubitSpectroscopy(

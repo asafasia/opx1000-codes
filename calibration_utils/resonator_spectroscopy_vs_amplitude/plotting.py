@@ -1,7 +1,9 @@
 from typing import List
+import numpy as np
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.ticker import FixedLocator, FuncFormatter
 
 from qualang_tools.units import unit
 from qualibration_libs.plotting import QubitGrid, grid_iter
@@ -9,6 +11,35 @@ from quam_builder.architecture.superconducting.qubit import AnyTransmon
 from utils.plotting_settings import FIGURE_SIZE, qubit_grid_locations
 
 u = unit(coerce_to_integer=True)
+
+
+def _dbm_to_peak_voltage(power_dbm):
+    """Equivalent sinusoidal peak voltage into 50 ohms at the RF output."""
+    return np.sqrt(2 * 50 * 1e-3 * 10 ** (np.asarray(power_dbm) / 10))
+
+
+def _peak_voltage_to_dbm(voltage):
+    # Matplotlib may probe zero or negative values while choosing axis limits.
+    voltage = np.maximum(np.asarray(voltage), np.finfo(float).tiny)
+    return 20 * np.log10(voltage) - 10 * np.log10(2 * 50 * 1e-3)
+
+
+def _add_voltage_axis(ax: Axes):
+    voltage_axis = ax.secondary_yaxis(
+        "right", functions=(_dbm_to_peak_voltage, _peak_voltage_to_dbm)
+    )
+    voltage_axis.set_ylabel("Output voltage [V peak, 50 Ω]")
+    voltage_axis.yaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:.3g}"))
+    voltage_axis.minorticks_off()
+
+    def align_ticks(power_axis):
+        voltage_axis.yaxis.set_major_locator(
+            FixedLocator(_dbm_to_peak_voltage(power_axis.get_yticks()))
+        )
+
+    align_ticks(ax)
+    ax.callbacks.connect("ylim_changed", align_ticks)
+    return voltage_axis
 
 
 def plot_raw_data_with_fit(ds: xr.Dataset, qubits: List[AnyTransmon], fits: xr.Dataset):
@@ -89,11 +120,13 @@ def plot_individual_raw_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str,
         ds.assign_coords(detuning_MHz=ds.detuning / u.MHz)
         .loc[qubit]
         .IQ_abs_norm.plot(
-            ax=ax2, add_colorbar=True, x="detuning_MHz", y="power", robust=True
+            ax=ax2, add_colorbar=True, x="detuning_MHz", y="power", robust=True,
+            cbar_kwargs={"pad": 0.20},
         )
     )
     heatmap.colorbar.set_label("Normalized |IQ|")
     ax2.set_xlabel("Detuning [MHz]")
+    _add_voltage_axis(ax)
     # Plot the resonance frequency for each amplitude
     ax2.plot(
         (fit.rr_min_response) * 1e-6,
@@ -116,8 +149,3 @@ def plot_individual_raw_data_with_fit(ax: Axes, ds: xr.Dataset, qubit: dict[str,
             linestyle="--",
             label="Optimal frequency shift",
         )
-    # ax3 = ax.twinx()
-    # ds.assign_coords(readout_amp=ds.detuning / u.MHz).loc[qubit].IQ_abs_norm.plot(
-    #     ax=ax3, add_colorbar=False, x="detuning_MHz", y="readout_amp", robust=True
-    # )
-    # ax.set_title(qubit["qubit"])

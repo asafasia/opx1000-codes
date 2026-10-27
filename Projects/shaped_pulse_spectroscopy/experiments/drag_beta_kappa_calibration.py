@@ -68,7 +68,7 @@ class WaveformSpec:
     edge_smoothing_power: int = ECHO_PULSE.edge_smoothing_power
     complex_envelope_sign: str = "I+iQ"
     derivative_convention: str = (
-        "Q=-beta*dI/dt/(2*pi*alpha_MHz), physical t in microseconds"
+        "Q=+beta*dI/dt/(2*pi*alpha_MHz), physical t in microseconds; gaussian_positive_derivative_v1"
     )
     kappa_convention: str = "real-time detuning via QUA chirp"
 

@@ -1,11 +1,10 @@
 {
   "schema_version": 1,
-  "name": "single_qubit",
-  "description": "Independent calibration profile for single-qubit experiments.",
-  "readout_discriminator": "nearest_center",
-  "readout_pulse": "readout",
+  "name": "multi_qubit",
+  "description": "Offline multi-qubit wiring regression fixture; not an operational device profile.",
+  "readout_discriminator": "quam",
+  "readout_pulse": "readout_flattop",
   "readout_gef_pulse": "readout_GEF",
-  "build_mode": "single_qubit",
   "files": {
     "connectivity": "connectivity.json",
     "qubits": "qubits.json",
@@ -13,7 +12,6 @@
     "metrics": "metrics.json"
   },
   "active_qubits": [
-    "q1",
-    "q6"
+    "q10"
   ]
 }

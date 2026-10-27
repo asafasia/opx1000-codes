@@ -92,7 +92,7 @@ class GateLengthDragWorkflowSweepTests(unittest.TestCase):
     def test_drag_workflow_applies_gate_length_to_selected_profile_pulses(self):
         parameters = DragWorkflowParameters(
             qubit="q1",
-            profile_name="single_qubit",
+            profile_name="iqm_chip",
             profile_documents=minimal_profile(),
             gate_length_ns=64,
             connect_before_run=False,
@@ -115,7 +115,7 @@ class GateLengthDragWorkflowSweepTests(unittest.TestCase):
     def test_drag_workflow_rejects_non_multiple_of_4_gate_length(self):
         parameters = DragWorkflowParameters(
             qubit="q1",
-            profile_name="single_qubit",
+            profile_name="iqm_chip",
             profile_documents=minimal_profile(),
             gate_length_ns=66,
             connect_before_run=False,
@@ -129,12 +129,12 @@ class GateLengthDragWorkflowSweepTests(unittest.TestCase):
         FakeWorkflow.seen_lengths = []
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            profile = root / "profiles" / "single_qubit"
+            profile = root / "profiles" / "iqm_chip"
             profile.mkdir(parents=True)
             (profile / "profile.json").write_text("{}\n", encoding="utf-8")
             parameters = GateLengthDragWorkflowSweepParameters(
                 qubit="q1",
-                profile_name="single_qubit",
+                profile_name="iqm_chip",
                 profile_documents=minimal_profile(),
                 gate_lengths_ns=np.asarray([8, 16, 28]),
                 save_results=True,
@@ -164,12 +164,12 @@ class GateLengthDragWorkflowSweepTests(unittest.TestCase):
         InterruptingFakeWorkflow.completed_runs = 0
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            profile = root / "profiles" / "single_qubit"
+            profile = root / "profiles" / "iqm_chip"
             profile.mkdir(parents=True)
             (profile / "profile.json").write_text("{}\n", encoding="utf-8")
             parameters = GateLengthDragWorkflowSweepParameters(
                 qubit="q1",
-                profile_name="single_qubit",
+                profile_name="iqm_chip",
                 profile_documents=minimal_profile(),
                 gate_lengths_ns=np.asarray([8, 16, 28]),
                 save_results=True,
@@ -213,7 +213,7 @@ class GateLengthDragWorkflowSweepTests(unittest.TestCase):
     def test_manual_invalid_gate_lengths_are_rejected_before_qop(self):
         parameters = GateLengthDragWorkflowSweepParameters(
             qubit="q1",
-            profile_name="single_qubit",
+            profile_name="iqm_chip",
             profile_documents=minimal_profile(),
             gate_lengths_ns=np.asarray([6, 16]),
             save_results=False,

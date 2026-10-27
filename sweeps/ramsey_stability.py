@@ -534,7 +534,7 @@ def persistent_ramsey_class():
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--qubit", required=True)
-    parser.add_argument("--profile", default="single_qubit")
+    parser.add_argument("--profile", default="iqm_chip")
     parser.add_argument("--duration-hours", type=float, default=24)
     parser.add_argument(
         "--interval-seconds",
@@ -624,7 +624,7 @@ def main(argv=None) -> int:
 
 
 def run_stability(
-    settings: StabilitySettings, parameters, *, profile_name="single_qubit", argv=None
+    settings: StabilitySettings, parameters, *, profile_name="iqm_chip", argv=None
 ) -> int:
     """Run repeated Ramsey measurements with an editable experiment configuration."""
     from calibrations.base import CalibrationOptions
@@ -731,4 +731,4 @@ if __name__ == "__main__":
     parameters.log_or_linear_sweep = "linear"
     parameters.timeout = 120
 
-    run_stability(settings, parameters, profile_name="single_qubit")
+    run_stability(settings, parameters, profile_name="iqm_chip")

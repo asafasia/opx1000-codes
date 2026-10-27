@@ -13,13 +13,8 @@ The original parameters were imported from `opx1000_Or` with 25 October 2026 wir
 
 ```text
 profiles/
-  main/
-    profile.json       Profile manifest and the single active-qubit list
-    connectivity.json Hardware, network, ports, line connections, and LOs
-    qubits.json        Qubit, resonator, coherence, and readout parameters
-    pulses.json        Reusable pulse definitions
-  single_qubit/
-    profile.json       Independent single-qubit profile manifest
+  iqm_chip/
+    profile.json       IQM chip manifest and shared experiment settings
     connectivity.json Independent hardware, port, and LO configuration
     qubits.json        Independent qubit and readout parameters
     pulses.json        Independent control and readout pulse definitions
@@ -62,6 +57,25 @@ Experiments can use `readout_state_configured(...)` for one measurement or
 profile discriminator automatically. Active reset supports G/E and G/E/F; the
 three-state path applies E-to-G or F-to-E-to-G correction pulses according to
 the discriminated state.
+
+Select the GE correction pulse for all active-reset experiments in `profile.json`:
+
+```json
+"active_reset_pulse": "x180_const"
+```
+
+This names a pulse definition under each qubit's `pulses.json` entry, not an
+experiment operation. The machine builder creates an independent
+`active_reset_x180` operation using that pulse's calibrated amplitude and length.
+All current calibrations using the shared reset helper automatically select it,
+including IQ blobs, Rabi, pulse trains, and RB. Changing the experiment's `x180`
+or RB gate family does not change the reset pulse. Rebuild the machine after
+changing the selector or its pulse calibration. The `iqm_chip` profile uses
+`x180_const`; profiles without the selector retain the legacy `x180` behavior.
+Missing or non-control pulse definitions are rejected during validation.
+The GEF reset's F-to-E correction still uses `EF_x180`, followed by the selected
+GE correction. The setting chooses the pulse when active reset is requested;
+it does not turn thermal-reset experiments into active-reset experiments.
 
 Pulse definitions are grouped by qubit name in `pulses.json`. Each qubit
 references pulse names from its own group under `operations`, so the same
@@ -153,10 +167,10 @@ Set `qubits.json.qubits.<qubit>.readout.use_kernel` for GE readout, or
   The saved kernel must span the selected pulse length; missing or mismatched
   kernels produce an error.
 
-Validate the main profile:
+Validate the IQM chip profile:
 
 ```powershell
-python -m profiles.validate_profile main
+python -m profiles.validate_profile iqm_chip
 ```
 
 Load it from Python:
@@ -164,14 +178,14 @@ Load it from Python:
 ```python
 from profiles import load_profile
 
-profile = load_profile("main")
+profile = load_profile("iqm_chip")
 q9 = profile["qubits"]["qubits"]["q9"]
 ```
 
 Create and validate the complete machine in memory:
 
 ```powershell
-python -m quam_config.create_machine_from_profile --profile main --no-save
+python -m quam_config.create_machine_from_profile --profile iqm_chip --qubit q1 --no-save
 ```
 
 Define activation only in `profile.json.active_qubits`. Qubit entries in
@@ -183,7 +197,7 @@ Use it from Python:
 ```python
 from quam_config.create_machine_from_profile import create_machine_from_profile
 
-machine = create_machine_from_profile("main", save=False)
+machine = create_machine_from_profile("iqm_chip", qubit="q1", save=False)
 ```
 
 Calibration experiments use the shorter in-memory factory at startup. Generated
@@ -192,21 +206,20 @@ Calibration experiments use the shorter in-memory factory at startup. Generated
 ```python
 from quam_config import create_machine
 
-machine = create_machine()          # profiles/Or_profile
-machine = create_machine("testing") # profiles/testing
-machine = create_machine(qubit="q3b") # profiles/Or_profile, Or 3B only
+machine = create_machine(qubit="q1")  # profiles/iqm_chip, q1 only
+machine = create_machine("Or_profile", qubit="q3b")  # Or 3B only
 ```
 
-`create_machine(qubit="q3b")` builds a machine containing only `q3b`, its
+`create_machine(qubit="q1")` builds a machine containing only `q1`, its
 resonator, its drive line, and the controller/FEM ports those objects use. The
 default single-qubit machine uses only the files under
-`profiles/Or_profile`. The selected qubit is isolated before wiring is built.
-Nothing is copied or inferred from `main` at load time, so its LOs,
+`profiles/iqm_chip`. The selected qubit is isolated before wiring is built.
+Nothing is copied or inferred from another profile at load time, so its LOs,
 frequencies, pulses, amplitudes, and readout parameters can be calibrated
 independently.
 
 Per-qubit drive and readout LOs are stored under each connection's
-`lo_frequencies_hz` in `profiles/single_qubit/connectivity.json`. They override
+`lo_frequencies_hz` in `profiles/iqm_chip/connectivity.json`. They override
 the selected physical output ports only after one qubit has been selected.
 
 A single-qubit connection may also set `resonator_band` to `1`, `2`, or `3`.
@@ -220,11 +233,11 @@ The factory class is also available directly:
 ```python
 from quam_config import CreateMachine
 
-cm = CreateMachine()            # profiles/Or_profile
+cm = CreateMachine(qubit="q1")  # profiles/iqm_chip
 machine = cm.machine
 cm.profile.save()
 
-cm = CreateMachine(qubit="q3b")  # profiles/Or_profile, Or 3B only
+cm = CreateMachine("Or_profile", qubit="q3b")  # Or 3B only
 machine = cm.machine
 cm.profile.save()               # saves the loaded full profile documents
 ```
@@ -241,7 +254,7 @@ The short helper:
 ```python
 from quam_config import create_machine
 
-machine = create_machine()
+machine = create_machine(qubit="q1")
 ```
 
 is equivalent to:
@@ -249,7 +262,7 @@ is equivalent to:
 ```python
 from quam_config import CreateMachine
 
-cm = CreateMachine()
+cm = CreateMachine(qubit="q1")
 machine = cm.machine
 ```
 
@@ -257,7 +270,7 @@ Use `CreateMachine` directly when you also need access to the profile object
 that was used to build the machine:
 
 ```python
-cm = CreateMachine()
+cm = CreateMachine(qubit="q1")
 machine = cm.machine
 profile = cm.profile
 ```
@@ -273,19 +286,19 @@ that receives `cm` can often use it like the machine itself. Prefer
 
 ### Profile Selection Rules
 
-By default, `CreateMachine()`, `Profile()`, `load_profile()`, and the machine
-CLI tools use `profiles/Or_profile`, with Or 3B (`q3b`) active:
+By default, `CreateMachine`, `Profile()`, `load_profile()`, and the machine
+CLI tools use `profiles/iqm_chip`. Select a qubit when building a machine:
 
 ```python
-cm = CreateMachine()
+cm = CreateMachine(qubit="q1")
 ```
 
 An explicit profile can be selected by name:
 
 ```python
-cm = CreateMachine("main")
-cm = CreateMachine(profile_name="main")
-cm = CreateMachine(mode="main")
+cm = CreateMachine("iqm_chip", qubit="q1")
+cm = CreateMachine(profile_name="iqm_chip", qubit="q1")
+cm = CreateMachine(mode="iqm_chip", qubit="q1")
 ```
 
 Coherence values (`T1`, Ramsey `T2*`, and echo `T2`) have one operational source
@@ -294,7 +307,7 @@ copies those metrics into QuAM's `T1`, `T2ramsey`, and `T2echo` fields. The
 similarly named values under `qubits.json.transmon` are read only as a legacy
 fallback for profiles without a metrics document.
 
-Passing only a qubit name selects it from the default `Or_profile`
+Passing only a qubit name selects it from the default `iqm_chip`
 (or the `QUAM_PROFILE` environment override):
 
 ```python
@@ -303,17 +316,21 @@ cm = CreateMachine(qubit="q3")
 
 This builds a machine containing only the selected qubit, its resonator, its
 drive line, and the controller/FEM ports needed by that qubit. It does not copy
-values from `profiles/main`.
+values from another profile.
 
 If a qubit is provided together with an explicit profile, that profile must
 support single-qubit selection:
 
 ```python
-cm = CreateMachine("single_qubit", qubit="q3")
+cm = CreateMachine("iqm_chip", qubit="q3")
 ```
 
-Selecting a qubit from `main` is rejected because `main` is treated as the
-full-chip profile.
+The manifest keeps `build_mode: single_qubit`; the profile name does not
+change its one-qubit wiring projection. `main` has been removed and
+`single_qubit` has been renamed to `iqm_chip`. Update explicit profile arguments
+and `QUAM_PROFILE` overrides to the new name. Historical run snapshots retain
+their original names; pending proposals for the old name must be reviewed and
+restaged against `iqm_chip` before applying.
 
 ### Profile.load()
 
@@ -333,18 +350,18 @@ Example:
 ```python
 from profiles import Profile
 
-profile = Profile("main")
+profile = Profile("iqm_chip")
 documents = profile.load()
 ```
 
 The loaded documents are normal Python dictionaries. `profile.documents` keeps
 a deep copy of the full loaded profile.
 
-For `single_qubit`, loading with a qubit selection returns a projected profile
+For `iqm_chip`, loading with a qubit selection returns a projected profile
 containing only that qubit:
 
 ```python
-profile = Profile("single_qubit", qubit="q3")
+profile = Profile("iqm_chip", qubit="q3")
 documents = profile.load()
 ```
 
@@ -360,7 +377,7 @@ targets, so a save should not leave partially written JSON files.
 Save the currently loaded profile:
 
 ```python
-profile = Profile("main")
+profile = Profile("iqm_chip")
 documents = profile.load()
 documents["qubits"]["qubits"]["q3"]["frequencies_hz"]["qubit_f01"] = 4.5e9
 profile.save(documents)
@@ -369,7 +386,7 @@ profile.save(documents)
 Or save `profile.documents` after it has been loaded and modified:
 
 ```python
-profile = Profile("main")
+profile = Profile("iqm_chip")
 profile.load()
 profile.documents["manifest"]["active_qubits"] = ["q3"]
 profile.save()
@@ -381,7 +398,7 @@ threshold, or pulse value must write that value into the appropriate dictionary
 inside the profile documents before saving.
 
 `Profile.save()` refuses to save a selected single-qubit projection over the
-full `single_qubit` profile. To edit the full `single_qubit` profile, load it
+full `iqm_chip` profile. To edit the full `iqm_chip` profile, load it
 without selecting a qubit, modify the full documents, and then save.
 
 ### QuAM Machine Save
@@ -403,8 +420,8 @@ outputs, not as the hand-edited calibration input.
 Validate or build a selected single-qubit profile:
 
 ```powershell
-python -m profiles.validate_profile single_qubit --qubit q3
-python -m quam_config.create_machine_from_profile --profile single_qubit --qubit q3 --no-save
+python -m profiles.validate_profile iqm_chip --qubit q3
+python -m quam_config.create_machine_from_profile --profile iqm_chip --qubit q3 --no-save
 ```
 
 Qualibrate still stores an explicit machine snapshot with each saved run, but
@@ -414,14 +431,15 @@ Set `QUAM_PROFILE` to select a profile for all calibration experiments without
 editing their source:
 
 ```powershell
-$env:QUAM_PROFILE = "main"
+$env:QUAM_PROFILE = "iqm_chip"
+$env:QUAM_QUBIT = "q1"
 python calibrations/03a_qubit_spectroscopy.py
 ```
 
 Select another profile or skip the wiring plot with:
 
 ```powershell
-python -m quam_config.wiring_lffem_mwfem --profile main --no-plot
+python -m quam_config.wiring_lffem_mwfem --profile iqm_chip --no-plot
 ```
 
 The wiring builder uses the profile's network settings, MW-FEM inventory,
@@ -453,7 +471,7 @@ serial port or change an output. Hardware access occurs only when host code
 calls methods such as `machine.dc_bias.set_voltage(...)` or enters
 `machine.dc_bias.applied(...)`.
 
-In the `single_qubit` profile, each qubit stores its bias voltage using a
+In the `iqm_chip` profile, each qubit stores its bias voltage using a
 unit-suffixed field:
 
 ```json
@@ -477,9 +495,9 @@ it is not an OPX Z-line coefficient or the second derivative (which is `2*a`).
 The external-flux calibration proposes this coefficient together with the fitted
 bias and frequency only for successful fits.
 
-Keep `main` as the currently trusted calibration. Create a new profile folder
-for experiments or cooldowns, validate it, and promote it to `main` only after
-testing. For larger systems, the next useful addition is JSON Schema files and
+Keep `iqm_chip` as the currently trusted IQM calibration. Create a new profile
+folder for experiments or cooldowns, validate it, and promote its values only
+after testing. For larger systems, the next useful addition is JSON Schema files and
 applying the profile's calibrated qubit and pulse values to the generated QuAM
 state.
 

@@ -62,7 +62,7 @@ Example:
 $env:PYTHONPATH=(Get-Location).Path
 & 'C:\Users\owner\miniconda3\envs\opx1000_env\python.exe' `
   'Projects\Use Case 2 - Optimized readout with optimal weights\IQ_blobs_opt_weights_train.py' `
-  --profile single_qubit --qubit q1 --num-shots 100
+  --profile iqm_chip --qubit q1 --num-shots 100
 ```
 
 To make the selected profile use the saved kernel, set
@@ -118,7 +118,7 @@ Example:
 $env:PYTHONPATH=(Get-Location).Path
 & 'C:\Users\owner\miniconda3\envs\opx1000_env\python.exe' `
   'Projects\Use Case 2 - Optimized readout with optimal weights\IQ_blobs_opt_weights_benchmark.py' `
-  --profile single_qubit --qubit q1 --num-shots 20000
+  --profile iqm_chip --qubit q1 --num-shots 20000
 ```
 
 In the *Original Data* subplot we can see the result of FPGA demodulation with optimal 

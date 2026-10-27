@@ -21,7 +21,7 @@ module = import_module("calibrations.03d_qubit_spectroscopy_vs_external_flux")
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), True, "-6e12"])
 def test_external_bias_coefficient_rejects_invalid_profile_values(value):
-    profile = load_profile("single_qubit")
+    profile = load_profile("iqm_chip")
     document = deepcopy(profile["qubits"])
     document["qubits"]["q9"]["freq_vs_dc_bias_quad_term_hz_per_v2"] = value
     with pytest.raises(ProfileError, match="finite numeric freq_vs_dc_bias"):
@@ -30,7 +30,7 @@ def test_external_bias_coefficient_rejects_invalid_profile_values(value):
 
 @pytest.fixture
 def calibration():
-    machine = create_machine_from_profile("single_qubit", save=False, qubit="q3")
+    machine = create_machine_from_profile("iqm_chip", save=False, qubit="q3")
     machine.dc_bias.qubit_biases_v["q3"] = 0.003
     calibration = module.QubitSpectroscopyVsExternalFlux(
         parameters=module.Parameters(num_shots=2, num_flux_points=3,

@@ -305,13 +305,13 @@ values move between scripts, notes, and JSON.
 Validate after manual edits:
 
 ```powershell
-python -m profiles.validate_profile main
+python -m profiles.validate_profile iqm_chip
 ```
 
 For single-qubit work:
 
 ```powershell
-python -m profiles.validate_profile single_qubit --qubit q3
+python -m profiles.validate_profile iqm_chip --qubit q3
 ```
 
 ## Profile Studio

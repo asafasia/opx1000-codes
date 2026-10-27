@@ -29,7 +29,7 @@ def test_proposal_does_not_depend_on_update_state_and_does_not_double_shift():
     from importlib import import_module
     from quam_config import create_machine
     module = import_module("calibrations.14_gef_readout_frequency_optimization")
-    machine = create_machine(profile_name="single_qubit", qubit="q1")
+    machine = create_machine(profile_name="iqm_chip", qubit="q1")
     q = machine.qubits["q1"]
     original = q.resonator.readout_gef["frequency_hz"]
     ge = q.resonator.RF_frequency

@@ -237,7 +237,7 @@ class Runner:
         self,
         qubit: str = "q1",
         *,
-        profile: str = "single_qubit",
+        profile: str = "iqm_chip",
         reset_type: str = "active",
         status_updates: bool = True,
     ) -> None:

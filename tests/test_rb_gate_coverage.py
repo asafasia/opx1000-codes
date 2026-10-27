@@ -16,7 +16,7 @@ class RBGateCoverageTests(unittest.TestCase):
             / "11a_single_qubit_randomized_benchmarking.py"
         ).read_text(encoding="utf-8")
         rb_gates = set(re.findall(r'qubit\.xy\.play\("([^"]+)"', source))
-        machine = create_machine_from_profile("main", save=False)
+        machine = create_machine_from_profile("iqm_chip", save=False, qubit="q9")
 
         self.assertEqual(rb_gates, {"x180", "y180", "x90", "-x90", "y90", "-y90"})
         self.assertTrue(rb_gates.issubset(machine.qubits["q9"].xy.operations))

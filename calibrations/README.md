@@ -133,7 +133,7 @@ qubit; an OPX Z line is not required. The original scripts remain available.
 Preview parameters without connecting to either device:
 
 ```powershell
-python -m calibrations.runner run qubit-external-flux --profile single_qubit --qubit q3 --set flux_offset_span_in_v=0.002 --set num_flux_points=11 --dry-run
+python -m calibrations.runner run qubit-external-flux --profile iqm_chip --qubit q3 --set flux_offset_span_in_v=0.002 --set num_flux_points=11 --dry-run
 ```
 
 Remove `--dry-run` when ready to acquire on the hardware. The important settings are:
@@ -419,7 +419,7 @@ Recalibrate all three IQ clouds after changing a GEF pulse or kernel.
 A runner dry-run example (no hardware connection):
 
 ```powershell
-python -m calibrations.runner run t1 --profile single_qubit --qubit q6 --set 'readout_states=["g","e","f"]' --set use_state_discrimination=true --set reset_type=active --dry-run
+python -m calibrations.runner run t1 --profile iqm_chip --qubit q6 --set 'readout_states=["g","e","f"]' --set use_state_discrimination=true --set reset_type=active --dry-run
 ```
 
 Discriminated datasets contain `population_g`, `population_e`, and, in GEF

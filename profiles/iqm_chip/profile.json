@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "name": "iqm_chip",
+  "description": "Independent calibration profile for single-qubit experiments.",
+  "readout_discriminator": "nearest_center",
+  "active_reset_pulse": "x180_const",
+  "readout_pulse": "readout",
+  "readout_gef_pulse": "readout_GEF",
+  "build_mode": "single_qubit",
+  "files": {
+    "connectivity": "connectivity.json",
+    "qubits": "qubits.json",
+    "pulses": "pulses.json",
+    "metrics": "metrics.json"
+  },
+  "active_qubits": [
+    "q1",
+    "q6"
+  ]
+}

@@ -36,7 +36,7 @@ class NodeSpecificParameters(RunnableParameters):
     stark_kappa_mhz_inv: float = 0.00225
     """Quadratic AC-Stark correction coefficient in inverse MHz."""
     drag_beta: float = 0.0
-    """Dimensionless DRAG coefficient; zero disables the DRAG quadrature."""
+    """Gaussian-matched beta: Q=+beta*dI/dt/(2*pi*abs(alpha)); zero disables Q."""
     echo_transition_time_ns: float = 16.0
     """Smooth echo-inversion duration with or without DRAG; zero gives an abrupt jump."""
     stark_chirp_max_error_hz: float = 100.0
@@ -63,6 +63,12 @@ class NodeSpecificParameters(RunnableParameters):
     """Optional exact number of detuning points, including both span endpoints."""
     fit_fwhm: bool = True
     """Run Gaussian FWHM fitting during detuning-sweep analysis."""
+    plot_sweep_diagnostics: bool = True
+    """For plotted echo/state 2D sweeps, fit dip summaries and show response slices.
+
+    Uses the fast bounded dip fitter independently of fit_fwhm. Skipped when
+    CalibrationOptions.plot_data is False (for example, optimizer acquisitions).
+    """
     use_three_state_discrimination: bool = False
     """Measure P_f when every selected qubit has calibrated G/E/F readout."""
 

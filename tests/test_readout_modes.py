@@ -27,7 +27,7 @@ def test_reject_invalid_readout_bases(states):
 
 @pytest.mark.parametrize("name", ["q1", "q6"])
 def test_second_pulse_is_independent_and_uncalibrated(name):
-    machine = create_machine(profile_name="single_qubit", qubit=name)
+    machine = create_machine(profile_name="iqm_chip", qubit=name)
     q = machine.qubits[name]
     original = q.resonator.operations["readout"].length
     q.resonator.operations["readout_GEF"].length = original + 40
@@ -80,7 +80,7 @@ def test_population_streams_record_indicators_not_integer_state_labels():
 @pytest.mark.parametrize("states", [GE, GEF])
 @pytest.mark.parametrize("name", ["q1", "q6"])
 def test_t1_builds_with_mode_specific_readout_and_active_reset(name, states):
-    machine = create_machine(profile_name="single_qubit", qubit=name)
+    machine = create_machine(profile_name="iqm_chip", qubit=name)
     q = machine.qubits[name]
     q.resonator.readout_gef["gef_centers"] = CENTERS
     params = Parameters(qubits=[name], readout_states=states, reset_type="active", use_state_discrimination=True)
@@ -95,7 +95,7 @@ def test_t1_builds_with_mode_specific_readout_and_active_reset(name, states):
 
 def test_iq_gef_bootstraps_without_centers_and_updates_only_gef():
     module = import_module("calibrations.07_iq_blobs")
-    machine = create_machine(profile_name="single_qubit", qubit="q1")
+    machine = create_machine(profile_name="iqm_chip", qubit="q1")
     q = machine.qubits["q1"]
     ge_before = copy.deepcopy(q.resonator.readout_ge.to_dict())
     p = module.Parameters(qubits=["q1"], readout_states=GEF, reset_type="thermal", num_shots=3)
@@ -114,7 +114,7 @@ def test_iq_gef_bootstraps_without_centers_and_updates_only_gef():
 
 def test_three_state_mitigation_uses_full_matrix():
     module = import_module("calibrations.05_T1")
-    machine = create_machine(profile_name="single_qubit", qubit="q1")
+    machine = create_machine(profile_name="iqm_chip", qubit="q1")
     matrix = np.array([[.9,.08,.02],[.1,.8,.1],[.05,.15,.8]])
     machine.qubits["q1"].resonator.readout_gef["confusion_matrix"] = matrix.tolist()
     node = module.T1(parameters=Parameters(readout_states=GEF, use_state_discrimination=True,
@@ -133,7 +133,7 @@ def test_three_state_mitigation_uses_full_matrix():
 
 def test_profile_rejects_invalid_gef_frequency_and_centers():
     for key, value in (("frequency_hz", 1e12), ("gef_centers", [[0,0],[1,1]])):
-        profile = load_profile("single_qubit", qubit="q1")
+        profile = load_profile("iqm_chip", qubit="q1")
         profile["qubits"]["qubits"]["q1"]["readout_gef"][key] = value
         with pytest.raises(ProfileError, match="readout_gef"):
             validate_profile(profile)
@@ -141,7 +141,7 @@ def test_profile_rejects_invalid_gef_frequency_and_centers():
 
 def test_changed_pulse_rejects_stale_centers():
     from utils.readout_macro import readout_signature
-    q = create_machine(profile_name="single_qubit", qubit="q1").qubits["q1"]
+    q = create_machine(profile_name="iqm_chip", qubit="q1").qubits["q1"]
     q.resonator.readout_gef["gef_centers"] = CENTERS
     q.resonator.readout_gef["calibration_signature"] = readout_signature(q, "readout_GEF")
     q.resonator.operations["readout_GEF"].amplitude *= 0.9
@@ -152,7 +152,7 @@ def test_changed_pulse_rejects_stale_centers():
 
 def test_ge_and_gef_switch_on_same_experiment_does_not_reuse_old_operation():
     module = import_module("calibrations.07_iq_blobs")
-    machine = create_machine(profile_name="single_qubit", qubit="q1")
+    machine = create_machine(profile_name="iqm_chip", qubit="q1")
     node = module.IqBlobs(parameters=module.Parameters(readout_states=GEF, num_shots=2), machine=machine)
     node.create_qua_program()
     assert node.parameters.operation == "readout_GEF"
@@ -173,7 +173,7 @@ def test_rb_ground_population_excludes_f_leakage():
 
 def test_gef_iq_calibration_signature_accepts_same_pulse_after_update():
     module = import_module("calibrations.07_iq_blobs")
-    machine = create_machine(profile_name="single_qubit", qubit="q1")
+    machine = create_machine(profile_name="iqm_chip", qubit="q1")
     node = module.IqBlobs(parameters=module.Parameters(readout_states=GEF), machine=machine)
     node.namespace["qubits"] = [machine.qubits["q1"]]
     node.results["fit_results"] = {"q1":{"state_labels":GEF,"center_matrix":CENTERS,
@@ -185,7 +185,7 @@ def test_gef_iq_calibration_signature_accepts_same_pulse_after_update():
 
 def test_ge_iq_update_preserves_gef_and_rotates_centers_only_once():
     module = import_module("calibrations.07_iq_blobs")
-    machine = create_machine(profile_name="single_qubit", qubit="q1")
+    machine = create_machine(profile_name="iqm_chip", qubit="q1")
     q = machine.qubits["q1"]
     gef_before = q.resonator.readout_gef.to_dict()
     angle_before = q.resonator.operations["readout"].integration_weights_angle

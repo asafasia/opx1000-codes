@@ -15,12 +15,15 @@ are configured, they must use the same `lo_frequency_hz`:
 
 This rule is enforced by the device-profile validator.
 
-## Current Connections
+## Physical Connections
 
-The operational values are defined in
-[`profiles/main/connectivity.json`](../../profiles/main/connectivity.json).
+The operational values, including per-qubit LO overrides, are defined in
+[`profiles/iqm_chip/connectivity.json`](../../profiles/iqm_chip/connectivity.json).
 
-| Purpose | Qubits | Controller / FEM | Port | Band | LO |
+The table lists the shared wiring and nominal LOs. When selecting one qubit,
+`iqm_chip` applies its `lo_frequencies_hz` and optional `resonator_band` overrides.
+
+| Purpose | Qubits | Controller / FEM | Port | Band | Nominal LO |
 | --- | --- | --- | --- | --- | --- |
 | Shared XY drive | q1, q2 | con1 / 7 | Output 2 | 1 | 4.2 GHz |
 | Shared XY drive | q3, q4 | con1 / 7 | Output 3 | 1 | 4.2 GHz |
@@ -34,7 +37,7 @@ The operational values are defined in
 | Shared resonator input | q11, q12 | con1 / 7 | Input 2 | 3 | Derived from Output 8 |
 
 Active qubits are selected separately in
-[`profiles/main/profile.json`](../../profiles/main/profile.json). The table
+[`profiles/iqm_chip/profile.json`](../../profiles/iqm_chip/profile.json). The table
 above documents physical connections, including connections for inactive
 qubits.
 

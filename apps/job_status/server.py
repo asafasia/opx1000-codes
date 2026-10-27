@@ -149,7 +149,7 @@ class LiveTemperatureSampler:
 
     def _connect(self) -> None:
         self._prune_old_logs()
-        network = load_profile("main")["connectivity"]["network"]
+        network = load_profile()["connectivity"]["network"]
         monitor = TemperatureMonitor(
             controller_name="con1",
             poll_interval=self.poll_interval,

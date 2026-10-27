@@ -35,7 +35,7 @@ QUBIT = "q3"
 HOLD_TIME_S = 60.0
 ```
 
-Set the requested voltage in `profiles/single_qubit/qubits.json`:
+Set the requested voltage in `profiles/iqm_chip/qubits.json`:
 
 ```json
 "q3": {

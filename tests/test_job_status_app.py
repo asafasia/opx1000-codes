@@ -17,17 +17,17 @@ class JobStatusAppTests(unittest.TestCase):
         )
 
         payload = server.jobs_payload(
-            profile_name="single_qubit",
+            profile_name="iqm_chip",
             qubit="q3",
             all_jobs=True,
         )
 
         query_mock.assert_called_once_with(
-            profile_name="single_qubit",
+            profile_name="iqm_chip",
             qubit="q3",
             active_only=False,
         )
-        self.assertEqual(payload["profile"], "single_qubit")
+        self.assertEqual(payload["profile"], "iqm_chip")
         self.assertEqual(payload["qubit"], "q3")
         self.assertFalse(payload["active_only"])
         self.assertTrue(payload["has_active_jobs"])

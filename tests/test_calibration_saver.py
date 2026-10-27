@@ -165,31 +165,31 @@ class CalibrationSaverTests(unittest.TestCase):
     def test_save_defaults_to_active_profile(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            profile = root / "profiles" / "single_qubit"
+            profile = root / "profiles" / "iqm_chip"
             profile.mkdir(parents=True)
             (profile / "profile.json").write_text(
-                '{"name": "single_qubit"}\n',
+                '{"name": "iqm_chip"}\n',
                 encoding="utf-8",
             )
-            set_active_profile(Profile("single_qubit", qubit="q3", root=root / "profiles"))
+            set_active_profile(Profile("iqm_chip", qubit="q3", root=root / "profiles"))
             saver = CalibrationSaver(root / "data" / "calibrations", root / "profiles")
 
             run_directory = saver.save("iq_blobs", [1], [2])
 
             metadata = json.loads((run_directory / "metadata.json").read_text())
-            self.assertEqual(metadata["profile_name"], "single_qubit")
+            self.assertEqual(metadata["profile_name"], "iqm_chip")
             self.assertEqual(
                 (run_directory / "profile" / "profile.json").read_text(encoding="utf-8"),
-                '{"name": "single_qubit"}\n',
+                '{"name": "iqm_chip"}\n',
             )
 
     def test_save_accepts_profile_object(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            profile = root / "profiles" / "single_qubit"
+            profile = root / "profiles" / "iqm_chip"
             profile.mkdir(parents=True)
             (profile / "profile.json").write_text(
-                '{"name": "single_qubit"}\n',
+                '{"name": "iqm_chip"}\n',
                 encoding="utf-8",
             )
             saver = CalibrationSaver(root / "data" / "calibrations", root / "profiles")
@@ -198,11 +198,11 @@ class CalibrationSaverTests(unittest.TestCase):
                 "iq_blobs",
                 [1],
                 [2],
-                profile_name=Profile("single_qubit", qubit="q3", root=root / "profiles"),
+                profile_name=Profile("iqm_chip", qubit="q3", root=root / "profiles"),
             )
 
             metadata = json.loads((run_directory / "metadata.json").read_text())
-            self.assertEqual(metadata["profile_name"], "single_qubit")
+            self.assertEqual(metadata["profile_name"], "iqm_chip")
 
     def test_save_rejects_path_traversal_in_names(self):
         with tempfile.TemporaryDirectory() as directory:

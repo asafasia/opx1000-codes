@@ -31,7 +31,7 @@ def test_constant_weights_follow_length_in_generated_config(shape, operation, tm
     # Old inline weights must neither override the constant weights nor require migration.
     profile["integration_weights"] = [[0.2, 16]]
     _validate_pulse("q6." + operation, profile)
-    machine = create_machine(profile_name="single_qubit", qubit="q6")
+    machine = create_machine(profile_name="iqm_chip", qubit="q6")
     q = machine.qubits["q6"]
     pulse = _create_pulse(operation, profile, q, settings(), "test", tmp_path)
     q.resonator.operations[operation] = pulse

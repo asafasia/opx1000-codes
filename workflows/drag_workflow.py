@@ -39,7 +39,7 @@ class DragWorkflowParameters:
     """Parameters and switches for the DRAG calibration workflow."""
 
     qubit: str = "q9"
-    profile_name: str = "single_qubit"
+    profile_name: str = "iqm_chip"
     profile_documents: dict[str, Any] | None = None
     connect_before_run: bool = True
     close_existing_qms: bool = True

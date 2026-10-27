@@ -2,7 +2,7 @@
 
 Updated: 2026-08-29
 
-This comparison uses the current `single_qubit` profile together with the latest successful T1 fits available for each qubit.
+This comparison uses the current `iqm_chip` profile together with the latest successful T1 fits available for each qubit.
 
 | Parameter | Q1 | Q6 |
 |---|---:|---:|
@@ -48,9 +48,9 @@ The direct difference $f_{01}-f_{12}$ is 237.940 MHz. The 10 kHz difference from
 
 ## Sources
 
-- `profiles/single_qubit/qubits.json`
-- `profiles/single_qubit/pulses.json`
-- `profiles/single_qubit/metrics.json`
+- `profiles/iqm_chip/qubits.json`
+- `profiles/iqm_chip/pulses.json`
+- `profiles/iqm_chip/metrics.json`
 - `data/calibration_updates/2026-08-29/03a_qubit_spectroscopy/14-17-39-261297/proposal.json`
 - `data/calibrations/2026-08-26/05_T1/13-08-38-436517/analysis_result.json`
 - `data/calibrations/2026-08-24/05_T1/23-17-20-472380/analysis_result.json`

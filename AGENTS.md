@@ -30,15 +30,14 @@ C:\Users\owner\miniconda3\envs\opx1000_env\python.exe
 Validate profiles:
 
 ```powershell
-python -m profiles.validate_profile main
-python -m profiles.validate_profile single_qubit --qubit q3
+python -m profiles.validate_profile iqm_chip
+python -m profiles.validate_profile iqm_chip --qubit q3
 ```
 
 Build a machine in memory without writing generated QuAM files:
 
 ```powershell
-python -m quam_config.create_machine_from_profile --profile main --no-save
-python -m quam_config.create_machine_from_profile --profile single_qubit --qubit q3 --no-save
+python -m quam_config.create_machine_from_profile --profile iqm_chip --qubit q3 --no-save
 ```
 
 Run tests:

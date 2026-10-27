@@ -211,6 +211,10 @@ class PiTrain(BaseCalibration[Parameters, Quam]):
             node.parameters.use_state_discrimination,
             node.parameters.operation,
             figure_name="pi_train",
+            num_shots=(
+                node.parameters.num_shots
+                if not node.parameters.use_readout_mitigation else None
+            ),
         )
         plt.show()
         node.results["figures"] = figures
