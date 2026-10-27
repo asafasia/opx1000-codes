@@ -1002,7 +1002,7 @@ def _parameter_lines(ds: xr.Dataset, qubits: List[AnyTransmon]) -> list[str]:
     lines.append(", ".join(part for part in pulse_parts if part))
 
     shape_parts = [
-        f"peak amp={_format_mv(ds.attrs.get('lorentzian_peak_amplitude'))}",
+        f"nominal envelope amp={_format_mv(ds.attrs.get('lorentzian_peak_amplitude'))}",
     ]
     shape_parts.append(_format_value(ds.attrs.get("cutoff"), " cutoff"))
     lines.append(", ".join(part for part in shape_parts if part))
