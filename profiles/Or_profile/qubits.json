@@ -216,7 +216,7 @@
       "transmon": {
         "anharmonicity_hz": -197300000,
         "t1_ns": 12457,
-        "t2_ramsey_ns": null,
+        "t2_ramsey_ns": 86,
         "t2_echo_ns": null,
         "thermalization_time_ns": 300000
       },
