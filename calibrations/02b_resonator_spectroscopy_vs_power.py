@@ -75,9 +75,13 @@ def readout_amplitude_at_power(full_scale_power_dbm, power_dbm, max_amplitude):
 
 def resolve_power_sweep(qubits, parameters):
     """Resolve the common dBm axis using current output settings."""
-    full_scales = {q.name: float(q.resonator.opx_output.full_scale_power_dbm) for q in qubits}
+    full_scales = {
+        q.name: float(q.resonator.opx_output.full_scale_power_dbm) for q in qubits
+    }
     if not full_scales or not all(np.isfinite(value) for value in full_scales.values()):
-        raise ValueError("Readout power sweep requires finite full-scale output settings.")
+        raise ValueError(
+            "Readout power sweep requires finite full-scale output settings."
+        )
     maximum = parameters.max_power_dbm
     if maximum is None:
         if len(set(full_scales.values())) != 1:
@@ -87,7 +91,9 @@ def resolve_power_sweep(qubits, parameters):
             )
         maximum = next(iter(full_scales.values()))
     if parameters.min_power_dbm >= maximum:
-        raise ValueError("min_power_dbm must be below the resolved maximum output power.")
+        raise ValueError(
+            "min_power_dbm must be below the resolved maximum output power."
+        )
     amplitudes = {
         name: readout_amplitude_at_power(value, maximum, parameters.max_amp)
         for name, value in full_scales.items()
@@ -134,7 +140,9 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
         node.namespace["qubits"] = qubits = self.get_qubits()
         num_qubits = len(qubits)
         # Scale the readout pulse for the sweep while preserving the configured gain.
-        max_power_dbm, full_scales, peak_amplitudes = resolve_power_sweep(qubits, node.parameters)
+        max_power_dbm, full_scales, peak_amplitudes = resolve_power_sweep(
+            qubits, node.parameters
+        )
         node.namespace["max_power_dbm"] = max_power_dbm
         node.namespace["full_scale_power_dbm"] = full_scales
         node.namespace["tracked_resonators"] = []
@@ -142,7 +150,9 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
             with tracked_updates(
                 qubit.resonator, auto_revert=False, dont_assign_to_none=True
             ) as resonator:
-                resonator.operations[node.parameters.readout_operation].amplitude = peak_amplitudes[qubit.name]
+                resonator.operations[node.parameters.readout_operation].amplitude = (
+                    peak_amplitudes[qubit.name]
+                )
                 node.namespace["tracked_resonators"].append(resonator)
 
         # Extract the sweep parameters and axes from the node parameters
@@ -327,10 +337,12 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
                     continue
 
                 # Update the readout power
-                q.resonator.operations[node.parameters.readout_operation].amplitude = readout_amplitude_at_power(
-                    q.resonator.opx_output.full_scale_power_dbm,
-                    node.results["fit_results"][q.name]["optimal_power"],
-                    node.parameters.max_amp,
+                q.resonator.operations[node.parameters.readout_operation].amplitude = (
+                    readout_amplitude_at_power(
+                        q.resonator.opx_output.full_scale_power_dbm,
+                        node.results["fit_results"][q.name]["optimal_power"],
+                        node.parameters.max_amp,
+                    )
                 )
                 shift = node.results["fit_results"][q.name]["frequency_shift"]
                 if len(node.parameters.readout_states) == 3:
@@ -347,12 +359,14 @@ class ResonatorSpectroscopyVsPower(BaseCalibration[Parameters, Quam]):
 if __name__ == "__main__":
     parameters = Parameters()
     parameters.acquisition = "averaged"  # or "single_shot" to retain every measurement
+    parameters.frequency_span_in_mhz = 100
+    parameters.frequency_step_in_mhz = 1
 
     options = CalibrationOptions()
 
     calibration = ResonatorSpectroscopyVsPower(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1a"),
+        machine=create_machine(qubit="q3a"),
     )
     calibration.run()

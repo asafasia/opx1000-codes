@@ -11,6 +11,14 @@ Clean command wrappers live in `scripts/`. The PC-only QuTiP simulator lives in
 
 ## Figures from the 2D echo sweep
 
+The current standalone 2D entrypoint explicitly uses a 64 ns echo transition
+and amplitude factors up to 0.33. These local choices override the shared echo
+defaults. Each plotted run also saves `echo_lorentzian_pulse_<qubit>`: the
+largest swept baseband pulse on linear and logarithmic y axes, with full-pulse
+and midpoint-detail views. Linear panels show signed I, Q and |I+iQ|; log
+panels show magnitudes and mask exact zeros. Both use Rabi-equivalent MHz and
+the physical playback duration. The shaded interval marks the echo transition.
+
 With analysis and plotting enabled, `scripts/run_2d_sweep.py` now adds five
 figures per qubit to the viridis 2D map: resonance detuning, FWHM, fitted dip
 contrast versus calibrated Rabi frequency, up to eight constant-Rabi detuning

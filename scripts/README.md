@@ -22,6 +22,9 @@ checked before acquisition starts. Profile files are never updated.
 Customize the sweep with `--start-hz`, `--stop-hz`, `--points`, and `--if-hz`.
 Readout scanning defaults to 200 shots, 30 MHz span, and 0.3 MHz steps; use
 `--num-shots`, `--readout-span-mhz`, and `--readout-step-mhz` to override these.
+Use `--readout-amplitude-factor 0.9` to multiply the selected readout pulse's
+amplitude in memory. This leaves the drive pulse and profile files unchanged;
+each run's manifest records the original amplitude, factor, and effective amplitude.
 Only profiles with `build_mode: single_qubit` are supported.
 
 This uses the current calibration's thermal reset and continuous saturation

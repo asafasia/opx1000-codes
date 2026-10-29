@@ -629,6 +629,28 @@ def add_state_populations(ds: xr.Dataset) -> xr.Dataset:
     return ds.assign(additions)
 
 
+def pulse_iq_samples(parameters, namespace: dict, qubit) -> tuple[np.ndarray, np.ndarray]:
+    """Return installed baseband samples, or reconstruct from run parameters."""
+    waveform_i = namespace.get("lorentzian_waveform")
+    if waveform_i is None:
+        waveform_i = build_waveform(parameters)
+    samples_i = np.asarray(waveform_i, dtype=float)
+    samples_q = namespace.get("lorentzian_drag_waveforms_q", {}).get(getattr(qubit, "name", ""))
+    if samples_q is None:
+        beta = float(getattr(parameters, "drag_beta", 0.0))
+        samples_q = np.zeros_like(samples_i) if beta == 0 else drag_quadrature_waveform(
+            samples_i, drag_beta=beta,
+            anharmonicity_mhz=abs(float(qubit.anharmonicity)) / 1e6,
+            pulse_length_ns=int(parameters.lorentzian_length_in_ns),
+        )
+    samples_q = np.asarray(samples_q, dtype=float)
+    if samples_i.ndim != 1 or samples_i.size == 0 or samples_q.shape != samples_i.shape:
+        raise ValueError("Pulse I and Q must be nonempty, matching one-dimensional samples.")
+    if not (np.isfinite(samples_i).all() and np.isfinite(samples_q).all()):
+        raise ValueError("Pulse samples must be finite.")
+    return samples_i, samples_q
+
+
 def add_peak_complex_amplitude(ds: xr.Dataset, node: QualibrationNode) -> xr.Dataset:
     """Attach max_t |a * (I(t) + iQ(t))| for each qubit and sweep factor.
 
@@ -638,26 +660,14 @@ def add_peak_complex_amplitude(ds: xr.Dataset, node: QualibrationNode) -> xr.Dat
     """
     if "peak_complex_amplitude_v" in ds.coords:
         return ds
-    waveform_i = node.namespace.get("lorentzian_waveform")
-    if waveform_i is None:
-        waveform_i = build_waveform(node.parameters)
-    samples_i = np.asarray(waveform_i, dtype=float)
-    installed_q = node.namespace.get("lorentzian_drag_waveforms_q", {})
     by_name = {
         getattr(qubit, "name", str(name)): qubit
         for name, qubit in zip(ds.qubit.values, node.namespace["qubits"])
     }
     peaks = []
-    beta = float(getattr(node.parameters, "drag_beta", 0.0))
     for name in ds.qubit.values:
         qubit = by_name[str(name)]
-        samples_q = installed_q.get(str(name))
-        if samples_q is None:
-            samples_q = np.zeros_like(samples_i) if beta == 0 else drag_quadrature_waveform(
-                samples_i, drag_beta=beta,
-                anharmonicity_mhz=abs(float(qubit.anharmonicity)) / 1e6,
-                pulse_length_ns=int(node.parameters.lorentzian_length_in_ns),
-            )
+        samples_i, samples_q = pulse_iq_samples(node.parameters, node.namespace, qubit)
         peak = complex_waveform_headroom(samples_i, samples_q)["max_abs_complex_waveform_v"]
         peaks.append(peak * np.abs(ds.amp_prefactor.values))
     ds = ds.assign_coords(peak_complex_amplitude_v=(("qubit", "amp_prefactor"), peaks))

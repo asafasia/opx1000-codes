@@ -307,11 +307,11 @@ copies those metrics into QuAM's `T1`, `T2ramsey`, and `T2echo` fields. The
 similarly named values under `qubits.json.transmon` are read only as a legacy
 fallback for profiles without a metrics document.
 
-Passing only a qubit name selects it from the default `iqm_chip`
+Passing only a qubit name selects it from the default `Or_profile`
 (or the `QUAM_PROFILE` environment override):
 
 ```python
-cm = CreateMachine(qubit="q3")
+cm = CreateMachine(qubit="q3b")
 ```
 
 This builds a machine containing only the selected qubit, its resonator, its

@@ -32,6 +32,7 @@ from shaped_pulse_spectroscopy.lorentzian import (
 )
 from shaped_pulse_spectroscopy.parameters import Parameters
 from shaped_pulse_spectroscopy.echo_parameters import fast_echo_parameters
+from shaped_pulse_spectroscopy.pulse_plotting import plot_pulse_waveforms
 from shaped_pulse_spectroscopy.sweep_diagnostics import (
     add_sweep_diagnostics,
     plot_sweep_diagnostics,
@@ -385,6 +386,9 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
                     )
         if self.parameters.plot_sweep_diagnostics:
             figures.update(plot_sweep_diagnostics(self.results["ds_raw"]))
+        figures.update(plot_pulse_waveforms(
+            self.parameters, self.namespace, self.results["ds_raw"].amp_prefactor.values
+        ))
         self.results["figures"] = figures
         plt.show()
 
@@ -398,6 +402,7 @@ if __name__ == "__main__":
     parameters.simulate = False
     parameters.pulse_shape = "root_lorentzian"
     parameters.echo = True
+    parameters.echo_transition_time_ns = 64.0
     parameters.ac_stark_correction = False
     parameters.stark_kappa_mhz_inv = 0.000
     parameters.stark_chirp_max_error_hz = 10
@@ -410,7 +415,7 @@ if __name__ == "__main__":
     parameters.waveform_template_length_in_ns = 20000
     parameters.lorentzian_peak_amplitude = 1.0
     parameters.min_amp_factor = 0.0
-    parameters.max_amp_factor = 0.3
+    parameters.max_amp_factor = 0.33
     parameters.amp_factor_step = None
     parameters.amp_factor_points = 100
     parameters.amp_factor_spacing = "linear"

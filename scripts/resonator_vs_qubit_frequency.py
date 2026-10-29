@@ -284,7 +284,8 @@ def run_resonator(documents, parameters, directory):
 
 
 def main(*, qubit, profile_name=DEFAULT_PROFILE_NAME, parameters=None, sweep=None,
-         dry_run=False, output_dir=Path("data"), show_plot=True):
+         dry_run=False, output_dir=Path("data"), show_plot=True,
+         readout_amplitude_factor=1.0, profile_documents=None):
     sweep = SweepSettings() if sweep is None else sweep
     frequencies = sweep.frequencies()
     parameters = Parameters() if parameters is None else parameters
@@ -300,10 +301,22 @@ def main(*, qubit, profile_name=DEFAULT_PROFILE_NAME, parameters=None, sweep=Non
             or parameters.frequency_step_in_mhz <= 0
             or parameters.frequency_span_in_mhz <= parameters.frequency_step_in_mhz):
         raise ValueError("Use at least two shots and a positive readout step smaller than the span")
-    documents = Profile(profile_name, qubit=qubit).load()
+    if not np.isfinite(readout_amplitude_factor) or readout_amplitude_factor <= 0:
+        raise ValueError("readout_amplitude_factor must be finite and positive")
+    documents = (Profile(profile_name, qubit=qubit).load()
+                 if profile_documents is None else deepcopy(profile_documents))
+    validate_profile(documents)
+    if documents["manifest"]["name"] != profile_name:
+        raise ValueError("Snapshot profile name does not match profile_name")
     if documents["manifest"].get("build_mode") != "single_qubit":
         raise ValueError("Select a single_qubit build-mode profile for independent LO retuning")
     documents = _select_qubit(documents, qubit)
+    pulse_name = (documents["manifest"].get("readout_pulse")
+                  or documents["qubits"]["qubits"][qubit]["operations"]["readout"])
+    pulse = documents["pulses"]["pulses"][qubit][pulse_name]
+    original_readout_amplitude = pulse["amplitude"]
+    pulse["amplitude"] *= readout_amplitude_factor
+    validate_profile(documents)
     points = [point_settings(documents, qubit, frequency, sweep) for frequency in frequencies]
     print(f"{qubit}: {len(points)} RF points, {frequencies[0]/1e9:g} to "
           f"{frequencies[-1]/1e9:g} GHz; IF +{sweep.intermediate_frequency_hz/1e6:g} MHz")
@@ -327,6 +340,10 @@ def main(*, qubit, profile_name=DEFAULT_PROFILE_NAME, parameters=None, sweep=Non
     manifest = {
         "status": "running", "sweep": asdict(sweep), "profile": profile_name,
         "qubit": qubit, "qubit_frequency_hz": frequencies.tolist(),
+        "readout_pulse": pulse_name,
+        "readout_amplitude_factor": readout_amplitude_factor,
+        "original_readout_amplitude": original_readout_amplitude,
+        "readout_amplitude": pulse["amplitude"],
         "drive_lo_frequency_hz": (frequencies - sweep.intermediate_frequency_hz).tolist(),
         "state_preparation": "Thermal recovery / continuous saturation during readout; not pure |0> and |1>.",
         "separation_formula": "abs(mean(S_saturated)-mean(S_g))/sqrt((var(S_g)+var(S_saturated))/2)",
@@ -370,6 +387,7 @@ if __name__ == "__main__":
     parser.add_argument("--points", type=int, default=100)
     parser.add_argument("--if-hz", type=int, default=100_000_000)
     parser.add_argument("--num-shots", type=int, default=200)
+    parser.add_argument("--readout-amplitude-factor", type=float, default=1.0)
     parser.add_argument("--readout-span-mhz", type=float, default=30.0)
     parser.add_argument("--readout-step-mhz", type=float, default=0.3)
     parser.add_argument("--output-dir", type=Path, default=Path("data"))
@@ -377,6 +395,7 @@ if __name__ == "__main__":
     parser.add_argument("--no-show", action="store_true", help="Save plots without opening a window")
     args = parser.parse_args()
     main(qubit=args.qubit, profile_name=args.profile, dry_run=args.dry_run,
+         readout_amplitude_factor=args.readout_amplitude_factor,
          output_dir=args.output_dir, show_plot=not args.no_show,
          sweep=SweepSettings(args.start_hz, args.stop_hz, args.points, args.if_hz),
          parameters=Parameters(num_shots=args.num_shots,

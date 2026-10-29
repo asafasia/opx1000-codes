@@ -90,9 +90,10 @@ def test_experiment_registers_savable_analysis_and_figures(monkeypatch, tmp_path
         assert kwargs["cmap"] == "viridis"
         return plt.figure()
     monkeypatch.setattr(experiment, "plot_raw_data", map_plotter)
+    monkeypatch.setattr(experiment, "plot_pulse_waveforms", lambda *args: {"echo_lorentzian_pulse_q1": plt.figure()})
     monkeypatch.setattr(plt, "show", lambda: None)
     experiment.EchoLorentzian.plot_data(node)
-    assert len(node.results["figures"]) == 6
+    assert len(node.results["figures"]) == 7
     for fig in node.results["figures"].values():
         plt.close(fig)
 
@@ -158,3 +159,25 @@ def test_rabi_axis_refuses_nominal_only_data():
     ds, qubit, *_ = example()
     with pytest.raises(ValueError, match="Actual pulse peak is missing"):
         lorentzian.peak_rabi_frequency_mhz(ds.drop_vars("peak_complex_amplitude_v"), qubit)
+
+
+def test_pulse_plots_preserve_signed_iq_and_mask_log_zeros():
+    from shaped_pulse_spectroscopy.pulse_plotting import plot_pulse_waveforms
+    _, qubit, *_ = example()
+    parameters = SimpleNamespace(lorentzian_length_in_ns=20000, echo=True,
+                                 echo_transition_time_ns=64, drag_beta=1.5)
+    namespace = {"qubits": [qubit], "lorentzian_waveform": [0, .1, -.2],
+                 "lorentzian_drag_waveforms_q": {"q1": [0, .05, .1]}}
+    figures = plot_pulse_waveforms(parameters, namespace, [0, .33])
+    fig = figures["echo_lorentzian_pulse_q1"]
+    try:
+        scale = .33 / .1 / (2 * 19.5e-9) / 1e6
+        np.testing.assert_allclose(fig.axes[0].lines[0].get_ydata(), [0, .1*scale, -.2*scale])
+        np.testing.assert_allclose(fig.axes[0].lines[2].get_ydata(), np.hypot([0,.1,-.2],[0,.05,.1])*scale)
+        np.testing.assert_allclose(fig.axes[0].lines[0].get_xdata(), (np.arange(3)+.5)*20/3)
+        assert fig.axes[2].get_yscale() == "log"
+        assert np.ma.getmaskarray(fig.axes[2].lines[0].get_ydata())[0]
+        assert fig.axes[1].get_xlim() == (-256, 256)
+        assert fig.axes[3].get_yscale() == "log"
+    finally:
+        plt.close(fig)

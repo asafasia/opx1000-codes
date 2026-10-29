@@ -7,7 +7,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
-DEFAULT_PROFILE_NAME = "iqm_chip"
+DEFAULT_PROFILE_NAME = "Or_profile"
 PROFILES_ROOT = Path(__file__).resolve().parent
 SUPPORTED_SCHEMA_VERSION = 1
 PULSE_TYPES = {"constant", "drag", "cosine", "saturation", "flat_top_gaussian"}

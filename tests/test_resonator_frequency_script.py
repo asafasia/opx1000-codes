@@ -41,6 +41,46 @@ def test_invalid_last_point_fails_before_build_or_acquisition(monkeypatch):
         sweep_script.main(qubit="q3b", sweep=sweep_script.SweepSettings(stop_hz=6_000_000_000))
 
 
+@pytest.mark.parametrize("factor", [0.9, 0.8, 0.7, 0.6, 0.5])
+def test_readout_scaling_uses_snapshot_without_changing_drive(monkeypatch, tmp_path, factor):
+    documents = Profile("Or_profile", qubit="q1a").load()
+    original = deepcopy(documents)
+    pulses = original["pulses"]["pulses"]["q1a"]
+    seen = []
+
+    def fake_scan(point, parameters, directory):
+        calibration = sweep_script.build_calibration(point, parameters)
+        qubit = calibration.machine.qubits["q1a"]
+        assert qubit.resonator.operations["readout"].amplitude == pytest.approx(
+            pulses["readout"]["amplitude"] * factor)
+        assert qubit.xy.operations["saturation"].amplitude == pulses["saturation"]["amplitude"]
+        seen.append(directory)
+        directory.mkdir(parents=True)
+        return directory
+
+    monkeypatch.setattr(sweep_script, "run_resonator", fake_scan)
+    monkeypatch.setattr(sweep_script, "summarize", lambda *args, **kwargs: None)
+    output = sweep_script.main(
+        qubit="q1a", profile_name="Or_profile", profile_documents=documents,
+        readout_amplitude_factor=factor, sweep=sweep_script.SweepSettings(points=2),
+        output_dir=tmp_path, show_plot=False)
+    assert documents == original
+    assert len(seen) == 2
+    manifest = json.loads((output / "manifest.json").read_text())
+    assert manifest["readout_amplitude_factor"] == factor
+    assert manifest["readout_amplitude"] == pytest.approx(pulses["readout"]["amplitude"] * factor)
+
+
+@pytest.mark.parametrize("factor", [0, -1, float("nan"), float("inf"), 100])
+def test_invalid_readout_scaling_never_acquires(monkeypatch, factor):
+    def unexpected(*args, **kwargs):
+        pytest.fail("Invalid amplitude reached hardware acquisition")
+    monkeypatch.setattr(sweep_script, "run_resonator", unexpected)
+    with pytest.raises(ValueError):
+        sweep_script.main(qubit="q1a", profile_name="Or_profile",
+                          readout_amplitude_factor=factor)
+
+
 def test_dry_run_never_connects_or_creates_output(monkeypatch, tmp_path):
     from quam_config import Quam
     def unexpected(*args, **kwargs):
