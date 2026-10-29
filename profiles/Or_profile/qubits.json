@@ -153,29 +153,48 @@
         0
       ],
       "frequencies_hz": {
-        "qubit_f01": 3650000000,
+        "qubit_f01": 3432199000,
         "qubit_f12": 3410000000,
-        "resonator": 6168800000,
+        "resonator": 6169300000,
         "resonator_bare": null
       },
       "transmon": {
         "anharmonicity_hz": -240000000,
-        "t1_ns": null,
-        "t2_ramsey_ns": null,
-        "t2_echo_ns": null,
-        "thermalization_time_ns": 300000
+        "t1_ns": 14440,
+        "t2_ramsey_ns": 20960,
+        "t2_echo_ns": 15810,
+        "thermalization_time_ns": 150000
       },
       "readout": {
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0,
-        "rus_exit_threshold": 0,
+        "threshold": 0.0001684252313377776,
+        "rus_exit_threshold": 0.0001684252313377776,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 0,
+        "integration_weights_angle_rad": 2.726317290432636,
         "use_kernel": false,
-        "gef_centers": null,
-        "confusion_matrix": null
+        "gef_centers": [
+          [
+            0.00013896995400859778,
+            2.3044188307061077e-05
+          ],
+          [
+            0.00021763581600381276,
+            2.3044188307061088e-05
+          ]
+        ],
+        "confusion_matrix": [
+          [
+            0.6925,
+            0.3075
+          ],
+          [
+            0.3085,
+            0.6915
+          ]
+        ],
+        "calibration_signature": "e7c1f25553cd5e75caff5f7734b292ce16c6b38472482236e16932d066f5c7b9"
       },
       "operations": {
         "x180": "x180_const",
@@ -189,14 +208,14 @@
         0
       ],
       "frequencies_hz": {
-        "qubit_f01": 3680500000.0,
-        "qubit_f12": 3440500000.0,
-        "resonator": 6258800000.0,
-        "resonator_bare": null
+        "qubit_f01": 3504400000.0,
+        "qubit_f12": 3307100000.0,
+        "resonator": 6271800000.0,
+        "resonator_bare": 6270150000.0
       },
       "transmon": {
-        "anharmonicity_hz": -240000000,
-        "t1_ns": null,
+        "anharmonicity_hz": -197300000,
+        "t1_ns": 12457,
         "t2_ramsey_ns": null,
         "t2_echo_ns": null,
         "thermalization_time_ns": 300000
