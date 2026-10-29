@@ -128,7 +128,7 @@
         "port": 2
       },
       "lo_frequencies_hz": {
-        "xy_output": 3500000000,
+        "xy_output": 3550000000,
         "resonator_output": 6300000000
       }
     },
@@ -149,7 +149,7 @@
         "port": 2
       },
       "lo_frequencies_hz": {
-        "xy_output": 3457984783,
+        "xy_output": 3650000000,
         "resonator_output": 6300000000
       }
     },
