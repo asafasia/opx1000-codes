@@ -406,10 +406,10 @@ if __name__ == "__main__":
     parameters.use_readout_mitigation = False
 
     parameters.num_shots = 1500
-    parameters.operation_amplitude_factor = 0.02
-    parameters.operation_len_in_ns = 100
-    parameters.frequency_span_in_mhz = 200
-    parameters.frequency_step_in_mhz = 1
+    parameters.operation_amplitude_factor = 0.08
+    parameters.operation_len_in_ns = 10000
+    parameters.frequency_span_in_mhz = 100
+    parameters.frequency_step_in_mhz = 0.2
     parameters.reset_type = "thermal"  # "active" or "thermal"
     parameters.transition = "ef"
 

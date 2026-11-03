@@ -7,29 +7,48 @@
         0
       ],
       "frequencies_hz": {
-        "qubit_f01": 3650000000,
+        "qubit_f01": 3969669625,
         "qubit_f12": 3410000000,
-        "resonator": 6160800000,
+        "resonator": 6160535869.0,
         "resonator_bare": null
       },
       "transmon": {
         "anharmonicity_hz": -240000000,
-        "t1_ns": null,
-        "t2_ramsey_ns": null,
-        "t2_echo_ns": null,
+        "t1_ns": 34818,
+        "t2_ramsey_ns": 34393,
+        "t2_echo_ns": 17906,
         "thermalization_time_ns": 300000
       },
       "readout": {
         "time_of_flight_ns": 320,
         "smearing_ns": 0,
         "depletion_time_ns": 2500,
-        "threshold": 0,
-        "rus_exit_threshold": 0,
+        "threshold": 0.0001367087771308693,
+        "rus_exit_threshold": 0.0001367087771308693,
         "state_1_when": "above_threshold",
-        "integration_weights_angle_rad": 0,
+        "integration_weights_angle_rad": -5.0268921770127175,
         "use_kernel": false,
-        "gef_centers": null,
-        "confusion_matrix": null
+        "gef_centers": [
+          [
+            1.6642889327488984e-06,
+            -6.747612602272427e-05
+          ],
+          [
+            0.00023130574344896944,
+            -6.747612602272424e-05
+          ]
+        ],
+        "confusion_matrix": [
+          [
+            0.8257,
+            0.1743
+          ],
+          [
+            0.2101,
+            0.7899
+          ]
+        ],
+        "calibration_signature": "2697b5058b1ac5e824452ee585788ee98520b15aae5d4a6d3aef064e46d9ead1"
       },
       "operations": {
         "x180": "x180_const",
@@ -50,7 +69,7 @@
       },
       "transmon": {
         "anharmonicity_hz": -240000000,
-        "t1_ns": null,
+        "t1_ns": 30111,
         "t2_ramsey_ns": null,
         "t2_echo_ns": null,
         "thermalization_time_ns": 300000
@@ -105,7 +124,7 @@
       },
       "transmon": {
         "anharmonicity_hz": -240000000,
-        "t1_ns": null,
+        "t1_ns": 236620305,
         "t2_ramsey_ns": null,
         "t2_echo_ns": null,
         "thermalization_time_ns": 300000

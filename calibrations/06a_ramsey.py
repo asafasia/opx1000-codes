@@ -358,7 +358,7 @@ if __name__ == "__main__":
     parameters.use_state_discrimination = True
     parameters.use_readout_mitigation = 0
 
-    parameters.reset_type = "active"  # "active" or "thermal"
+    parameters.reset_type = "thermal"  # "active" or "thermal"
     parameters.max_wait_time_in_ns = 30e3
     parameters.wait_time_num_points = 250
     parameters.frequency_detuning_in_mhz = 1

@@ -13,7 +13,7 @@
       "readout": {
         "fidelity_percent": {
           "active": null,
-          "thermal": null
+          "thermal": 80.955
         }
       }
     },

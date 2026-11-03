@@ -236,8 +236,8 @@ if __name__ == "__main__":
 
     parameters.use_state_discrimination = True
     parameters.reset_type = "thermal"  # "active" or "thermal"
-    parameters.max_wait_time_in_ns = 50e3
-    parameters.wait_time_num_points = 150
+    parameters.max_wait_time_in_ns = 100e3
+    parameters.wait_time_num_points = 500
     parameters.log_or_linear_sweep = "log"
     parameters.num_shots = 5000
 

@@ -400,8 +400,8 @@ if __name__ == "__main__":
         "saturation"  # or "saturation" to apply a continuous drive during readout
     )
     parameters.num_shots = 200
-    parameters.frequency_span_in_mhz = 100
-    parameters.frequency_step_in_mhz = 1
+    parameters.frequency_span_in_mhz = 20
+    parameters.frequency_step_in_mhz = 0.1
     parameters.states = ["g", "e"]
     options = CalibrationOptions()
     # options.ai_review = True
@@ -409,7 +409,7 @@ if __name__ == "__main__":
     calibration = ResonatorSpectroscopy(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q3a"),
+        machine=create_machine(qubit="q1b"),
     )
     calibration.run()
 
