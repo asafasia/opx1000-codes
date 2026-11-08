@@ -25,7 +25,10 @@ python Projects/shaped_pulse_spectroscopy/scripts/run_cutoff_dip_scan.py --qubit
 ```
 
 For a single amplitude slice, add `--amplitude-min 0.5 --amplitude-max 0.5
---amplitude-points 1`. Adjust the logarithmic cutoff grid with `--cutoff-min`,
+--amplitude-points 1`.
+An amplitude minimum of zero includes a no-drive reference; its linewidth
+is always rejected as `zero_drive_reference` even if noise resembles a dip.
+Adjust the logarithmic cutoff grid with `--cutoff-min`,
 `--cutoff-max`, and `--cutoff-points`. Repeat with other pulse lengths for
 duration comparisons. `--t2-reference-us` optionally adds FWHM normalized by
 `1/(pi*T2)`; without it widths are reported in Hz and plotted in kHz.

@@ -76,6 +76,22 @@ def test_pulse_and_safe_defaults():
         assert not opts.propose_profile_update and not opts.plot_data
 
 
+def test_paper_zero_drive_reference_is_not_accepted_as_a_dip():
+    settings = scan.ScanSettings(amplitude_min=0, amplitude_max=1, amplitude_points=100)
+    np.testing.assert_allclose(scan.amplitude_prefactors(scan.parameters_for_cutoff(settings, .001)),
+                               np.linspace(0, 1, 100))
+    # Even a spurious dip from drift/noise cannot produce a zero-drive linewidth.
+    x, y = gaussian()
+    data = xr.Dataset({"state": (("qubit", "amp_prefactor", "detuning"),
+                                 np.tile(y, (1, 100, 1)))},
+                      coords={"qubit": [settings.qubit], "detuning": x,
+                              "amp_prefactor": settings.amplitudes})
+    rows = scan.analyze_dataset(data, settings, dict(cutoff=.001,
+        nominal_rabi_mhz_per_factor=100., peak_rabi_mhz_per_factor=90., peak_complex_amplitude_v=.4))
+    assert rows[0]["status"] == "zero_drive_reference" and not rows[0]["accepted"]
+    assert np.isnan(rows[0]["fwhm_hz"]) and rows[1]["accepted"]
+
+
 def test_dataset_metrics_and_summary(tmp_path):
     settings = scan.ScanSettings(cutoff_points=2, amplitude_points=2, t2_reference_us=10)
     x, y = gaussian()

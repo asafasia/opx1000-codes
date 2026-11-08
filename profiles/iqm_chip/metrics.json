@@ -12,8 +12,8 @@
       },
       "readout": {
         "fidelity_percent": {
-          "active": 94.94,
-          "thermal": 89.73
+          "active": 93.95,
+          "thermal": 89.78
         }
       }
     },
@@ -84,7 +84,7 @@
     "q6": {
       "coherence": {
         "t1_ns": 10716.16358236422,
-        "t2_ramsey_ns": 15222.540206634287,
+        "t2_ramsey_ns": 2.40113344051613e-05,
         "t2_echo_ns": 17597.566466093125
       },
       "gates": {
@@ -92,8 +92,8 @@
       },
       "readout": {
         "fidelity_percent": {
-          "active": 87.71,
-          "thermal": 81.205
+          "active": 92.255,
+          "thermal": 87.25
         }
       }
     },

@@ -70,8 +70,8 @@ class ScanSettings:
             raise ValueError("Specify a qubit and pulse length >=16 ns divisible by 4.")
         if not 0 < self.cutoff_min < self.cutoff_max <= 1 or self.cutoff_points < 2:
             raise ValueError("Require 0 < cutoff_min < cutoff_max <= 1 and at least two cutoffs.")
-        if not 0 < self.amplitude_min <= self.amplitude_max < 2 or self.amplitude_points < 1:
-            raise ValueError("Require positive amplitude factors below 2 and at least one amplitude.")
+        if not 0 <= self.amplitude_min <= self.amplitude_max < 2 or self.amplitude_points < 1:
+            raise ValueError("Require nonnegative amplitude factors below 2 and at least one amplitude.")
         if (self.amplitude_points == 1) != (self.amplitude_min == self.amplitude_max):
             raise ValueError("For one amplitude use equal min/max; for multiple amplitudes use min < max.")
         if not 0 < self.peak_amplitude_v <= 1 or not 0 < self.transition_ns <= self.pulse_length_ns:
@@ -170,6 +170,8 @@ def analyze_dataset(dataset, settings, check):
         metrics = measure_dip(data.detuning, data.state.isel(amp_prefactor=index),
                               min_contrast=settings.min_contrast,
                               min_intervals=settings.min_width_intervals)
+        if amplitude == 0:
+            metrics.update(accepted=False, status="zero_drive_reference", fwhm_hz=np.nan)
         records.append(dict(cutoff=check["cutoff"], pulse_length_ns=settings.pulse_length_ns,
                             amp_prefactor=float(amplitude),
                             nominal_rabi_mhz=amplitude*check["nominal_rabi_mhz_per_factor"],

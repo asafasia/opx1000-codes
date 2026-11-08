@@ -359,15 +359,15 @@ if __name__ == "__main__":
     parameters.use_readout_mitigation = 0
 
     parameters.reset_type = "active"  # "active" or "thermal"
-    parameters.max_wait_time_in_ns = 30e3
+    parameters.max_wait_time_in_ns = 160e3
     parameters.wait_time_num_points = 250
-    parameters.frequency_detuning_in_mhz = 1
+    parameters.frequency_detuning_in_mhz = 0.3
 
     options = CalibrationOptions()
 
     calibration = Ramsey(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q1"),
+        machine=create_machine(qubit="q6"),
     )
     calibration.run()
