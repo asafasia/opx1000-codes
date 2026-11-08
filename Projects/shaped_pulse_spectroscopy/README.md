@@ -9,6 +9,59 @@ Reusable waveform, analysis, and plotting helpers live in
 Clean command wrappers live in `scripts/`. The PC-only QuTiP simulator lives in
 `simulation/qutip/`.
 
+## Fixed-length cutoff scan: dip linewidth and contrast
+
+`scripts/run_cutoff_dip_scan.py` acquires detuning/amplitude maps at logarithmic
+cutoffs for one chosen pulse length, following the quantities in Figure 4 of
+the neighboring `amplitude-robust-spectrscopy` paper. Defaults are 30 us, 31
+cutoffs from 0.001 to 1, 13 amplitude factors from 0.2 to 1, 201 detunings
+over +/-500 kHz, and 1,000 shots per point. The selected profile defaults to
+`iqm_chip`; the qubit and nominal amplitude/beta/transition use the current
+shared echo defaults. All grids include their endpoints.
+
+```powershell
+python Projects/shaped_pulse_spectroscopy/scripts/run_cutoff_dip_scan.py --qubit q1 --pulse-length-ns 30000 --dry-run
+python Projects/shaped_pulse_spectroscopy/scripts/run_cutoff_dip_scan.py --qubit q1 --pulse-length-ns 30000 --execute
+```
+
+For a single amplitude slice, add `--amplitude-min 0.5 --amplitude-max 0.5
+--amplitude-points 1`. Adjust the logarithmic cutoff grid with `--cutoff-min`,
+`--cutoff-max`, and `--cutoff-points`. Repeat with other pulse lengths for
+duration comparisons. `--t2-reference-us` optionally adds FWHM normalized by
+`1/(pi*T2)`; without it widths are reported in Hz and plotted in kHz.
+
+The pulse is a cutoff-subtracted root-Lorentzian with a power-5 polynomial
+edge window, midpoint echo, and DRAG, without a Stark chirp. Its template is
+the full physical length. The paper uses a 16 ns transition; use
+`--transition-ns 16` to select that value explicitly. The lab's beta follows
+the repository's positive-derivative convention. This is a measurement
+script, not a reproduction of the paper's three-level simulation: it uses
+unmitigated two-state readout, which does not separately resolve Pe and Pf.
+The paper's nominal drive scale and actual sampled complex peak are saved
+separately; the maps use nominal Rabi MHz derived from the calibrated x180
+sampled area. No smoothed-peak or pulse-area renormalization is performed.
+
+Analysis fits a linear background over 0.4 <= |detuning| <= 0.5 MHz and finds
+the deepest background-relative dip within +/-0.25 MHz. Contrast is the
+background minus the sampled dip minimum in probability units, not SNR.
+FWHM uses the nearest interpolated half-depth crossings. Nonpositive
+shoulder contrast, missing crossings, boundary centers, and widths spanning
+fewer than six detuning intervals are rejected. Rejected widths are blank
+in the map; their candidate widths, contrast, and reasons remain in the CSV.
+Prominent additional minima are counted rather than automatically rejected.
+These raw-data metrics have no smoothing or noise correction; inspect the
+saved spectra and increase averaging when shot noise creates local minima.
+
+Omitting `--execute` checks every cutoff's full I/Q peak and generates QUA
+and configuration offline, without saving experiment output. Cores below
+2 ns are rejected because the full templates sample at 1 ns; thus the
+paper's simulated cutoff of 1e-5 is not a suitable default hardware setting.
+Acquisition writes raw calibration folders, per-cutoff spectra (`*_scan.npz`),
+`settings.json`, `metrics.csv`, `summary.json`, and `cutoff_fwhm_contrast.png`
+under `data/cutoff_dip_scan/<timestamp>/`. Summaries are checkpointed after
+each cutoff and marked incomplete after interruption. No device profile
+or shared pulse settings are updated.
+
 ## Figures from the 2D echo sweep
 
 The current standalone 2D entrypoint explicitly uses a 64 ns echo transition

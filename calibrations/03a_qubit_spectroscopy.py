@@ -402,21 +402,21 @@ if __name__ == "__main__":
     parameters.acquisition = "averaged"
     parameters.readout_states = ["g", "e"]  # GE readout; add "f" for readout_GEF.
 
-    parameters.use_state_discrimination = False  # True or False
+    parameters.use_state_discrimination = True  # True or False
     parameters.use_readout_mitigation = False
 
     parameters.num_shots = 1500
-    parameters.operation_amplitude_factor = 0.02
-    parameters.operation_len_in_ns = 100
-    parameters.frequency_span_in_mhz = 200
-    parameters.frequency_step_in_mhz = 1
-    parameters.reset_type = "thermal"  # "active" or "thermal"
-    parameters.transition = "ef"
+    parameters.operation_amplitude_factor = 0.0002
+    parameters.operation_len_in_ns = 10000
+    parameters.frequency_span_in_mhz = 2
+    parameters.frequency_step_in_mhz = 0.01
+    parameters.reset_type = "active"  # "active" or "thermal"
+    parameters.transition = "ge"
 
     options = CalibrationOptions()
     # options.ai_review = True
 
-    machine = create_machine(qubit="q2b")
+    machine = create_machine(qubit="q1")
 
     calibration = QubitSpectroscopy(
         parameters=parameters,

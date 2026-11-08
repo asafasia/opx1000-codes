@@ -310,6 +310,6 @@ if __name__ == "__main__":
     calibration = T1(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q2b"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()
