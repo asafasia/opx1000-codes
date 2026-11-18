@@ -4,7 +4,7 @@
     "q1": {
       "coherence": {
         "t1_ns": 39186.30473361066,
-        "t2_ramsey_ns": 7.288356699767607e-06,
+        "t2_ramsey_ns": 7430.4154832085005,
         "t2_echo_ns": 17104.916414048766
       },
       "gates": {
@@ -13,14 +13,14 @@
       "readout": {
         "fidelity_percent": {
           "active": 93.95,
-          "thermal": 89.78
+          "thermal": 86.57
         }
       }
     },
     "q2": {
       "coherence": {
         "t1_ns": 10324.072344195414,
-        "t2_ramsey_ns": null,
+        "t2_ramsey_ns": 1.1197354128916702e-05,
         "t2_echo_ns": null
       },
       "gates": {
@@ -28,8 +28,8 @@
       },
       "readout": {
         "fidelity_percent": {
-          "active": 64.3,
-          "thermal": 72.94
+          "active": 73.37,
+          "thermal": 76.175
         }
       }
     },
@@ -83,8 +83,8 @@
     },
     "q6": {
       "coherence": {
-        "t1_ns": 10716.16358236422,
-        "t2_ramsey_ns": 2.40113344051613e-05,
+        "t1_ns": 36375.848543284585,
+        "t2_ramsey_ns": 22786.36892111969,
         "t2_echo_ns": 17597.566466093125
       },
       "gates": {
@@ -92,8 +92,8 @@
       },
       "readout": {
         "fidelity_percent": {
-          "active": 92.255,
-          "thermal": 87.25
+          "active": 88.67,
+          "thermal": 92.5
         }
       }
     },

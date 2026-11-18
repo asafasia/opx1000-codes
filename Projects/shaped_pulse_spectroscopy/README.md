@@ -55,9 +55,20 @@ Prominent additional minima are counted rather than automatically rejected.
 These raw-data metrics have no smoothing or noise correction; inspect the
 saved spectra and increase averaging when shot noise creates local minima.
 
+Use `--edge-smoothing-power 2` for the updated Figure 4 polynomial window.
+The default remains power 5 for previous campaigns. To explicitly measure
+the full simulated cutoff range, add `--cutoff-min 1e-5 --cutoff-max 1
+--allow-underresolved-core`. This acquires sampled hardware approximations;
+it does not make a sub-nanosecond continuous pulse realizable. At 20 us the
+smallest underlying core width is 0.1 ns, while the waveform grid is 1 ns.
+Each row and waveform check records `core_width_ns` and
+`sampling_limited_core`. Electrical I/Q limits are still checked at every
+cutoff. Use the numerical beta's opposite sign with this lab's positive
+derivative quadrature: the Figure 4 beta -0.5 corresponds to lab beta +0.5.
+
 Omitting `--execute` checks every cutoff's full I/Q peak and generates QUA
 and configuration offline, without saving experiment output. Cores below
-2 ns are rejected because the full templates sample at 1 ns; thus the
+2 ns are rejected by default because the full templates sample at 1 ns; thus the
 paper's simulated cutoff of 1e-5 is not a suitable default hardware setting.
 Acquisition writes raw calibration folders, per-cutoff spectra (`*_scan.npz`),
 `settings.json`, `metrics.csv`, `summary.json`, and `cutoff_fwhm_contrast.png`

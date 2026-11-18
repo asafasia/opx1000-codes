@@ -20,7 +20,7 @@ from quam.components.pulses import (
 )
 
 from profiles import DEFAULT_PROFILE_NAME, MAX_PROFILE_PULSE_AMPLITUDE, ProfileError, load_profile
-from profiles.loader import ACTIVE_RESET_OPERATION, PROFILES_ROOT, selected_readout_pulse
+from profiles.loader import ACTIVE_RESET_OPERATION, PROFILES_ROOT, drag_sigma_ns, selected_readout_pulse
 from quam_config import Quam
 from quam_config.derived_gates import add_derived_single_qubit_gates
 from quam_config.readout_pulses import FlatTopGaussianReadoutPulse
@@ -193,10 +193,17 @@ def _create_pulse(
         return SquarePulse(**common, axis_angle=axis_angle)
 
     if pulse["type"] == "drag":
-        return DragGaussianPulse(
+        envelope = pulse.get("envelope", "cosine")
+        if envelope == "gaussian":
+            pulse_class = DragGaussianPulse
+            common["sigma"] = drag_sigma_ns(pulse, pulse_name)
+        elif envelope == "cosine":
+            pulse_class = DragCosinePulse
+        else:
+            raise ProfileError(f"Unsupported DRAG envelope for {pulse_name!r}: {envelope!r}")
+        return pulse_class(
             **common,
             axis_angle=axis_angle or 0.0,
-            sigma=pulse["sigma_ns"],
             alpha=pulse["beta"],
             anharmonicity=qubit.anharmonicity,
             detuning=pulse["detuning_hz"],

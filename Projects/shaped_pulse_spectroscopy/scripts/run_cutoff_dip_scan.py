@@ -52,6 +52,8 @@ class ScanSettings:
     peak_amplitude_v: float = ECHO_PULSE.lorentzian_peak_amplitude
     drag_beta: float = ECHO_PULSE.drag_beta
     transition_ns: float = ECHO_PULSE.echo_transition_time_ns
+    edge_smoothing_power: int = 5
+    allow_underresolved_core: bool = False
     frequency_span_mhz: float = 1.0
     frequency_points: int = 201
     num_shots: int = 1000
@@ -63,7 +65,7 @@ class ScanSettings:
         if not all(np.isfinite(v) for v in asdict(self).values() if isinstance(v, (int, float))):
             raise ValueError("Scan settings must be finite.")
         for name in ("pulse_length_ns", "cutoff_points", "amplitude_points", "frequency_points",
-                     "num_shots", "min_width_intervals"):
+                     "num_shots", "min_width_intervals", "edge_smoothing_power"):
             if int(getattr(self, name)) != getattr(self, name):
                 raise ValueError(f"{name} must be an integer.")
         if not self.qubit or self.pulse_length_ns < 16 or self.pulse_length_ns % 4:
@@ -80,10 +82,15 @@ class ScanSettings:
             raise ValueError("Require span >=1 MHz, >=21 frequencies, and positive shots.")
         if self.min_contrast <= 0 or self.min_width_intervals < 1 or self.t2_reference_us < 0:
             raise ValueError("Require positive quality thresholds and nonnegative T2 reference.")
-        # Full-length templates sample every ns. Reject sub-grid pulse cores.
-        sigma_ns = self.pulse_length_ns / 2 * self.cutoff_min / np.sqrt(1-self.cutoff_min**2)
-        if sigma_ns < 2:
-            raise ValueError("Smallest cutoff gives a core width below 2 ns; increase cutoff or pulse length.")
+        if self.edge_smoothing_power < 1:
+            raise ValueError("edge_smoothing_power must be a positive integer.")
+        if not isinstance(self.allow_underresolved_core, bool):
+            raise ValueError("allow_underresolved_core must be boolean.")
+        # This is a model-resolution check, not the electrical voltage limit.
+        # An explicit full-range experiment may acquire the sampled approximation.
+        if self.core_width_ns(self.cutoff_min) < 2 and not self.allow_underresolved_core:
+            raise ValueError("Smallest cutoff gives a core width below 2 ns; increase cutoff or pulse length, "
+                             "or explicitly use --allow-underresolved-core for a sampled approximation.")
         # Validate analysis-window coverage before any connection.
         measure_dip(self.detunings_hz, np.full(self.frequency_points, 0.5))
 
@@ -100,6 +107,11 @@ class ScanSettings:
         span_hz = round(self.frequency_span_mhz * 1e6)
         return np.rint(np.linspace(-span_hz / 2, span_hz / 2, self.frequency_points)).astype(int)
 
+    def core_width_ns(self, cutoff):
+        """Underlying root-Lorentzian scale; c=1 is the polynomial limit."""
+        return (self.pulse_length_ns / 2 * cutoff / np.sqrt(1-cutoff**2)
+                if cutoff < 1 else float("inf"))
+
 
 def parameters_for_cutoff(settings, cutoff):
     return echo_parameters(
@@ -108,7 +120,7 @@ def parameters_for_cutoff(settings, cutoff):
         waveform_template_length_in_ns=settings.pulse_length_ns,
         lorentzian_peak_amplitude=settings.peak_amplitude_v,
         drag_beta=settings.drag_beta, echo_transition_time_ns=settings.transition_ns,
-        edge_smoothing="polynomial", edge_smoothing_power=5,
+        edge_smoothing="polynomial", edge_smoothing_power=settings.edge_smoothing_power,
         ac_stark_correction=False, stark_kappa_mhz_inv=0.0,
         min_amp_factor=settings.amplitude_min, max_amp_factor=settings.amplitude_max,
         amp_factor_points=settings.amplitude_points, amp_factor_spacing="linear",
@@ -153,6 +165,9 @@ def validate_offline(settings, machine):
             raise RuntimeError("Offline QUA generation failed.")
         np.testing.assert_allclose(amplitude_prefactors(p), settings.amplitudes)
         checks.append(dict(cutoff=float(cutoff), peak_complex_amplitude_v=peak,
+                           core_width_ns=float(settings.core_width_ns(cutoff)),
+                           sampling_limited_core=bool(settings.core_width_ns(cutoff) < 2),
+                           waveform_sample_spacing_ns=1.0,
                            nominal_rabi_mhz_per_factor=float(amplitude_to_rabi_frequency_hz(
                                settings.peak_amplitude_v, abs(pi.amplitude), effective_ns)/1e6),
                            peak_rabi_mhz_per_factor=float(amplitude_to_rabi_frequency_hz(
@@ -173,6 +188,8 @@ def analyze_dataset(dataset, settings, check):
         if amplitude == 0:
             metrics.update(accepted=False, status="zero_drive_reference", fwhm_hz=np.nan)
         records.append(dict(cutoff=check["cutoff"], pulse_length_ns=settings.pulse_length_ns,
+                            core_width_ns=float(settings.core_width_ns(check["cutoff"])),
+                            sampling_limited_core=bool(settings.core_width_ns(check["cutoff"]) < 2),
                             amp_prefactor=float(amplitude),
                             nominal_rabi_mhz=amplitude*check["nominal_rabi_mhz_per_factor"],
                             peak_rabi_mhz=amplitude*check["peak_rabi_mhz_per_factor"],
@@ -208,7 +225,7 @@ def save_summary(output, records, settings, *, complete):
     cutoffs = np.unique([r["cutoff"] for r in records])
     amps = settings.amplitudes
     width_key = "fwhm_over_t2_limit" if settings.t2_reference_us else "fwhm_hz"
-    width = np.array([r[width_key] for r in records]).reshape(-1, len(amps)).T
+    width = np.array([r[width_key] for r in records], dtype=float).reshape(-1, len(amps)).T
     if not settings.t2_reference_us:
         width = width / 1e3
     contrast = np.array([r["contrast"] for r in records]).reshape(-1, len(amps)).T
@@ -250,16 +267,37 @@ def save_summary(output, records, settings, *, complete):
         axis.set_xlabel("Cutoff c")
         if len(cutoffs) > 1:
             axis.set_xlim(cutoffs[0], cutoffs[-1])
+        else:
+            # An all-masked scatter has no data limits. Keep a positive domain
+            # even when the first acquired spectrum has no accepted linewidth.
+            axis.set_xlim(cutoffs[0] / 1.2, cutoffs[0] * 1.2)
     fig.suptitle(f"{settings.qubit}: {settings.pulse_length_ns/1000:g} us echo; "
                  f"{'complete' if complete else 'partial'} scan")
     fig.savefig(output / "cutoff_fwhm_contrast.png", dpi=160)
     plt.close(fig)
 
 
-def run_scan(settings, machine, checks, output_root):
-    output = Path(output_root) / datetime.now().astimezone().strftime("%Y%m%d_%H%M%S_%f")
-    output.mkdir(parents=True, exist_ok=False)
-    write_json(output / "settings.json", dict(
+def run_scan(settings, machine, checks, output_root, *, resume_directory=None):
+    records = []
+    output = (Path(resume_directory) if resume_directory else
+              Path(output_root) / datetime.now().astimezone().strftime("%Y%m%d_%H%M%S_%f"))
+    if resume_directory:
+        saved_settings = json.loads((output / "settings.json").read_text())
+        if any(saved_settings.get(k) != v for k, v in asdict(settings).items()):
+            raise ValueError("Resume settings differ from saved acquisition settings.")
+        summary = json.loads((output / "summary.json").read_text())
+        if summary["complete"]:
+            raise ValueError("Cannot resume an already complete scan.")
+        records = summary["records"]
+        if len(records) % len(settings.amplitudes):
+            raise ValueError("Resume requires fully saved cutoff spectra.")
+        for index in range(len(records) // len(settings.amplitudes)):
+            with np.load(output / f"cutoff_{index:03d}_scan.npz") as saved:
+                np.testing.assert_allclose(saved["cutoff"], checks[index]["cutoff"], rtol=1e-12)
+                np.testing.assert_allclose(saved["amplitude_factors"], settings.amplitudes)
+    else:
+        output.mkdir(parents=True, exist_ok=False)
+        write_json(output / "settings.json", dict(
         **asdict(settings), cutoffs=settings.cutoffs.tolist(),
         amplitude_factors=settings.amplitudes.tolist(), waveform_checks=checks,
         first_pulse_parameters=parameters_for_cutoff(settings, settings.cutoffs[0]).model_dump(mode="json"),
@@ -268,9 +306,11 @@ def run_scan(settings, machine, checks, output_root):
         reference="amplitude-robust-spectrscopy/paper/figures/04_duration_cutoff_scan_float.tex",
     ))
     saver = CalibrationSaver(output_root=output / "raw")
-    records, complete = [], False
+    complete = False
+    completed_cutoffs = len(records) // len(settings.amplitudes)
     try:
-        for index, check in enumerate(checks):
+        for index in range(completed_cutoffs, len(checks)):
+            check = checks[index]
             print(f"[{index+1}/{len(checks)}] acquiring cutoff={check['cutoff']:.6g}", flush=True)
             calibration = EchoLorentzian(
                 parameters=parameters_for_cutoff(settings, check["cutoff"]), machine=machine,
@@ -304,7 +344,11 @@ def build_parser():
     mode.add_argument("--dry-run", action="store_true", help="Offline validation only (default).")
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     for name, value in asdict(ScanSettings()).items():
-        parser.add_argument("--"+name.replace("_", "-"), type=type(value), default=value)
+        if isinstance(value, bool):
+            parser.add_argument("--"+name.replace("_", "-"), action=argparse.BooleanOptionalAction,
+                                default=value, help="Allow sampled pulses with underlying core width below 2 ns.")
+        else:
+            parser.add_argument("--"+name.replace("_", "-"), type=type(value), default=value)
     return parser
 
 

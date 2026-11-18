@@ -19,10 +19,10 @@
       "x180_drag": {
         "target": "qubit",
         "type": "drag",
-        "amplitude": 0.7171785852846015,
-        "length_ns": 20,
+        "amplitude": 0.12235357702995342,
+        "length_ns": 32,
         "sigma_ns": 4,
-        "beta": 0.52,
+        "beta": 1.4,
         "detuning_hz": 0,
         "axis_angle_rad": 0
       },
@@ -43,7 +43,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.10999999999999999,
+        "amplitude": 0.51,
         "length_ns": 2000,
         "digital_marker": "ON"
       },
@@ -75,7 +75,7 @@
       "x180_const": {
         "target": "qubit",
         "type": "constant",
-        "amplitude": 0.13536192210818768,
+        "amplitude": 0.23536192210818768,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -99,7 +99,7 @@
       "x180_cosine": {
         "target": "qubit",
         "type": "cosine",
-        "amplitude": 0.12122942555371839,
+        "amplitude": 0.08915359215749315,
         "length_ns": 40,
         "axis_angle_rad": 0
       },
@@ -113,8 +113,8 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.1,
-        "length_ns": 3000,
+        "amplitude": 0.07333333333333333,
+        "length_ns": 5000,
         "digital_marker": "ON"
       },
       "readout_GEF": {
@@ -369,9 +369,9 @@
       "x180_drag": {
         "target": "qubit",
         "type": "drag",
-        "amplitude": 0.8259381595321322,
-        "length_ns": 40,
-        "sigma_ns": 4,
+        "amplitude": 0.9316637789425276,
+        "length_ns": 24,
+        "sigma_fraction": 0.3333333333333333,
         "beta": 0.08000000000000096,
         "detuning_hz": 0,
         "axis_angle_rad": 0
@@ -393,7 +393,7 @@
       "readout": {
         "target": "resonator",
         "type": "constant",
-        "amplitude": 0.2733333333333334,
+        "amplitude": 0.4816666666666666,
         "length_ns": 3000,
         "digital_marker": "ON"
       },

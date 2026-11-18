@@ -24,8 +24,8 @@ description = """
 """
 
 
-
 # %% {Close_all_quantum_machines}
+
 
 class EndWork(BaseCalibration[NodeParameters, Quam]):
     """Class-based calibration for ``calibrations/end_work.py``."""
@@ -50,6 +50,7 @@ class EndWork(BaseCalibration[NodeParameters, Quam]):
     def run(self):
         self.run_calibration()
         return None
+
     def run_calibration(self):
         node = self
         """Closes all the opened quantum machines."""
@@ -65,6 +66,6 @@ if __name__ == "__main__":
     calibration = EndWork(
         parameters=parameters,
         options=options,
-        machine=create_machine(),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

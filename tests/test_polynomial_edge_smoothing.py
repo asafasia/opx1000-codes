@@ -76,6 +76,30 @@ def test_disabled_option_and_stretched_template():
         lorentzian.build_waveform(p)
 
 
+def test_floor_only_omits_window_and_keeps_echo_cancellation():
+    p = parameters(edge_smoothing="floor", echo=False)
+    plain = np.asarray(lorentzian.root_lorentzian_envelope(1000, 0.1, 0.2))
+    expected = (plain - 0.2 * 0.1) / (1 - 0.1)
+    np.testing.assert_allclose(lorentzian.build_waveform(p), expected, atol=1e-16)
+    p.echo = True
+    waveform = np.asarray(lorentzian.build_waveform(p))
+    assert waveform[0] == waveform[-1] == 0
+    np.testing.assert_allclose(waveform, -waveform[::-1], atol=1e-15)
+    assert lorentzian._pulse_metadata(p)["edge_smoothing"] == "floor"
+
+
+def test_floor_derivative_and_unit_cutoff_limit():
+    t = np.linspace(-14., 14., 301)
+    args = dict(duration=30., cutoff=0.007, floor_only=True)
+    g, dg = polynomial_root_envelope(t, **args)
+    h = 1e-7
+    forward, _ = polynomial_root_envelope(t+h, **args)
+    backward, _ = polynomial_root_envelope(t-h, **args)
+    np.testing.assert_allclose(dg, (forward-backward)/(2*h), rtol=1e-6, atol=1e-9)
+    limit, _ = polynomial_root_envelope(t, **(args | {"cutoff": 1.}))
+    np.testing.assert_allclose(limit, 1-(t/15)**2)
+
+
 @pytest.mark.parametrize("overrides", [dict(edge_smoothing="bad"),
     dict(edge_smoothing_power=0), dict(edge_smoothing_power=1.5),
     dict(edge_smoothing_power=np.nan), dict(pulse_shape="gaussian")])
@@ -84,11 +108,12 @@ def test_invalid_options_fail_before_playback(overrides):
         lorentzian.build_waveform(parameters(**overrides))
 
 
-def test_polynomial_simulation_is_physical_and_converges_with_and_without_drag():
+@pytest.mark.parametrize("edge_smoothing", ["polynomial", "floor"])
+def test_polynomial_simulation_is_physical_and_converges_with_and_without_drag(edge_smoothing):
     common = dict(duration_us=0.1, detuning_mhz=np.array([-1., 0., 1.]),
                   rabi_mhz=np.array([3.]), t1_us=48., t2_star_us=20.,
                   anharmonicity_mhz=-216., cutoff=0.2, echo=True,
-                  echo_transition_time_ns=16., edge_smoothing="polynomial")
+                  echo_transition_time_ns=16., edge_smoothing=edge_smoothing)
     for beta in (0., -0.5):
         coarse = simulate_qutrit_slices(**common, drag_beta=beta, num_steps_per_half=200)
         fine = simulate_qutrit_slices(**common, drag_beta=beta, num_steps_per_half=400)

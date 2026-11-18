@@ -242,8 +242,8 @@ if __name__ == "__main__":
     parameters = Parameters()
     parameters.reset_type = "thermal"
     parameters.num_shots = 100
-    parameters.frequency_span_in_mhz = 20
-    parameters.frequency_step_in_mhz = 0.2
+    parameters.frequency_span_in_mhz = 10
+    parameters.frequency_step_in_mhz = 0.1
     parameters.start_amp = 0.1
     parameters.end_amp = 2.0
     parameters.num_amps = 10
@@ -257,6 +257,6 @@ if __name__ == "__main__":
     calibration = ReadoutFrequencyAmplitudeOptimization(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q2b"),
+        machine=create_machine(qubit="q2"),
     )
     calibration.run()

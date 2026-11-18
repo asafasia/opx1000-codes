@@ -119,6 +119,27 @@ def _validate_pulses(pulses_document: dict[str, Any]) -> None:
             _validate_pulse(f"{qubit_name}.{name}", pulse)
 
 
+def drag_sigma_ns(pulse: Mapping[str, Any], name: str = "drag") -> float:
+    """Resolve dimensionless sigma_fraction, accepting legacy sigma_ns profiles."""
+    fields = [field for field in ("sigma_fraction", "sigma_ns") if field in pulse]
+    _require(
+        len(fields) == 1,
+        f"DRAG pulse {name!r} needs exactly one of sigma_fraction or legacy sigma_ns",
+    )
+    field = fields[0]
+    value = pulse[field]
+    _require(
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value > 0,
+        f"DRAG pulse {name!r} needs finite positive {field}",
+    )
+    sigma = value * pulse["length_ns"] if field == "sigma_fraction" else value
+    _require(math.isfinite(sigma), f"DRAG pulse {name!r} has non-finite sigma")
+    return float(sigma)
+
+
 def _validate_pulse(name: str, pulse: Any) -> None:
     _require(isinstance(pulse, dict), f"Pulse {name!r} must be an object")
     pulse_type = pulse.get("type")
@@ -172,10 +193,16 @@ def _validate_pulse(name: str, pulse: Any) -> None:
     # Ignore legacy inline weights when reading older profiles.
 
     if pulse_type == "drag":
+        envelope = pulse.get("envelope", "cosine")
         _require(
-            isinstance(pulse.get("sigma_ns"), (int, float)) and pulse["sigma_ns"] > 0,
-            f"DRAG pulse {name!r} needs positive sigma_ns",
+            envelope in ("cosine", "gaussian"),
+            f"DRAG pulse {name!r} has unsupported envelope {envelope!r}",
         )
+        if envelope == "gaussian" or any(
+            field in pulse for field in ("sigma_fraction", "sigma_ns")
+        ):
+            # Retain valid Gaussian width settings when switching to cosine.
+            drag_sigma_ns(pulse, name)
         _require(
             isinstance(pulse.get("beta"), (int, float)),
             f"DRAG pulse {name!r} needs beta",

@@ -208,7 +208,7 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
                 n_st.save("n")
                 for i in range(num_qubits):
                     for name, stream_list in streams.items():
-                        self.save_acquisition_stream(stream_list[i], f'{name}{i + 1}')
+                        self.save_acquisition_stream(stream_list[i], f"{name}{i + 1}")
 
         return node.namespace.get("qua_program")
 
@@ -268,7 +268,9 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
             root=self.profile_updater.output_root / "kernel_candidates" / uuid4().hex,
         )
         node.namespace["kernel_artifact_directory"] = output_directory
-        node.log(f"Candidate readout traces and kernels saved to {output_directory}; profile unchanged.")
+        node.log(
+            f"Candidate readout traces and kernels saved to {output_directory}; profile unchanged."
+        )
         node.outcomes = {q.name: "successful" for q in node.namespace["qubits"]}
 
     def plot_data(self):
@@ -307,7 +309,8 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
 
     def profile_updates(self):
         return self.readout_profile_updates(
-            settings={"use_kernel": True}, invalidate_discrimination=True,
+            settings={"use_kernel": True},
+            invalidate_discrimination=True,
         )
 
     def propose_profile_update(self, *, apply: bool = True) -> bool:
@@ -319,7 +322,9 @@ class ReadoutWeightsOptimization(BaseCalibration[Parameters, Quam]):
         document = json.loads((proposal / "proposal.json").read_text(encoding="utf-8"))
         if document["status"] != "applied":
             return proposed
-        target = self.profile_updater.profiles_root / self.active_profile_name() / "kernels"
+        target = (
+            self.profile_updater.profiles_root / self.active_profile_name() / "kernels"
+        )
         target.mkdir(parents=True, exist_ok=True)
         for qubit, _ in self.profile_update_results():
             filename = f"{qubit.name}_{self.parameters.readout_operation}_kernel.npz"
@@ -346,6 +351,6 @@ if __name__ == "__main__":
     calibration = ReadoutWeightsOptimization(
         parameters=parameters,
         options=options,
-        machine=create_machine(qubit="q6"),
+        machine=create_machine(qubit="q1"),
     )
     calibration.run()

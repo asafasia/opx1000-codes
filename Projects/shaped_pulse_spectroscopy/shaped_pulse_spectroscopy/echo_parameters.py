@@ -54,13 +54,13 @@ class EchoPulse:
             raise ValueError("Echo transition must fit within the pulse.")
         if self.pulse_shape not in ("lorentzian", "root_lorentzian", "gaussian"):
             raise ValueError("Unknown pulse shape.")
-        if self.edge_smoothing not in ("none", "polynomial"):
+        if self.edge_smoothing not in ("none", "floor", "polynomial"):
             raise ValueError("Unknown edge smoothing option.")
         if (
-            self.edge_smoothing == "polynomial"
+            self.edge_smoothing != "none"
             and self.pulse_shape != "root_lorentzian"
         ):
-            raise ValueError("Polynomial edge smoothing requires root_lorentzian.")
+            raise ValueError("Edge correction requires root_lorentzian.")
         if (
             self.edge_smoothing_power < 1
             or int(self.edge_smoothing_power) != self.edge_smoothing_power

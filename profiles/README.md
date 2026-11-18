@@ -83,7 +83,20 @@ operation names can be calibrated independently. Supported pulse types are:
 
 - `constant`: rectangular envelope for qubit control or readout.
 - `flat_top_gaussian`: readout envelope with Gaussian edges; `edge_length_ns` defaults to 100 ns.
-- `drag`: requires `sigma_ns`, `beta`, and `detuning_hz`.
+- `drag`: defaults to a cosine envelope with its derivative in the second
+  quadrature, scaled by `beta`. Requires `beta` and `detuning_hz`; axis rotation
+  and detuning still apply to the complex waveform. This default also applies
+  to existing `drag` definitions without an `envelope` field.
+  Set `"envelope": "gaussian"` to use Gaussian DRAG, or `"envelope": "cosine"`
+  to select the default explicitly. Cosine DRAG does not use sigma; existing
+  sigma fields are retained and validated but do not affect its waveform.
+  Gaussian DRAG requires dimensionless `sigma_fraction` or legacy `sigma_ns`.
+  The Gaussian standard deviation is `sigma_fraction * length_ns`; for example,
+  `"sigma_fraction": 0.3333333333333333` gives sigma = 13.333 ns for a 40 ns pulse.
+  The fraction stays fixed when changing the profile pulse length and rebuilding
+  the machine. Legacy `sigma_ns` is still accepted; specify exactly one of the two
+  fields. Both forms must be finite and positive. Changing the envelope or width
+  requires recalibrating the pulse amplitude and DRAG beta.
 - `cosine`: cosine-shaped qubit-control envelope.
 - `saturation`: long constant qubit drive.
 

@@ -187,7 +187,12 @@ class EchoLorentzian(BaseCalibration[Parameters, Quam]):
                         else for_(*from_array(df, dfs))
                     )
                     with detuning_loop:
-                        with for_(*from_array(a, amps)):
+                        amplitude_loop = (
+                            for_each_(a, amps.tolist())
+                            if self.parameters.amp_factor_values is not None
+                            else for_(*from_array(a, amps))
+                        )
+                        with amplitude_loop:
                             for qubit in multiplexed_qubits.values():
                                 qubit.xy.update_frequency(
                                     qubit.xy.intermediate_frequency

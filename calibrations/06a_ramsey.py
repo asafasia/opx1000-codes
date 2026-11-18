@@ -359,9 +359,9 @@ if __name__ == "__main__":
     parameters.use_readout_mitigation = 0
 
     parameters.reset_type = "active"  # "active" or "thermal"
-    parameters.max_wait_time_in_ns = 160e3
+    parameters.max_wait_time_in_ns = 105e3
     parameters.wait_time_num_points = 250
-    parameters.frequency_detuning_in_mhz = 0.3
+    parameters.frequency_detuning_in_mhz = 0.2
 
     options = CalibrationOptions()
 

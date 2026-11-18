@@ -142,15 +142,28 @@ def build_waveform(parameters) -> list[float]:
             "pulse_shape must be 'lorentzian', 'root_lorentzian', or 'gaussian'."
         )
 
-    if edge_smoothing == "polynomial":
+    if edge_smoothing in {"floor", "polynomial"}:
         # Preserve the existing endpoint-inclusive envelope sampling grid.
         envelope, _ = polynomial_root_envelope(
             np.linspace(-waveform_length / 2.0, waveform_length / 2.0, waveform_length),
             duration=waveform_length,
             cutoff=parameters.cutoff,
             power=edge_power,
+            floor_only=edge_smoothing == "floor",
         )
         waveform = (parameters.lorentzian_peak_amplitude * envelope).tolist()
+
+    ramp_ns = float(getattr(parameters, "endpoint_ramp_ns", 0.0))
+    length_ns = float(parameters.lorentzian_length_in_ns)
+    if not np.isfinite(ramp_ns) or ramp_ns < 0 or 2 * ramp_ns > length_ns:
+        raise ValueError("endpoint_ramp_ns must be finite and between zero and half the pulse length.")
+    if ramp_ns > 0:
+        # Match the endpoint-inclusive grid used by the envelope. The ramp is
+        # sampled before the echo reversal and full-waveform DRAG derivative.
+        times_ns = np.linspace(0.0, length_ns, waveform_length)
+        x = np.clip(np.minimum(times_ns, length_ns - times_ns) / ramp_ns, 0.0, 1.0)
+        window = x**3 * (10.0 - 15.0*x + 6.0*x*x)
+        waveform = (np.asarray(waveform) * window).tolist()
 
     if getattr(parameters, "echo", False):
         transition_time_ns = float(getattr(parameters, "echo_transition_time_ns", 0.0))
@@ -573,6 +586,14 @@ def install_lorentzian_operation(
 
 def amplitude_prefactors(parameters) -> np.ndarray:
     """Return the Lorentzian amplitude prefactors for a sweep."""
+    values = getattr(parameters, "amp_factor_values", None)
+    if values is not None:
+        values = np.asarray(values, dtype=float)
+        if values.ndim != 1 or values.size == 0 or not np.isfinite(values).all():
+            raise ValueError("amp_factor_values must be a nonempty finite 1D list.")
+        if np.unique(values).size != values.size:
+            raise ValueError("amp_factor_values must not contain duplicates.")
+        return values
     spacing = getattr(parameters, "amp_factor_spacing", "linear")
     points = getattr(parameters, "amp_factor_points", None)
     if points is not None:
@@ -759,6 +780,7 @@ def _pulse_metadata(parameters, namespace: dict | None = None) -> dict[str, obje
         "cutoff": getattr(parameters, "cutoff", None),
         "edge_smoothing": getattr(parameters, "edge_smoothing", "none"),
         "edge_smoothing_power": getattr(parameters, "edge_smoothing_power", 5),
+        "endpoint_ramp_ns": getattr(parameters, "endpoint_ramp_ns", 0.0),
         "lorentzian_peak_amplitude": getattr(
             parameters, "lorentzian_peak_amplitude", None
         ),
@@ -785,6 +807,7 @@ def _pulse_metadata(parameters, namespace: dict | None = None) -> dict[str, obje
         "max_amp_factor": getattr(parameters, "max_amp_factor", None),
         "amp_factor_step": getattr(parameters, "amp_factor_step", None),
         "amp_factor_points": getattr(parameters, "amp_factor_points", None),
+        "amp_factor_values": getattr(parameters, "amp_factor_values", None),
         "amp_factor_spacing": getattr(parameters, "amp_factor_spacing", None),
         "frequency_span_in_mhz": getattr(parameters, "frequency_span_in_mhz", None),
         "frequency_step_in_mhz": getattr(parameters, "frequency_step_in_mhz", None),

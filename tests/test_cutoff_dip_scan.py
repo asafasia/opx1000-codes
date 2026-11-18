@@ -55,6 +55,7 @@ def test_multiple_dips_are_counted_and_nearest_crossings_used():
     dict(amplitude_points=1), dict(amplitude_max=2), dict(frequency_span_mhz=.5),
     dict(transition_ns=0), dict(num_shots=0), dict(drag_beta=float("nan")),
     dict(frequency_points=21, frequency_span_mhz=100),
+    dict(edge_smoothing_power=0), dict(edge_smoothing_power=1.5),
 ])
 def test_invalid_settings(changes):
     with pytest.raises(ValueError):
@@ -90,6 +91,32 @@ def test_paper_zero_drive_reference_is_not_accepted_as_a_dip():
         nominal_rabi_mhz_per_factor=100., peak_rabi_mhz_per_factor=90., peak_complex_amplitude_v=.4))
     assert rows[0]["status"] == "zero_drive_reference" and not rows[0]["accepted"]
     assert np.isnan(rows[0]["fwhm_hz"]) and rows[1]["accepted"]
+
+
+def test_full_range_poly2_requires_explicit_sampled_approximation():
+    args = scan.build_parser().parse_args(["--allow-underresolved-core", "--edge-smoothing-power", "2"])
+    assert args.allow_underresolved_core and args.edge_smoothing_power == 2
+    assert not scan.build_parser().parse_args([]).allow_underresolved_core
+    settings = scan.ScanSettings(pulse_length_ns=20_000, edge_smoothing_power=2,
+        cutoff_min=1e-5, cutoff_max=1, cutoff_points=100, allow_underresolved_core=True)
+    assert settings.core_width_ns(1e-5) == pytest.approx(.1)
+    assert settings.core_width_ns(1) == float("inf")
+    for cutoff in (1e-5, 1):
+        p = scan.parameters_for_cutoff(settings, cutoff)
+        assert p.edge_smoothing_power == 2
+        i = np.asarray(scan.build_waveform(p))
+        q = np.asarray(scan.drag_quadrature_waveform(i, drag_beta=.5,
+            anharmonicity_mhz=216, pulse_length_ns=20_000))
+        assert len(i) == 20_000 and np.isfinite(i+1j*q).all()
+        assert i[0] == i[-1] == 0
+    x, y = gaussian()
+    data = xr.Dataset({"state": (("qubit", "amp_prefactor", "detuning"),
+                                 np.tile(y, (1, settings.amplitude_points, 1)))},
+                      coords={"qubit": [settings.qubit], "amp_prefactor": settings.amplitudes, "detuning": x})
+    rows = scan.analyze_dataset(data, settings, dict(cutoff=1e-5,
+        nominal_rabi_mhz_per_factor=100., peak_rabi_mhz_per_factor=2., peak_complex_amplitude_v=.01))
+    assert all(r["sampling_limited_core"] for r in rows)
+    assert rows[0]["core_width_ns"] == pytest.approx(.1)
 
 
 def test_dataset_metrics_and_summary(tmp_path):
@@ -140,3 +167,26 @@ def test_interrupted_acquisition_keeps_completed_cutoff(tmp_path, monkeypatch):
     assert not summary["complete"] and summary["measured_spectra"] == 1
     with np.load(output.parent / "cutoff_000_scan.npz") as saved:
         np.testing.assert_allclose(saved["state"][0], y)
+    original = (output.parent / "cutoff_000_scan.npz").read_bytes()
+    scan.run_scan(settings, object(), checks, tmp_path, resume_directory=output.parent)
+    assert len(calls) == 3
+    assert calls[-1]["name"] == "cutoff_dip_001"
+    assert (output.parent / "cutoff_000_scan.npz").read_bytes() == original
+    assert json.loads(output.read_text())["complete"]
+
+
+def test_first_cutoff_without_valid_width_can_be_plotted(tmp_path):
+    settings = scan.ScanSettings(amplitude_min=1, amplitude_max=1, amplitude_points=1,
+        cutoff_min=1e-5, allow_underresolved_core=True, t2_reference_us=7.6)
+    x, _ = gaussian()
+    data = xr.Dataset({"state": (("qubit", "amp_prefactor", "detuning"),
+                                 np.full((1, 1, len(x)), .1))},
+        coords={"qubit": [settings.qubit], "amp_prefactor": [1.], "detuning": x})
+    rows = scan.analyze_dataset(data, settings, dict(cutoff=1e-5,
+        nominal_rabi_mhz_per_factor=50., peak_rabi_mhz_per_factor=2., peak_complex_amplitude_v=.01))
+    assert not rows[0]["accepted"]
+    scan.save_summary(tmp_path, rows, settings, complete=False)
+    # JSON null widths from a resumed run must also remain plottable.
+    saved = json.loads((tmp_path / "summary.json").read_text())
+    scan.save_summary(tmp_path, saved["records"], settings, complete=False)
+    assert (tmp_path / "cutoff_fwhm_contrast.png").stat().st_size > 1000

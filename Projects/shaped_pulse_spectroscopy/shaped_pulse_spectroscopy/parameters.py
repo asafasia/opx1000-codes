@@ -25,10 +25,12 @@ class NodeSpecificParameters(RunnableParameters):
     """Peak amplitude A of the unscaled Lorentzian waveform in V."""
     cutoff: float = 0.2
     """Uncorrected edge/peak ratio; sets core width when edge smoothing is enabled."""
-    edge_smoothing: Literal["none", "polynomial"] = "none"
-    """Optional root-Lorentzian floor subtraction and polynomial edge window."""
+    edge_smoothing: Literal["none", "floor", "polynomial"] = "none"
+    """Root-Lorentzian correction: none, floor only, or floor plus polynomial."""
     edge_smoothing_power: int = 5
     """Positive polynomial window power; the paper uses 5. No peak/area rematching."""
+    endpoint_ramp_ns: float = 0.0
+    """Optional quintic rise/fall at the pulse endpoints, in physical ns."""
     echo: bool = False
     """Apply a 180-degree phase jump at the waveform midpoint."""
     ac_stark_correction: bool = False
@@ -49,6 +51,8 @@ class NodeSpecificParameters(RunnableParameters):
     """Lorentzian-amplitude prefactor step."""
     amp_factor_points: int | None = None
     """Optional exact number of amplitude prefactors, including both endpoints."""
+    amp_factor_values: list[float] | None = None
+    """Explicit amplitude prefactors, overriding the generated amplitude grid."""
     amp_factor_spacing: str = "linear"
     """Amplitude prefactor spacing: 'linear' or 'log'."""
     fixed_amp_factor: float | None = None

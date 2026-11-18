@@ -100,12 +100,13 @@ def _integrate_half(
     step = (time_stop_us - time_start_us) / num_steps
 
     def derivative(current_state: np.ndarray, time_us: float) -> np.ndarray:
-        if edge_smoothing == "polynomial":
+        if edge_smoothing in {"floor", "polynomial"}:
             envelope, envelope_derivative = polynomial_root_envelope(
                 time_us,
                 duration=duration_us,
                 cutoff=cutoff,
                 power=edge_smoothing_power,
+                floor_only=edge_smoothing == "floor",
             )
         elif pulse_shape == "root_lorentzian":
             envelope = 1.0 / np.sqrt(1.0 + (time_us / sigma_us) ** 2)
